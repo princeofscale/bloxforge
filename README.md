@@ -6,6 +6,16 @@
 
 > This is a fork of [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp) v2.7.0 with four plugin-side fixes baked in. The fixes target Roblox engine constraints around per-peer HTTP access and cross-DataModel signaling that the upstream plugin didn't account for.
 
+## Why you should use this over other MCP servers
+
+There are three Roblox Studio MCP servers in circulation: the [official Roblox one](https://create.roblox.com/docs/studio/mcp), [boshyxd's fork](https://github.com/boshyxd/robloxstudio-mcp) (43 tools, way more coverage than upstream), and this one. This package is the only one where all three of these work simultaneously without manual setup:
+
+1. **boshyxd's 43-tool surface** — full file-tree browsing, mass property reads/writes, script search-and-replace, attribute/tag management, build import/export, asset insertion, screenshot capture, ScriptEditorService integration. The official Roblox MCP exposes a fraction of this. Inherited cleanly from upstream with no tools cut.
+2. **Game-VM eval bridges for playtest debugging** — `eval_server_runtime` and `eval_client_runtime` run inside the running game's Script / LocalScript VMs, not a sandboxed plugin VM. This is the only way to inspect runtime-mutated module state during a playtest (e.g., a networking lib's cached counters, an ECS world's tick state, a datastore wrapper's batch queue). The official MCP's `execute_luau` and upstream boshyxd's `execute_luau target=client-N` both run in isolated VMs where `require(SomeModule)` returns a fresh table every call. Bridge scripts are ported from [chrrxs/roblox-mcp-primitives](https://github.com/Chrrxs/roblox-mcp-primitives), auto-installed at `start_playtest`, auto-removed at `stop_playtest`. Zero manual setup.
+3. **Auto-connect across every DataModel** — boshyxd's plugin only registers with MCP when you click a button in its dock widget, but that widget is *invisible in play DMs*, so `target=server` and `target=client-N` never worked out of the box. This fork auto-activates on plugin load in every DM (edit, play server, every play client), uses a server-peer broker to route `target=client-N` past the engine's "client can't `HttpService:RequestAsync`" restriction, and adds an edit-proxy so `stop_playtest` calls `StudioTestService:EndTest` from the play server DM where it's actually legal.
+
+If you only need to read scripts and inspect static instance trees, the official Roblox MCP is fine. If you need to drive a *running* game from an AI agent — start playtests, inspect peer-specific state, mutate live globals, end playtests cleanly — this is the only fork that ships those workflows working out of the box.
+
 ## Fork fixes
 
 | # | Bug upstream | Fix in this fork |
