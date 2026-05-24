@@ -91,42 +91,59 @@ export class RobloxStudioMCPServer {
     let boundPort = 0;
     let promotionInterval: ReturnType<typeof setInterval> | undefined;
 
-    // Try to bind as primary
+    // Try to bind as primary on basePort only — secondary sessions must NOT
+    // claim a different "primary" port, because the plugin only polls basePort.
+    // A successful bind on basePort+1..+4 would create a fake primary whose
+    // bridge queue nothing ever reads from, hanging tool calls until they time
+    // out. The intended multi-session pattern is: first session = primary,
+    // every subsequent session = proxy forwarding to basePort. This matches the
+    // official Roblox Studio MCP (Roblox/studio-rust-mcp-server, main.rs:43).
     try {
       primaryApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config);
-      const result = await listenWithRetry(primaryApp, host, basePort, 5);
+      const result = await listenWithRetry(primaryApp, host, basePort, 1);
       httpHandle = result.server;
       boundPort = result.port;
       console.error(`HTTP server listening on ${host}:${boundPort} for Studio plugin (primary mode)`);
       console.error(`Streamable HTTP MCP endpoint: http://localhost:${boundPort}/mcp`);
     } catch {
-      // All ports in use - fall back to proxy mode
+      // basePort taken — another MCP subprocess owns the plugin connection.
+      // Fall back to proxy mode and forward all bridge calls through it.
       bridgeMode = 'proxy';
       primaryApp = undefined;
       const proxyBridge = new ProxyBridgeService(`http://localhost:${basePort}`);
       this.bridge = proxyBridge;
       this.tools = new RobloxStudioTools(this.bridge);
-      console.error(`All ports ${basePort}-${basePort + 4} in use - entering proxy mode (forwarding to localhost:${basePort})`);
+      console.error(`Port ${basePort} in use - entering proxy mode (forwarding to localhost:${basePort})`);
 
-      // Periodically try to promote to primary if the port frees up
+      // Periodically try to promote to primary if the port frees up.
+      // Single-attempt bind for the same reason as the initial bind above —
+      // only basePort has a real plugin polling it, so promoting to basePort+1
+      // would create another fake primary.
+      //
+      // Build the candidate primary infrastructure on local vars first; only
+      // swap this.bridge / this.tools AFTER the bind succeeds. The previous
+      // version swapped synchronously before the await, leaving a brief window
+      // each interval where tool calls would land on a regular BridgeService
+      // with no plugin polling it (queue with no consumer → 30s timeout).
       const promotionIntervalMs = parseInt(process.env.ROBLOX_STUDIO_PROXY_PROMOTION_INTERVAL_MS || '5000');
       promotionInterval = setInterval(async () => {
+        const candidateBridge = new BridgeService();
+        const candidateTools = new RobloxStudioTools(candidateBridge);
+        const candidateApp = createHttpServer(candidateTools, candidateBridge, this.allowedToolNames, this.config);
         try {
-          this.bridge = new BridgeService();
-          this.tools = new RobloxStudioTools(this.bridge);
-          primaryApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config);
-          const result = await listenWithRetry(primaryApp, host, basePort, 5);
+          const result = await listenWithRetry(candidateApp, host, basePort, 1);
+          // Bind succeeded — atomically swap to primary mode (synchronous from here).
+          this.bridge = candidateBridge;
+          this.tools = candidateTools;
           httpHandle = result.server;
           boundPort = result.port;
+          primaryApp = candidateApp;
           bridgeMode = 'primary';
           (primaryApp as any).setMCPServerActive(true);
           console.error(`Promoted from proxy to primary on port ${boundPort}`);
           if (promotionInterval) clearInterval(promotionInterval);
         } catch {
-          // Still can't bind - stay in proxy mode, restore proxy bridge
-          this.bridge = new ProxyBridgeService(`http://localhost:${basePort}`);
-          this.tools = new RobloxStudioTools(this.bridge);
-          primaryApp = undefined;
+          // basePort still taken — discard the candidate, leave proxy bridge live.
         }
       }, promotionIntervalMs);
     }

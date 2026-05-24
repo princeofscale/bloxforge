@@ -301,7 +301,7 @@ function init(pluginRef: Plugin) {
 	creditsLabel.Position = new UDim2(0, 10, 0, 23);
 	creditsLabel.BackgroundTransparency = 1;
 	creditsLabel.RichText = true;
-	creditsLabel.Text = '<font color="#999999">by</font> <font color="#CCCCCC">@BoshyDx</font> <font color="#666666">|</font> <font color="#999999">discord</font> <font color="#CCCCCC">boshyz</font>';
+	creditsLabel.Text = '<font color="#999999">github</font> <font color="#CCCCCC">Chrrxs/robloxstudio-mcp</font>';
 	creditsLabel.TextColor3 = C.muted;
 	creditsLabel.TextSize = 8;
 	creditsLabel.Font = Enum.Font.GothamMedium;
