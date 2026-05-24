@@ -163,7 +163,7 @@ gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp
 ---
 
 <!-- VERSION_LINE -->
-**v2.11.1** - based on boshyxd v2.7.0 + four plugin-side fixes + SerializationService round-trip + per-peer memory snapshots + multi-session bind/proxy fix
+**v2.11.2** - based on boshyxd v2.7.0 + four plugin-side fixes + SerializationService round-trip + per-peer memory snapshots + multi-session bind/proxy fix + simplified stop_playtest (cross-DM signaling)
 
 ## Building & releasing
 

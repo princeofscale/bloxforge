@@ -9,12 +9,10 @@ import MemoryHandlers from "./handlers/MemoryHandlers";
 // in ReplicatedStorage; each player gets a proxy "client" registration on the
 // MCP side, polled and dispatched by the server peer.
 //
-// The same server peer also registers an "edit" proxy that intercepts
-// /api/stop-playtest specifically - StudioTestService:EndTest only works from
-// the play server DM, so the real edit DM cannot satisfy stop requests on its
-// own. MCP returns the same pending request to multiple pollers until someone
-// /responds, so non-stop edit-targeted requests fall through to the actual
-// edit DM untouched.
+// (Previously the server peer also registered an "edit-proxy" role to
+// intercept /api/stop-playtest and call StudioTestService:EndTest. That hack
+// is gone: stop now uses StopPlayMonitor with plugin:SetSetting cross-DM
+// signaling, which works regardless of MCP server state.)
 
 const MCP_URL = "http://localhost:58741";
 const BROKER_NAME = "__MCPClientBroker";
@@ -219,49 +217,10 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 	task.spawn(pollProxy, proxyId, player, rf);
 }
 
-function startEditProxyLoop() {
-	task.spawn(() => {
-		const proxyId = HttpService.GenerateGUID(false);
-		const [ok, res] = postJson("/ready", { instanceId: proxyId, role: "edit-proxy" });
-		if (!ok || !res || !res.Success) {
-			warn("[MCPFork] edit-proxy register failed");
-			return;
-		}
-		while (true) {
-			const [okPoll, pollRes] = pcall(() =>
-				HttpService.RequestAsync({
-					Url: `${MCP_URL}/poll?instanceId=${proxyId}`,
-					Method: "GET",
-					Headers: { "Content-Type": "application/json" },
-				}),
-			);
-			if (okPoll && pollRes && (pollRes.Success || pollRes.StatusCode === 503)) {
-				const [okJson, body] = pcall(() => HttpService.JSONDecode(pollRes.Body) as PollResponseBody);
-				if (okJson && body) {
-					// Re-register if the server lost our edit-proxy registration.
-					if (body.knownInstance === false) {
-						reRegisterProxy(proxyId, "edit-proxy");
-					}
-					if (
-						body.request &&
-						body.request.endpoint === "/api/stop-playtest" &&
-						body.requestId !== undefined
-					) {
-						const sts = game.GetService("StudioTestService") as Instance & {
-							EndTest(reason: string): void;
-						};
-						const [endOk, endErr] = pcall(() => sts.EndTest("stopped_by_mcp"));
-						const response = endOk
-							? { success: true, message: "Playtest stopped via edit-proxy/EndTest" }
-							: { success: false, error: `EndTest failed: ${tostring(endErr)}` };
-						postJson("/response", { requestId: body.requestId, response });
-					}
-				}
-			}
-			task.wait(0.15);
-		}
-	});
-}
+// (Removed: startEditProxyLoop. The play-server DM no longer registers an
+// "edit-proxy" peer with the MCP server. stop_playtest now uses a cross-DM
+// plugin:SetSetting flag consumed by StopPlayMonitor in the play-server DM,
+// which doesn't depend on MCP server state or peer registration at all.)
 
 function setupServerBroker() {
 	let rf = ReplicatedStorage.FindFirstChild(BROKER_NAME) as RemoteFunction | undefined;
@@ -288,7 +247,6 @@ function setupServerBroker() {
 		}
 		proxyByPlayer.clear();
 	});
-	startEditProxyLoop();
 }
 
 export = {

@@ -1,11 +1,15 @@
 import { HttpService, LogService } from "@rbxts/services";
 import { installBridges, cleanupBridges } from "../EvalBridges";
+import StopPlayMonitor from "../StopPlayMonitor";
 
 const StudioTestService = game.GetService("StudioTestService");
 const ServerScriptService = game.GetService("ServerScriptService");
 const ScriptEditorService = game.GetService("ScriptEditorService");
 
-const STOP_SIGNAL = "__MCP_STOP__";
+// NAV_SIGNAL flows from the edit DM to the play-server DM via the injected
+// __MCP_CommandListener Script + LogService.MessageOut. Stop signaling moved
+// off this path entirely (see StopPlayMonitor) because cross-DM MessageOut
+// reflection from edit -> play-server does not work in practice.
 const NAV_SIGNAL = "__MCP_NAV__";
 const NAV_RESULT = "__MCP_NAV_RESULT__";
 
@@ -25,16 +29,13 @@ let navResultCallback: ((json: string) => void) | undefined;
 
 function buildCommandListenerSource(): string {
 	return `local LogService = game:GetService("LogService")
-local StudioTestService = game:GetService("StudioTestService")
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local NAV_SIG = "${NAV_SIGNAL}"
 local NAV_RES = "${NAV_RESULT}"
 LogService.MessageOut:Connect(function(msg)
-	if msg == "${STOP_SIGNAL}" then
-		pcall(function() StudioTestService:EndTest("stopped_by_mcp") end)
-	elseif string.sub(msg, 1, #NAV_SIG + 1) == NAV_SIG .. ":" then
+	if string.sub(msg, 1, #NAV_SIG + 1) == NAV_SIG .. ":" then
 		local json = string.sub(msg, #NAV_SIG + 2)
 		task.spawn(function()
 			local ok, d = pcall(function() return HttpService:JSONDecode(json) end)
@@ -135,7 +136,6 @@ function startPlaytest(requestData: Record<string, unknown>) {
 	cleanupStopListener();
 
 	logConnection = LogService.MessageOut.Connect((message, messageType) => {
-		if (message === STOP_SIGNAL) return;
 		if (message.sub(1, NAV_SIGNAL.size()) === NAV_SIGNAL) return;
 		if (message.sub(1, NAV_RESULT.size() + 1) === `${NAV_RESULT}:`) {
 			if (navResultCallback) {
@@ -193,32 +193,40 @@ function startPlaytest(requestData: Record<string, unknown>) {
 	});
 
 	const msg = numPlayers !== undefined
-		? `Playtest started in ${mode} mode with ${numPlayers} player(s)`
-		: `Playtest started in ${mode} mode`;
+		? `Playtest started in ${mode} mode with ${numPlayers} player(s).`
+		: `Playtest started in ${mode} mode.`;
 
 	const response: Record<string, unknown> = {
 		success: true,
 		message: msg,
-		evalBridges: bridgeInstall.installed ? "installed" : `failed: ${bridgeInstall.error}`,
 	};
+	// Only mention eval bridges when they failed — when they're fine, the
+	// detail is noise. eval_server_runtime / eval_client_runtime will surface
+	// their own clear errors if the caller tries to use them after a failed
+	// install.
+	if (!bridgeInstall.installed) {
+		response.evalBridgesError = bridgeInstall.error;
+	}
 
 	return response;
 }
 
 function stopPlaytest(_requestData: Record<string, unknown>) {
-	// Server-side routing (tools/index.ts:stopPlaytest) sends /api/stop-playtest
-	// to the role="edit-proxy" instance whenever one is registered. This handler
-	// is only reached when there's no edit-proxy - i.e. no active playtest, or
-	// the play DMs haven't completed plugin auto-activation yet. Calling
-	// StudioTestService:EndTest from the edit DM is illegal ("can only be
-	// called from the server DataModel of a running Studio play session"), so
-	// don't try - return a clean "no active playtest" response instead.
-	return {
-		error: "No active playtest to stop (edit-proxy not registered).",
-		hint:
-			"If a playtest is running, the play-server DM may not have completed plugin auto-activation yet. " +
-			"Wait a moment and retry, or call execute_luau target=server with StudioTestService:EndTest as a manual fallback.",
-	};
+	// Signal the play-server DM's StopPlayMonitor via plugin:SetSetting (a
+	// cross-DM persistent store). The monitor polls at 1Hz, sees the flag,
+	// calls StudioTestService:EndTest, then resets the flag. We wait up to
+	// 2.5s for the reset to confirm a play DM actually consumed the request,
+	// which avoids returning success when nothing is running.
+	if (!StopPlayMonitor.requestStop()) {
+		return { error: "Plugin not ready. Try again in a moment." };
+	}
+	if (StopPlayMonitor.waitForConsumption()) {
+		return { success: true, message: "Playtest stopped." };
+	}
+	// Clean up the pending flag so a future playtest's monitor doesn't fire
+	// EndTest on its own startup against a stale signal.
+	StopPlayMonitor.clearPending();
+	return { error: "No active playtest to stop." };
 }
 
 function getPlaytestOutput(_requestData: Record<string, unknown>) {

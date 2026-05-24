@@ -3,11 +3,17 @@ import UI from "../modules/UI";
 import Communication from "../modules/Communication";
 import ClientBroker from "../modules/ClientBroker";
 import RuntimeLogBuffer from "../modules/RuntimeLogBuffer";
+import StopPlayMonitor from "../modules/StopPlayMonitor";
 
 // Attach the per-peer LogService.MessageOut listener as early as possible so
 // boot-time prints from the user's place scripts are captured. Powers the
 // get_runtime_logs MCP tool. Idempotent; safe to call before UI.init().
 RuntimeLogBuffer.install();
+
+// Share the plugin reference with the stop-play signaling module so both the
+// edit DM (write the flag) and the play-server DM (read+act on the flag) can
+// access plugin:SetSetting/GetSetting.
+StopPlayMonitor.init(plugin);
 
 UI.init(plugin);
 const elements = UI.getElements();
@@ -67,6 +73,10 @@ task.delay(2, () => {
 	}
 	if (role === "server") {
 		ClientBroker.setupServerBroker();
+		// The play-server DM is the only one where StudioTestService:EndTest is
+		// legal, so the stop-play monitor lives here. Reads MCP_STOP_PLAY_SIGNAL
+		// at 1Hz and calls EndTest when the edit DM sets it.
+		StopPlayMonitor.startMonitor();
 	} else if (role === "client") {
 		ClientBroker.setupClientBroker();
 	}

@@ -937,32 +937,14 @@ export class RobloxStudioTools {
   }
 
   async stopPlaytest() {
-    // The server-peer edit-proxy runs inside the play-server DM, the only DM
-    // where StudioTestService:EndTest is legal. Route there first; fall back
-    // to the real edit DM only when no proxy is registered (no active
-    // playtest, or proxy hasn't finished registering yet).
-    let hasProxy = this.bridge.getInstances().some((i) => i.role === 'edit-proxy');
-
-    // The proxy registers ~2-3s after start_playtest spawns the play DMs.
-    // If start_playtest -> stop_playtest fires in rapid succession, give the
-    // proxy up to ~1.5s to appear before falling back.
-    if (!hasProxy) {
-      const deadline = Date.now() + 1500;
-      while (!hasProxy && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 150));
-        hasProxy = this.bridge.getInstances().some((i) => i.role === 'edit-proxy');
-      }
-    }
-
-    const target = hasProxy ? 'edit-proxy' : 'edit';
-    const response = await this.client.request('/api/stop-playtest', {}, target);
+    // The edit DM's stopPlaytest handler sets a plugin:SetSetting flag that
+    // StopPlayMonitor reads from inside the play-server DM (the only DM where
+    // StudioTestService:EndTest is legal). No edit-proxy peer registration is
+    // involved — the cross-DM signal works regardless of MCP server state,
+    // peer-role bookkeeping, or restart cycles.
+    const response = await this.client.request('/api/stop-playtest', {}, 'edit');
     return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
+      content: [{ type: 'text', text: JSON.stringify(response) }],
     };
   }
 
