@@ -1602,6 +1602,88 @@ part(0,2,0,2,1,1,"b")`,
     }
   },
 
+  // === Per-peer memory breakdown ===
+  {
+    name: 'get_memory_breakdown',
+    category: 'read',
+    description: 'Read per-category memory usage by iterating Enum.DeveloperMemoryTag and calling Stats:GetMemoryUsageMbForTag per item (workaround for Stats:GetMemoryUsageMbAllCategories being gated by Capabilities: InternalTest and not callable from plugin context), plus Stats:GetTotalMemoryUsageMb for the rollup. target="all" (default) returns { peer: { total_mb, categories, timestamp } } for every connected peer except edit-proxy; single-peer targets return that peer\'s object directly. Optional tags whitelist filters to only those DeveloperMemoryTag entries; unknown tags come back with value 0 and are listed in unknown_tags so cross-version drift doesn\'t error. timestamp is Unix milliseconds (DateTime.now().UnixTimestampMillis). Per-peer MemoryTrackingEnabled=false surfaces as { error } on that peer only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Peer to read from: "edit", "server", "client-N", or "all" (default).'
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional DeveloperMemoryTag whitelist. Unknown tag names return 0 + unknown_tags list.'
+        }
+      }
+    }
+  },
+
+  // === SerializationService round-trip ===
+  {
+    name: 'export_rbxm',
+    category: 'read',
+    description: 'Serialize one or more instances to a .rbxm file on disk via SerializationService:SerializeInstancesAsync (engine v668+, PluginSecurity). Throws if any path resolves to nil, a service, or a non-creatable instance.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        instance_paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'DataModel paths to serialize (e.g. ["Workspace.TestRig", "ServerStorage.Templates.NPC"])'
+        },
+        output_path: {
+          type: 'string',
+          description: 'Absolute filesystem path where the .rbxm should be written'
+        },
+        target: {
+          type: 'string',
+          enum: ['edit', 'server'],
+          description: 'Which DataModel to read from (default: "edit"). "server" serializes live runtime state during a playtest.'
+        }
+      },
+      required: ['instance_paths', 'output_path']
+    }
+  },
+  {
+    name: 'import_rbxm',
+    category: 'write',
+    description: 'Deserialize a .rbxm via SerializationService:DeserializeInstancesAsync (engine v668+, PluginSecurity) and parent the resulting instances under parent_path. All-or-nothing parenting: if any single instance fails to parent, every already-parented sibling is unparented and the call errors. Wrapped in ChangeHistoryService for edit target so one Ctrl+Z reverses the whole import.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: {
+          type: 'object',
+          description: 'Exactly one of { path }, { url }, or { base64 }. path = read from local disk; url = http(s) only, fetched by the MCP server process, capped at 50 MiB; base64 = raw bytes inline.',
+          properties: {
+            path: { type: 'string' },
+            url: { type: 'string' },
+            base64: { type: 'string' }
+          },
+          oneOf: [
+            { required: ['path'] },
+            { required: ['url'] },
+            { required: ['base64'] }
+          ]
+        },
+        parent_path: {
+          type: 'string',
+          description: 'DataModel path of the Instance to parent imported instances under (e.g. "ServerStorage.Imported")'
+        },
+        target: {
+          type: 'string',
+          enum: ['edit', 'server'],
+          description: 'Which DataModel to import into (default: "edit"). "server" parents into the live play-server DM.'
+        }
+      },
+      required: ['source', 'parent_path']
+    }
+  },
+
   // === Find and Replace ===
   {
     name: 'find_and_replace_in_scripts',

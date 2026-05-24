@@ -1958,6 +1958,179 @@ export class RobloxStudioTools {
     };
   }
 
+  async getMemoryBreakdown(target?: string, tags?: string[]) {
+    const tgt = target ?? 'all';
+    const data: Record<string, unknown> = {};
+    if (tags !== undefined) data.tags = tags;
+
+    if (tgt !== 'all') {
+      const response = await this.client.request('/api/get-memory-breakdown', data, tgt);
+      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    }
+
+    const targets = this.bridge.getInstances()
+      .filter((i) => i.role !== 'edit-proxy')
+      .map((i) => i.role);
+
+    const responses = await Promise.allSettled(
+      targets.map(async (t) => ({
+        peer: t,
+        result: await this.client.request('/api/get-memory-breakdown', data, t),
+      })),
+    );
+
+    const body: Record<string, unknown> = {};
+    for (let i = 0; i < responses.length; i++) {
+      const r = responses[i];
+      const peer = targets[i];
+      if (r.status === 'fulfilled') {
+        body[peer] = r.value.result;
+      } else {
+        body[peer] = { error: 'disconnected' };
+      }
+    }
+
+    return { content: [{ type: 'text', text: JSON.stringify(body) }] };
+  }
+
+  async exportRbxm(instancePaths: string[], outputPath: string, target?: string) {
+    if (!Array.isArray(instancePaths) || instancePaths.length === 0) {
+      throw new Error('instance_paths must be a non-empty array for export_rbxm');
+    }
+    if (!outputPath || typeof outputPath !== 'string') {
+      throw new Error('output_path is required for export_rbxm');
+    }
+    const tgt = target || 'edit';
+    if (tgt !== 'edit' && tgt !== 'server') {
+      throw new Error(`export_rbxm target must be "edit" or "server" (got: ${tgt})`);
+    }
+
+    const response = await this.client.request(
+      '/api/export-rbxm',
+      { instance_paths: instancePaths },
+      tgt,
+    ) as { error?: string; base64?: string; instance_count?: number };
+
+    if (response.error) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: response.error }) }] };
+    }
+    if (!response.base64) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: 'plugin returned no base64 payload' }) }] };
+    }
+
+    const bytes = Buffer.from(response.base64, 'base64');
+    const resolved = path.resolve(outputPath);
+    try {
+      fs.mkdirSync(path.dirname(resolved), { recursive: true });
+      fs.writeFileSync(resolved, bytes);
+    } catch (err) {
+      return { content: [{ type: 'text', text: JSON.stringify({ error: `failed to write ${resolved}: ${(err as Error).message}` }) }] };
+    }
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          bytes_written: bytes.length,
+          instance_count: response.instance_count ?? instancePaths.length,
+          output_path: resolved,
+        }),
+      }],
+    };
+  }
+
+  async importRbxm(
+    source: { path?: string; url?: string; base64?: string } | undefined,
+    parentPath: string,
+    target?: string,
+  ) {
+    if (!source || typeof source !== 'object') {
+      throw new Error('source is required for import_rbxm');
+    }
+    if (!parentPath || typeof parentPath !== 'string') {
+      throw new Error('parent_path is required for import_rbxm');
+    }
+    const tgt = target || 'edit';
+    if (tgt !== 'edit' && tgt !== 'server') {
+      throw new Error(`import_rbxm target must be "edit" or "server" (got: ${tgt})`);
+    }
+
+    const modes = ['path', 'url', 'base64'].filter((k) => (source as Record<string, unknown>)[k] !== undefined);
+    if (modes.length !== 1) {
+      throw new Error(`source must contain exactly one of { path, url, base64 } (got: ${modes.join(', ') || 'none'})`);
+    }
+
+    let bytes: Buffer;
+    let sourceLabel: string;
+    if (source.path !== undefined) {
+      const resolved = path.resolve(source.path);
+      try {
+        bytes = fs.readFileSync(resolved);
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: `failed to read ${resolved}: ${(err as Error).message}` }) }] };
+      }
+      sourceLabel = resolved;
+    } else if (source.url !== undefined) {
+      // SSRF guard: only http(s). Blocks file://, ftp://, gopher://, etc.
+      // Does NOT block requests to internal IPs (127.0.0.1, 169.254.x, RFC1918) —
+      // a local MCP server has legitimate reasons to hit localhost, so internal-IP
+      // blocking should be opt-in if needed.
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(source.url);
+      } catch {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: `import_rbxm url is not a valid URL: ${source.url}` }) }] };
+      }
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: `import_rbxm url must use http(s); got ${parsedUrl.protocol}` }) }] };
+      }
+
+      // 50 MiB matches the project's existing express.json('50mb') cap and is
+      // empirically well within the Studio plugin's HttpService:RequestAsync
+      // response ceiling (probed up to 100 MiB without issue, 150+ stalls on
+      // Studio memory, not protocol). Far above any realistic rbxm size.
+      const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
+      try {
+        const res = await fetch(source.url);
+        if (!res.ok) {
+          const snippet = (await res.text()).slice(0, 500);
+          return { content: [{ type: 'text', text: JSON.stringify({ error: `fetch ${source.url} returned ${res.status}: ${snippet}` }) }] };
+        }
+        const claimed = Number(res.headers.get('content-length') ?? '0');
+        if (claimed > MAX_IMPORT_BYTES) {
+          return { content: [{ type: 'text', text: JSON.stringify({ error: `fetch ${source.url}: content-length ${claimed} exceeds ${MAX_IMPORT_BYTES} byte cap` }) }] };
+        }
+        const arr = await res.arrayBuffer();
+        if (arr.byteLength > MAX_IMPORT_BYTES) {
+          return { content: [{ type: 'text', text: JSON.stringify({ error: `fetch ${source.url}: downloaded ${arr.byteLength} bytes exceeds ${MAX_IMPORT_BYTES} byte cap` }) }] };
+        }
+        bytes = Buffer.from(arr);
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: `fetch ${source.url} failed: ${(err as Error).message}` }) }] };
+      }
+      sourceLabel = source.url;
+    } else {
+      try {
+        bytes = Buffer.from(source.base64 as string, 'base64');
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: `base64 decode failed: ${(err as Error).message}` }) }] };
+      }
+      sourceLabel = `base64(${bytes.length}B)`;
+    }
+
+    const response = await this.client.request(
+      '/api/import-rbxm',
+      {
+        base64: bytes.toString('base64'),
+        parent_path: parentPath,
+        source_label: sourceLabel,
+      },
+      tgt,
+    );
+
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+  }
+
   async captureScreenshot() {
     const response = await this.client.request('/api/capture-screenshot', {}) as RawImageCaptureResponse;
 
