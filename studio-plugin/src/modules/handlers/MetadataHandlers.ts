@@ -263,48 +263,59 @@ function executeLuau(requestData: Record<string, unknown>) {
 	const code = requestData.code as string;
 	if (!code || code === "") return { error: "Code is required" };
 
-	const output: string[] = [];
-	const oldPrint = print;
-	const oldWarn = warn;
+	// Both execution paths (loadstring + ModuleScript-require fallback) run
+	// the SAME wrapped source so they return a uniform { ok, value, output }
+	// shape. Two problems the wrapper solves at once:
+	//
+	//   1. pcall(require, m) swallows the real error and returns Roblox's
+	//      generic "Requested module experienced an error while loading"
+	//      message. Wrapping user code in xpcall INSIDE the IIFE keeps the
+	//      ModuleScript itself returning successfully — the real error +
+	//      traceback live in the returned table.
+	//
+	//   2. The ModuleScript path runs in its own environment, so a plugin-
+	//      side getfenv print/warn override never reached user prints. A
+	//      lexical local print/warn inside the IIFE captures user prints
+	//      regardless of which path executes. We also call the real global
+	//      print/warn so messages still flow to Studio's output and
+	//      LogService.MessageOut (which powers get_runtime_logs).
+	//
+	// Prints from required sub-modules don't reach this capture (they have
+	// their own env) — those go through the runtime log buffer.
+	const wrapped = `return ((function()
+\tlocal __mcp_output = {}
+\tlocal __mcp_real_print = print
+\tlocal __mcp_real_warn = warn
+\tlocal print = function(...)
+\t\t__mcp_real_print(...)
+\t\tlocal args = {...}
+\t\tlocal parts = table.create(#args)
+\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))
+\tend
+\tlocal warn = function(...)
+\t\t__mcp_real_warn(...)
+\t\tlocal args = {...}
+\t\tlocal parts = table.create(#args)
+\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))
+\tend
+\tlocal function __mcp_run()
+${code}
+\tend
+\tlocal ok, errOrValue = xpcall(__mcp_run, debug.traceback)
+\treturn { ok = ok, value = errOrValue, output = __mcp_output }
+end)())`;
 
-	const env = getfenv(0) as unknown as Record<string, unknown>;
-	env["print"] = (...args: defined[]) => {
-		const parts: string[] = [];
-		for (const a of args) parts.push(tostring(a));
-		output.push(parts.join("\t"));
-		oldPrint(...(args as [defined, ...defined[]]));
-	};
-	env["warn"] = (...args: defined[]) => {
-		const parts: string[] = [];
-		for (const a of args) parts.push(tostring(a));
-		output.push(`[warn] ${parts.join("\t")}`);
-		oldWarn(...(args as [defined, ...defined[]]));
-	};
+	interface WrapperResult {
+		ok?: boolean;
+		value?: unknown;
+		output?: defined;
+	}
 
-	// Try loadstring first (preserves print/warn interception). When
-	// ServerScriptService.LoadStringEnabled=false AND the plugin runs in a
-	// peer where the engine respects that gate (notably the play-server DM
-	// in some Studio configurations), loadstring either returns nil with a
-	// "loadstring() is not available" message OR throws that same message
-	// directly. Both paths must trigger the ModuleScript + require
-	// fallback. The fallback can't intercept print/warn since the
-	// ModuleScript runs in its own environment, so the output array stays
-	// empty in that branch - the playtest log buffer already captures
-	// prints separately via LogService.MessageOut.
-	const runViaModuleScript = () => {
+	const runViaModuleScript = (): WrapperResult => {
 		const m = new Instance("ModuleScript");
 		m.Name = "__MCPExecLuauPayload";
-		// Wrap user code in an IIFE so require() always gets exactly one
-		// return value. Without this, code like `print("x")` errors with
-		// "Module code did not return exactly one value" because top-level
-		// ModuleScripts must return exactly one value.
-		//
-		// The DOUBLE parens around the call are load-bearing: in Luau,
-		// `return f()` propagates whatever multi-value tuple f returns,
-		// including zero values. Outer parens adjust the call to exactly
-		// one value (the first, or nil). So `return ((f)())` always
-		// returns exactly one value, regardless of what f does.
-		const wrapped = `return ((function()\n${code}\nend)())`;
 		const [okSet, setErr] = pcall(() => {
 			(m as unknown as { Source: string }).Source = wrapped;
 		});
@@ -316,7 +327,7 @@ function executeLuau(requestData: Record<string, unknown>) {
 		const [okReq, reqResult] = pcall(() => require(m));
 		m.Destroy();
 		if (!okReq) error(tostring(reqResult));
-		return reqResult;
+		return reqResult as unknown as WrapperResult;
 	};
 
 	const isLoadstringUnavailable = (err: unknown): boolean => {
@@ -326,40 +337,52 @@ function executeLuau(requestData: Record<string, unknown>) {
 	};
 
 	let [success, result] = pcall(() => {
-		const [fn, compileError] = loadstring(code);
+		const [fn, compileError] = loadstring(wrapped);
 		if (!fn) {
 			if (isLoadstringUnavailable(compileError)) {
 				return runViaModuleScript();
 			}
 			error(`Compile error: ${compileError}`);
 		}
-		return fn();
+		return fn() as unknown as WrapperResult;
 	});
 
 	// loadstring throws (not returns nil) in some plugin contexts when
-	// LoadStringEnabled=false. Catch that here as a second-chance fallback.
+	// LoadStringEnabled=false. Catch that as a second-chance fallback.
 	if (!success && isLoadstringUnavailable(result)) {
 		[success, result] = pcall(runViaModuleScript);
 	}
 
-	env["print"] = oldPrint;
-	env["warn"] = oldWarn;
-
-	if (success) {
-		return {
-			success: true,
-			returnValue: result !== undefined ? tostring(result) : undefined,
-			output,
-			message: "Code executed successfully",
-		};
-	} else {
+	if (!success) {
+		// Outer pcall failed - the wrapper itself didn't even run (e.g. compile
+		// error in the user code, or ModuleScript setup error). 'result' is the
+		// raw error string from pcall.
 		return {
 			success: false,
 			error: tostring(result),
-			output,
+			output: [],
 			message: "Code execution failed",
 		};
 	}
+
+	// Wrapper executed - unpack { ok, value, output }.
+	const r = result as unknown as WrapperResult;
+	const capturedOutput = r.output as unknown as string[] | undefined;
+	const output = capturedOutput !== undefined ? capturedOutput : ([] as string[]);
+	if (r.ok === true) {
+		return {
+			success: true,
+			returnValue: r.value !== undefined ? tostring(r.value) : undefined,
+			output,
+			message: "Code executed successfully",
+		};
+	}
+	return {
+		success: false,
+		error: r.value !== undefined ? tostring(r.value) : "(unknown error)",
+		output,
+		message: "Code execution failed",
+	};
 }
 
 function undo(_requestData: Record<string, unknown>) {

@@ -25,7 +25,7 @@ If you only need to read scripts and inspect static instance trees, the official
 | 1 | `detectRole` uses `IsRunMode()`, so every play-mode peer reports as `edit` | One-line swap to `IsRunning()` in `Communication.ts:21` |
 | 2 | Plugin only registers with MCP when user clicks Connect - invisible in play DMs | Auto-activate on load via `task.delay(2, ...)` orchestrator in `server/index.server.ts` |
 | 3 | `target=client-N` is structurally impossible - client peer can't `HttpService:RequestAsync` | Server-peer **broker pattern**: per-player proxies registered with role=`client`, dispatched via `ReplicatedStorage.__MCPClientBroker` `RemoteFunction:InvokeClient` ([ClientBroker.ts](studio-plugin/src/modules/ClientBroker.ts)) |
-| 4 | `stop_playtest` warns `__MCP_STOP__` hoping a `LogService.MessageOut` listener catches it - never works cross-DM | Server-peer **edit-proxy** registered with role=`edit-proxy`. MCP routes `/api/stop-playtest` to it exclusively so it can call `StudioTestService:EndTest` from the play server DM. Edit DM only handles stop as a "no active playtest" fallback (v2.8.1 fix) |
+| 4 | `stop_playtest` warns `__MCP_STOP__` hoping a `LogService.MessageOut` listener catches it - never works cross-DM | Cross-DM signaling via `plugin:SetSetting`: a 1Hz monitor in the play-server DM polls a shared flag and calls `StudioTestService:EndTest` when the edit DM sets it. Survives MCP server restarts and orphan playtests because the monitor's lifetime is local to the play-server plugin, not to peer registrations (v2.11.2) |
 
 All four are implemented in TypeScript under [studio-plugin/src/](studio-plugin/src/). The compiled `MCPPlugin.rbxmx` is attached to GitHub releases.
 
@@ -163,7 +163,7 @@ gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp
 ---
 
 <!-- VERSION_LINE -->
-**v2.11.2** - based on boshyxd v2.7.0 + four plugin-side fixes + SerializationService round-trip + per-peer memory snapshots + multi-session bind/proxy fix + simplified stop_playtest (cross-DM signaling)
+**v2.11.3** - based on boshyxd v2.7.0 + four plugin-side fixes + SerializationService round-trip + per-peer memory snapshots + multi-session bind/proxy fix + simplified stop_playtest (cross-DM signaling) + eval/execute_luau error preservation + proxy-mode peer fanout + integration test suite
 
 ## Building & releasing
 
@@ -197,10 +197,10 @@ After a code change, **fully close and reopen Roblox Studio** for the new plugin
 ```text
 mcp__Roblox_Studio__execute_luau target=edit                # baseline
 mcp__Roblox_Studio__start_playtest mode=play numPlayers=1   # wait ~10s
-mcp__Roblox_Studio__get_connected_instances                 # expect edit + server + client-N + edit-proxy
+mcp__Roblox_Studio__get_connected_instances                 # expect edit + server + client-N
 mcp__Roblox_Studio__execute_luau target=server              # IsServer=true, LocalPlayer=nil
 mcp__Roblox_Studio__execute_luau target=client-N            # IsClient=true, LocalPlayer=<name>
-mcp__Roblox_Studio__stop_playtest                           # "Playtest stopped via edit-proxy/EndTest"
+mcp__Roblox_Studio__stop_playtest                           # "Playtest stopped."
 mcp__Roblox_Studio__execute_luau target=server              # "Target instance 'server' disconnected"
 
 # v2.11.0 rbxm round-trip

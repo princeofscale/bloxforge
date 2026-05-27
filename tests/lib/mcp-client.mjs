@@ -1,0 +1,200 @@
+// Shared utility for integration tests under tests/.
+//
+// Spawns the built MCP server (packages/robloxstudio-mcp/dist/index.js) as a
+// subprocess and drives it via stdio JSON-RPC. If port 58741 is already
+// claimed by another MCP subprocess (typically the developer's Claude Code
+// instance), the spawned subprocess enters proxy mode and forwards through
+// the existing primary — which is the correct behavior for testing the
+// proxy-mode code path.
+//
+// Each test file is responsible for its own playtest start/stop lifecycle.
+// Tests should leave the Studio state clean (no orphan playtests, no
+// orphan instances under Workspace/ServerStorage).
+
+import { spawn } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+export const REPO_ROOT = resolve(__dirname, '..', '..');
+export const DIST = resolve(REPO_ROOT, 'packages/robloxstudio-mcp/dist/index.js');
+export const BASE_PORT = 58741;
+
+export class McpClient {
+  constructor(label = 'client') {
+    this.label = label;
+    this.proc = null;
+    this.nextId = 1;
+    this.pending = new Map();
+    this.stderrLines = [];
+    this.stdoutBuf = '';
+    this.exitCode = null;
+  }
+
+  async start() {
+    this.proc = spawn('node', [DIST], { stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc.stdout.setEncoding('utf8');
+    this.proc.stderr.setEncoding('utf8');
+
+    this.proc.stdout.on('data', (chunk) => {
+      this.stdoutBuf += chunk;
+      let nl;
+      while ((nl = this.stdoutBuf.indexOf('\n')) !== -1) {
+        const line = this.stdoutBuf.slice(0, nl).trim();
+        this.stdoutBuf = this.stdoutBuf.slice(nl + 1);
+        if (!line) continue;
+        try {
+          const msg = JSON.parse(line);
+          if (msg.id != null && this.pending.has(msg.id)) {
+            const { resolve: r, reject } = this.pending.get(msg.id);
+            this.pending.delete(msg.id);
+            if (msg.error) reject(new Error(JSON.stringify(msg.error)));
+            else r(msg.result);
+          }
+        } catch {
+          // Not a JSON-RPC line — ignore (could be MCP framing noise)
+        }
+      }
+    });
+
+    this.proc.stderr.on('data', (chunk) => {
+      const lines = chunk.split('\n').filter((l) => l.trim());
+      for (const line of lines) this.stderrLines.push(line);
+    });
+
+    this.proc.on('exit', (code) => { this.exitCode = code; });
+
+    // Wait for the subprocess to print its "running on stdio" banner so we
+    // know stdio MCP is ready. Bound at 5s — fresh launches usually settle
+    // in <1s but cold-start can stretch.
+    await this._waitForLog('running on stdio', 5000);
+  }
+
+  async _waitForLog(substr, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this.stderrLines.some((l) => l.includes(substr))) return;
+      await delay(50);
+    }
+    throw new Error(`McpClient ${this.label}: never logged "${substr}" within ${timeoutMs}ms. Tail:\n${this.stderrLines.slice(-10).join('\n')}`);
+  }
+
+  isPrimary() { return this.stderrLines.some((l) => l.includes('(primary mode)')); }
+  isProxy() { return this.stderrLines.some((l) => l.includes('proxy mode')); }
+
+  recentStderr(n = 10) { return this.stderrLines.slice(-n).join('\n'); }
+
+  async rpc(method, params, timeoutMs = 30_000) {
+    const id = this.nextId++;
+    const p = new Promise((res, rej) => {
+      this.pending.set(id, { resolve: res, reject: rej });
+      setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          rej(new Error(`RPC ${method} timed out after ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+    });
+    this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
+    return p;
+  }
+
+  notify(method, params) {
+    this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n');
+  }
+
+  async initialize() {
+    await this.rpc('initialize', {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'tests-harness', version: '0.0.0' },
+    });
+    this.notify('notifications/initialized', {});
+  }
+
+  /** tools/call wrapper. Returns the parsed first text-content body (the
+      common shape used by the Roblox Studio MCP). Throws if no text content. */
+  async callTool(name, args = {}) {
+    const res = await this.rpc('tools/call', { name, arguments: args });
+    const text = res?.content?.[0]?.text;
+    if (text == null) {
+      throw new Error(`Tool ${name} returned no text content: ${JSON.stringify(res)}`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  async stop() {
+    if (this.proc && !this.proc.killed) {
+      this.proc.kill('SIGTERM');
+      await delay(200);
+      if (!this.proc.killed) this.proc.kill('SIGKILL');
+    }
+  }
+}
+
+// Minimal assertion helpers — keep the test files focused on what they're
+// asserting, not on logging shape.
+export function assert(cond, msg) {
+  if (!cond) throw new Error(`ASSERT FAIL: ${msg}`);
+  console.log(`  ✓ ${msg}`);
+}
+
+export function assertContains(haystack, needle, msg) {
+  if (typeof haystack !== 'string' || !haystack.includes(needle)) {
+    throw new Error(`ASSERT FAIL: ${msg}\n    expected substring: ${JSON.stringify(needle)}\n    in: ${JSON.stringify(haystack)}`);
+  }
+  console.log(`  ✓ ${msg}`);
+}
+
+export function assertNotContains(haystack, needle, msg) {
+  if (typeof haystack !== 'string') {
+    throw new Error(`ASSERT FAIL: ${msg}\n    expected string, got: ${typeof haystack}`);
+  }
+  if (haystack.includes(needle)) {
+    throw new Error(`ASSERT FAIL: ${msg}\n    unexpected substring: ${JSON.stringify(needle)}\n    in: ${JSON.stringify(haystack)}`);
+  }
+  console.log(`  ✓ ${msg}`);
+}
+
+// Convenience for tests that need a live playtest. Starts one + waits the
+// configured delay for the play-server DM to spin up + bridges to install +
+// listener buffer to be ready.
+export async function startPlaytestAndWait(client, delaySec = 4) {
+  const res = await client.callTool('start_playtest', { mode: 'play', numPlayers: 1 });
+  if (!res.success) throw new Error(`start_playtest failed: ${JSON.stringify(res)}`);
+  await delay(delaySec * 1000);
+}
+
+export async function safeStopPlaytest(client) {
+  try {
+    await client.callTool('stop_playtest', {});
+  } catch (err) {
+    console.warn(`  (stop_playtest cleanup error, ignored): ${err.message}`);
+  }
+}
+
+// Lightweight test wrapper — runs main(), prints PASS/FAIL banner, always
+// cleans up clients.
+export async function runTest(name, main) {
+  const clients = [];
+  console.log(`\n=== ${name} ===`);
+  try {
+    await main({ track: (c) => { clients.push(c); return c; } });
+    console.log(`\n✅ ${name} PASSED`);
+    return true;
+  } catch (err) {
+    console.error(`\n❌ ${name} FAILED: ${err.message}`);
+    for (const c of clients) {
+      console.error(`\n--- ${c.label} stderr tail ---`);
+      console.error(c.recentStderr(10));
+    }
+    return false;
+  } finally {
+    for (const c of clients) await c.stop();
+  }
+}

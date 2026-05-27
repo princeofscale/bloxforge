@@ -1,0 +1,71 @@
+#!/usr/bin/env node
+// In multi-session deployments, every MCP subprocess past the first runs
+// in proxy mode (forwarding to localhost:58741). Tools that enumerate
+// peers — get_runtime_logs target=all, get_connected_instances,
+// get_memory_breakdown target=all — must return the primary's actual peer
+// list, not the proxy's own empty instances Map. ProxyBridgeService caches
+// the primary's /instances response and overrides getInstances() so any
+// peer-fanout tool works from any subprocess.
+//
+// Regression test for the multi-session proxy-mode fanout bug fixed in
+// v2.11.3. The bug's signature was perPeerNextSince:{} (zero keys, not
+// zero values), meaning the aggregator didn't even attempt to query any
+// peer.
+//
+// PREREQUISITE: an existing primary on port 58741 with a Studio plugin
+// polling it (typically the developer's Claude Code MCP subprocess). This
+// test spawns its own subprocess which will end up in proxy mode.
+
+import { McpClient, runTest, assert, assertContains, startPlaytestAndWait, safeStopPlaytest } from './lib/mcp-client.mjs';
+import { setTimeout as delay } from 'node:timers/promises';
+
+const MARKER = 'FANOUT_MARKER_d7e4f1';
+
+await runTest('proxy-mode subprocess fans out to peers via primary', async ({ track }) => {
+  const proxy = track(new McpClient('proxy'));
+  await proxy.start();
+  await proxy.initialize();
+
+  // Confirm setup: this subprocess MUST be in proxy mode for the test to
+  // actually exercise the bug. If it's primary, the bug doesn't trigger.
+  assert(proxy.isProxy(), 'spawned subprocess is in proxy mode (primary exists on 58741)');
+  assert(!proxy.isPrimary(), 'spawned subprocess is NOT a fake primary');
+
+  await startPlaytestAndWait(proxy);
+
+  try {
+    // Emit a marker via the primary's plugin so the runtime log buffer has
+    // a distinctive entry. eval_server_runtime works in proxy mode (uses
+    // sendRequest, which forwards to primary) — so we can drive a print
+    // into the play-server DM from the proxy itself.
+    await proxy.callTool('eval_server_runtime', {
+      code: `print("${MARKER}")\nreturn "ok"`,
+    });
+
+    // Give LogService.MessageOut a moment to flush to the buffer
+    await delay(500);
+
+    // Case 1: get_runtime_logs target=all should now have peers
+    const logs = await proxy.callTool('get_runtime_logs', { target: 'all', tail: 50 });
+    const peerKeys = Object.keys(logs.perPeerNextSince ?? {});
+    assert(peerKeys.length > 0,
+      `get_runtime_logs target=all reports at least one peer (got: ${peerKeys.length} -> ${JSON.stringify(peerKeys)})`);
+    assertContains(JSON.stringify(logs), MARKER,
+      'log entries contain our marker (fanout actually reached primary)');
+
+    // Case 2: get_connected_instances should not be empty when peers exist
+    const instances = await proxy.callTool('get_connected_instances', {});
+    // Response shape: { instances: [{role, ...}], ... } or similar
+    const instList = instances.instances ?? instances;
+    assert(Array.isArray(instList) && instList.length > 0,
+      `get_connected_instances reports >=1 peer (got: ${Array.isArray(instList) ? instList.length : 'non-array'})`);
+
+    // Case 3: get_memory_breakdown target=all should produce per-peer data
+    const mem = await proxy.callTool('get_memory_breakdown', { target: 'all' });
+    const memPeers = Object.keys(mem).filter((k) => k !== 'edit-proxy');
+    assert(memPeers.length > 0,
+      `get_memory_breakdown target=all reports per-peer data (got peers: ${JSON.stringify(memPeers)})`);
+  } finally {
+    await safeStopPlaytest(proxy);
+  }
+}).then((ok) => process.exit(ok ? 0 : 1));

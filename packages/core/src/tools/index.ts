@@ -46,23 +46,61 @@ function luaLongQuote(s: string): string {
 
 // Build the executeLuau payload that creates a fresh ModuleScript holding
 // the user's eval code, invokes a same-VM BindableFunction with the
-// ModuleScript reference, then JSON-encodes {bridge, ok, result}. Shared
-// between evalServerRuntime and evalClientRuntime - the only difference is
-// which service hosts the bridge.
+// ModuleScript reference, then JSON-encodes the result. Shared between
+// evalServerRuntime and evalClientRuntime - the only difference is which
+// service hosts the bridge.
+//
+// Wrapper shape (the ModuleScript ALWAYS returns this exact table):
+//   { ok = boolean, value = userReturnOrErrorMessage, output = {strings} }
+//
+// Why: pcall(require, m) in the bridge swallows the real error and reports
+// Roblox's generic "Requested module experienced an error while loading"
+// message. We work around this by wrapping the user code in xpcall INSIDE
+// the IIFE - the ModuleScript always returns successfully, and the real
+// error (with traceback) is preserved inside the returned table.
+//
+// Print/warn capture: a lexically-scoped local print/warn inside the IIFE
+// shadows globals for user code's bare calls, collecting into an output
+// table. The locals also call the real global print/warn so messages still
+// appear in Studio's output console and reach LogService.MessageOut (which
+// powers get_runtime_logs). Captures don't reach into required sub-modules
+// (they have their own env), but those go through the log buffer.
 //
 // IIFE wrap: ModuleScripts must `return` exactly one value. User code like
 // `print("x")` has no return, which would fail with "Module code did not
-// return exactly one value". Wrapping in `return ((function() ... end)())`
-// gives ModuleScript a single value even when user code returns nothing.
-// The DOUBLE parens are load-bearing - in Luau, outer parens around a call
-// adjust a multi-value tuple to exactly one value.
+// return exactly one value". The IIFE always returns the {ok,value,output}
+// table - a single value. The DOUBLE parens around the call are load-
+// bearing: outer parens adjust the call to exactly one value.
 function buildModuleScriptInvokeWrapper(opts: {
   service: 'ServerScriptService' | 'ReplicatedStorage';
   bridgeName: string;
   missingError: string;
   userCode: string;
 }): string {
-  const wrapped = `return ((function()\n${opts.userCode}\nend)())`;
+  const wrapped = `return ((function()
+\tlocal __mcp_output = {}
+\tlocal __mcp_real_print = print
+\tlocal __mcp_real_warn = warn
+\tlocal print = function(...)
+\t\t__mcp_real_print(...)
+\t\tlocal args = {...}
+\t\tlocal parts = table.create(#args)
+\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))
+\tend
+\tlocal warn = function(...)
+\t\t__mcp_real_warn(...)
+\t\tlocal args = {...}
+\t\tlocal parts = table.create(#args)
+\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))
+\tend
+\tlocal function __mcp_run()
+${opts.userCode}
+\tend
+\tlocal ok, errOrValue = xpcall(__mcp_run, debug.traceback)
+\treturn { ok = ok, value = errOrValue, output = __mcp_output }
+end)())`;
   return `
 local HttpService = game:GetService("HttpService")
 local bf = game:GetService("${opts.service}"):FindFirstChild("${opts.bridgeName}")
@@ -78,15 +116,29 @@ m.Name = "__MCPEvalPayload"
 local okSet, setErr = pcall(function() m.Source = USER_CODE end)
 if not okSet then
 \tm:Destroy()
-\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, result = "ModuleScript Source set failed: " .. tostring(setErr) })
+\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = "ModuleScript Source set failed: " .. tostring(setErr) })
 end
 m.Parent = workspace
-local ok, result = bf:Invoke(m)
+local bridgeOk, inner = bf:Invoke(m)
 m:Destroy()
+if not bridgeOk then
+\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = tostring(inner) })
+end
+-- inner is the {ok, value, output} table from our IIFE. Defensive: if it's
+-- somehow not a table (caller bypassed the wrapper), fall back to old shape.
+if typeof(inner) ~= "table" then
+\treturn HttpService:JSONEncode({
+\t\tbridge = "ok",
+\t\tok = true,
+\t\tresult = if inner == nil then nil else tostring(inner),
+\t})
+end
 return HttpService:JSONEncode({
 \tbridge = "ok",
-\tok = ok,
-\tresult = if result == nil then nil else tostring(result),
+\tok = inner.ok == true,
+\tresult = if inner.ok and inner.value ~= nil then tostring(inner.value) else nil,
+\terror = if not inner.ok then tostring(inner.value) else nil,
+\toutput = inner.output or {},
 })
 `;
 }
@@ -102,8 +154,9 @@ return HttpService:JSONEncode({
 type BridgeResponse = {
   bridge?: 'ok' | 'missing';
   ok?: boolean;
-  result?: string;
-  error?: string;
+  result?: string;     // present on success when user code returned a value
+  error?: string;      // present on user-code error: real message + traceback
+  output?: string[];   // captured print/warn lines from inside the IIFE
 };
 type ExecuteLuauResponse = {
   success?: boolean;

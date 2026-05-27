@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+// execute_luau target=server must surface the user's actual error, not the
+// plugin-internal handler path + the generic "Requested module experienced
+// an error" wrapper. The ModuleScript-fallback path in
+// MetadataHandlers.executeLuau wraps user code in xpcall inside the IIFE
+// so the real message and traceback survive the require() boundary.
+//
+// Regression test for the execute_luau target=server error-leak bug fixed
+// in v2.11.3.
+
+import { McpClient, runTest, assert, assertContains, assertNotContains, startPlaytestAndWait, safeStopPlaytest } from './lib/mcp-client.mjs';
+
+const MARKER = 'EXEC_ERR_MARKER_8b1d2e';
+const GENERIC = 'Requested module experienced an error while loading';
+const PLUGIN_PATH_LEAK = 'MCPPlugin.modules.handlers.MetadataHandlers';
+
+await runTest('execute_luau target=server preserves user error', async ({ track }) => {
+  const client = track(new McpClient('A'));
+  await client.start();
+  await client.initialize();
+
+  await startPlaytestAndWait(client);
+
+  try {
+    // Case 1: explicit error() — works for target=edit, currently broken for target=server
+    const r1 = await client.callTool('execute_luau', {
+      target: 'server',
+      code: `error("${MARKER}-server-error")`,
+    });
+    assert(r1.success === false, 'execute_luau target=server reports failure');
+    assertContains(JSON.stringify(r1), `${MARKER}-server-error`,
+      'response.error carries the actual user error message');
+    assertNotContains(JSON.stringify(r1), PLUGIN_PATH_LEAK,
+      'response.error does NOT leak the plugin handler path');
+    assertNotContains(JSON.stringify(r1), GENERIC,
+      'response.error does NOT use the generic require wrapper');
+
+    // Case 2: target=edit baseline — should already work, asserts the same
+    // marker-preservation contract on the working path so we know our
+    // assertions are sensible.
+    const r2 = await client.callTool('execute_luau', {
+      target: 'edit',
+      code: `error("${MARKER}-edit-error")`,
+    });
+    assert(r2.success === false, 'execute_luau target=edit reports failure');
+    assertContains(JSON.stringify(r2), `${MARKER}-edit-error`,
+      'edit baseline: error message preserved (sanity)');
+
+    // Case 3: success path still works on server target
+    const r3 = await client.callTool('execute_luau', {
+      target: 'server',
+      code: `return "${MARKER}-ok"`,
+    });
+    assert(r3.success === true, 'execute_luau target=server success works');
+    assertContains(JSON.stringify(r3), `${MARKER}-ok`,
+      'success returnValue preserved');
+  } finally {
+    await safeStopPlaytest(client);
+  }
+}).then((ok) => process.exit(ok ? 0 : 1));

@@ -1,4 +1,4 @@
-import { HttpService, LogService } from "@rbxts/services";
+import { HttpService, LogService, RunService } from "@rbxts/services";
 import { installBridges, cleanupBridges } from "../EvalBridges";
 import StopPlayMonitor from "../StopPlayMonitor";
 
@@ -124,6 +124,20 @@ function startPlaytest(requestData: Record<string, unknown>) {
 		return { error: 'mode must be "play" or "run"' };
 	}
 
+	// Self-heal: if testRunning is stuck true but Studio reports no active
+	// playtest, the previous start_playtest's task.spawn was orphaned
+	// (plugin reload mid-test, Studio entered some inconsistent state, etc).
+	// Reset it so subsequent starts don't hit a false "already running".
+	if (testRunning && !RunService.IsRunning()) {
+		testRunning = false;
+		if (logConnection) {
+			logConnection.Disconnect();
+			logConnection = undefined;
+		}
+		cleanupStopListener();
+		cleanupBridges();
+	}
+
 	if (testRunning) {
 		return { error: "A test is already running" };
 	}
@@ -220,13 +234,31 @@ function stopPlaytest(_requestData: Record<string, unknown>) {
 	if (!StopPlayMonitor.requestStop()) {
 		return { error: "Plugin not ready. Try again in a moment." };
 	}
-	if (StopPlayMonitor.waitForConsumption()) {
-		return { success: true, message: "Playtest stopped." };
+	if (!StopPlayMonitor.waitForConsumption()) {
+		// Clean up the pending flag so a future playtest's monitor doesn't fire
+		// EndTest on its own startup against a stale signal.
+		StopPlayMonitor.clearPending();
+		return { error: "No active playtest to stop." };
 	}
-	// Clean up the pending flag so a future playtest's monitor doesn't fire
-	// EndTest on its own startup against a stale signal.
-	StopPlayMonitor.clearPending();
-	return { error: "No active playtest to stop." };
+	// Flag was consumed (EndTest called). ExecutePlayModeAsync in our
+	// startPlaytest task.spawn is still unwinding though — testRunning stays
+	// true until that yield completes and the post-block runs. Wait so
+	// back-to-back stop -> start sequences don't race against the prior
+	// teardown and get "A test is already running". 10s covers play-DM
+	// teardown on heavier places; if it still hasn't cleared we return
+	// anyway so users aren't stuck — but note that in the response so the
+	// caller knows a subsequent start may need a moment.
+	const deadline = tick() + 10;
+	while (testRunning && tick() < deadline) {
+		task.wait(0.1);
+	}
+	if (testRunning) {
+		return {
+			success: true,
+			message: "Playtest stop signal sent; teardown still in progress.",
+		};
+	}
+	return { success: true, message: "Playtest stopped." };
 }
 
 function getPlaytestOutput(_requestData: Record<string, unknown>) {

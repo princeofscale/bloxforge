@@ -1,15 +1,55 @@
-import { BridgeService } from './bridge-service.js';
+import { BridgeService, PluginInstance } from './bridge-service.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export class ProxyBridgeService extends BridgeService {
   private primaryBaseUrl: string;
   readonly proxyInstanceId: string;
   private proxyRequestTimeout = 30000;
+  private cachedInstances: PluginInstance[] = [];
+  private refreshTimer?: ReturnType<typeof setInterval>;
+  private static REFRESH_INTERVAL_MS = 1000;
 
   constructor(primaryBaseUrl: string) {
     super();
     this.primaryBaseUrl = primaryBaseUrl;
     this.proxyInstanceId = uuidv4();
+    // Mirror the primary's peer list locally so getInstances() returns real
+    // data. Without this, anything that enumerates peers from a proxy-mode
+    // subprocess (target=all fanout in get_runtime_logs, get_memory_breakdown,
+    // get_connected_instances) sees the proxy's own empty instances Map and
+    // returns nothing — exactly the symptom of the v2.11.x multi-session bug.
+    this.refreshInstances();
+    this.refreshTimer = setInterval(
+      () => this.refreshInstances(),
+      ProxyBridgeService.REFRESH_INTERVAL_MS,
+    );
+  }
+
+  private async refreshInstances(): Promise<void> {
+    try {
+      const res = await fetch(`${this.primaryBaseUrl}/instances`);
+      if (!res.ok) return;
+      const body = (await res.json()) as { instances?: PluginInstance[] };
+      if (Array.isArray(body.instances)) {
+        this.cachedInstances = body.instances;
+      }
+    } catch {
+      // Primary unreachable — keep the last-known list rather than
+      // silently reporting empty.
+    }
+  }
+
+  override getInstances(): PluginInstance[] {
+    return this.cachedInstances;
+  }
+
+  /** Called when this proxy is being discarded (e.g. promotion to primary
+      replaced it). Stops the background refresh so it doesn't leak. */
+  stop(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
   }
 
   override async sendRequest(endpoint: string, data: any, target = 'edit'): Promise<any> {

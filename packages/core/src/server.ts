@@ -133,8 +133,14 @@ export class RobloxStudioMCPServer {
         try {
           const result = await listenWithRetry(candidateApp, host, basePort, 1);
           // Bind succeeded — atomically swap to primary mode (synchronous from here).
+          // Stop the proxy bridge's background refresh before dropping the reference
+          // so its setInterval doesn't keep the object alive past the swap.
+          const oldBridge = this.bridge;
           this.bridge = candidateBridge;
           this.tools = candidateTools;
+          if (oldBridge instanceof ProxyBridgeService) {
+            oldBridge.stop();
+          }
           httpHandle = result.server;
           boundPort = result.port;
           primaryApp = candidateApp;
@@ -209,6 +215,9 @@ export class RobloxStudioMCPServer {
       clearInterval(activityInterval);
       clearInterval(cleanupInterval);
       if (promotionInterval) clearInterval(promotionInterval);
+      if (this.bridge instanceof ProxyBridgeService) {
+        this.bridge.stop();
+      }
       await this.server.close().catch(() => {});
       if (httpHandle) httpHandle.close();
       if (legacyHandle) legacyHandle.close();
