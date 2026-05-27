@@ -6,6 +6,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,11 @@ const TESTS = [
   'execute-luau-output-capture.mjs',
 ];
 
+// Studio takes a few seconds to fully tear down a play DM after StudioTestService:EndTest.
+// Without a gap, the next test's start_playtest collides with the previous test's
+// in-flight cleanup and either times out or sees a stale 1-peer state.
+const INTER_TEST_DELAY_MS = 1000;
+
 function runOne(file) {
   return new Promise((res) => {
     const proc = spawn('node', [resolve(__dirname, file)], { stdio: 'inherit' });
@@ -24,8 +30,9 @@ function runOne(file) {
 }
 
 const results = [];
-for (const file of TESTS) {
-  const r = await runOne(file);
+for (let i = 0; i < TESTS.length; i++) {
+  if (i > 0) await delay(INTER_TEST_DELAY_MS);
+  const r = await runOne(TESTS[i]);
   results.push(r);
 }
 

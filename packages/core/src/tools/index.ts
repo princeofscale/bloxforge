@@ -122,7 +122,28 @@ m.Parent = workspace
 local bridgeOk, inner = bf:Invoke(m)
 m:Destroy()
 if not bridgeOk then
-\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = tostring(inner) })
+\tlocal errMsg = tostring(inner)
+\t-- pcall(require, payload) collapses parse/compile failures into the
+\t-- canned engine string below. The real parser diagnostic was emitted
+\t-- to LogService just before. Walk GetLogHistory backward for the most
+\t-- recent ERR entry tagged at our payload path and substitute.
+\tif errMsg == "Requested module experienced an error while loading" then
+\t\t-- The parser diagnostic is emitted to LogService on the next
+\t\t-- engine frame, not synchronously with pcall(require). task.wait(0)
+\t\t-- yields too early; 50ms is enough to let the frame complete and
+\t\t-- the message land in GetLogHistory.
+\t\ttask.wait(0.05)
+\t\tlocal LogService = game:GetService("LogService")
+\t\tlocal hist = LogService:GetLogHistory()
+\t\tfor i = #hist, 1, -1 do
+\t\t\tlocal e = hist[i]
+\t\t\tif e.messageType == Enum.MessageType.MessageError and string.sub(e.message, 1, 27) == "Workspace.__MCPEvalPayload:" then
+\t\t\t\terrMsg = e.message
+\t\t\t\tbreak
+\t\t\tend
+\t\tend
+\tend
+\treturn HttpService:JSONEncode({ bridge = "ok", ok = false, error = errMsg })
 end
 -- inner is the {ok, value, output} table from our IIFE. Defensive: if it's
 -- somehow not a table (caller bypassed the wrapper), fall back to old shape.

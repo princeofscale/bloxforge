@@ -161,13 +161,52 @@ export function assertNotContains(haystack, needle, msg) {
   console.log(`  ✓ ${msg}`);
 }
 
-// Convenience for tests that need a live playtest. Starts one + waits the
-// configured delay for the play-server DM to spin up + bridges to install +
-// listener buffer to be ready.
-export async function startPlaytestAndWait(client, delaySec = 4) {
+async function getInstanceList(client) {
+  try {
+    const inst = await client.callTool('get_connected_instances', {});
+    const list = inst.instances ?? inst;
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+// Convenience for tests that need a live playtest. Waits for any stale
+// server peer from a prior test to drain, starts a fresh playtest, then
+// polls until a *new* server peer registers (the play-server DM has spun
+// up, bridges installed, listener buffer ready). Fixed delays were flaky
+// after a prior test's stop_playtest left Studio mid-teardown.
+export async function startPlaytestAndWait(client, { timeoutSec = 30, pollMs = 500 } = {}) {
+  // 1. Drain stale server peers (previous test's playtest may still be
+  //    tearing down — its server peer can linger for several seconds after
+  //    stop_playtest returns).
+  const drainDeadline = Date.now() + 15_000;
+  while (Date.now() < drainDeadline) {
+    const list = await getInstanceList(client);
+    if (!list.some((i) => i.role === 'server')) break;
+    await delay(pollMs);
+  }
+  const staleIds = new Set(
+    (await getInstanceList(client)).filter((i) => i.role === 'server').map((i) => i.instanceId),
+  );
+
+  // 2. Kick off the playtest.
   const res = await client.callTool('start_playtest', { mode: 'play', numPlayers: 1 });
   if (!res.success) throw new Error(`start_playtest failed: ${JSON.stringify(res)}`);
-  await delay(delaySec * 1000);
+
+  // 3. Poll for a fresh (non-stale) server peer to register.
+  const deadline = Date.now() + timeoutSec * 1000;
+  while (Date.now() < deadline) {
+    await delay(pollMs);
+    const list = await getInstanceList(client);
+    const freshServer = list.find((i) => i.role === 'server' && !staleIds.has(i.instanceId));
+    if (freshServer) {
+      // Server peer is registered; give bridges a moment to finish wiring.
+      await delay(1000);
+      return;
+    }
+  }
+  throw new Error(`startPlaytestAndWait: fresh server peer did not register within ${timeoutSec}s`);
 }
 
 export async function safeStopPlaytest(client) {

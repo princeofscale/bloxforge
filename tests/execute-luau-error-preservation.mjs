@@ -54,6 +54,20 @@ await runTest('execute_luau target=server preserves user error', async ({ track 
     assert(r3.success === true, 'execute_luau target=server success works');
     assertContains(JSON.stringify(r3), `${MARKER}-ok`,
       'success returnValue preserved');
+
+    // Case 4: parse/compile error on target=server (LoadStringEnabled=false
+    // default forces the ModuleScript-fallback path, where require()
+    // collapses parse errors into GENERIC). Handler must recover the real
+    // parser diagnostic from LogService.
+    const r4 = await client.callTool('execute_luau', {
+      target: 'server',
+      code: `this is not valid luau syntax @#$`,
+    });
+    assert(r4.success === false, 'execute_luau target=server parse error reports failure');
+    assertContains(r4.error || '', 'Workspace.__MCPExecLuauPayload:',
+      'parse-error response carries the real parser diagnostic path');
+    assertNotContains(r4.error || '', GENERIC,
+      'parse-error response does NOT fall back to the generic require wrapper');
   } finally {
     await safeStopPlaytest(client);
   }

@@ -1,4 +1,4 @@
-import { CollectionService } from "@rbxts/services";
+import { CollectionService, LogService } from "@rbxts/services";
 import Utils from "../Utils";
 import Recording from "../Recording";
 
@@ -326,7 +326,31 @@ end)())`;
 		m.Parent = game.GetService("Workspace");
 		const [okReq, reqResult] = pcall(() => require(m));
 		m.Destroy();
-		if (!okReq) error(tostring(reqResult));
+		if (!okReq) {
+			let errMsg = tostring(reqResult);
+			// pcall(require, m) collapses parse/compile failures into the
+			// canned engine string below. Walk LogService backward for the
+			// real diagnostic, which was emitted to MessageOut just before.
+			if (errMsg === "Requested module experienced an error while loading") {
+				// The parser diagnostic is emitted to LogService on the next
+				// engine frame, not synchronously with pcall(require). task.wait(0)
+				// yields too early; 50ms is enough to let the frame complete and
+				// the message land in GetLogHistory.
+				task.wait(0.05);
+				const hist = LogService.GetLogHistory();
+				for (let i = hist.size() - 1; i >= 0; i--) {
+					const e = hist[i];
+					if (
+						e.messageType === Enum.MessageType.MessageError &&
+						string.sub(e.message, 1, 31) === "Workspace.__MCPExecLuauPayload:"
+					) {
+						errMsg = e.message;
+						break;
+					}
+				}
+			}
+			error(errMsg);
+		}
 		return reqResult as unknown as WrapperResult;
 	};
 

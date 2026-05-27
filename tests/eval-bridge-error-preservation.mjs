@@ -47,6 +47,29 @@ await runTest('eval_server_runtime preserves user error', async ({ track }) => {
     });
     assert(r3.ok === true, 'success path still returns ok=true');
     assertContains(JSON.stringify(r3), '42', 'success result preserved');
+
+    // Case 4: parse/compile error — engine collapses these into GENERIC
+    // from pcall(require, m). Wrapper must recover the real parser
+    // diagnostic from LogService.
+    const r4 = await client.callTool('eval_server_runtime', {
+      code: `this is not valid luau syntax @#$`,
+    });
+    assert(r4.ok === false, 'eval_server_runtime parse error reports ok=false');
+    assertContains(r4.error || '', 'Workspace.__MCPEvalPayload:',
+      'parse-error response carries the real parser diagnostic path');
+    assertNotContains(r4.error || '', GENERIC,
+      'parse-error response does NOT fall back to the generic require wrapper');
+
+    // Case 5: parse error on client peer too
+    const r5 = await client.callTool('eval_client_runtime', {
+      code: `!!! syntax error here`,
+      target: 'client-1',
+    });
+    assert(r5.ok === false, 'eval_client_runtime parse error reports ok=false');
+    assertContains(r5.error || '', 'Workspace.__MCPEvalPayload:',
+      'client parse-error response carries the real parser diagnostic path');
+    assertNotContains(r5.error || '', GENERIC,
+      'client parse-error response does NOT fall back to the generic require wrapper');
   } finally {
     await safeStopPlaytest(client);
   }
