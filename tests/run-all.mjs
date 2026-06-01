@@ -15,6 +15,7 @@ const TESTS = [
   'execute-luau-error-preservation.mjs',
   'proxy-mode-peer-fanout.mjs',
   'execute-luau-output-capture.mjs',
+  'multiplayer-test-lifecycle.mjs',
 ];
 
 // Studio takes a few seconds to fully tear down a play DM after StudioTestService:EndTest.

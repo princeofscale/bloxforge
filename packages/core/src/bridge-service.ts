@@ -27,6 +27,7 @@ interface PendingRequest {
   targetInstanceId: string;
   targetRole: string;
   timestamp: number;
+  inFlight: boolean;
   resolve: (value: any) => void;
   reject: (error: any) => void;
   timeoutId: ReturnType<typeof setTimeout>;
@@ -117,21 +118,26 @@ export class BridgeService {
 
   registerInstance(input: RegisterInstanceInput): RegisterInstanceResult {
     const { pluginSessionId, instanceId, role } = input;
+    const prior = this.instances.get(pluginSessionId);
     let assignedRole = role;
 
-    // Client roles get lowest-unused-N, scoped globally (across all places)
-    // for now. Two playtests in two different edit instances simultaneously
-    // would share the client-N namespace; documented as out-of-scope for
-    // v2.12.0 in the briefing.
+    // Client roles get lowest-unused-N, scoped per place. That keeps
+    // target=client-1 intuitive when several Studio places are connected:
+    // client-1 always means the first client for the selected instance_id.
     if (role === 'client') {
-      const used = new Set<number>();
-      for (const inst of this.instances.values()) {
-        const match = inst.role.match(/^client-(\d+)$/);
-        if (match) used.add(Number(match[1]));
+      if (prior && prior.instanceId === instanceId && prior.role.match(/^client-\d+$/)) {
+        assignedRole = prior.role;
+      } else {
+        const used = new Set<number>();
+        for (const inst of this.instances.values()) {
+          if (inst.instanceId !== instanceId || inst.pluginSessionId === pluginSessionId) continue;
+          const match = inst.role.match(/^client-(\d+)$/);
+          if (match) used.add(Number(match[1]));
+        }
+        let idx = 1;
+        while (used.has(idx)) idx++;
+        assignedRole = `client-${idx}`;
       }
-      let idx = 1;
-      while (used.has(idx)) idx++;
-      assignedRole = `client-${idx}`;
     }
 
     // Reject duplicate (instanceId, role) tuples. This should not be
@@ -160,7 +166,7 @@ export class BridgeService {
       dataModelName: input.dataModelName ?? '',
       isRunning: input.isRunning ?? false,
       lastActivity: Date.now(),
-      connectedAt: Date.now(),
+      connectedAt: prior?.connectedAt ?? Date.now(),
     });
 
     return { ok: true, assignedRole, instanceId };
@@ -322,7 +328,7 @@ export class BridgeService {
     if (distinctInstanceIds.size > 1) {
       const errorCode: RoutingErrorCode = role ? 'ambiguous_target' : 'multiple_instances_connected';
       const msg = role
-        ? `target=${role} is ambiguous: multiple places have this role. Pass instance_id.`
+        ? `target=${role} is ambiguous because multiple Studio places are connected. Pass instance_id to choose a place.`
         : 'Multiple Studio places are connected. Pass instance_id to disambiguate.';
       return { ok: false, error: { code: errorCode, message: msg, data: errorData } };
     }
@@ -356,6 +362,7 @@ export class BridgeService {
         targetInstanceId,
         targetRole,
         timestamp: Date.now(),
+        inFlight: false,
         resolve,
         reject,
         timeoutId,
@@ -374,12 +381,14 @@ export class BridgeService {
     for (const request of this.pendingRequests.values()) {
       if (request.targetInstanceId !== callerInstanceId) continue;
       if (request.targetRole !== callerRole) continue;
+      if (request.inFlight) continue;
       if (!oldestRequest || request.timestamp < oldestRequest.timestamp) {
         oldestRequest = request;
       }
     }
 
     if (oldestRequest) {
+      oldestRequest.inFlight = true;
       return {
         requestId: oldestRequest.id,
         request: {

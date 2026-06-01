@@ -64,8 +64,8 @@ await runTest('execute_luau target=server preserves user error', async ({ track 
       code: `this is not valid luau syntax @#$`,
     });
     assert(r4.success === false, 'execute_luau target=server parse error reports failure');
-    assertContains(r4.error || '', 'Workspace.__MCPExecLuauPayload:',
-      'parse-error response carries the real parser diagnostic path');
+    assertContains(r4.error || '', 'user_code:',
+      'parse-error response carries the normalized user-code parser diagnostic');
     assertNotContains(r4.error || '', GENERIC,
       'parse-error response does NOT fall back to the generic require wrapper');
   } finally {

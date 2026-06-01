@@ -21,6 +21,26 @@ export const REPO_ROOT = resolve(__dirname, '..', '..');
 export const DIST = resolve(REPO_ROOT, 'packages/robloxstudio-mcp/dist/index.js');
 export const BASE_PORT = 58741;
 
+const ROUTED_TOOLS = new Set([
+  'start_playtest',
+  'stop_playtest',
+  'get_playtest_output',
+  'execute_luau',
+  'eval_server_runtime',
+  'eval_client_runtime',
+  'get_runtime_logs',
+  'get_memory_breakdown',
+  'multiplayer_test_start',
+  'multiplayer_test_state',
+  'multiplayer_test_add_players',
+  'multiplayer_test_leave_client',
+  'multiplayer_test_end',
+  'capture_screenshot',
+  'simulate_mouse_input',
+  'simulate_keyboard_input',
+  'character_navigation',
+]);
+
 export class McpClient {
   constructor(label = 'client') {
     this.label = label;
@@ -116,7 +136,11 @@ export class McpClient {
   /** tools/call wrapper. Returns the parsed first text-content body (the
       common shape used by the Roblox Studio MCP). Throws if no text content. */
   async callTool(name, args = {}) {
-    const res = await this.rpc('tools/call', { name, arguments: args });
+    const routedArgs = { ...args };
+    if (process.env.MCP_INSTANCE_ID && ROUTED_TOOLS.has(name) && routedArgs.instance_id === undefined) {
+      routedArgs.instance_id = process.env.MCP_INSTANCE_ID;
+    }
+    const res = await this.rpc('tools/call', { name, arguments: routedArgs });
     const text = res?.content?.[0]?.text;
     if (text == null) {
       throw new Error(`Tool ${name} returned no text content: ${JSON.stringify(res)}`);
@@ -165,7 +189,8 @@ async function getInstanceList(client) {
   try {
     const inst = await client.callTool('get_connected_instances', {});
     const list = inst.instances ?? inst;
-    return Array.isArray(list) ? list : [];
+    if (!Array.isArray(list)) return [];
+    return process.env.MCP_INSTANCE_ID ? list.filter((i) => i.instanceId === process.env.MCP_INSTANCE_ID) : list;
   } catch {
     return [];
   }
@@ -191,7 +216,7 @@ export async function startPlaytestAndWait(client, { timeoutSec = 30, pollMs = 5
   );
 
   // 2. Kick off the playtest.
-  const res = await client.callTool('start_playtest', { mode: 'play', numPlayers: 1 });
+  const res = await client.callTool('start_playtest', { mode: 'play' });
   if (!res.success) throw new Error(`start_playtest failed: ${JSON.stringify(res)}`);
 
   // 3. Poll for a fresh (non-stale) server peer to register.

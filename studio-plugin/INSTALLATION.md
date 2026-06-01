@@ -21,6 +21,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
    - **Windows**: Save to `%LOCALAPPDATA%/Roblox/Plugins/`
    - **macOS**: Save to `~/Documents/Roblox/Plugins/`
    - **Or use Studio**: Plugins tab > Plugins Folder > drop the file
+   - Keep only one MCP variant in this folder. Remove `MCPInspectorPlugin.rbxmx` if installing `MCPPlugin.rbxmx`, and remove `MCPPlugin.rbxmx` if installing the inspector variant.
 
 3. **Restart Roblox Studio** - Plugin appears automatically!
 

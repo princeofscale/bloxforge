@@ -5,6 +5,14 @@ import CaptureHandlers from "./handlers/CaptureHandlers";
 import InputHandlers from "./handlers/InputHandlers";
 import LuauExec from "./LuauExec";
 
+interface StudioTestServiceMultiplayer extends StudioTestService {
+	CanLeaveTest(): boolean;
+	LeaveTest(): void;
+	EditModeActive: boolean;
+}
+
+const StudioTestService = game.GetService("StudioTestService") as StudioTestServiceMultiplayer;
+
 // Mirror of Communication.computeInstanceId() — duplicated here because the
 // client broker runs in the play-server DM where it can't easily import from
 // the edit-side module, and the place identifier must match what the edit-DM
@@ -55,6 +63,7 @@ function resolvePlaceName(): string {
 
 const MCP_URL = "http://localhost:58741";
 const BROKER_NAME = "__MCPClientBroker";
+const BROKER_OWNER_ATTRIBUTE = "__MCPBrokerOwner";
 
 interface ProxyEntry {
 	pluginSessionId: string;
@@ -78,6 +87,8 @@ const CLIENT_BROKER_ALLOWED_ENDPOINTS = new Set<string>([
 	"/api/execute-luau",
 	"/api/get-runtime-logs",
 	"/api/get-memory-breakdown",
+	"/api/multiplayer-test-state",
+	"/api/multiplayer-test-leave-client",
 	// Screenshot capture must run in the client peer (CaptureService captures
 	// the play viewport there); the edit DM reads the temp id back separately.
 	"/api/capture-begin",
@@ -164,6 +175,52 @@ function handleGetRuntimeLogs(data: Record<string, unknown> | undefined): unknow
 	return RuntimeLogBuffer.query({ since, tail, filter }, "client");
 }
 
+function handleMultiplayerTestState(): unknown {
+	const [argsOk, args] = pcall(() => StudioTestService.GetTestArgs());
+	const [canLeaveOk, canLeave] = pcall(() => StudioTestService.CanLeaveTest());
+	const players = Players.GetPlayers().map((player) => ({
+		name: player.Name,
+		userId: player.UserId,
+		displayName: player.DisplayName,
+	}));
+	players.sort((a, b) => a.name < b.name);
+	return {
+		success: true,
+		peer: "client",
+		isRunning: RunService.IsRunning(),
+		isRunMode: RunService.IsRunMode(),
+		editModeActive: StudioTestService.EditModeActive,
+		testArgsOk: argsOk,
+		testArgs: argsOk ? args : undefined,
+		testArgsError: argsOk ? undefined : tostring(args),
+		players,
+		playerCount: players.size(),
+		localPlayer: Players.LocalPlayer ? Players.LocalPlayer.Name : undefined,
+		canLeaveOk,
+		canLeave: canLeaveOk ? canLeave : false,
+		canLeaveError: canLeaveOk ? undefined : tostring(canLeave),
+	};
+}
+
+function handleMultiplayerTestLeaveClient(): unknown {
+	const [canLeaveOk, canLeave] = pcall(() => StudioTestService.CanLeaveTest());
+	if (!canLeaveOk) {
+		return { error: tostring(canLeave), canLeaveOk: false };
+	}
+	if (!canLeave) {
+		return { error: "This client cannot leave the current test session.", canLeaveOk: true, canLeave: false };
+	}
+	const localPlayer = Players.LocalPlayer ? Players.LocalPlayer.Name : undefined;
+	task.defer(() => {
+		pcall(() => StudioTestService.LeaveTest());
+	});
+	return {
+		success: true,
+		message: "Client leave requested.",
+		localPlayer,
+	};
+}
+
 function setupClientBroker() {
 	const rf = ReplicatedStorage.WaitForChild(BROKER_NAME, 10);
 	if (!rf || !rf.IsA("RemoteFunction")) {
@@ -183,6 +240,12 @@ function setupClientBroker() {
 		if (payload && payload.endpoint === "/api/get-memory-breakdown") {
 			return MemoryHandlers.getMemoryBreakdown(payload.data ?? {});
 		}
+		if (payload && payload.endpoint === "/api/multiplayer-test-state") {
+			return handleMultiplayerTestState();
+		}
+		if (payload && payload.endpoint === "/api/multiplayer-test-leave-client") {
+			return handleMultiplayerTestLeaveClient();
+		}
 		if (payload && payload.endpoint === "/api/capture-begin") {
 			return CaptureHandlers.captureBegin();
 		}
@@ -201,6 +264,7 @@ function setupClientBroker() {
 }
 
 const proxyByPlayer = new Map<Player, ProxyEntry>();
+let serverBrokerStarted = false;
 
 function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
 	while (player.Parent !== undefined && proxyByPlayer.has(player)) {
@@ -277,12 +341,18 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 // which doesn't depend on MCP server state or peer registration at all.)
 
 function setupServerBroker() {
+	if (serverBrokerStarted) return;
 	let rf = ReplicatedStorage.FindFirstChild(BROKER_NAME) as RemoteFunction | undefined;
 	if (!rf) {
 		rf = new Instance("RemoteFunction");
 		rf.Name = BROKER_NAME;
 		rf.Parent = ReplicatedStorage;
 	}
+	if (rf.GetAttribute(BROKER_OWNER_ATTRIBUTE) !== undefined) {
+		return;
+	}
+	rf.SetAttribute(BROKER_OWNER_ATTRIBUTE, HttpService.GenerateGUID(false));
+	serverBrokerStarted = true;
 	const broker = rf;
 	Players.PlayerAdded.Connect((p) => registerProxy(p, broker));
 	for (const p of Players.GetPlayers()) {

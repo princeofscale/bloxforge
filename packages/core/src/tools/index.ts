@@ -338,6 +338,10 @@ function parseBridgeResponse(response: unknown): string {
   return JSON.stringify(response);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class RobloxStudioTools {
   private client: StudioHttpClient;
   private bridge: BridgeService;
@@ -400,6 +404,119 @@ export class RobloxStudioTools {
     // Prefer client-1 when several clients are connected (multi-client playtest).
     const clientRoles = roles.filter((role) => role.startsWith('client')).sort();
     return { instanceId: resolvedId, clientRole: clientRoles[0] };
+  }
+
+  private _resolveInstanceIdOnly(instance_id?: string): string {
+    const instances = this.bridge.getInstances();
+    const publicList = this.bridge.getPublicInstances();
+    const errorData = { instances: publicList, count: publicList.length };
+
+    if (instance_id !== undefined) {
+      if (!instances.some((i) => i.instanceId === instance_id)) {
+        throw new RoutingFailure({
+          code: 'unrecognized_instance_id',
+          message: `instance_id "${instance_id}" is not connected. Pass one from data.instances.`,
+          data: errorData,
+        });
+      }
+      return instance_id;
+    }
+
+    const distinct = Array.from(new Set(instances.map((i) => i.instanceId)));
+    if (distinct.length === 0) {
+      throw new RoutingFailure({
+        code: 'unrecognized_instance_id',
+        message: 'No Studio plugin is connected.',
+        data: errorData,
+      });
+    }
+    if (distinct.length > 1) {
+      throw new RoutingFailure({
+        code: 'multiple_instances_connected',
+        message: 'Multiple Studio places are connected. Pass instance_id to disambiguate.',
+        data: errorData,
+      });
+    }
+    return distinct[0];
+  }
+
+  private _resolveSingleTarget(target: string, instance_id?: string): { instanceId: string; role: string } {
+    const resolved = this.bridge.resolveTarget({ instance_id, target });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+    if (resolved.mode !== 'single') {
+      throw new RoutingFailure({
+        code: 'target_role_not_present_on_instance',
+        message: 'Pick a specific target role for this tool.',
+        data: {
+          instances: this.bridge.getPublicInstances(),
+          count: this.bridge.getInstances().length,
+        },
+      });
+    }
+    return { instanceId: resolved.targetInstanceId, role: resolved.targetRole };
+  }
+
+  private _rolesForInstance(instanceId: string): string[] {
+    return this.bridge.getInstances()
+      .filter((i) => i.instanceId === instanceId)
+      .map((i) => i.role);
+  }
+
+  private _clientRolesForInstance(instanceId: string): string[] {
+    return this._rolesForInstance(instanceId)
+      .filter((role) => /^client-\d+$/.test(role))
+      .sort((a, b) => Number(a.slice('client-'.length)) - Number(b.slice('client-'.length)));
+  }
+
+  private async _waitForRuntimeRoles(
+    instanceId: string,
+    opts: { server?: boolean; clientCount?: number; absentRole?: string; noRuntime?: boolean },
+    timeoutSec = 30,
+  ): Promise<{ ok: boolean; roles: string[]; timedOut: boolean }> {
+    const deadline = Date.now() + timeoutSec * 1000;
+    while (Date.now() < deadline) {
+      const roles = this._rolesForInstance(instanceId);
+      const hasServer = !opts.server || roles.includes('server');
+      const hasClients = opts.clientCount === undefined || this._clientRolesForInstance(instanceId).length >= opts.clientCount;
+      const absent = opts.absentRole === undefined || !roles.includes(opts.absentRole);
+      const runtimeAbsent = !opts.noRuntime || !roles.some((role) => role === 'server' || /^client-\d+$/.test(role));
+      if (hasServer && hasClients && absent && runtimeAbsent) {
+        return { ok: true, roles, timedOut: false };
+      }
+      await sleep(250);
+    }
+    return { ok: false, roles: this._rolesForInstance(instanceId), timedOut: true };
+  }
+
+  private async _waitForExactClientCount(
+    instanceId: string,
+    expectedClientCount: number,
+    timeoutSec = 30,
+    stableMs = 3000,
+  ): Promise<{ ok: boolean; roles: string[]; timedOut: boolean; extraClients: boolean; clientCount: number }> {
+    const deadline = Date.now() + timeoutSec * 1000;
+    let exactSince: number | undefined;
+
+    while (Date.now() < deadline) {
+      const roles = this._rolesForInstance(instanceId);
+      const clientCount = this._clientRolesForInstance(instanceId).length;
+      if (clientCount > expectedClientCount) {
+        return { ok: false, roles, timedOut: false, extraClients: true, clientCount };
+      }
+      if (roles.includes('server') && clientCount === expectedClientCount) {
+        exactSince ??= Date.now();
+        if (Date.now() - exactSince >= stableMs) {
+          return { ok: true, roles, timedOut: false, extraClients: false, clientCount };
+        }
+      } else {
+        exactSince = undefined;
+      }
+      await sleep(250);
+    }
+
+    const roles = this._rolesForInstance(instanceId);
+    const clientCount = this._clientRolesForInstance(instanceId).length;
+    return { ok: false, roles, timedOut: true, extraClients: clientCount > expectedClientCount, clientCount };
   }
 
 
@@ -1213,10 +1330,10 @@ export class RobloxStudioTools {
     if (mode !== 'play' && mode !== 'run') {
       throw new Error('mode must be "play" or "run"');
     }
-    const data: Record<string, unknown> = { mode };
     if (numPlayers !== undefined) {
-      data.numPlayers = numPlayers;
+      throw new Error('start_playtest is single-player only. Use multiplayer_test_start for multi-client StudioTestService sessions.');
     }
+    const data: Record<string, unknown> = { mode };
     const response = await this._callSingle('/api/start-playtest', data, undefined, instance_id);
     return {
       content: [
@@ -1249,6 +1366,246 @@ export class RobloxStudioTools {
           text: JSON.stringify(response)
         }
       ]
+    };
+  }
+
+  private async _buildMultiplayerState(instanceId: string): Promise<Record<string, unknown>> {
+    const peers = this.bridge.getPublicInstances()
+      .filter((i) => i.instanceId === instanceId)
+      .sort((a, b) => a.role.localeCompare(b.role));
+
+    const body: Record<string, unknown> = {
+      instanceId,
+      peers,
+      peerCount: peers.length,
+    };
+
+    const edit = peers.find((p) => p.role === 'edit');
+    const server = peers.find((p) => p.role === 'server');
+
+    let editState: any | undefined;
+    let serverState: any | undefined;
+
+    if (edit) {
+      try {
+        editState = await this.client.request('/api/multiplayer-test-state', {}, instanceId, 'edit');
+        body.edit = editState;
+      } catch (err) {
+        body.edit = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    if (server) {
+      try {
+        serverState = await this.client.request('/api/multiplayer-test-state', {}, instanceId, 'server');
+        body.server = serverState;
+      } catch (err) {
+        body.server = { error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+
+    const session = editState?.session;
+    const rawPhase = typeof session?.phase === 'string' ? session.phase : undefined;
+    const hasRuntime = peers.some((p) => p.role === 'server' || p.role.startsWith('client-'));
+    body.phase = rawPhase === 'starting' && hasRuntime ? 'running' : (rawPhase ?? (hasRuntime ? 'running' : 'idle'));
+    body.testId = session?.testId;
+    body.numPlayers = session?.numPlayers;
+    body.testArgs = session?.testArgs ?? serverState?.testArgs;
+    body.result = session?.result;
+    body.error = session?.error;
+    body.players = serverState?.players ?? [];
+    body.playerCount = serverState?.playerCount ?? 0;
+    body.clientRoles = this._clientRolesForInstance(instanceId);
+
+    return body;
+  }
+
+  private async _waitForMultiplayerEditDone(instanceId: string, timeoutSec = 30): Promise<boolean> {
+    const deadline = Date.now() + timeoutSec * 1000;
+    while (Date.now() < deadline) {
+      if (!this._rolesForInstance(instanceId).includes('edit')) return false;
+      try {
+        const editState = await this.client.request('/api/multiplayer-test-state', {}, instanceId, 'edit');
+        const phase = editState?.session?.phase;
+        if (phase === 'completed' || phase === 'failed') return true;
+      } catch {
+        // The edit peer may be temporarily busy while Studio tears down.
+      }
+      await sleep(250);
+    }
+    return false;
+  }
+
+  private async _isMultiplayerTestRunning(instanceId: string): Promise<boolean> {
+    if (!this._rolesForInstance(instanceId).includes('edit')) return false;
+    try {
+      const editState = await this.client.request('/api/multiplayer-test-state', {}, instanceId, 'edit');
+      const phase = editState?.session?.phase;
+      return phase === 'starting' || phase === 'running';
+    } catch {
+      return false;
+    }
+  }
+
+  private async _waitForMultiplayerStart(
+    instanceId: string,
+    clientCount: number,
+    timeoutSec = 30,
+  ): Promise<{ ok: boolean; roles: string[]; timedOut: boolean; phase?: string; error?: unknown }> {
+    const deadline = Date.now() + timeoutSec * 1000;
+    while (Date.now() < deadline) {
+      const exact = await this._waitForExactClientCount(instanceId, clientCount, 0.25, 0);
+      if (exact.ok || exact.extraClients) {
+        return { ok: exact.ok, roles: exact.roles, timedOut: false, error: exact.extraClients ? `Expected ${clientCount} client(s), but Studio registered ${exact.clientCount}.` : undefined };
+      }
+      try {
+        const editState = await this.client.request('/api/multiplayer-test-state', {}, instanceId, 'edit');
+        const session = editState?.session;
+        if (session?.phase === 'failed' || session?.phase === 'completed') {
+          return { ok: false, roles: this._rolesForInstance(instanceId), timedOut: false, phase: session.phase, error: session.error };
+        }
+      } catch {
+        // Keep waiting; normal startup is driven by runtime peers registering.
+      }
+      await sleep(250);
+    }
+    return { ok: false, roles: this._rolesForInstance(instanceId), timedOut: true };
+  }
+
+  async multiplayerTestStart(numPlayers: number, testArgs?: unknown, timeout?: number, instance_id?: string) {
+    if (!Number.isInteger(numPlayers) || numPlayers < 1 || numPlayers > 8) {
+      throw new Error('numPlayers must be an integer from 1 to 8');
+    }
+    const editTarget = this._resolveSingleTarget('edit', instance_id);
+    const response = await this.client.request(
+      '/api/multiplayer-test-start',
+      { numPlayers, testArgs: testArgs ?? {} },
+      editTarget.instanceId,
+      editTarget.role,
+    );
+    if (response?.error) {
+      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    }
+
+    const wait = await this._waitForMultiplayerStart(editTarget.instanceId, numPlayers, timeout ?? 30);
+    const state = await this._buildMultiplayerState(editTarget.instanceId);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          ...response,
+          ready: wait.ok,
+          timedOut: wait.timedOut,
+          wait,
+          roles: wait.roles,
+          state,
+        }),
+      }],
+    };
+  }
+
+  async multiplayerTestState(instance_id?: string) {
+    const instanceId = this._resolveInstanceIdOnly(instance_id);
+    const state = await this._buildMultiplayerState(instanceId);
+    return { content: [{ type: 'text', text: JSON.stringify(state) }] };
+  }
+
+  async multiplayerTestAddPlayers(numPlayers: number, timeout?: number, instance_id?: string) {
+    if (!Number.isInteger(numPlayers) || numPlayers < 1 || numPlayers > 8) {
+      throw new Error('numPlayers must be an integer from 1 to 8');
+    }
+    const serverTarget = this._resolveSingleTarget('server', instance_id);
+    const before = this._clientRolesForInstance(serverTarget.instanceId).length;
+    const response = await this.client.request(
+      '/api/multiplayer-test-add-players',
+      { numPlayers, timeout: timeout ?? 10 },
+      serverTarget.instanceId,
+      serverTarget.role,
+    );
+    if (response?.error) {
+      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    }
+    const wait = await this._waitForExactClientCount(serverTarget.instanceId, before + numPlayers, timeout ?? 30);
+    const state = await this._buildMultiplayerState(serverTarget.instanceId);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          ...response,
+          ready: wait.ok,
+          timedOut: wait.timedOut,
+          wait,
+          roles: wait.roles,
+          state,
+        }),
+      }],
+    };
+  }
+
+  async multiplayerTestLeaveClient(target: string = 'client-1', timeout?: number, instance_id?: string) {
+    if (!/^client-\d+$/.test(target)) {
+      throw new Error(`multiplayer_test_leave_client requires target=client-N (got: ${target})`);
+    }
+    const clientTarget = this._resolveSingleTarget(target, instance_id);
+    const response = await this.client.request(
+      '/api/multiplayer-test-leave-client',
+      {},
+      clientTarget.instanceId,
+      clientTarget.role,
+    );
+    if (response?.error) {
+      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    }
+    const wait = await this._waitForRuntimeRoles(
+      clientTarget.instanceId,
+      { absentRole: clientTarget.role },
+      timeout ?? 30,
+    );
+    const state = await this._buildMultiplayerState(clientTarget.instanceId);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          ...response,
+          left: wait.ok,
+          timedOut: wait.timedOut,
+          roles: wait.roles,
+          state,
+        }),
+      }],
+    };
+  }
+
+  async multiplayerTestEnd(value?: unknown, timeout?: number, instance_id?: string) {
+    const serverTarget = this._resolveSingleTarget('server', instance_id);
+    const response = await this.client.request(
+      '/api/multiplayer-test-end',
+      { value: value ?? 'ended_by_mcp' },
+      serverTarget.instanceId,
+      serverTarget.role,
+    );
+    if (response?.error) {
+      return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    }
+    const editDone = await this._waitForMultiplayerEditDone(serverTarget.instanceId, timeout ?? 30);
+    const wait = await this._waitForRuntimeRoles(
+      serverTarget.instanceId,
+      { noRuntime: true },
+      timeout ?? 30,
+    );
+    const state = await this._buildMultiplayerState(serverTarget.instanceId);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          ...response,
+          ended: wait.ok,
+          editDone,
+          timedOut: wait.timedOut,
+          roles: wait.roles,
+          state,
+        }),
+      }],
     };
   }
 
@@ -1291,14 +1648,15 @@ export class RobloxStudioTools {
 
   private static findProjectRoot(startDir: string): string | null {
     let dir = path.resolve(startDir);
-    while (true) {
+    let previous = '';
+    while (dir !== previous) {
       if (fs.existsSync(path.join(dir, '.git')) || fs.existsSync(path.join(dir, 'package.json'))) {
         return dir;
       }
-      const parent = path.dirname(dir);
-      if (parent === dir) return null;
-      dir = parent;
+      previous = dir;
+      dir = path.dirname(dir);
     }
+    return null;
   }
 
   private static isDirectory(candidate: string | null | undefined): candidate is string {
@@ -2449,10 +2807,22 @@ export class RobloxStudioTools {
     }
 
     if (response.error) {
+      let text = response.error;
+      if (
+        clientRole &&
+        response.error.includes('Failed to load texture, unexpected format') &&
+        await this._isMultiplayerTestRunning(instanceId)
+      ) {
+        text =
+          'Screenshot capture reached the multiplayer client, but Roblox returned a temporary screenshot texture ' +
+          'that the edit peer cannot read in StudioTestService multiplayer sessions. Regular start_playtest capture ' +
+          'works because the temporary rbxtemp:// handle is readable from the edit process; multiplayer client handles ' +
+          `appear to be scoped to the client process. Raw error: ${response.error}`;
+      }
       return {
         content: [{
           type: 'text',
-          text: response.error,
+          text,
         }]
       };
     }
@@ -2474,7 +2844,9 @@ export class RobloxStudioTools {
     // the caller asked for); for JPEG we step quality down so the call still
     // succeeds.
     const MAX_IMAGE_BYTES = 6_000_000;
-    let { buffer, mimeType } = encodeImageFromRgbaResponse(response, fmt, q);
+    const encoded = encodeImageFromRgbaResponse(response, fmt, q);
+    let { buffer } = encoded;
+    const { mimeType } = encoded;
     let usedQ = q;
     let note = '';
 

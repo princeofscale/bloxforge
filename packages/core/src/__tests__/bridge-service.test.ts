@@ -52,12 +52,23 @@ describe('BridgeService', () => {
       expect(bridge.getPendingRequest('place:1', 'edit')).toBeTruthy();
     });
 
+    test('does not return the same request twice while response is in flight', async () => {
+      bridge.sendRequest('/api/test', { mutates: true }, 'place:1', 'server');
+
+      const first = bridge.getPendingRequest('place:1', 'server');
+      expect(first).toBeTruthy();
+      expect(bridge.getPendingRequest('place:1', 'server')).toBeNull();
+
+      bridge.resolveRequest(first!.requestId, { ok: true });
+      expect(bridge.getPendingRequest('place:1', 'server')).toBeNull();
+    });
+
     test('resolves request when response received', async () => {
-      bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const promise = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
       const pending = bridge.getPendingRequest('place:1', 'edit');
-      const promise = (bridge as any).pendingRequests.get(pending!.requestId).resolve;
       // Use the public API
       bridge.resolveRequest(pending!.requestId, { ok: true });
+      await expect(promise).resolves.toEqual({ ok: true });
       // The promise inside sendRequest is fulfilled — verify by re-querying.
       expect(bridge.getPendingRequest('place:1', 'edit')).toBeNull();
     });
@@ -96,6 +107,20 @@ describe('BridgeService', () => {
       expect(register(bridge, { pluginSessionId: 'c', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-3');
     });
 
+    test('client indices are scoped per instance_id', () => {
+      expect(register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-1');
+      expect(register(bridge, { pluginSessionId: 'b', instanceId: 'place:2', role: 'client' }).assignedRole).toBe('client-1');
+      expect(register(bridge, { pluginSessionId: 'c', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-2');
+      expect(register(bridge, { pluginSessionId: 'd', instanceId: 'place:2', role: 'client' }).assignedRole).toBe('client-2');
+    });
+
+    test('client refresh preserves assigned role', () => {
+      expect(register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-1');
+      expect(register(bridge, { pluginSessionId: 'b', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-2');
+      expect(register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-1');
+      expect(bridge.getInstances()).toHaveLength(2);
+    });
+
     test('disconnecting a middle client fills the hole', () => {
       register(bridge, { pluginSessionId: 'a', instanceId: 'place:1', role: 'client' });
       register(bridge, { pluginSessionId: 'b', instanceId: 'place:1', role: 'client' });
@@ -116,6 +141,19 @@ describe('BridgeService', () => {
       expect(dup.error.code).toBe('duplicate_instance_role');
       expect(dup.error.existing.instanceId).toBe('place:1');
       expect(dup.error.existing.role).toBe('edit');
+    });
+
+    test('rejects duplicate explicit client role within the same instance_id', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'client' });
+      const dup = bridge.registerInstance({
+        pluginSessionId: 'p2',
+        instanceId: 'place:1',
+        role: 'client-1',
+      });
+      expect(dup.ok).toBe(false);
+      if (dup.ok) return;
+      expect(dup.error.code).toBe('duplicate_instance_role');
+      expect(dup.error.existing.role).toBe('client-1');
     });
 
     test('re-registering same pluginSessionId is allowed (refresh)', () => {
@@ -171,6 +209,8 @@ describe('BridgeService', () => {
       expect(r.ok).toBe(false);
       if (r.ok) return;
       expect(r.error.code).toBe('ambiguous_target');
+      expect(r.error.message).toContain('multiple Studio places are connected');
+      expect(r.error.message).toContain('Pass instance_id');
       expect(r.error.data.count).toBe(2);
     });
 
@@ -204,6 +244,16 @@ describe('BridgeService', () => {
       expect(r.ok).toBe(true);
       if (!r.ok || r.mode !== 'single') throw new Error('expected single');
       expect(r.targetRole).toBe('server');
+    });
+
+    test('instance_id with client role picks that place client even when another place has same client role', () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'client' });
+      register(bridge, { pluginSessionId: 'p2', instanceId: 'place:2', role: 'client' });
+      const r = bridge.resolveTarget({ instance_id: 'place:2', target: 'client-1' });
+      expect(r.ok).toBe(true);
+      if (!r.ok || r.mode !== 'single') throw new Error('expected single');
+      expect(r.targetInstanceId).toBe('place:2');
+      expect(r.targetRole).toBe('client-1');
     });
 
     test('instance_id with role that does not exist on instance errors target_role_not_present_on_instance', () => {

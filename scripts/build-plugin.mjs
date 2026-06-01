@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, readdirSync, writeFileSync, copyFileSync, existsSync, mkdirSync, statSync } from 'fs';
+import { readFileSync, readdirSync, writeFileSync, copyFileSync, existsSync, mkdirSync, statSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, basename } from 'path';
 import { homedir } from 'os';
@@ -50,6 +50,7 @@ if (!variant) {
 }
 
 const outputPath = join(pluginDir, variant.outputName);
+const otherVariant = variantName === 'main' ? VARIANTS.inspector : VARIANTS.main;
 
 function escapeCdata(source) {
   return source.replace(/\]\]>/g, ']]]]><![CDATA[>');
@@ -257,6 +258,11 @@ function resolvePluginsDir() {
 const pluginsDir = resolvePluginsDir();
 if (pluginsDir) {
   mkdirSync(pluginsDir, { recursive: true });
+  const otherInstallPath = join(pluginsDir, otherVariant.outputName);
+  if (existsSync(otherInstallPath)) {
+    unlinkSync(otherInstallPath);
+    console.log(`Removed conflicting ${otherVariant.outputName} from ${pluginsDir}`);
+  }
   const installPath = join(pluginsDir, variant.outputName);
   copyFileSync(outputPath, installPath);
   console.log(`Installed to ${installPath}`);

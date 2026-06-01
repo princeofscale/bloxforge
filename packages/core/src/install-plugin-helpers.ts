@@ -94,8 +94,8 @@ export function handleVariantConflict({
 
   console.warn(
     `\n[install-plugin] WARNING: ${otherAssetName} is already present in ${pluginsFolder}.\n` +
-      `Both plugins will register with MCP at Studio launch, causing duplicate role ` +
-      `registrations and unpredictable routing for stop_playtest and per-peer execute_luau.\n` +
+      `Only one MCP plugin variant should be present. If both variants are in the Studio ` +
+      `Plugins folder, Studio loads both and runtime routing can become unpredictable.\n` +
       `Re-run with --replace-variant to remove ${otherAssetName}, or delete it manually.\n`,
   );
 }

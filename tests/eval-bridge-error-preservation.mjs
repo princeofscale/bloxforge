@@ -55,8 +55,8 @@ await runTest('eval_server_runtime preserves user error', async ({ track }) => {
       code: `this is not valid luau syntax @#$`,
     });
     assert(r4.ok === false, 'eval_server_runtime parse error reports ok=false');
-    assertContains(r4.error || '', 'Workspace.__MCPEvalPayload:',
-      'parse-error response carries the real parser diagnostic path');
+    assertContains(r4.error || '', 'user_code:',
+      'parse-error response carries the normalized user-code parser diagnostic');
     assertNotContains(r4.error || '', GENERIC,
       'parse-error response does NOT fall back to the generic require wrapper');
 
@@ -66,8 +66,8 @@ await runTest('eval_server_runtime preserves user error', async ({ track }) => {
       target: 'client-1',
     });
     assert(r5.ok === false, 'eval_client_runtime parse error reports ok=false');
-    assertContains(r5.error || '', 'Workspace.__MCPEvalPayload:',
-      'client parse-error response carries the real parser diagnostic path');
+    assertContains(r5.error || '', 'user_code:',
+      'client parse-error response carries the normalized user-code parser diagnostic');
     assertNotContains(r5.error || '', GENERIC,
       'client parse-error response does NOT fall back to the generic require wrapper');
   } finally {

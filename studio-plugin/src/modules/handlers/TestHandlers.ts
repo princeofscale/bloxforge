@@ -1,8 +1,16 @@
-import { HttpService, LogService, RunService } from "@rbxts/services";
+import { HttpService, LogService, Players, RunService } from "@rbxts/services";
 import { installBridges, ensureBridgesInstalled } from "../EvalBridges";
 import StopPlayMonitor from "../StopPlayMonitor";
 
-const StudioTestService = game.GetService("StudioTestService");
+interface StudioTestServiceMultiplayer extends StudioTestService {
+	ExecuteMultiplayerTestAsync(numPlayers: number, testArgs: unknown): unknown;
+	AddPlayers(numPlayers: number): void;
+	CanLeaveTest(): boolean;
+	LeaveTest(): void;
+	EditModeActive: boolean;
+}
+
+const StudioTestService = game.GetService("StudioTestService") as StudioTestServiceMultiplayer;
 const ServerScriptService = game.GetService("ServerScriptService");
 const ScriptEditorService = game.GetService("ScriptEditorService");
 
@@ -26,6 +34,59 @@ let testResult: unknown;
 let testError: string | undefined;
 let stopListenerScript: Script | undefined;
 let navResultCallback: ((json: string) => void) | undefined;
+
+type MultiplayerPhase = "idle" | "starting" | "running" | "completed" | "failed";
+
+interface MultiplayerSessionState {
+	phase: MultiplayerPhase;
+	testId?: string;
+	numPlayers?: number;
+	testArgs?: unknown;
+	startedAt?: number;
+	completedAt?: number;
+	ok?: boolean;
+	result?: unknown;
+	error?: string;
+}
+
+let multiplayerState: MultiplayerSessionState = { phase: "idle" };
+
+function detectPeerRole(): string {
+	if (!RunService.IsRunning()) return "edit";
+	if (RunService.IsServer()) return "server";
+	return "client";
+}
+
+function getPlayersSnapshot() {
+	const players = Players.GetPlayers().map((player) => ({
+		name: player.Name,
+		userId: player.UserId,
+		displayName: player.DisplayName,
+	}));
+	players.sort((a, b) => a.name < b.name);
+	return players;
+}
+
+function cloneMultiplayerState(): MultiplayerSessionState {
+	return {
+		phase: multiplayerState.phase,
+		testId: multiplayerState.testId,
+		numPlayers: multiplayerState.numPlayers,
+		testArgs: multiplayerState.testArgs,
+		startedAt: multiplayerState.startedAt,
+		completedAt: multiplayerState.completedAt,
+		ok: multiplayerState.ok,
+		result: multiplayerState.result,
+		error: multiplayerState.error,
+	};
+}
+
+function normalizeNumPlayers(value: unknown): number | undefined {
+	if (!typeIs(value, "number")) return undefined;
+	const n = math.floor(value);
+	if (n !== value || n < 1 || n > 8) return undefined;
+	return n;
+}
 
 function buildCommandListenerSource(): string {
 	return `local LogService = game:GetService("LogService")
@@ -124,6 +185,10 @@ function startPlaytest(requestData: Record<string, unknown>) {
 		return { error: 'mode must be "play" or "run"' };
 	}
 
+	if (numPlayers !== undefined) {
+		return { error: "start_playtest is single-player only. Use multiplayer_test_start for multi-client StudioTestService sessions." };
+	}
+
 	// Self-heal: if testRunning is stuck true but Studio reports no active
 	// playtest, the previous start_playtest's task.spawn was orphaned
 	// (plugin reload mid-test, Studio entered some inconsistent state, etc).
@@ -180,11 +245,6 @@ function startPlaytest(requestData: Record<string, unknown>) {
 		warn(`[MCP] Eval bridge install failed: ${bridgeInstall.error}`);
 	}
 
-	if (numPlayers !== undefined && mode === "run") {
-		const TestService = game.GetService("TestService") as TestService & { NumberOfPlayers: number };
-		TestService.NumberOfPlayers = math.clamp(numPlayers, 1, 8);
-	}
-
 	task.spawn(() => {
 		const [ok, result] = pcall(() => {
 			if (mode === "play") {
@@ -211,13 +271,9 @@ function startPlaytest(requestData: Record<string, unknown>) {
 		ensureBridgesInstalled();
 	});
 
-	const msg = numPlayers !== undefined
-		? `Playtest started in ${mode} mode with ${numPlayers} player(s).`
-		: `Playtest started in ${mode} mode.`;
-
 	const response: Record<string, unknown> = {
 		success: true,
-		message: msg,
+		message: `Playtest started in ${mode} mode.`,
 	};
 	// Only mention eval bridges when they failed — when they're fine, the
 	// detail is noise. eval_server_runtime / eval_client_runtime will surface
@@ -294,6 +350,179 @@ function getPlaytestOutput(_requestData: Record<string, unknown>) {
 	};
 }
 
+function multiplayerTestStart(requestData: Record<string, unknown>) {
+	if (RunService.IsRunning()) {
+		return { error: "multiplayer_test_start must be called on the edit DataModel. Route with target=edit." };
+	}
+
+	const numPlayers = normalizeNumPlayers(requestData.numPlayers);
+	if (numPlayers === undefined) {
+		return { error: "numPlayers must be an integer from 1 to 8" };
+	}
+
+	if (multiplayerState.phase === "starting" || multiplayerState.phase === "running") {
+		return {
+			error: "A multiplayer Studio test is already running",
+			state: cloneMultiplayerState(),
+		};
+	}
+
+	const testArgs = requestData.testArgs !== undefined ? requestData.testArgs : {};
+	const testId = HttpService.GenerateGUID(false);
+
+	const bridgeInstall = installBridges();
+	if (!bridgeInstall.installed) {
+		warn(`[MCP] Eval bridge install failed: ${bridgeInstall.error}`);
+	}
+
+	multiplayerState = {
+		phase: "starting",
+		testId,
+		numPlayers,
+		testArgs,
+		startedAt: tick(),
+	};
+
+	task.spawn(() => {
+		multiplayerState.phase = "running";
+		const [ok, result] = pcall(() => {
+			return StudioTestService.ExecuteMultiplayerTestAsync(numPlayers, testArgs);
+		});
+
+		multiplayerState.completedAt = tick();
+		multiplayerState.ok = ok;
+		if (ok) {
+			multiplayerState.phase = "completed";
+			multiplayerState.result = result;
+			multiplayerState.error = undefined;
+		} else {
+			multiplayerState.phase = "failed";
+			multiplayerState.result = undefined;
+			multiplayerState.error = tostring(result);
+		}
+
+		ensureBridgesInstalled();
+	});
+
+	const response: Record<string, unknown> = {
+		success: true,
+		message: `Multiplayer Studio test starting with ${numPlayers} player(s).`,
+		testId,
+		phase: multiplayerState.phase,
+		numPlayers,
+		testArgs,
+	};
+	if (!bridgeInstall.installed) {
+		response.evalBridgesError = bridgeInstall.error;
+	}
+	return response;
+}
+
+function multiplayerTestState(_requestData: Record<string, unknown>) {
+	const peer = detectPeerRole();
+	const response: Record<string, unknown> = {
+		success: true,
+		peer,
+		isRunning: RunService.IsRunning(),
+		isRunMode: RunService.IsRunMode(),
+		editModeActive: StudioTestService.EditModeActive,
+	};
+
+	if (peer === "edit") {
+		response.session = cloneMultiplayerState();
+		return response;
+	}
+
+	const [argsOk, args] = pcall(() => StudioTestService.GetTestArgs());
+	response.testArgsOk = argsOk;
+	response.testArgs = argsOk ? args : undefined;
+	if (!argsOk) response.testArgsError = tostring(args);
+
+	const players = getPlayersSnapshot();
+	response.players = players;
+	response.playerCount = players.size();
+
+	if (peer === "client") {
+		response.localPlayer = Players.LocalPlayer ? Players.LocalPlayer.Name : undefined;
+		const [canLeaveOk, canLeave] = pcall(() => StudioTestService.CanLeaveTest());
+		response.canLeaveOk = canLeaveOk;
+		response.canLeave = canLeaveOk ? canLeave : false;
+		if (!canLeaveOk) response.canLeaveError = tostring(canLeave);
+	}
+
+	return response;
+}
+
+function multiplayerTestAddPlayers(requestData: Record<string, unknown>) {
+	if (!RunService.IsRunning() || !RunService.IsServer()) {
+		return { error: "multiplayer_test_add_players must be called on the running server peer. Route with target=server." };
+	}
+	const numPlayers = normalizeNumPlayers(requestData.numPlayers);
+	if (numPlayers === undefined) {
+		return { error: "numPlayers must be an integer from 1 to 8" };
+	}
+
+	const before = Players.GetPlayers().size();
+	const [ok, result] = pcall(() => StudioTestService.AddPlayers(numPlayers));
+	if (!ok) {
+		return { error: tostring(result) };
+	}
+
+	const deadline = tick() + ((requestData.timeout as number | undefined) ?? 10);
+	while (Players.GetPlayers().size() < before + numPlayers && tick() < deadline) {
+		task.wait(0.1);
+	}
+
+	const players = getPlayersSnapshot();
+	return {
+		success: true,
+		message: `Requested ${numPlayers} additional player(s).`,
+		playerCount: players.size(),
+		players,
+	};
+}
+
+function multiplayerTestLeaveClient(_requestData: Record<string, unknown>) {
+	if (!RunService.IsRunning() || RunService.IsServer()) {
+		return { error: "multiplayer_test_leave_client must be called on a running client peer. Route with target=client-N." };
+	}
+
+	const [canLeaveOk, canLeave] = pcall(() => StudioTestService.CanLeaveTest());
+	if (!canLeaveOk) {
+		return { error: tostring(canLeave), canLeaveOk: false };
+	}
+	if (!canLeave) {
+		return { error: "This client cannot leave the current test session.", canLeaveOk: true, canLeave: false };
+	}
+
+	const localPlayer = Players.LocalPlayer ? Players.LocalPlayer.Name : undefined;
+	task.defer(() => {
+		pcall(() => StudioTestService.LeaveTest());
+	});
+	return {
+		success: true,
+		message: "Client leave requested.",
+		localPlayer,
+	};
+}
+
+function multiplayerTestEnd(requestData: Record<string, unknown>) {
+	if (!RunService.IsRunning() || !RunService.IsServer()) {
+		return { error: "multiplayer_test_end must be called on the running server peer. Route with target=server." };
+	}
+
+	const value = requestData.value !== undefined ? requestData.value : "ended_by_mcp";
+	const [ok, result] = pcall(() => StudioTestService.EndTest(value));
+	if (!ok) {
+		return { error: tostring(result) };
+	}
+	return {
+		success: true,
+		message: "Multiplayer Studio test end requested.",
+		value,
+	};
+}
+
 function characterNavigation(requestData: Record<string, unknown>) {
 	if (!testRunning) {
 		return { error: "Playtest must be running. Start a playtest in 'play' mode first." };
@@ -344,5 +573,10 @@ export = {
 	startPlaytest,
 	stopPlaytest,
 	getPlaytestOutput,
+	multiplayerTestStart,
+	multiplayerTestState,
+	multiplayerTestAddPlayers,
+	multiplayerTestLeaveClient,
+	multiplayerTestEnd,
 	characterNavigation,
 };

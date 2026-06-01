@@ -865,7 +865,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'execute_luau',
     category: 'write',
-    description: 'Execute Luau code in plugin context. Use print()/warn() for output. Return value is captured.',
+    description: 'Execute Luau code in plugin context. target="server" and target="client-N" run against live runtime DataModels with PluginSecurity permissions; use eval_*_runtime instead when you need the game Script/LocalScript VM require cache. Use print()/warn() for output. Return value is captured.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -888,7 +888,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'eval_server_runtime',
     category: 'write',
-    description: 'Execute Luau on the server peer in the running game\'s Script VM (shares require cache with user game scripts). Use this instead of execute_luau target=server when you need to see runtime-mutated module state. Requires a running playtest; the bridge is installed automatically (including for playtests started manually via the Studio Play button).',
+    description: 'Execute Luau on the server peer in the running game\'s Script VM (shares require cache with user game scripts, unlike execute_luau target=server which runs in plugin context). Requires a running playtest; the bridge is installed automatically (including for playtests started manually via the Studio Play button).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -907,7 +907,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'eval_client_runtime',
     category: 'write',
-    description: 'Execute Luau on a client peer in the running game\'s LocalScript VM (shares require cache with user game scripts). Use this instead of execute_luau target=client-N when you need to see runtime-mutated module state. Requires a running playtest; the bridge is installed automatically (including for playtests started manually via the Studio Play button).',
+    description: 'Execute Luau on a client peer in the running game\'s LocalScript VM (shares require cache with user game scripts, unlike execute_luau target=client-N which runs in plugin context). Requires a running playtest; the bridge is installed automatically (including for playtests started manually via the Studio Play button).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -986,7 +986,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'start_playtest',
     category: 'write',
-    description: 'Start playtest. Captures print/warn/error via LogService. Poll with get_playtest_output, end with stop_playtest. Use numPlayers for multi-client testing (server + N clients).',
+    description: 'Start a simple single-player Studio playtest in play or run mode. Captures print/warn/error via LogService. Poll with get_playtest_output, end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -997,7 +997,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         numPlayers: {
           type: 'number',
-          description: 'Number of client players (1-8). Triggers server + clients mode via TestService.'
+          description: 'Deprecated and rejected. Use multiplayer_test_start for multi-client testing.'
         },
         instance_id: {
           type: 'string',
@@ -1031,6 +1031,112 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         target: {
           type: 'string',
           description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
+    }
+  },
+  {
+    name: 'multiplayer_test_start',
+    category: 'write',
+    description: 'Start a StudioTestService multiplayer test and wait for the server plus requested client peers to connect. Use this for multi-client runtime testing.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        numPlayers: {
+          type: 'number',
+          description: 'Number of client players to start (1-8).'
+        },
+        testArgs: {
+          description: 'JSON-compatible table passed to StudioTestService:GetTestArgs() on server and clients.'
+        },
+        timeout: {
+          type: 'number',
+          description: 'Max seconds to wait for server + clients to register (default 30).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      },
+      required: ['numPlayers']
+    }
+  },
+  {
+    name: 'multiplayer_test_state',
+    category: 'read',
+    description: 'Get the active multiplayer StudioTestService state for a place: phase, peers, players, original testArgs, result/error, and connected client roles.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to inspect. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
+    }
+  },
+  {
+    name: 'multiplayer_test_add_players',
+    category: 'write',
+    description: 'Add client players to a running StudioTestService multiplayer test and wait for the new clients to connect.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        numPlayers: {
+          type: 'number',
+          description: 'Number of additional client players to add (1-8).'
+        },
+        timeout: {
+          type: 'number',
+          description: 'Max seconds to wait for new clients to register (default 30).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      },
+      required: ['numPlayers']
+    }
+  },
+  {
+    name: 'multiplayer_test_leave_client',
+    category: 'write',
+    description: 'Disconnect a specific client from a running StudioTestService multiplayer test, then wait for that client peer to leave.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: 'Client target to leave: "client-1" (default), "client-2", etc.'
+        },
+        timeout: {
+          type: 'number',
+          description: 'Max seconds to wait for the client peer to disconnect (default 30).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
+    }
+  },
+  {
+    name: 'multiplayer_test_end',
+    category: 'write',
+    description: 'End a running StudioTestService multiplayer test with an optional return value, then wait for all runtime peers to disconnect.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        value: {
+          description: 'JSON-compatible value returned to the edit-side ExecuteMultiplayerTestAsync call.'
+        },
+        timeout: {
+          type: 'number',
+          description: 'Max seconds to wait for runtime peers to disconnect (default 30).'
         },
         instance_id: {
           type: 'string',
@@ -1587,7 +1693,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'capture_screenshot',
     category: 'read',
-    description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the exact pixel dimensions. Works in Edit mode and during a playtest (auto-detects a running client and captures the live play viewport). The returned image is never downscaled, so its pixel grid is exactly the coordinate space simulate_mouse_input uses — read click positions straight off this image. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
+    description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the exact pixel dimensions. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The returned image is never downscaled, so its pixel grid is exactly the coordinate space simulate_mouse_input uses — read click positions straight off this image. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
     inputSchema: {
       type: 'object',
       properties: {

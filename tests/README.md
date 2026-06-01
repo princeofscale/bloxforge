@@ -44,13 +44,13 @@ failure the test's MCP subprocess stderr tail is dumped for context.
 | `execute-luau-error-preservation.mjs` | `execute_luau target=server` surfaces user error messages without leaking plugin-internal paths (e.g. `MCPPlugin.modules.handlers.MetadataHandlers:<line>`), with `target=edit` as the working baseline |
 | `proxy-mode-peer-fanout.mjs` | `get_runtime_logs target=all`, `get_connected_instances`, and `get_memory_breakdown target=all` return non-empty results when invoked from a proxy-mode subprocess (the multi-session path) |
 | `execute-luau-output-capture.mjs` | `execute_luau target=server` captures user `print()` and `warn()` calls in the response `output` array, matching the `target=edit` baseline |
+| `multiplayer-test-lifecycle.mjs` | `multiplayer_test_start`, add-player, client-leave, state, and end-test flow against real StudioTestService multiplayer peers |
 
 ## Lifecycle and cleanup
 
-- Each test calls `start_playtest` once at the top and `stop_playtest` in a
-  `finally` block. If a test is interrupted before cleanup, the plugin's
-  self-heal in `start_playtest` recovers state on the next run by detecting
-  that Studio reports `IsRunning=false` despite a stale `testRunning` flag.
+- Most tests call `start_playtest` once at the top and `stop_playtest` in a
+  `finally` block. The multiplayer lifecycle test uses `multiplayer_test_*`
+  tools and falls back to `stop_playtest` for cleanup if interrupted.
 - Tests do not modify the place's persistent state — they only print, eval,
   and read from the runtime log buffer.
 

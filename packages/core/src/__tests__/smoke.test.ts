@@ -63,4 +63,10 @@ describe('Smoke', () => {
     await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
     expect(app.isPluginConnected()).toBe(false);
   });
+
+  test('start_playtest rejects numPlayers', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    await expect(tools.startPlaytest('play', 1)).rejects.toThrow(/multiplayer_test_start/);
+  });
 });
