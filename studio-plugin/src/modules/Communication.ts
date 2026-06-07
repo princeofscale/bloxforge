@@ -47,6 +47,8 @@ function computeInstanceId(): string {
 const instanceId = computeInstanceId();
 let assignedRole: string | undefined;
 let duplicateInstanceRole = false;
+let hasVersionMismatch = false;
+let lastVersionMismatchWarningKey: string | undefined;
 
 // Cache the published place name from MarketplaceService:GetProductInfo so
 // /ready can carry a friendly identifier (e.g. "Natural Disasters") distinct
@@ -238,6 +240,8 @@ function sendReady(conn: Connection): void {
 					placeName: resolvePlaceName(),
 					dataModelName: game.Name,
 					isRunning: RunService.IsRunning(),
+					pluginVersion: State.CURRENT_VERSION,
+					pluginVariant: State.PLUGIN_VARIANT,
 					pluginReady: true,
 					timestamp: tick(),
 				}),
@@ -301,6 +305,19 @@ function pollForRequests(connIndex: number) {
 		const mcpConnected = data.mcpConnected === true;
 		conn.lastHttpOk = true;
 		conn.lastMcpOk = mcpConnected;
+		const serverVersion = data.serverVersion ?? "unknown";
+		if (data.versionMismatch === true) {
+			hasVersionMismatch = true;
+			const warningKey = `${State.CURRENT_VERSION}:${serverVersion}`;
+			if (lastVersionMismatchWarningKey !== warningKey) {
+				lastVersionMismatchWarningKey = warningKey;
+				warn(`[MCPPlugin] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin and restart Studio.`);
+			}
+			UI.showBanner("version-mismatch", `Plugin v${State.CURRENT_VERSION} / MCP v${serverVersion} mismatch`);
+		} else if (hasVersionMismatch) {
+			hasVersionMismatch = false;
+			UI.hideBanner("version-mismatch");
+		}
 
 		// Server tells us when its in-memory instances map doesn't have us
 		// (e.g. after an MCP process restart). Re-issue /ready immediately so
@@ -539,11 +556,9 @@ function checkForUpdates() {
 			if (ok && data?.version) {
 				const latestVersion = data.version;
 				if (Utils.compareVersions(State.CURRENT_VERSION, latestVersion) < 0) {
-					const ui = UI.getElements();
-					ui.updateBannerText.Text = `v${latestVersion} available - github.com/chrrxs/robloxstudio-mcp`;
-					ui.updateBanner.Visible = true;
-					ui.contentFrame.Position = new UDim2(0, 8, 0, 92);
-					ui.contentFrame.Size = new UDim2(1, -16, 1, -100);
+					if (!hasVersionMismatch) {
+						UI.showBanner("update", `v${latestVersion} available - github.com/chrrxs/robloxstudio-mcp`);
+					}
 				}
 			}
 		}

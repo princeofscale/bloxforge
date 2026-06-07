@@ -15,6 +15,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
 ### Method 2: Direct Download
 1. **Download the plugin:**
    - **GitHub Release**: [Download MCPPlugin.rbxmx](https://github.com/chrrxs/robloxstudio-mcp/releases/latest/download/MCPPlugin.rbxmx)
+   - **CLI installer**: `npx -y @chrrxs/robloxstudio-mcp@latest --install-plugin`
    - This is the official Roblox plugin format
 
 2. **Install to plugins folder:**
@@ -54,7 +55,12 @@ Choose your AI assistant:
 
 **For Claude Code:**
 ```bash
-claude mcp add robloxstudio-mcp
+claude mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
+```
+
+**For Codex CLI:**
+```bash
+codex mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
 ```
 
 **For Claude Desktop/Others:**
@@ -63,11 +69,15 @@ claude mcp add robloxstudio-mcp
   "mcpServers": {
     "robloxstudio-mcp": {
       "command": "npx",
-      "args": ["-y", "@chrrxs/robloxstudio-mcp"]
+      "args": ["-y", "@chrrxs/robloxstudio-mcp@latest", "--auto-install-plugin"]
     }
   }
 }
 ```
+
+`@latest` floats the server package to the newest npm release. `--auto-install-plugin` copies the matching `.rbxmx` bundled with that package into Studio's Plugins folder when the server starts.
+
+If Studio shows a yellow plugin/server version mismatch banner, the connection remains usable. Restart the MCP server with `--auto-install-plugin`, then fully close and reopen Studio so it loads the matching plugin file.
 
 <details>
 <summary>Note for native Windows users</summary>
@@ -78,7 +88,7 @@ If you encounter issues, you may need to run it through `cmd`. Update your confi
   "mcpServers": {
     "robloxstudio-mcp": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@chrrxs/robloxstudio-mcp@latest"]
+      "args": ["/c", "npx", "-y", "@chrrxs/robloxstudio-mcp@latest", "--auto-install-plugin"]
     }
   }
 }

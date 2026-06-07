@@ -72,12 +72,16 @@ export interface VariantConflictOptions {
   pluginsFolder: string;
   otherAssetName: string;
   replace: boolean;
+  log?: (message: string) => void;
+  warn?: (message: string) => void;
 }
 
 export function handleVariantConflict({
   pluginsFolder,
   otherAssetName,
   replace,
+  log = console.log,
+  warn = console.warn,
 }: VariantConflictOptions): void {
   const otherDest = join(pluginsFolder, otherAssetName);
   if (!existsSync(otherDest)) return;
@@ -85,14 +89,14 @@ export function handleVariantConflict({
   if (replace) {
     try {
       unlinkSync(otherDest);
-      console.log(`Removed conflicting ${otherAssetName}.`);
+      log(`Removed conflicting ${otherAssetName}.`);
     } catch (err) {
-      console.warn(`[install-plugin] Could not remove ${otherDest}: ${err}. Continuing.`);
+      warn(`[install-plugin] Could not remove ${otherDest}: ${err}. Continuing.`);
     }
     return;
   }
 
-  console.warn(
+  warn(
     `\n[install-plugin] WARNING: ${otherAssetName} is already present in ${pluginsFolder}.\n` +
       `Only one MCP plugin variant should be present. If both variants are in the Studio ` +
       `Plugins folder, Studio loads both and runtime routing can become unpredictable.\n` +

@@ -1,6 +1,6 @@
 {
   "name": "@chrrxs/robloxstudio-mcp-monorepo",
-  "version": "2.15.0",
+  "version": "2.15.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -11,7 +11,8 @@
     "compile:plugin": "npm --prefix studio-plugin run build",
     "build:plugin": "npm run compile:plugin && node scripts/build-plugin.mjs",
     "build:plugin:inspector": "npm run compile:plugin && node scripts/build-plugin.mjs --variant inspector",
-    "build:all": "npm run build && npm run build:plugin",
+    "build:plugins": "npm run compile:plugin && node scripts/build-plugin.mjs && node scripts/build-plugin.mjs --variant inspector",
+    "build:all": "npm run build && npm run build:plugins",
     "clean": "npm exec --workspaces -- npx rimraf dist",
     "dev": "npm run build -w packages/core && tsx packages/robloxstudio-mcp/src/index.ts",
     "dev:inspector": "npm run build -w packages/core && tsx packages/robloxstudio-mcp-inspector/src/index.ts",
@@ -20,6 +21,8 @@
     "lint": "eslint packages/*/src/**/*.ts",
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
     "test": "npm test -w packages/core",
+    "test:e2e:auto-install": "node tests/auto-install-plugin-e2e.mjs",
+    "test:studio:tools": "node tests/studio-tooling-smoke.mjs",
     "test:watch": "npm run test:watch -w packages/core",
     "test:coverage": "npm run test:coverage -w packages/core",
     "publish:all": "node scripts/publish.mjs"

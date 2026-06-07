@@ -38,6 +38,7 @@ interface ToolbarIcons {
 let toolbarButton: PluginToolbarButton | undefined;
 let toolbarIcons: ToolbarIcons | undefined;
 let lastToolbarIcon: string | undefined;
+let activeBannerKind: string | undefined;
 
 function setToolbarButton(btn: PluginToolbarButton, icons: ToolbarIcons) {
 	toolbarButton = btn;
@@ -75,6 +76,23 @@ const TWEEN_QUICK = new TweenInfo(0.15, Enum.EasingStyle.Quad, Enum.EasingDirect
 
 function tweenProp(instance: Instance, props: Record<string, unknown>) {
 	TweenService.Create(instance, TWEEN_QUICK, props as unknown as { [key: string]: unknown }).Play();
+}
+
+function showBanner(kind: string, text: string) {
+	activeBannerKind = kind;
+	elements.updateBannerText.Text = text;
+	elements.updateBanner.Visible = true;
+	elements.contentFrame.Position = new UDim2(0, 8, 0, 92);
+	elements.contentFrame.Size = new UDim2(1, -16, 1, -100);
+}
+
+function hideBanner(kind?: string) {
+	if (kind !== undefined && activeBannerKind !== kind) return;
+	activeBannerKind = undefined;
+	elements.updateBanner.Visible = false;
+	elements.updateBannerText.Text = "";
+	elements.contentFrame.Position = new UDim2(0, 8, 0, 66);
+	elements.contentFrame.Size = new UDim2(1, -16, 1, -74);
 }
 
 const C = {
@@ -759,5 +777,7 @@ export = {
 	startPulseAnimation,
 	setToolbarButton,
 	updateToolbarIcon,
+	showBanner,
+	hideBanner,
 	getElements: () => elements,
 };

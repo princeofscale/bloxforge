@@ -1,6 +1,7 @@
 import { Connection } from "../types";
 
 const CURRENT_VERSION = "__VERSION__";
+const PLUGIN_VARIANT = "__PLUGIN_VARIANT__";
 const MAX_CONNECTIONS = 5;
 const BASE_PORT = 58741;
 let activeTabIndex = 0;
@@ -81,6 +82,7 @@ function getConnections(): Connection[] {
 
 export = {
 	CURRENT_VERSION,
+	PLUGIN_VARIANT,
 	MAX_CONNECTIONS,
 	BASE_PORT,
 	connections,

@@ -48,6 +48,44 @@ describe('HTTP Server', () => {
       expect(app.isPluginConnected()).toBe(true);
     });
 
+    test('plugin ready records version metadata and exposes mismatch status', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const versionedApp = createHttpServer(
+        tools,
+        bridge,
+        undefined,
+        { name: 'robloxstudio-mcp', version: '2.0.0', tools: [] },
+      );
+      try {
+        await request(versionedApp).post('/ready').send({
+          ...READY_BODY,
+          pluginVersion: '1.9.0',
+          pluginVariant: 'main',
+        }).expect(200);
+        await request(versionedApp).post('/ready').send({
+          ...READY_BODY,
+          pluginVersion: '1.9.0',
+          pluginVariant: 'main',
+        }).expect(200);
+
+        const health = await request(versionedApp).get('/health').expect(200);
+        expect(health.body).toMatchObject({
+          serverVersion: '2.0.0',
+          versionMismatch: true,
+        });
+        expect(health.body.instances[0]).toMatchObject({
+          pluginVersion: '1.9.0',
+          pluginVariant: 'main',
+          serverVersion: '2.0.0',
+          versionMismatch: true,
+        });
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        expect(errorSpy.mock.calls[0][0]).toContain('[version-mismatch]');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
     test('rejects /ready without required fields', async () => {
       await request(app).post('/ready').send({}).expect(400);
     });
@@ -98,6 +136,7 @@ describe('HTTP Server', () => {
         mcpConnected: false,
         request: null,
         knownInstance: true,
+        versionMismatch: false,
       });
     });
 

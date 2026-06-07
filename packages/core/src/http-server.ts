@@ -122,6 +122,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   let lastMCPActivity = 0;
   let mcpServerStartTime = 0;
   const proxyInstances = new Set<string>();
+  const warnedVersionMismatches = new Set<string>();
 
   const setMCPServerActive = (active: boolean) => {
     mcpServerActive = active;
@@ -156,13 +157,16 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
   app.get('/health', (req, res) => {
     const instances = bridge.getInstances();
+    const publicInstances = instances.map(toPublic);
     res.json({
       status: 'ok',
       service: 'robloxstudio-mcp',
       version: serverConfig?.version,
+      serverVersion: serverConfig?.version,
       pluginConnected: instances.length > 0,
       instanceCount: instances.length,
-      instances: instances.map(toPublic),
+      instances: publicInstances,
+      versionMismatch: publicInstances.some((inst) => inst.versionMismatch),
       mcpServerActive: isMCPServerActive(),
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0,
       pendingRequests: bridge.getPendingRequestCount(),
@@ -173,7 +177,17 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
 
   app.post('/ready', (req, res) => {
-    const { pluginSessionId, instanceId, role, placeId, placeName, dataModelName, isRunning } = req.body;
+    const {
+      pluginSessionId,
+      instanceId,
+      role,
+      placeId,
+      placeName,
+      dataModelName,
+      isRunning,
+      pluginVersion,
+      pluginVariant,
+    } = req.body;
 
     if (!pluginSessionId || !instanceId || !role) {
       res.status(400).json({
@@ -191,6 +205,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       placeName: typeof placeName === 'string' ? placeName : '',
       dataModelName: typeof dataModelName === 'string' ? dataModelName : '',
       isRunning: !!isRunning,
+      pluginVersion: typeof pluginVersion === 'string' ? pluginVersion : '',
+      pluginVariant: typeof pluginVariant === 'string' ? pluginVariant : 'unknown',
+      serverVersion: serverConfig?.version ?? '',
     });
 
     if (!result.ok) {
@@ -202,11 +219,21 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       });
       return;
     }
+    const registered = bridge.getInstanceBySessionId(pluginSessionId);
+    if (registered?.versionMismatch && !warnedVersionMismatches.has(pluginSessionId)) {
+      warnedVersionMismatches.add(pluginSessionId);
+      console.error(
+        `[version-mismatch] Studio plugin v${registered.pluginVersion} (${registered.pluginVariant}) ` +
+        `does not match MCP server v${registered.serverVersion} for ${registered.instanceId}/${registered.role}`,
+      );
+    }
 
     res.json({
       success: true,
       assignedRole: result.assignedRole,
       instanceId: result.instanceId,
+      serverVersion: serverConfig?.version,
+      versionMismatch: registered?.versionMismatch ?? false,
     });
   });
 
@@ -223,10 +250,13 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
   app.get('/status', (req, res) => {
     const instances = bridge.getInstances();
+    const publicInstances = instances.map(toPublic);
     res.json({
       pluginConnected: instances.length > 0,
       instanceCount: instances.length,
-      instances: instances.map(toPublic),
+      instances: publicInstances,
+      serverVersion: serverConfig?.version,
+      versionMismatch: publicInstances.some((inst) => inst.versionMismatch),
       mcpServerActive: isMCPServerActive(),
       lastMCPActivity,
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0
@@ -238,7 +268,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     // Includes the internal pluginSessionId so proxy-mode subprocesses can
     // reproduce the full PluginInstance shape (they need the session id for
     // local bookkeeping; not exposed via MCP tools).
-    res.json({ instances: bridge.getInstances() });
+    const instances = bridge.getInstances();
+    res.json({
+      instances,
+      serverVersion: serverConfig?.version,
+      versionMismatch: instances.some((inst) => inst.versionMismatch),
+    });
   });
 
 
@@ -252,11 +287,17 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     let callerInstanceId: string | undefined;
     let callerRole: string | undefined;
     let knownInstance = false;
+    let callerPluginVersion: string | undefined;
+    let callerPluginVariant: string | undefined;
+    let versionMismatch = false;
     if (pluginSessionId) {
       const inst = bridge.getInstanceBySessionId(pluginSessionId);
       if (inst) {
         callerInstanceId = inst.instanceId;
         callerRole = inst.role;
+        callerPluginVersion = inst.pluginVersion;
+        callerPluginVariant = inst.pluginVariant;
+        versionMismatch = inst.versionMismatch;
         knownInstance = true;
       }
     }
@@ -267,6 +308,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         pluginConnected: true,
         mcpConnected: false,
         knownInstance,
+        serverVersion: serverConfig?.version,
+        pluginVersion: callerPluginVersion,
+        pluginVariant: callerPluginVariant,
+        versionMismatch,
         request: null
       });
       return;
@@ -287,6 +332,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         mcpConnected: true,
         pluginConnected: true,
         knownInstance,
+        serverVersion: serverConfig?.version,
+        pluginVersion: callerPluginVersion,
+        pluginVariant: callerPluginVariant,
+        versionMismatch,
         proxyInstanceCount: proxyInstances.size
       });
     } else {
@@ -295,6 +344,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         mcpConnected: true,
         pluginConnected: true,
         knownInstance,
+        serverVersion: serverConfig?.version,
+        pluginVersion: callerPluginVersion,
+        pluginVariant: callerPluginVariant,
+        versionMismatch,
         proxyInstanceCount: proxyInstances.size
       });
     }

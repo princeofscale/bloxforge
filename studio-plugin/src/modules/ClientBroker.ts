@@ -5,6 +5,7 @@ import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import CaptureHandlers from "./handlers/CaptureHandlers";
 import InputHandlers from "./handlers/InputHandlers";
 import LuauExec from "./LuauExec";
+import State from "./State";
 
 interface StudioTestServiceMultiplayer extends StudioTestService {
 	CanLeaveTest(): boolean;
@@ -134,6 +135,8 @@ function reRegisterProxy(proxyId: string, role: string): void {
 			placeName: resolvePlaceName(),
 			dataModelName: game.Name,
 			isRunning: RunService.IsRunning(),
+			pluginVersion: State.CURRENT_VERSION,
+			pluginVariant: State.PLUGIN_VARIANT,
 		}),
 	);
 }
@@ -329,6 +332,8 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 		placeName: resolvePlaceName(),
 		dataModelName: game.Name,
 		isRunning: RunService.IsRunning(),
+		pluginVersion: State.CURRENT_VERSION,
+		pluginVariant: State.PLUGIN_VARIANT,
 	});
 	if (!ok || !res || !res.Success) {
 		warn(`[robloxstudio-mcp] proxy register failed for ${player.Name}`);

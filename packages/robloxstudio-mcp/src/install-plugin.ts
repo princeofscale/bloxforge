@@ -1,5 +1,6 @@
-import { createWriteStream, existsSync, mkdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { get } from 'https';
 import { IncomingMessage } from 'http';
 import { getPluginsFolder, handleVariantConflict } from '@chrrxs/robloxstudio-mcp-core';
@@ -9,6 +10,13 @@ const ASSET_NAME = 'MCPPlugin.rbxmx';
 const OTHER_VARIANT = 'MCPInspectorPlugin.rbxmx';
 const TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 5;
+
+interface InstallOptions {
+  dev?: boolean;
+  replaceVariant?: boolean;
+  log?: (message: string) => void;
+  warn?: (message: string) => void;
+}
 
 function httpsGet(url: string): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
@@ -74,9 +82,11 @@ async function findDevRelease(): Promise<{ tag_name: string; assets: { name: str
   return prerelease;
 }
 
-export async function installPlugin(): Promise<void> {
-  const dev = process.argv.includes('--dev');
-  const replaceVariant = process.argv.includes('--replace-variant');
+function prepareInstall({
+  replaceVariant,
+  log,
+  warn,
+}: Required<Pick<InstallOptions, 'replaceVariant' | 'log' | 'warn'>>): string {
   const pluginsFolder = getPluginsFolder();
 
   if (!existsSync(pluginsFolder)) {
@@ -87,9 +97,55 @@ export async function installPlugin(): Promise<void> {
     pluginsFolder,
     otherAssetName: OTHER_VARIANT,
     replace: replaceVariant,
+    log,
+    warn,
   });
 
-  console.log(dev ? 'Fetching latest dev prerelease...' : 'Fetching latest release...');
+  return pluginsFolder;
+}
+
+function bundledAssetPath(): string | null {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(currentDir, '..', 'studio-plugin', ASSET_NAME),
+    join(currentDir, '..', '..', '..', 'studio-plugin', ASSET_NAME),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function filesMatch(a: string, b: string): boolean {
+  if (!existsSync(b)) return false;
+  const aBytes = readFileSync(a);
+  const bBytes = readFileSync(b);
+  return aBytes.length === bBytes.length && aBytes.equals(bBytes);
+}
+
+export async function installBundledPlugin(options: InstallOptions = {}): Promise<void> {
+  const log = options.log ?? console.log;
+  const warn = options.warn ?? console.warn;
+  const replaceVariant = options.replaceVariant ?? process.argv.includes('--replace-variant');
+  const source = bundledAssetPath();
+  if (!source) {
+    throw new Error(`Bundled ${ASSET_NAME} not found in package`);
+  }
+
+  const pluginsFolder = prepareInstall({ replaceVariant, log, warn });
+  const dest = join(pluginsFolder, ASSET_NAME);
+
+  if (filesMatch(source, dest)) return;
+
+  copyFileSync(source, dest);
+  log(`Installed ${ASSET_NAME} to ${dest}`);
+}
+
+export async function installPlugin(options: InstallOptions = {}): Promise<void> {
+  const dev = options.dev ?? process.argv.includes('--dev');
+  const replaceVariant = options.replaceVariant ?? process.argv.includes('--replace-variant');
+  const log = options.log ?? console.log;
+  const warn = options.warn ?? console.warn;
+  const pluginsFolder = prepareInstall({ replaceVariant, log, warn });
+
+  log(dev ? 'Fetching latest dev prerelease...' : 'Fetching latest release...');
   const release = dev
     ? await findDevRelease()
     : await fetchJson(`https://api.github.com/repos/${REPO}/releases/latest`) as {
@@ -103,7 +159,7 @@ export async function installPlugin(): Promise<void> {
   }
 
   const dest = join(pluginsFolder, ASSET_NAME);
-  console.log(`Downloading ${ASSET_NAME} from ${release.tag_name}...`);
+  log(`Downloading ${ASSET_NAME} from ${release.tag_name}...`);
   await download(asset.browser_download_url, dest);
-  console.log(`Installed to ${dest}`);
+  log(`Installed to ${dest}`);
 }

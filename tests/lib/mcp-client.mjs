@@ -42,8 +42,13 @@ const ROUTED_TOOLS = new Set([
 ]);
 
 export class McpClient {
-  constructor(label = 'client') {
+  constructor(label = 'client', options = {}) {
     this.label = label;
+    this.command = options.command ?? 'node';
+    this.args = options.args ?? [DIST];
+    this.env = options.env;
+    this.cwd = options.cwd ?? REPO_ROOT;
+    this.startupTimeoutMs = options.startupTimeoutMs ?? 5000;
     this.proc = null;
     this.nextId = 1;
     this.pending = new Map();
@@ -53,7 +58,11 @@ export class McpClient {
   }
 
   async start() {
-    this.proc = spawn('node', [DIST], { stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc = spawn(this.command, this.args, {
+      cwd: this.cwd,
+      env: this.env ? { ...process.env, ...this.env } : process.env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     this.proc.stdout.setEncoding('utf8');
     this.proc.stderr.setEncoding('utf8');
 
@@ -88,7 +97,7 @@ export class McpClient {
     // Wait for the subprocess to print its "running on stdio" banner so we
     // know stdio MCP is ready. Bound at 5s — fresh launches usually settle
     // in <1s but cold-start can stretch.
-    await this._waitForLog('running on stdio', 5000);
+    await this._waitForLog('running on stdio', this.startupTimeoutMs);
   }
 
   async _waitForLog(substr, timeoutMs) {

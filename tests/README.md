@@ -36,6 +36,44 @@ node tests/execute-luau-output-capture.mjs
 Each test prints `✅ PASSED` or `❌ FAILED` plus the failing assertion. On
 failure the test's MCP subprocess stderr tail is dumped for context.
 
+## Release smoke: regular Studio tools
+
+`tests/studio-tooling-smoke.mjs` is a destructive release smoke test for the
+normal main-plugin tool surface. It closes Studio, auto-installs the local main
+plugin into a backed-up plugin folder, opens a temporary `.rbxlx` place, verifies
+edit-mode read/write/script/tag/attribute/execute tools, then runs
+`tests/run-all.mjs` against the same primary server to cover playtest, runtime,
+proxy, and multiplayer paths. It restores the original plugin files afterward.
+
+```bash
+RSMCP_E2E_CLOSE_ALL_STUDIO=1 npm run test:studio:tools
+```
+
+## Release E2E: auto-install + Studio restart
+
+`tests/auto-install-plugin-e2e.mjs` is a destructive release verification that
+closes Roblox Studio, installs the main and inspector plugins, launches Studio,
+checks version/variant metadata, verifies mismatch warnings, and restores the
+original plugin files.
+
+```bash
+RSMCP_E2E_CLOSE_ALL_STUDIO=1 npm run test:e2e:auto-install
+```
+
+The E2E targets published `@latest` first. If `@latest` does not yet include the
+new auto-install behavior, it falls back to a local packed tarball and prints
+`artifactSource: local-pack`. It requires port `58741` to be free before it
+starts and refuses to close Studio unless `RSMCP_E2E_CLOSE_ALL_STUDIO=1` is set.
+
+Studio lifecycle helpers are available directly:
+
+```bash
+node scripts/studio-lifecycle.mjs status
+RSMCP_E2E_CLOSE_ALL_STUDIO=1 node scripts/studio-lifecycle.mjs close-all
+node scripts/studio-lifecycle.mjs launch
+node scripts/studio-lifecycle.mjs wait-connected --variant main --version <expected-version>
+```
+
 ## What each test exercises
 
 | File | What it checks |

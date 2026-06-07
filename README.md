@@ -21,24 +21,27 @@ Use this when you want your agent to debug and operate a live Roblox Studio sess
 
 ## Setup
 
-1. Install the [Studio plugin](https://github.com/chrrxs/robloxstudio-mcp/releases) (or run `npx -y @chrrxs/robloxstudio-mcp@latest --install-plugin`)
-2. Enable **Allow HTTP Requests** in Game Settings → Security
-3. Wire up your AI:
+1. Enable **Allow HTTP Requests** in Game Settings → Security
+2. Wire up your AI. `@latest` floats the server package to the newest npm release, and `--auto-install-plugin` copies the matching Studio plugin into Roblox Studio's Plugins folder when the server starts:
 
 ```bash
 # Claude Code
-claude mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest
+claude mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
 
 # Codex CLI
-codex mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest
+codex mcp add robloxstudio -- npx -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
 
 # Gemini CLI
-gemini mcp add robloxstudio npx --trust -- -y @chrrxs/robloxstudio-mcp@latest
+gemini mcp add robloxstudio npx --trust -- -y @chrrxs/robloxstudio-mcp@latest --auto-install-plugin
 ```
 
-Plugin shows "Connected" when ready.
+Fully close and reopen Studio after the plugin is first installed or updated. Plugin shows "Connected" when ready.
 
-> **Custom Plugins folder?** Set `MCP_PLUGINS_DIR` before `--install-plugin`. Works on Windows, macOS, and WSL.
+Prefer manual plugin install? Run `npx -y @chrrxs/robloxstudio-mcp@latest --install-plugin`.
+
+> **Custom Plugins folder?** Set `MCP_PLUGINS_DIR` before `--auto-install-plugin` or `--install-plugin`. Works on Windows, macOS, and WSL.
+
+If the Studio plugin and MCP server versions differ, the plugin stays connected but shows a yellow warning banner. `get_connected_instances`, `/health`, and `/status` also report `pluginVersion`, `serverVersion`, and `versionMismatch`.
 
 <details>
 <summary>Other MCP clients (Claude Desktop, Cursor, etc.)</summary>
@@ -48,7 +51,7 @@ Plugin shows "Connected" when ready.
   "mcpServers": {
     "robloxstudio-mcp": {
       "command": "npx",
-      "args": ["-y", "@chrrxs/robloxstudio-mcp@latest"]
+      "args": ["-y", "@chrrxs/robloxstudio-mcp@latest", "--auto-install-plugin"]
     }
   }
 }
@@ -60,7 +63,7 @@ On Windows, wrap with `cmd /c` if `npx` doesn't resolve:
   "mcpServers": {
     "robloxstudio-mcp": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@chrrxs/robloxstudio-mcp@latest"]
+      "args": ["/c", "npx", "-y", "@chrrxs/robloxstudio-mcp@latest", "--auto-install-plugin"]
     }
   }
 }
@@ -87,15 +90,15 @@ Install only one variant at a time. Do not leave both `MCPPlugin.rbxmx` and `MCP
 npx -y @chrrxs/robloxstudio-mcp-inspector@latest --install-plugin --replace-variant
 
 # Claude / Codex / Gemini — same shape, different package name
-claude mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest
-codex mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest
-gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp-inspector@latest
+claude mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin --replace-variant
+codex mcp add robloxstudio-inspector -- npx -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin --replace-variant
+gemini mcp add robloxstudio-inspector npx --trust -- -y @chrrxs/robloxstudio-mcp-inspector@latest --auto-install-plugin --replace-variant
 ```
 
 ---
 
 <!-- VERSION_LINE -->
-**v2.15.0**
+**v2.15.1**
 
 ## Building from source
 

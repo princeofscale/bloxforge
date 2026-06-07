@@ -59,6 +59,7 @@ function escapeCdata(source) {
 function injectVersion(source) {
   return source
     .replace(/__VERSION__/g, VERSION)
+    .replace(/__PLUGIN_VARIANT__/g, variantName)
     .replace(/__TOOLBAR_NAME__/g, variant.toolbarName)
     .replace(/__BUTTON_TITLE__/g, variant.buttonTitle)
     .replace(/__BUTTON_TOOLTIP__/g, variant.buttonTooltip)

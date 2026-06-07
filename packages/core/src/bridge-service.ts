@@ -16,6 +16,10 @@ export interface PluginInstance {
   placeName: string;
   dataModelName: string;
   isRunning: boolean;
+  pluginVersion: string;
+  pluginVariant: string;
+  serverVersion: string;
+  versionMismatch: boolean;
   lastActivity: number;
   connectedAt: number;
 }
@@ -67,6 +71,10 @@ export interface PublicPluginInstance {
   placeName: string;
   dataModelName: string;
   isRunning: boolean;
+  pluginVersion: string;
+  pluginVariant: string;
+  serverVersion: string;
+  versionMismatch: boolean;
   lastActivity: number;
   connectedAt: number;
 }
@@ -89,6 +97,9 @@ export interface RegisterInstanceInput {
   placeName?: string;
   dataModelName?: string;
   isRunning?: boolean;
+  pluginVersion?: string;
+  pluginVariant?: string;
+  serverVersion?: string;
 }
 
 export type RegisterInstanceResult =
@@ -103,6 +114,10 @@ export function toPublic(inst: PluginInstance): PublicPluginInstance {
     placeName: inst.placeName,
     dataModelName: inst.dataModelName,
     isRunning: inst.isRunning,
+    pluginVersion: inst.pluginVersion,
+    pluginVariant: inst.pluginVariant,
+    serverVersion: inst.serverVersion,
+    versionMismatch: inst.versionMismatch,
     lastActivity: inst.lastActivity,
     connectedAt: inst.connectedAt,
   };
@@ -120,6 +135,10 @@ export class BridgeService {
     const { pluginSessionId, instanceId, role } = input;
     const prior = this.instances.get(pluginSessionId);
     let assignedRole = role;
+    const pluginVersion = input.pluginVersion ?? '';
+    const pluginVariant = input.pluginVariant ?? 'unknown';
+    const serverVersion = input.serverVersion ?? '';
+    const versionMismatch = pluginVersion !== '' && serverVersion !== '' && pluginVersion !== serverVersion;
 
     // Client roles get lowest-unused-N, scoped per place. That keeps
     // target=client-1 intuitive when several Studio places are connected:
@@ -165,6 +184,10 @@ export class BridgeService {
       placeName: input.placeName ?? '',
       dataModelName: input.dataModelName ?? '',
       isRunning: input.isRunning ?? false,
+      pluginVersion,
+      pluginVariant,
+      serverVersion,
+      versionMismatch,
       lastActivity: Date.now(),
       connectedAt: prior?.connectedAt ?? Date.now(),
     });

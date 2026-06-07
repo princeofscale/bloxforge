@@ -30,6 +30,10 @@ export interface RequestPayload {
 
 export interface PollResponse {
 	mcpConnected: boolean;
+	serverVersion?: string;
+	pluginVersion?: string;
+	pluginVariant?: string;
+	versionMismatch?: boolean;
 	request?: RequestPayload;
 	requestId?: string;
 	// Server signals knownInstance=false when its in-memory instances map
@@ -42,6 +46,8 @@ export interface ReadyResponse {
 	success: boolean;
 	assignedRole?: string;
 	instanceId?: string;
+	serverVersion?: string;
+	versionMismatch?: boolean;
 	error?: string;
 	message?: string;
 }
