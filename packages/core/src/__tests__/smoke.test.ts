@@ -2,6 +2,8 @@ import { BridgeService } from '../bridge-service.js';
 import { createHttpServer } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import request from 'supertest';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const READY = {
   pluginSessionId: 'session-1',
@@ -32,6 +34,28 @@ const DIRTY_NETWORK_STATE = {
 };
 
 describe('Smoke', () => {
+  test('source does not force playtest shutdown with brittle fallbacks', () => {
+    const cwd = process.cwd();
+    const repoRoot = fs.existsSync(path.join(cwd, 'studio-plugin')) ? cwd : path.resolve(cwd, '../..');
+    const guardedFiles = [
+      path.join(repoRoot, 'packages/core/src/tools/index.ts'),
+      path.join(repoRoot, 'studio-plugin/src/modules/ClientBroker.ts'),
+      path.join(repoRoot, 'studio-plugin/src/modules/Communication.ts'),
+      path.join(repoRoot, 'studio-plugin/src/modules/handlers/TestHandlers.ts'),
+    ];
+
+    for (const file of guardedFiles) {
+      const source = fs.readFileSync(file, 'utf8');
+      expect(source).not.toMatch(/RunService\s*[:.]\s*Stop\s*\(/);
+      expect(source).not.toContain('/api/force-stop-runtime');
+      expect(source).not.toContain('runtime_runservice_stop');
+      expect(source).not.toContain('windows_shift_f5');
+      expect(source).not.toContain('WScript.Shell');
+      expect(source).not.toContain('SendKeys');
+      expect(source).not.toContain('powershell.exe');
+    }
+  });
+
   test('BridgeService instantiable', () => {
     const bridge = new BridgeService();
     expect(bridge).toBeDefined();
@@ -229,6 +253,92 @@ describe('Smoke', () => {
       timedOut: false,
     });
     expect(body.roles).toEqual(['edit']);
+  });
+
+  test('stop_playtest reports stuck teardown when runtime peers do not disconnect', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'server-1',
+      instanceId: 'place:test',
+      role: 'server',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'TestPlace',
+      isRunning: true,
+    });
+    bridge.registerInstance({
+      pluginSessionId: 'client-1',
+      instanceId: 'place:test',
+      role: 'client',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'TestPlace',
+      isRunning: true,
+    });
+    (tools as any)._waitForRuntimeRoles = async () => ({
+      ok: false,
+      roles: ['edit', 'server', 'client-1'],
+      timedOut: true,
+    });
+
+    const resultPromise = tools.stopPlaytest();
+    const pending = bridge.getPendingRequest('place:test', 'edit');
+    expect(pending).toBeTruthy();
+    bridge.resolveRequest(pending!.requestId, { success: true, message: 'Playtest stopped.' });
+
+    const result = await resultPromise;
+    const body = JSON.parse(result.content[0].text);
+    expect(body).toMatchObject({
+      success: false,
+      error: 'Playtest teardown did not complete.',
+      runtimeStopped: false,
+      timedOut: true,
+      stopSignalAccepted: true,
+      roles: ['edit', 'server', 'client-1'],
+      runtimeRoles: ['server', 'client-1'],
+    });
+    expect(body.message).toContain('did not disconnect');
+    expect(body.possibleCause).toContain('BindToClose');
+    expect(body.possibleCause).toContain('No runtime hard-stop or synthetic keyboard fallback');
+    expect(body.fallbacks).toBeUndefined();
+  });
+
+  test('stop_playtest reports edit request failure when runtime peers remain', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'server-1',
+      instanceId: 'place:test',
+      role: 'server',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'TestPlace',
+      isRunning: true,
+    });
+
+    const resultPromise = tools.stopPlaytest();
+    const pending = bridge.getPendingRequest('place:test', 'edit');
+    expect(pending).toBeTruthy();
+    bridge.rejectRequest(pending!.requestId, new Error('edit peer timed out'));
+
+    const result = await resultPromise;
+    const body = JSON.parse(result.content[0].text);
+    expect(body).toMatchObject({
+      success: false,
+      error: 'Playtest teardown did not complete.',
+      message: 'Edit stop request failed, and runtime peers are still connected.',
+      runtimeStopped: false,
+      timedOut: false,
+      roles: ['edit', 'server'],
+      stopSignalAccepted: false,
+      runtimeRoles: ['server'],
+    });
+    expect(body.detail).toContain('edit peer timed out');
+    expect(body.stopRequestError).toContain('edit peer timed out');
+    expect(body.fallbacks).toBeUndefined();
   });
 
   test('stop_playtest accepts stale anon id after publish and waits for runtime peers', async () => {

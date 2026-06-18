@@ -18,6 +18,7 @@ import SerializationHandlers from "./handlers/SerializationHandlers";
 import MemoryHandlers from "./handlers/MemoryHandlers";
 import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
+import ClientBroker from "./ClientBroker";
 import ServerUrlSettings from "./ServerUrlSettings";
 import HttpDiagnostics from "./HttpDiagnostics";
 import { Connection, RequestPayload, PollResponse, ReadyResponse } from "../types";
@@ -88,6 +89,8 @@ function detectRole(): string {
 	if (RunService.IsServer()) return "server";
 	return "client";
 }
+
+const initialRole = detectRole();
 
 type Handler = (data: Record<string, unknown>) => unknown;
 
@@ -510,6 +513,11 @@ function activatePlugin(connIndex?: number) {
 	if (!conn.heartbeatConnection) {
 		conn.heartbeatConnection = RunService.Heartbeat.Connect(() => {
 			const now = tick();
+			if (initialRole === "server" && !RunService.IsRunning()) {
+				ClientBroker.disconnectAllProxies();
+				deactivatePlugin(idx);
+				return;
+			}
 			const currentInstanceId = computeInstanceId();
 			if (lastReadyInstanceId !== undefined && currentInstanceId !== lastReadyInstanceId) {
 				cachedPlaceName = undefined;

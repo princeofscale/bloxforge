@@ -296,8 +296,28 @@ const proxyByPlayer = new Map<Player, ProxyEntry>();
 const proxyRegisterFailuresByPlayer = new Set<Player>();
 let serverBrokerStarted = false;
 
+function unregisterProxy(player: Player, entry?: ProxyEntry): void {
+	const proxy = entry ?? proxyByPlayer.get(player);
+	if (!proxy) return;
+	proxyByPlayer.delete(player);
+	proxyRegisterFailuresByPlayer.delete(player);
+	postJson("/disconnect", { pluginSessionId: proxy.pluginSessionId });
+}
+
+function disconnectAllProxies(): void {
+	for (const [player, entry] of proxyByPlayer) {
+		unregisterProxy(player, entry);
+	}
+	proxyByPlayer.clear();
+	proxyRegisterFailuresByPlayer.clear();
+}
+
 function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
 	while (player.Parent !== undefined && proxyByPlayer.has(player)) {
+		if (!RunService.IsRunning()) {
+			unregisterProxy(player);
+			break;
+		}
 		const [ok, res] = pcall(() =>
 			HttpService.RequestAsync({
 				Url: `${mcpUrl}/poll?pluginSessionId=${proxyId}`,
@@ -396,18 +416,10 @@ function setupServerBroker() {
 		task.spawn(registerProxy, p, broker);
 	}
 	Players.PlayerRemoving.Connect((p) => {
-		const entry = proxyByPlayer.get(p);
-		if (entry) {
-			proxyByPlayer.delete(p);
-			proxyRegisterFailuresByPlayer.delete(p);
-			postJson("/disconnect", { pluginSessionId: entry.pluginSessionId });
-		}
+		unregisterProxy(p);
 	});
 	game.BindToClose(() => {
-		for (const [, entry] of proxyByPlayer) {
-			postJson("/disconnect", { pluginSessionId: entry.pluginSessionId });
-		}
-		proxyByPlayer.clear();
+		disconnectAllProxies();
 	});
 }
 
@@ -416,6 +428,7 @@ export = {
 	DEFAULT_MCP_URL,
 	getServerUrl,
 	setServerUrl,
+	disconnectAllProxies,
 	forkRole,
 	setupClientBroker,
 	setupServerBroker,

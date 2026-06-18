@@ -632,6 +632,13 @@ export class RobloxStudioTools {
       .sort((a, b) => Number(a.slice('client-'.length)) - Number(b.slice('client-'.length)));
   }
 
+  private _runtimeTargetsForEquivalentInstances(instanceId: string): { instanceId: string; role: string }[] {
+    const instanceIds = new Set(this.bridge.getEquivalentInstanceIds(instanceId));
+    return this.bridge.getInstances()
+      .filter((i) => instanceIds.has(i.instanceId) && (i.role === 'server' || /^client-\d+$/.test(i.role)))
+      .map((i) => ({ instanceId: i.instanceId, role: i.role }));
+  }
+
   private _resolveDeviceSimulatorSingleTarget(
     target: string | undefined,
     instance_id: string | undefined,
@@ -2236,10 +2243,27 @@ export class RobloxStudioTools {
     // involved — the cross-DM signal works regardless of MCP server state,
     // peer-role bookkeeping, or restart cycles.
     const { instanceId } = this._resolveSingleTarget('edit', instance_id);
-    const response = await this.client.request('/api/stop-playtest', {}, instanceId, 'edit');
+    let response: Record<string, unknown>;
+    let stopRequestError: string | undefined;
+    try {
+      response = await this.client.request('/api/stop-playtest', {}, instanceId, 'edit');
+    } catch (error) {
+      stopRequestError = errorMessage(error);
+      response = {
+        success: false,
+        error: 'Edit stop request failed.',
+        detail: stopRequestError,
+      };
+    }
     let wait: { ok: boolean; roles: string[]; timedOut: boolean } | undefined;
     if (response?.success === true) {
       wait = await this._waitForRuntimeRoles(instanceId, { noRuntime: true }, 15, true);
+    } else if (this._runtimeTargetsForEquivalentInstances(instanceId).length > 0) {
+      wait = {
+        ok: false,
+        roles: this._rolesForEquivalentInstances(instanceId),
+        timedOut: false,
+      };
     }
     const body = wait
       ? {
@@ -2249,6 +2273,28 @@ export class RobloxStudioTools {
         roles: wait.roles,
       }
       : response;
+    if (wait && !wait.ok) {
+      const runtimeRoles = wait.roles.filter((role) => role === 'server' || /^client-\d+$/.test(role));
+      const failureBody = {
+        ...body,
+        success: false,
+        error: 'Playtest teardown did not complete.',
+        message: response?.success === true
+          ? wait.timedOut
+            ? 'Stop signal was accepted, but runtime peers did not disconnect before timeout.'
+            : 'Stop signal was accepted, but runtime peers are still connected.'
+          : 'Edit stop request failed, and runtime peers are still connected.',
+        stopSignalAccepted: response?.success === true,
+        stopRequestError,
+        runtimeRoles,
+        possibleCause:
+          'A game shutdown hook such as BindToClose may be blocking Studio teardown. ' +
+          'No runtime hard-stop or synthetic keyboard fallback was attempted.',
+      };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(failureBody) }],
+      };
+    }
     return {
       content: [{ type: 'text', text: JSON.stringify(body) }],
     };

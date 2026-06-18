@@ -162,7 +162,12 @@ function handleStopRequest(key: string, request: StopPayload): void {
 	}
 
 	if (endTestIssued) {
-		writeResult(key, request, true);
+		writeResult(
+			key,
+			request,
+			false,
+			"StudioTestService:EndTest was already issued for this play session, but the runtime DataModel is still alive.",
+		);
 		return;
 	}
 
