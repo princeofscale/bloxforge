@@ -7,6 +7,23 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     labels: [dependencies]
+    # Major bumps of these are breaking for this codebase and are handled
+    # deliberately, not automatically:
+    #   eslint 9+ = flat config migration; express 5 / jest 30 = breaking APIs;
+    #   @types/node major tends to surface new type errors.
+    ignore:
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: express
+        update-types: [version-update:semver-major]
+      - dependency-name: '@types/express'
+        update-types: [version-update:semver-major]
+      - dependency-name: jest
+        update-types: [version-update:semver-major]
+      - dependency-name: '@types/jest'
+        update-types: [version-update:semver-major]
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
     groups:
       # One PR per week for all low-risk minor/patch bumps to cut noise.
       minor-and-patch:
@@ -25,6 +42,8 @@ updates:
       - dependency-name: typescript
       - dependency-name: roblox-ts
       - dependency-name: '@rbxts/compiler-types'
+      # Pinned to 1.0.906 deliberately for a clean editor experience; bump by hand.
+      - dependency-name: '@rbxts/types'
     groups:
       rbxts-and-deps:
         update-types: [minor, patch]
