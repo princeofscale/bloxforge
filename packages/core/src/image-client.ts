@@ -11,7 +11,7 @@ export interface ImageGenOptions {
   seed?: number;
 }
 
-export const DEFAULT_IMAGE_MODEL = 'seedream5';
+export const DEFAULT_IMAGE_MODEL = 'zimage';
 const DEFAULT_BASE_URL = 'https://gen.pollinations.ai';
 
 function clampDimension(value: number | undefined, fallback: number): number {

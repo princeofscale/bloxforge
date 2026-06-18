@@ -8,7 +8,8 @@ describe('PollinationsClient.buildImageUrl', () => {
     expect(url).toContain('gen.pollinations.ai/image/a%20red%20cat');
   });
 
-  it('defaults to the seedream5 model', () => {
+  it('defaults to the configured model', () => {
+    expect(DEFAULT_IMAGE_MODEL).toBe('zimage');
     expect(client.buildImageUrl('x')).toContain(`model=${DEFAULT_IMAGE_MODEL}`);
   });
 

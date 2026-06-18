@@ -75,7 +75,7 @@ Fully close and reopen Studio after the plugin is first installed or updated. Th
 
 Everything core works key-free. Two optional integrations unlock more:
 
-- **AI image generation** — set `POLLINATIONS_API_KEY` (a server-side `sk_` key from [enter.pollinations.ai](https://enter.pollinations.ai)). Default model is `seedream5`; pick any from [the model list](https://enter.pollinations.ai/#models). Free models like `flux`/`zimage` work immediately; premium models (seedream5, nanobanana, …) need account credits.
+- **AI image generation** — set `POLLINATIONS_API_KEY` (a server-side `sk_` key from [enter.pollinations.ai](https://enter.pollinations.ai)). Default model is `zimage`; pick any from [the model list](https://enter.pollinations.ai/#models). Free models like `flux`/`zimage` work immediately; premium models (seedream5, nanobanana, …) need account credits.
 - **Creator Store & asset upload** — set `ROBLOX_OPEN_CLOUD_API_KEY` (with `asset:write`) for `search_assets`, `upload_asset`, and `image_generate_and_upload`. The **free** `marketplace_search` + `insert_asset` need no key.
 
 ### Verify it works: `--doctor`
@@ -140,7 +140,7 @@ Where we lead: a real **safety layer**, **game-template generators**, **free mar
 - **Terrain:** `terrain_generate_baseplate`/`island`/`mountains`/`water`, `terrain_paint_material`, `terrain_clear_region` (volume-limited; clear requires confirmation).
 - **Game templates:** `template_create_obby_game`, `template_create_simulator_game`, `template_create_tycoon_game`, `template_create_round_game`.
 - **Media:** `audio_create_sound`, `audio_play_sound`, `animation_create`, `animation_play`, `asset_apply_texture` (auto-picks Image/Texture/Decal/MeshPart property).
-- **AI image generation:** `image_generate` (Pollinations text-to-image, default `seedream5`, saves a local file) and `image_generate_and_upload` (generate → upload to Roblox → returns assetId for `asset_apply_texture`).
+- **AI image generation:** `image_generate` (Pollinations text-to-image, default `zimage`, saves a local file) and `image_generate_and_upload` (generate → upload to Roblox → returns assetId for `asset_apply_texture`).
 - **Diagnostics:** `diagnose_scripts` — captures the output log and returns errors/warnings mapped to script + line, to drive "fix all script errors".
 - **Local sync:** `sync_pull` (Studio → `.server.lua`/`.client.lua`/`.module.lua` files), `sync_status` (three-way diff), `sync_push` (files → Studio, conflict-aware, dry-run).
 - **Free marketplace (no key):** `marketplace_search` (public toolbox search for models/decals/audio/meshes) and `marketplace_search_and_insert` (find + insert the top match), plus key-free `insert_asset`/`preview_asset`.

@@ -2993,12 +2993,12 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'image_generate',
     category: 'write',
-    description: 'Generate an image from a text prompt via Pollinations (default model seedream5; any model from enter.pollinations.ai/#models). Saves a local file and returns its path. Requires POLLINATIONS_API_KEY. To use it in Roblox, upload it (image_generate_and_upload or upload_asset) then asset_apply_texture.',
+    description: 'Generate an image from a text prompt via Pollinations (default model zimage; any model from enter.pollinations.ai/#models). Saves a local file and returns its path. Requires POLLINATIONS_API_KEY. To use it in Roblox, upload it (image_generate_and_upload or upload_asset) then asset_apply_texture.',
     inputSchema: {
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'Text description of the image to generate.' },
-        model: { type: 'string', description: 'Pollinations model (default "seedream5").' },
+        model: { type: 'string', description: 'Pollinations model (default "zimage").' },
         width: { type: 'number', description: 'Width px 16-2048 (default 1024).' },
         height: { type: 'number', description: 'Height px 16-2048 (default 1024).' },
         seed: { type: 'number', description: 'Seed for reproducible results (default 0).' },
@@ -3014,7 +3014,7 @@ part(0,2,0,2,1,1,"b")`,
       type: 'object',
       properties: {
         prompt: { type: 'string', description: 'Text description of the image to generate.' },
-        model: { type: 'string', description: 'Pollinations model (default "seedream5").' },
+        model: { type: 'string', description: 'Pollinations model (default "zimage").' },
         width: { type: 'number', description: 'Width px 16-2048 (default 1024).' },
         height: { type: 'number', description: 'Height px 16-2048 (default 1024).' },
         seed: { type: 'number', description: 'Seed (default 0).' },
