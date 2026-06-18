@@ -28,13 +28,16 @@
   ],
   "author": "",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chrrxs/robloxstudio-mcp.git"
+    "url": "git+https://github.com/princeofscale/robloxstudio-mcp.git"
   },
-  "homepage": "https://github.com/chrrxs/robloxstudio-mcp#readme",
+  "homepage": "https://github.com/princeofscale/robloxstudio-mcp#readme",
   "bugs": {
-    "url": "https://github.com/chrrxs/robloxstudio-mcp/issues"
+    "url": "https://github.com/princeofscale/robloxstudio-mcp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
