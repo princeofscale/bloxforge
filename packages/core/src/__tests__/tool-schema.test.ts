@@ -203,6 +203,12 @@ describe('Tool schema compatibility', () => {
       sync_status: 'syncStatus',
       sync_push: 'syncPush',
       marketplace_search_and_insert: 'marketplaceSearchAndInsert',
+      audio_create_sound: 'audioCreateSound',
+      audio_play_sound: 'audioPlaySound',
+      animation_create: 'animationCreate',
+      animation_play: 'animationPlay',
+      asset_apply_texture: 'assetApplyTexture',
+      diagnose_scripts: 'diagnoseScripts',
     };
     for (const tool of TOOL_DEFINITIONS) {
       if (STUDIO_AGNOSTIC_TOOLS.has(tool.name)) continue;

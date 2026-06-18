@@ -164,6 +164,16 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Free marketplace (no Open Cloud key).
   marketplace_search: (tools, body) => tools.marketplaceSearch(body.keyword, body.category, body.limit, body.sortType),
   marketplace_search_and_insert: (tools, body) => tools.marketplaceSearchAndInsert(body.keyword, body.category, body.parentPath, body.position, body.instance_id),
+
+  // Media (audio / animation / texture).
+  audio_create_sound: (tools, body) => tools.audioCreateSound(body, body.instance_id),
+  audio_play_sound: (tools, body) => tools.audioPlaySound(body.path, body.instance_id),
+  animation_create: (tools, body) => tools.animationCreate(body, body.instance_id),
+  animation_play: (tools, body) => tools.animationPlay(body, body.instance_id),
+  asset_apply_texture: (tools, body) => tools.assetApplyTexture(body, body.instance_id),
+
+  // Diagnostics.
+  diagnose_scripts: (tools, body) => tools.diagnoseScripts(body.maxEntries, body.instance_id),
 };
 
 // Self-contained diagnostics page (no external assets) served at /dashboard.

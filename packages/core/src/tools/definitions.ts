@@ -2909,6 +2909,99 @@ part(0,2,0,2,1,1,"b")`,
       required: ['keyword'],
     },
   },
+
+  // === Media (audio / animation / texture) ===
+  {
+    name: 'audio_create_sound',
+    category: 'write',
+    description: 'Create a Sound under a parent with a SoundId (number or rbxassetid://). Configure volume, looping, playback speed, and optionally play it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        parentPath: { type: 'string', description: 'Where to create the Sound (e.g. "Workspace" or a Part path).' },
+        soundId: { description: 'Audio asset id (number) or full rbxassetid:// URI.' },
+        name: { type: 'string', description: 'Name for the Sound.' },
+        volume: { type: 'number', description: 'Volume 0-10 (default Roblox value).' },
+        looped: { type: 'boolean', description: 'Loop the sound.' },
+        playbackSpeed: { type: 'number', description: 'Playback speed multiplier.' },
+        playOnCreate: { type: 'boolean', description: 'Call :Play() immediately.' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['parentPath', 'soundId'],
+    },
+  },
+  {
+    name: 'audio_play_sound',
+    category: 'write',
+    description: 'Play an existing Sound instance by path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path to the Sound instance.' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'animation_create',
+    category: 'write',
+    description: 'Create an Animation instance with an AnimationId (number or rbxassetid://) under a parent — e.g. inside a Humanoid, tool, or ReplicatedStorage.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        parentPath: { type: 'string', description: 'Where to create the Animation.' },
+        animationId: { description: 'Animation asset id (number) or rbxassetid:// URI.' },
+        name: { type: 'string', description: 'Name for the Animation (default "Animation").' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['parentPath', 'animationId'],
+    },
+  },
+  {
+    name: 'animation_play',
+    category: 'write',
+    description: 'Load and play an animation on a rig (finds/creates an Animator under its Humanoid or AnimationController). Best observed during a playtest.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rigPath: { type: 'string', description: 'Path to the rig model (with a Humanoid or AnimationController).' },
+        animationId: { description: 'Animation asset id (number) or rbxassetid:// URI.' },
+        looped: { type: 'boolean', description: 'Loop the track.' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['rigPath', 'animationId'],
+    },
+  },
+  {
+    name: 'asset_apply_texture',
+    category: 'write',
+    description: 'Apply an image/texture asset to a target, choosing the right property by class (ImageLabel→Image, Decal/Texture→Texture, MeshPart→TextureID, SurfaceAppearance→ColorMap). Override with property.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        targetPath: { type: 'string', description: 'Path to the instance to texture.' },
+        assetId: { description: 'Image asset id (number) or rbxassetid:// URI.' },
+        property: { type: 'string', description: 'Force a specific property instead of inferring from class.' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['targetPath', 'assetId'],
+    },
+  },
+
+  // === Diagnostics ===
+  {
+    name: 'diagnose_scripts',
+    category: 'read',
+    description: 'Capture the Studio output log and return a structured report of errors and warnings, with each error mapped to its script path and line where possible. Use to drive "fix all script errors".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        maxEntries: { type: 'number', description: 'How many recent log entries to scan (default 200).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+    },
+  },
 ];
 
 export const getReadOnlyTools = () => TOOL_DEFINITIONS.filter(t => t.category === 'read');

@@ -86,14 +86,15 @@ While the server is running, open **http://localhost:58741/dashboard** for a liv
 > *"What's the structure of this game?"*
 > *"Create an obby game with 6 checkpoints."*
 > *"Add a checkpoint system and a timer HUD."*
-> *"Fix all script errors."*
+> *"Fix all script errors."* (uses `diagnose_scripts`)
+> *"Add background music and play a wave animation on the NPC."*
 > *"Create a shop UI that's mobile-friendly."*
 > *"Generate an island map with mountains and water."*
 > *"Search the marketplace for a low-poly tree and insert one into Workspace."*
 > *"Set the lighting to a horror preset and add a day-night cycle."*
 > *"Start a multiplayer test with 2 clients and tell me why the round never starts."*
 
-## Tool catalog (108 tools)
+## Tool catalog (119 tools)
 
 - **Browse & inspect:** file tree, services, instances, properties, attributes, tags, descendants, scene/memory analysis.
 - **Edit:** create/delete/duplicate/move instances, set properties (typed), bulk operations, script read/patch/replace, grep.
@@ -103,6 +104,8 @@ While the server is running, open **http://localhost:58741/dashboard** for a liv
 - **Environment:** `environment_set_time_of_day`, `environment_set_lighting_preset` (sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic), `environment_set_atmosphere`, `environment_set_sky`, `environment_create_day_night_cycle_script`.
 - **Terrain:** `terrain_generate_baseplate`/`island`/`mountains`/`water`, `terrain_paint_material`, `terrain_clear_region` (volume-limited; clear requires confirmation).
 - **Game templates:** `template_create_obby_game`, `template_create_simulator_game`, `template_create_tycoon_game`, `template_create_round_game`.
+- **Media:** `audio_create_sound`, `audio_play_sound`, `animation_create`, `animation_play`, `asset_apply_texture` (auto-picks Image/Texture/Decal/MeshPart property).
+- **Diagnostics:** `diagnose_scripts` — captures the output log and returns errors/warnings mapped to script + line, to drive "fix all script errors".
 - **Local sync:** `sync_pull` (Studio → `.server.lua`/`.client.lua`/`.module.lua` files), `sync_status` (three-way diff), `sync_push` (files → Studio, conflict-aware, dry-run).
 - **Free marketplace (no key):** `marketplace_search` (public toolbox search for models/decals/audio/meshes) and `marketplace_search_and_insert` (find + insert the top match), plus key-free `insert_asset`/`preview_asset`.
 - **Creator Store (Open Cloud key):** `search_assets`, `get_asset_details`, `get_asset_thumbnail`, `upload_asset`, build import/export, `.rbxm` import/export.

@@ -50,6 +50,18 @@ import {
 import { SyncManager, ScriptClassName } from '../sync/sync-manager.js';
 import { buildDumpScriptsLuau } from '../sync/sync-luau.js';
 import { MarketplaceClient } from '../marketplace-client.js';
+import {
+  buildCreateSoundLuau,
+  buildPlaySoundLuau,
+  buildCreateAnimationLuau,
+  buildPlayAnimationLuau,
+  buildApplyTextureLuau,
+  CreateSoundOptions,
+  CreateAnimationOptions,
+  PlayAnimationOptions,
+  ApplyTextureOptions,
+} from '../builders/media-builders.js';
+import { parseLogErrors, formatDiagnostics } from '../diagnostics.js';
 import { runBuildExecutor } from './build-executor.js';
 import { OpenCloudClient } from '../opencloud-client.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
@@ -3870,6 +3882,53 @@ export class RobloxStudioTools {
       content: [{
         type: 'text',
         text: JSON.stringify({ inserted: true, asset: chosen, alternatives: results.slice(1), response }),
+      }] as ToolContent[],
+    };
+  }
+
+  // === Media tools (audio / animation / texture) ===
+
+  async audioCreateSound(options: CreateSoundOptions, instance_id?: string) {
+    if (!options?.parentPath || options?.soundId === undefined) throw new Error('parentPath and soundId are required for audio_create_sound');
+    const result = await this._runGeneratedLuau(buildCreateSoundLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'audio', summary: `sound ${options.soundId} under ${options.parentPath}` });
+    return result;
+  }
+
+  async audioPlaySound(path: string, instance_id?: string) {
+    if (!path) throw new Error('path is required for audio_play_sound');
+    return this._runGeneratedLuau(buildPlaySoundLuau({ path }), instance_id);
+  }
+
+  async animationCreate(options: CreateAnimationOptions, instance_id?: string) {
+    if (!options?.parentPath || options?.animationId === undefined) throw new Error('parentPath and animationId are required for animation_create');
+    const result = await this._runGeneratedLuau(buildCreateAnimationLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'animation', summary: `animation ${options.animationId} under ${options.parentPath}` });
+    return result;
+  }
+
+  async animationPlay(options: PlayAnimationOptions, instance_id?: string) {
+    if (!options?.rigPath || options?.animationId === undefined) throw new Error('rigPath and animationId are required for animation_play');
+    return this._runGeneratedLuau(buildPlayAnimationLuau(options), instance_id);
+  }
+
+  async assetApplyTexture(options: ApplyTextureOptions, instance_id?: string) {
+    if (!options?.targetPath || options?.assetId === undefined) throw new Error('targetPath and assetId are required for asset_apply_texture');
+    const result = await this._runGeneratedLuau(buildApplyTextureLuau(options), instance_id);
+    this.safety.recordOperation({ kind: 'texture', summary: `applied ${options.assetId} to ${options.targetPath}` });
+    return result;
+  }
+
+  // === Diagnostics ("fix all script errors") ===
+
+  async diagnoseScripts(maxEntries?: number, instance_id?: string) {
+    const response = await this._callSingle('/api/get-output-log', { maxEntries: maxEntries ?? 200 }, undefined, instance_id);
+    const entries = Array.isArray(response?.entries) ? response.entries : [];
+    const result = parseLogErrors(entries);
+    return {
+      content: [{
+        type: 'text',
+        text: `${formatDiagnostics(result)}\n\n${JSON.stringify({ errors: result.errors, warnings: result.warnings })}`,
       }] as ToolContent[],
     };
   }
