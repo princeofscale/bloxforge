@@ -24,7 +24,6 @@ export const BASE_PORT = 58741;
 const ROUTED_TOOLS = new Set([
   'start_playtest',
   'stop_playtest',
-  'get_playtest_output',
   'execute_luau',
   'eval_server_runtime',
   'eval_client_runtime',

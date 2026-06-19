@@ -207,31 +207,6 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['instancePathA', 'instancePathB']
     }
   },
-
-  // === Output & Diagnostics ===
-  {
-    name: 'get_output_log',
-    category: 'read',
-    description: 'Get the Studio output log history. Works in both edit and play mode.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        maxEntries: {
-          type: 'number',
-          description: 'Maximum number of log entries to return (default: 100)'
-        },
-        messageType: {
-          type: 'string',
-          description: 'Filter by message type (e.g. "Enum.MessageType.MessageOutput", "Enum.MessageType.MessageWarning", "Enum.MessageType.MessageError")'
-        },
-        instance_id: {
-          type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
-        }
-      }
-    }
-  },
-
   // === Bulk Attributes ===
   {
     name: 'bulk_set_attributes',

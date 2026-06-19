@@ -3,6 +3,7 @@ import { createHttpServer } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import request from 'supertest';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 const READY = {
@@ -110,6 +111,103 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     await expect(tools.startPlaytest('play', 1)).rejects.toThrow(/multiplayer_test_start/);
+  });
+
+  test('client broker forwards script profiler captures to client peers', () => {
+    const cwd = process.cwd();
+    const repoRoot = fs.existsSync(path.join(cwd, 'studio-plugin')) ? cwd : path.resolve(cwd, '../..');
+    const source = fs.readFileSync(path.join(repoRoot, 'studio-plugin/src/modules/ClientBroker.ts'), 'utf8');
+    expect(source).toContain('"/api/capture-script-profiler"');
+    expect(source).toContain('payload.endpoint === "/api/capture-script-profiler"');
+  });
+
+  test('breakpoints decorates response with resolved target role', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'server-1',
+      instanceId: 'place:test',
+      role: 'server',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'Game',
+      isRunning: true,
+    });
+
+    const resultPromise = tools.breakpoints('set', {
+      script_path: 'game.ServerScriptService.Main',
+      line: 12,
+      log_message: '"probe"',
+    }, 'server', 'place:test');
+
+    const pending = bridge.getPendingRequest('place:test', 'server');
+    expect(pending?.request).toMatchObject({
+      endpoint: '/api/breakpoints',
+      data: {
+        action: 'set',
+        script_path: 'game.ServerScriptService.Main',
+        line: 12,
+        log_message: '"probe"',
+        __mcp_instance_id: 'place:test',
+        __mcp_target_role: 'server',
+      },
+    });
+    bridge.resolveRequest(pending!.requestId, { ok: true, breakpoint: { line: 12 } });
+
+    const result = await resultPromise;
+    const body = JSON.parse(result.content[0].text);
+    expect(body).toEqual({ target: 'server', ok: true, breakpoint: { line: 12 } });
+  });
+
+  test('capture_script_profiler routes to one runtime peer and writes raw json to output_path', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'client-1',
+      instanceId: 'place:test',
+      role: 'client',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'Game',
+      isRunning: true,
+    });
+    const outputPath = path.join(os.tmpdir(), `rsmcp-script-profiler-${Date.now()}.json`);
+
+    const resultPromise = tools.captureScriptProfiler('client-1', {
+      duration_ms: 250,
+      output_path: outputPath,
+    }, 'place:test');
+
+    const pending = bridge.getPendingRequest('place:test', 'client-1');
+    expect(pending?.request).toMatchObject({
+      endpoint: '/api/capture-script-profiler',
+      data: {
+        duration_ms: 250,
+        __mcp_include_raw_json: true,
+        __mcp_instance_id: 'place:test',
+        __mcp_target_role: 'client-1',
+      },
+    });
+    bridge.resolveRequest(pending!.requestId, {
+      ok: true,
+      raw_json: '{"Version":2}',
+      top_functions: [],
+      counts: { functions: 0, nodes: 0, categories: 0 },
+    });
+
+    const result = await resultPromise;
+    const body = JSON.parse(result.content[0].text);
+    expect(body).toEqual({
+      target: 'client-1',
+      ok: true,
+      output_path: path.resolve(outputPath),
+      top_functions: [],
+      counts: { functions: 0, nodes: 0, categories: 0 },
+    });
+    expect(fs.readFileSync(outputPath, 'utf8')).toBe('{"Version":2}');
+    fs.rmSync(outputPath, { force: true });
   });
 
   test('start_playtest play mode waits for fresh server and client peers', async () => {

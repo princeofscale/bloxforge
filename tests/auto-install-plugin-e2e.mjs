@@ -380,7 +380,7 @@ async function waitForStudioLog(client, instanceId, needle, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   let last;
   while (Date.now() < deadline) {
-    const logs = await client.callTool('get_output_log', { maxEntries: 100, instance_id: instanceId });
+    const logs = await client.callTool('get_runtime_logs', { target: 'edit', tail: 100, instance_id: instanceId });
     last = logs;
     if (JSON.stringify(logs).includes(needle)) return;
     await delay(1000);

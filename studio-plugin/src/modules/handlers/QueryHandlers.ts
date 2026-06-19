@@ -792,38 +792,6 @@ function compareInstances(requestData: Record<string, unknown>) {
 	};
 }
 
-function getOutputLog(requestData: Record<string, unknown>) {
-	const maxEntries = (requestData.maxEntries as number) ?? 100;
-	const messageTypeFilter = requestData.messageType as string | undefined;
-
-	const [success, result] = pcall(() => {
-		const LogService = game.GetService("LogService");
-		const history = LogService.GetLogHistory();
-		const allEntries: Record<string, unknown>[] = [];
-
-		for (const entry of history) {
-			const msgType = tostring(entry.messageType);
-			if (messageTypeFilter && msgType !== messageTypeFilter) continue;
-			allEntries.push({
-				message: entry.message,
-				messageType: msgType,
-				timestamp: entry.timestamp,
-			});
-		}
-
-		const startIdx = math.max(0, allEntries.size() - maxEntries);
-		const finalEntries: Record<string, unknown>[] = [];
-		for (let i = startIdx; i < allEntries.size(); i++) {
-			finalEntries.push(allEntries[i]);
-		}
-
-		return { entries: finalEntries, count: finalEntries.size(), totalAvailable: allEntries.size() };
-	});
-
-	if (success) return result;
-	return { error: `Failed to get output log: ${result}` };
-}
-
 export = {
 	getFileTree,
 	searchFiles,
@@ -838,5 +806,4 @@ export = {
 	grepScripts,
 	getDescendants,
 	compareInstances,
-	getOutputLog,
 };

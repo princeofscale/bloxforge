@@ -128,19 +128,19 @@
 именованные пост-эффекты (idempotent — `FindFirstChild` по имени) и опционально включали
 Future lighting. Можно вынести в опцию `withPostFx: true`.
 
-## 🟡 B8 — Playtest: буферы логов server/client пустые, `get_playtest_output` рассинхрон
+## ✅ B8 — Playtest: буферы логов server/client пустые, legacy output-tool рассинхрон
 
-**Observation (loop iter 9):** При `start_playtest(play)` (roles: edit/server/client-1)
+**Original observation (loop iter 9):** При `start_playtest(play)` (roles: edit/server/client-1)
 `get_runtime_logs target=all` вернул только edit-prints; буферы `server` и `client-1`
 пусты (`perCaptureNextSince server:0, client-1:0`) — стартовый принт игрового сервера
-(«[Brainrot Farm Defense] Сервер запущен.») не пойман. Также `get_playtest_output
-target=server` вернул `isRunning:false`, тогда как default-вызов — `isRunning:true`.
+(«[Brainrot Farm Defense] Сервер запущен.») не пойман. Также legacy playtest-output
+target=server вернул `isRunning:false`, тогда как default-вызов — `isRunning:true`.
 
 **Impact:** Тестер не видит серверных/клиентских логов в обычном (не StudioTestService)
 плейтесте → сложно ловить рантайм-ошибки игровой логики.
 
 **Likely cause:** (а) сервер печатает на старте ДО того, как MCP-буфер подключился к
-peer'у; (б) рассинхрон `isRunning` между `get_playtest_output` target=server vs default.
+peer'у; (б) рассинхрон `isRunning` между legacy playtest-output target=server vs default.
 В обычном play LogService шарится (см. `peerAttribution: unavailable_shared_logservice`),
 так что server/client буферы могут не наполняться отдельно.
 
