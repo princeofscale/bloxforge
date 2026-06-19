@@ -5,6 +5,8 @@ import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import CaptureHandlers from "./handlers/CaptureHandlers";
 import InputHandlers from "./handlers/InputHandlers";
 import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
+import BreakpointHandlers from "./handlers/BreakpointHandlers";
+import ScriptProfilerHandlers from "./handlers/ScriptProfilerHandlers";
 import LuauExec from "./LuauExec";
 import State from "./State";
 import HttpDiagnostics from "./HttpDiagnostics";
@@ -92,6 +94,8 @@ const CLIENT_BROKER_ALLOWED_ENDPOINTS = new Set<string>([
 	"/api/execute-luau",
 	"/api/eval-runtime",
 	"/api/get-runtime-logs",
+	"/api/breakpoints",
+	"/api/capture-script-profiler",
 	"/api/get-memory-breakdown",
 	"/api/get-scene-analysis",
 	"/api/multiplayer-test-state",
@@ -259,6 +263,12 @@ function setupClientBroker() {
 		// when endpoint is missing.
 		if (payload && payload.endpoint === "/api/get-runtime-logs") {
 			return handleGetRuntimeLogs(payload.data);
+		}
+		if (payload && payload.endpoint === "/api/breakpoints") {
+			return BreakpointHandlers.breakpoints(payload.data ?? {});
+		}
+		if (payload && payload.endpoint === "/api/capture-script-profiler") {
+			return ScriptProfilerHandlers.captureScriptProfiler(payload.data ?? {});
 		}
 		if (payload && payload.endpoint === "/api/get-memory-breakdown") {
 			return MemoryHandlers.getMemoryBreakdown(payload.data ?? {});

@@ -18,6 +18,8 @@ import SerializationHandlers from "./handlers/SerializationHandlers";
 import MemoryHandlers from "./handlers/MemoryHandlers";
 import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
+import BreakpointHandlers from "./handlers/BreakpointHandlers";
+import ScriptProfilerHandlers from "./handlers/ScriptProfilerHandlers";
 import ClientBroker from "./ClientBroker";
 import ServerUrlSettings from "./ServerUrlSettings";
 import HttpDiagnostics from "./HttpDiagnostics";
@@ -109,7 +111,6 @@ const routeMap: Record<string, Handler> = {
 	"/api/grep-scripts": QueryHandlers.grepScripts,
 	"/api/get-descendants": QueryHandlers.getDescendants,
 	"/api/compare-instances": QueryHandlers.compareInstances,
-	"/api/get-output-log": QueryHandlers.getOutputLog,
 
 	"/api/set-property": PropertyHandlers.setProperty,
 	"/api/set-properties": PropertyHandlers.setProperties,
@@ -146,7 +147,6 @@ const routeMap: Record<string, Handler> = {
 
 	"/api/start-playtest": TestHandlers.startPlaytest,
 	"/api/stop-playtest": TestHandlers.stopPlaytest,
-	"/api/get-playtest-output": TestHandlers.getPlaytestOutput,
 	"/api/multiplayer-test-start": TestHandlers.multiplayerTestStart,
 	"/api/multiplayer-test-state": TestHandlers.multiplayerTestState,
 	"/api/multiplayer-test-add-players": TestHandlers.multiplayerTestAddPlayers,
@@ -171,6 +171,8 @@ const routeMap: Record<string, Handler> = {
 	"/api/find-and-replace-in-scripts": ScriptHandlers.findAndReplaceInScripts,
 
 	"/api/get-runtime-logs": LogHandlers.getRuntimeLogs,
+	"/api/breakpoints": BreakpointHandlers.breakpoints,
+	"/api/capture-script-profiler": ScriptProfilerHandlers.captureScriptProfiler,
 
 	"/api/export-rbxm": SerializationHandlers.exportRbxm,
 	"/api/import-rbxm": SerializationHandlers.importRbxm,

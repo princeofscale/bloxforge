@@ -5,7 +5,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'start_playtest',
     category: 'write',
-    description: 'Start a simple single-player Studio playtest in play or run mode, waiting until a runtime peer registers with MCP. Captures print/warn/error via LogService. Poll with get_playtest_output, end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
+    description: 'Start a simple single-player Studio playtest in play or run mode, waiting until a runtime peer registers with MCP. Read print/warn/error output with get_runtime_logs, then end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -29,28 +29,10 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'stop_playtest',
     category: 'write',
-    description: 'Stop playtest and return all captured output.',
+    description: 'Stop playtest and wait for runtime peers to disconnect.',
     inputSchema: {
       type: 'object',
       properties: {
-        instance_id: {
-          type: 'string',
-          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
-        }
-      }
-    }
-  },
-  {
-    name: 'get_playtest_output',
-    category: 'read',
-    description: 'Poll output buffer without stopping. Returns isRunning and captured messages.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        target: {
-          type: 'string',
-          description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
-        },
         instance_id: {
           type: 'string',
           description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
@@ -441,7 +423,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_runtime_logs',
     category: 'read',
-    description: 'Read the in-memory log buffers captured by Studio plugin peers. Each buffer captures ~64 KB of recent LogService.MessageOut entries; oldest entries drop when over budget. Entries include capturedBy for the plugin buffer that observed the log. In ordinary Studio play/run sessions, LogService reflects logs across edit/server/client, so script-origin peer is not reliable and entries omit peer. In StudioTestService multiplayer sessions only, peer attribution is reliable and entries also include peer. target=all (default) merges buffers and dedups same-message-and-level entries captured within 2s across different buffers.',
+    description: 'Read the in-memory log buffers captured by Studio plugin peers. Each buffer captures ~64 KB of recent LogService output; runtime peers seed from LogService:GetLogHistory() at plugin load so early startup logs emitted before the plugin finishes loading can still be returned, then continue capturing LogService.MessageOut entries. Oldest entries drop when over budget. Entries include capturedBy for the plugin buffer that observed the log. In ordinary Studio play/run sessions, LogService reflects logs across edit/server/client, so script-origin peer is not reliable and entries omit peer. In StudioTestService multiplayer sessions only, peer attribution is reliable and entries also include peer. target=all (default) merges buffers and dedups same-message-and-level entries captured within 2s across different buffers.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -466,6 +448,120 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
         }
       }
+    }
+  },
+  {
+    name: 'capture_script_profiler',
+    category: 'read',
+    description: 'Capture one short ScriptProfilerService sample on a running server or client peer and return a compact CPU summary. Use this for Luau/script optimization, not render, physics, networking, or engine microprofiler lanes. Minimal flow: start or reproduce the workload, call capture_script_profiler with target="server" or a specific "client-N", inspect top_functions, patch the suspected hot path, then capture again with the same target/workload/duration_ms/frequency/filter/min_total_us to compare. top_functions is sorted by descending total_us after native/plugin/min/filter exclusions; each row includes rank plus function_index, the 1-based index into the raw Roblox Functions array. Function and node TotalDuration values follow Roblox\'s exported Script Profiler JSON format and are reported in microseconds as total_us. total_us is cumulative profiler TotalDuration during the capture; nested labels/functions can overlap, so do not sum rows as total CPU time. source is the runtime script path reported by Roblox and may need mapping back to editable source with search tools. If function names are too broad, add debug.profilebegin("Area:SpecificStep") / debug.profileend() around suspected code and pass filter="Area:" or another label prefix; matching custom labels appear in debug_labels and top_functions with their script source and no line number. The result echoes effective options in applied and omitted.filtered_out counts rows removed by filter. Keep captures short while actively triggering the behavior; duration_ms defaults to 1000 and is clamped to 100-15000. Pass output_path when you need the raw Roblox Script Profiler JSON for offline comparison or deeper analysis. This tool owns the start/stop/request profiler lifecycle for one capture and does not expose long-lived profiler sessions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          pattern: '^(server|client-[0-9]+)$',
+          description: 'Runtime peer to profile: "server" (default) or "client-N". Use get_connected_instances to discover available runtime roles. target="edit" is invalid because ScriptProfiler captures running code.'
+        },
+        duration_ms: {
+          type: 'number',
+          default: 1000,
+          minimum: 100,
+          maximum: 15000,
+          description: 'Sample duration in milliseconds. Defaults to 1000; clamped to 100-15000 so the Studio bridge does not hang on long captures.'
+        },
+        frequency: {
+          type: 'number',
+          default: 1000,
+          minimum: 1,
+          maximum: 10000,
+          description: 'ScriptProfiler sampling frequency in samples per second (Hz). Defaults to 1000.'
+        },
+        max_functions: {
+          type: 'number',
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+          description: 'Maximum number of top_functions and debug_labels to return. Defaults to 20; clamped to 1-100.'
+        },
+        min_total_us: {
+          type: 'number',
+          default: 0,
+          minimum: 0,
+          description: 'Omit functions below this TotalDuration in microseconds after capture. Defaults to 0.'
+        },
+        filter: {
+          type: 'string',
+          description: 'Optional case-insensitive substring matched against function name and source before top_functions are returned. Useful for focusing on one module or debug.profilebegin label prefix.'
+        },
+        include_native: {
+          type: 'boolean',
+          description: 'Include native Roblox frames in top_functions. Defaults to false to keep optimization output focused on game Luau and debug labels.'
+        },
+        include_plugin: {
+          type: 'boolean',
+          description: 'Include plugin frames in top_functions. Defaults to false because the MCP capture implementation can otherwise add noise.'
+        },
+        output_path: {
+          type: 'string',
+          description: 'Optional local path where the MCP server writes the raw Script Profiler JSON. The tool result then includes output_path instead of inlining the raw JSON.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      }
+    }
+  },
+  {
+    name: 'breakpoints',
+    category: 'write',
+    description: 'Manage Studio debugger breakpoints through ScriptDebuggerService. Use this when the user asks to debug with Studio breakpoints. Prefer log breakpoints for agent debugging: pass log_message and let continue_execution default to true, reproduce the issue, then read get_runtime_logs filtered by "Breakpoint". Minimal flow: set a log breakpoint, run or trigger the behavior, call get_runtime_logs with filter="Breakpoint", then call action="clear" to remove MCP-managed breakpoints. Generated breakpoint logs are prefixed with "Breakpoint" plus script_path:line; Studio breakpoint errors also start with "Breakpoint", so this filter captures both successful breakpoint logs and breakpoint-related failures. Set breakpoints on target="edit" before starting a playtest when possible; for an already-running playtest target the runtime DataModel directly, such as "server" or "client-1". Do not set continue_execution=false unless the target DataModel already has a ScriptDebuggerService.OnStopped handler that returns Enum.DebuggerResumeType.Resume for breakpoint/non-exception stops; otherwise the playtest can get stuck and MCP can lose the server/client peers. Minimal OnStopped reference: local sds=game:GetService("ScriptDebuggerService"); sds.OnStopped=function(info) if info.Reason ~= Enum.ScriptStoppedReason.Exception then return Enum.DebuggerResumeType.Resume end print("EXCEPTION:", info.ExceptionText); return Enum.DebuggerResumeType.Resume end. MCP-managed breakpoints persist minimal script_path/line recovery data per place and target so action="list" and action="clear" can find tool-created edit/server/client breakpoints after MCP/plugin reloads. action="clear" removes only breakpoints created through this MCP tool by default; pass clear_all=true only when you intentionally want to clear every Studio breakpoint in the targeted DataModel, including user-created breakpoints. This tool only manages breakpoint lifecycle; it does not pause, resume, step, inspect variables, or install OnStopped callbacks. Requires Studio Debugger Luau API beta enabled.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['set', 'remove', 'clear', 'list'],
+          description: 'Breakpoint action to run. set/remove require script_path and line. clear removes MCP-managed breakpoints by default. list returns breakpoints created through this MCP tool in the targeted DataModel.'
+        },
+        clear_all: {
+          type: 'boolean',
+          description: 'Only applies to action="clear". Omit or set false to remove only MCP-managed breakpoints tracked by this tool. Set true to call ScriptDebuggerService:ClearBreakpoints() and clear every Studio breakpoint in the targeted DataModel, including user-created breakpoints.'
+        },
+        script_path: {
+          type: 'string',
+          description: 'Path to a LuaSourceContainer, for example game.ServerScriptService.Main. Required for set/remove.'
+        },
+        line: {
+          type: 'number',
+          description: '1-based line number for set/remove.'
+        },
+        enabled: {
+          type: 'boolean',
+          description: 'Whether the breakpoint is enabled when set. Defaults to true.'
+        },
+        condition: {
+          type: 'string',
+          description: 'Optional Luau condition expression for set.'
+        },
+        log_message: {
+          type: 'string',
+          description: 'Optional Studio breakpoint log expression list for set, such as "\'health\', health". Literal text must be quoted as a Luau string. The tool prefixes this with "Breakpoint" and script_path:line. After reproducing, read get_runtime_logs with filter="Breakpoint" so breakpoint logs and Studio breakpoint errors are both visible.'
+        },
+        continue_execution: {
+          type: 'boolean',
+          description: 'Whether the breakpoint should log and continue without pausing. Defaults to true when log_message is provided; otherwise false. Only set false when you have first installed a ScriptDebuggerService.OnStopped handler on the same target that resumes breakpoint/non-exception stops with Enum.DebuggerResumeType.Resume; without that handler the playtest can get stuck and MCP can lose server/client peers.'
+        },
+        target: {
+          type: 'string',
+          description: 'Peer to target: "edit" (default), "server", or "client-N". Set edit breakpoints before playtests; target server/client-N for running play DataModels.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
+      },
+      required: ['action']
     }
   },
 

@@ -20,17 +20,8 @@ const ScriptEditorService = game.GetService("ScriptEditorService");
 const NAV_SIGNAL = "__MCP_NAV__";
 const NAV_RESULT = "__MCP_NAV_RESULT__";
 
-interface OutputEntry {
-	message: string;
-	messageType: string;
-	timestamp: number;
-}
-
 let testRunning = false;
-let outputBuffer: OutputEntry[] = [];
-let logConnection: RBXScriptConnection | undefined;
-let testResult: unknown;
-let testError: string | undefined;
+let navLogConnection: RBXScriptConnection | undefined;
 let stopListenerScript: Script | undefined;
 let navResultCallback: ((json: string) => void) | undefined;
 
@@ -176,6 +167,13 @@ function cleanupStopListener() {
 	}
 }
 
+function disconnectNavLogListener() {
+	if (navLogConnection) {
+		navLogConnection.Disconnect();
+		navLogConnection = undefined;
+	}
+}
+
 function startPlaytest(requestData: Record<string, unknown>) {
 	const mode = requestData.mode as string | undefined;
 	const numPlayers = requestData.numPlayers as number | undefined;
@@ -194,10 +192,7 @@ function startPlaytest(requestData: Record<string, unknown>) {
 	// Reset it so subsequent starts don't hit a false "already running".
 	if (testRunning && !RunService.IsRunning()) {
 		testRunning = false;
-		if (logConnection) {
-			logConnection.Disconnect();
-			logConnection = undefined;
-		}
+		disconnectNavLogListener();
 		cleanupStopListener();
 		// Runtime eval bridges are created by the play server/client plugin
 		// peers and disappear with the play DataModels.
@@ -208,25 +203,16 @@ function startPlaytest(requestData: Record<string, unknown>) {
 	}
 
 	testRunning = true;
-	outputBuffer = [];
-	testResult = undefined;
-	testError = undefined;
 
 	cleanupStopListener();
+	disconnectNavLogListener();
 
-	logConnection = LogService.MessageOut.Connect((message, messageType) => {
-		if (message.sub(1, NAV_SIGNAL.size()) === NAV_SIGNAL) return;
+	navLogConnection = LogService.MessageOut.Connect((message) => {
 		if (message.sub(1, NAV_RESULT.size() + 1) === `${NAV_RESULT}:`) {
 			if (navResultCallback) {
 				navResultCallback(message.sub(NAV_RESULT.size() + 2));
 			}
-			return;
 		}
-		outputBuffer.push({
-			message,
-			messageType: messageType.Name,
-			timestamp: tick(),
-		});
 	});
 
 	const [injected, injErr] = pcall(() => injectStopListener());
@@ -242,16 +228,11 @@ function startPlaytest(requestData: Record<string, unknown>) {
 			return StudioTestService.ExecuteRunModeAsync({});
 		});
 
-		if (ok) {
-			testResult = result;
-		} else {
-			testError = tostring(result);
+		if (!ok) {
+			warn(`[robloxstudio-mcp] Playtest ended with error: ${result}`);
 		}
 
-		if (logConnection) {
-			logConnection.Disconnect();
-			logConnection = undefined;
-		}
+		disconnectNavLogListener();
 		testRunning = false;
 
 		cleanupStopListener();
@@ -322,16 +303,6 @@ function stopPlaytest(_requestData: Record<string, unknown>) {
 		};
 	}
 	return { success: true, message: "Playtest stopped." };
-}
-
-function getPlaytestOutput(_requestData: Record<string, unknown>) {
-	return {
-		isRunning: testRunning,
-		output: [...outputBuffer],
-		outputCount: outputBuffer.size(),
-		testResult: testResult !== undefined ? tostring(testResult) : undefined,
-		testError,
-	};
 }
 
 function multiplayerTestStart(requestData: Record<string, unknown>) {
@@ -546,7 +517,6 @@ function characterNavigation(requestData: Record<string, unknown>) {
 export = {
 	startPlaytest,
 	stopPlaytest,
-	getPlaytestOutput,
 	multiplayerTestStart,
 	multiplayerTestState,
 	multiplayerTestAddPlayers,

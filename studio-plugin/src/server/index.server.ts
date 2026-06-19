@@ -6,6 +6,7 @@ import ServerUrlSettings from "../modules/ServerUrlSettings";
 import { cleanupLegacyEditBridges, ensureRuntimeBridgeInstalled } from "../modules/EvalBridges";
 import RuntimeLogBuffer from "../modules/RuntimeLogBuffer";
 import StopPlayMonitor from "../modules/StopPlayMonitor";
+import BreakpointHandlers from "../modules/handlers/BreakpointHandlers";
 import * as RenderMonitor from "../modules/RenderMonitor";
 
 // Track render-loop liveness so input/screenshot tools can report "window
@@ -22,6 +23,7 @@ RuntimeLogBuffer.install();
 // edit DM (write the flag) and the play-server DM (read+act on the flag) can
 // access plugin:SetSetting/GetSetting.
 StopPlayMonitor.init(plugin);
+BreakpointHandlers.init(plugin);
 ServerUrlSettings.init(plugin);
 
 UI.init(plugin);

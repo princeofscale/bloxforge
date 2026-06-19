@@ -1872,6 +1872,105 @@ export class RobloxStudioTools {
     };
   }
 
+  async captureScriptProfiler(target?: string, request: Record<string, unknown> = {}, instance_id?: string) {
+    const targetRole = target ?? 'server';
+    const data: Record<string, unknown> = { ...request };
+    const outputPath = data.output_path;
+    delete data.output_path;
+
+    if (outputPath !== undefined && typeof outputPath !== 'string') {
+      throw new Error('output_path must be a string when provided');
+    }
+    if (outputPath) {
+      data.__mcp_include_raw_json = true;
+    }
+
+    const resolved = this.bridge.resolveTarget({ instance_id, target: targetRole });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+    if (resolved.mode !== 'single') {
+      throw new RoutingFailure({
+        code: 'target_role_not_present_on_instance',
+        message: 'capture_script_profiler profiles one runtime peer at a time. Pick target="server" or a specific "client-N".',
+        data: {
+          instances: this.bridge.getPublicInstances(),
+          count: this.bridge.getInstances().length,
+        },
+      });
+    }
+
+    data.__mcp_instance_id = resolved.targetInstanceId;
+    data.__mcp_target_role = resolved.targetRole;
+    const response = await this.client.request(
+      '/api/capture-script-profiler',
+      data,
+      resolved.targetInstanceId,
+      resolved.targetRole,
+    );
+
+    const body: unknown = response !== null && typeof response === 'object' && !Array.isArray(response)
+      ? { ...response, target: resolved.targetRole }
+      : response;
+
+    if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+      const mutable = body as Record<string, unknown>;
+      const rawJson = mutable.raw_json;
+      if (typeof rawJson === 'string') {
+        if (typeof outputPath === 'string' && outputPath !== '') {
+          const resolvedOutputPath = path.resolve(outputPath);
+          fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+          fs.writeFileSync(resolvedOutputPath, rawJson, 'utf8');
+          mutable.output_path = resolvedOutputPath;
+        }
+        delete mutable.raw_json;
+      }
+    }
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(body) }],
+    };
+  }
+
+  async breakpoints(action: string, request: Record<string, unknown> = {}, target?: string, instance_id?: string) {
+    if (!action || typeof action !== 'string') {
+      throw new Error('breakpoints requires action=set|remove|clear|list');
+    }
+
+    const targetRole = target ?? 'edit';
+    const data: Record<string, unknown> = { ...request, action };
+    delete data.target;
+    delete data.instance_id;
+
+    const resolved = this.bridge.resolveTarget({ instance_id, target: targetRole });
+    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+    if (resolved.mode !== 'single') {
+      throw new RoutingFailure({
+        code: 'target_role_not_present_on_instance',
+        message: 'This tool does not support target=all. Pick a specific role or omit target.',
+        data: {
+          instances: this.bridge.getPublicInstances(),
+          count: this.bridge.getInstances().length,
+        },
+      });
+    }
+
+    data.__mcp_instance_id = resolved.targetInstanceId;
+    data.__mcp_target_role = resolved.targetRole;
+    const response = await this.client.request(
+      '/api/breakpoints',
+      data,
+      resolved.targetInstanceId,
+      resolved.targetRole,
+    );
+
+    const body = response !== null && typeof response === 'object' && !Array.isArray(response)
+      ? { ...response, target: resolved.targetRole }
+      : response;
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(body) }],
+    };
+  }
+
   async startPlaytest(mode: string, numPlayers?: number, instance_id?: string) {
     if (mode !== 'play' && mode !== 'run') {
       throw new Error('mode must be "play" or "run"');
@@ -1983,18 +2082,6 @@ export class RobloxStudioTools {
     }
     return {
       content: [{ type: 'text', text: JSON.stringify(body) }],
-    };
-  }
-
-  async getPlaytestOutput(target?: string, instance_id?: string) {
-    const response = await this._callSingle('/api/get-playtest-output', {}, target || 'edit', instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
     };
   }
 
@@ -3190,7 +3277,7 @@ export class RobloxStudioTools {
   // === Diagnostics ("fix all script errors") ===
 
   async diagnoseScripts(maxEntries?: number, instance_id?: string) {
-    const response = await this._callSingle('/api/get-output-log', { maxEntries: maxEntries ?? 200 }, undefined, instance_id);
+    const response = await this._callSingle('/api/get-runtime-logs', { tail: maxEntries ?? 200 }, 'edit', instance_id);
     const entries = Array.isArray(response?.entries) ? response.entries : [];
     const result = parseLogErrors(entries);
     return {
@@ -3406,11 +3493,6 @@ export class RobloxStudioTools {
     }
     const response = await this._callSingle('/api/compare-instances', { instancePathA, instancePathB }, undefined, instance_id);
     return compactText(response);
-  }
-
-  async getOutputLog(maxEntries?: number, messageType?: string, instance_id?: string) {
-    const response = await this._callSingle('/api/get-output-log', { maxEntries, messageType }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
   async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) {
