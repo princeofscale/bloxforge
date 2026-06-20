@@ -4,6 +4,9 @@ import {
   CallToolRequestSchema,
   ErrorCode,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import http from 'http';
@@ -16,6 +19,7 @@ import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.j
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
+import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 
 export interface ServerConfig {
   name: string;
@@ -52,6 +56,7 @@ export class RobloxStudioMCPServer {
       {
         capabilities: {
           tools: this.lazyTools ? { listChanged: true } : {},
+          resources: {},
         },
         instructions: SERVER_INSTRUCTIONS,
       }
@@ -74,6 +79,17 @@ export class RobloxStudioMCPServer {
           inputSchema: t.inputSchema,
         })),
       };
+    });
+
+    // Resources (data plane) — the world-model data as cacheable canonical URIs.
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: RESOURCE_LIST }));
+    this.server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: RESOURCE_TEMPLATES }));
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        return await readResource(this.tools, request.params.uri);
+      } catch (error) {
+        throw new McpError(ErrorCode.InvalidParams, error instanceof Error ? error.message : String(error));
+      }
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {

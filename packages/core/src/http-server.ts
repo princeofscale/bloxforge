@@ -7,6 +7,9 @@ import {
   CallToolRequestSchema,
   ErrorCode,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
+  ReadResourceRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RobloxStudioTools } from './tools/index.js';
@@ -16,6 +19,7 @@ import type { ToolDefinition } from './tools/definitions.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
+import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -611,8 +615,18 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
         const server = new Server(
           { name: serverConfig.name, version: serverConfig.version },
-          { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
+          { capabilities: { tools: {}, resources: {} }, instructions: SERVER_INSTRUCTIONS }
         );
+
+        server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: RESOURCE_LIST }));
+        server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: RESOURCE_TEMPLATES }));
+        server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+          try {
+            return await readResource(tools, request.params.uri);
+          } catch (error) {
+            throw new McpError(ErrorCode.InvalidParams, error instanceof Error ? error.message : String(error));
+          }
+        });
 
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
           tools: filteredTools.map(t => ({
