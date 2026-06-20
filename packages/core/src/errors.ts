@@ -61,6 +61,18 @@ const RECOVERY: Partial<Record<ErrorCode, string>> = {
   UNSUPPORTED_CLASS: 'use a creatable class',
 };
 
+/**
+ * Wrap a thrown error into the MCP tool-result shape carrying an errorEnvelope, so
+ * every tool surfaces a uniform, typed, agent-branchable failure regardless of which
+ * handler threw. Applied centrally at the CallTool dispatch point ("envelope by
+ * topology") instead of per-handler.
+ */
+export function toolErrorResult(error: unknown, stage?: string): { content: Array<{ type: 'text'; text: string }>; isError: true } {
+  const message = error instanceof Error ? error.message : String(error);
+  const env = errorEnvelope(message, stage ? { stage } : {});
+  return { content: [{ type: 'text', text: JSON.stringify(env) }], isError: true };
+}
+
 export interface ErrorEnvelope {
   ok: false;
   error: {

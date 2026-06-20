@@ -13,6 +13,7 @@ import { BridgeService, RoutingFailure } from './bridge-service.js';
 import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
+import { toolErrorResult } from './errors.js';
 
 export interface ServerConfig {
   name: string;
@@ -111,10 +112,10 @@ export class RobloxStudioMCPServer {
           };
         }
         if (error instanceof McpError) throw error;
-        throw new McpError(
-          ErrorCode.InternalError,
-          `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
-        );
+        // Uniform typed failure for every tool (envelope by topology): the agent
+        // gets a stable code + retryable + suggestedRecovery instead of an opaque
+        // internal error it can't branch on.
+        return toolErrorResult(error, name);
       }
     });
   }

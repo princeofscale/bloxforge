@@ -13,6 +13,7 @@ import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
+import { toolErrorResult } from './errors.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -650,10 +651,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
               };
             }
             if (error instanceof McpError) throw error;
-            throw new McpError(
-              ErrorCode.InternalError,
-              `Tool execution failed: ${error instanceof Error ? error.message : String(error)}`
-            );
+            return toolErrorResult(error, name);
           }
         });
 

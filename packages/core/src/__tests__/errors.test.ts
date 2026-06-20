@@ -1,4 +1,16 @@
-import { classifyError, typedError, responseErrorCode, isRetryable, errorEnvelope, ErrorCode } from '../errors.js';
+import { classifyError, typedError, responseErrorCode, isRetryable, errorEnvelope, toolErrorResult, ErrorCode } from '../errors.js';
+
+describe('toolErrorResult', () => {
+  it('wraps a thrown error into an MCP error result carrying the envelope', () => {
+    const res = toolErrorResult(new Error('Studio plugin connection timeout'), 'execute_luau');
+    expect(res.isError).toBe(true);
+    const env = JSON.parse(res.content[0].text);
+    expect(env.ok).toBe(false);
+    expect(env.error.code).toBe('TIMEOUT');
+    expect(env.error.retryable).toBe(true);
+    expect(env.error.stage).toBe('execute_luau');
+  });
+});
 
 describe('extended classifyError codes', () => {
   const cases: Array<[string, ErrorCode]> = [
