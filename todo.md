@@ -6,7 +6,7 @@ Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
 ## Architecture / maintainability
 
 - [ ] Continue splitting `packages/core/src/tools/index.ts` into a smaller `RobloxStudioTools` facade plus domain tool classes/modules for scene, scripts, assets, runtime/playtest, diagnostics, and marketplace/media tools.
-- [~] Audit schema bloat from ~120 tool definitions loading upfront. DONE: compressed the duplicated `instance_id` description; added `tool_catalog_search` + a semantic `tool-catalog.ts` (domains, search, `expandToolsets`). TODO (phase 2): opt-in `load_toolset` + hide-by-default deferred loading with `tools/list_changed` in both `server.ts` and `http-server.ts` ListTools handlers.
+- [x] Audit schema bloat from ~120 tool definitions loading upfront. Compressed the duplicated `instance_id` description; added `tool_catalog_search` + semantic `tool-catalog.ts`; added `load_toolset` + opt-in deferred loading (`ROBLOX_MCP_LAZY_TOOLS`) in `server.ts` (stdio) with `tools/list_changed`. (Remaining: mirror deferred loading in the `http-server.ts` /mcp streamable path — currently full-catalog there.)
 
 ## World model / read pipeline
 

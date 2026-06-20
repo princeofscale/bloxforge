@@ -86,8 +86,9 @@ describe('Tool schema compatibility', () => {
     // AI image generation is server-side (Pollinations + local file / upload).
     'image_generate',
     'image_generate_and_upload',
-    // Discovery tool — searches the server's own catalog, not a Studio place.
+    // Discovery/meta tools — operate on the server's own catalog, not a Studio place.
     'tool_catalog_search',
+    'load_toolset',
   ]);
 
   function toolHandlerBody(toolName: string): string {

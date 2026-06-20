@@ -12,6 +12,7 @@ import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService, RoutingFailure } from './bridge-service.js';
 import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
+import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
 
 export interface ServerConfig {
   name: string;
@@ -25,10 +26,20 @@ export class RobloxStudioMCPServer {
   private bridge: BridgeService;
   private allowedToolNames: Set<string>;
   private config: ServerConfig;
+  // Lazy tool loading (opt-in via ROBLOX_MCP_LAZY_TOOLS): when on, ListTools
+  // advertises only the always-on core + meta tools plus any domains the agent
+  // has pulled in via load_toolset, instead of all ~130 schemas upfront.
+  private lazyTools: boolean;
+  private activeToolNames: Set<string>;
 
   constructor(config: ServerConfig) {
     this.config = config;
     this.allowedToolNames = new Set(config.tools.map(t => t.name));
+
+    const flag = (process.env.ROBLOX_MCP_LAZY_TOOLS ?? '').toLowerCase();
+    this.lazyTools = flag === '1' || flag === 'true' || flag === 'on';
+    // Start with the always-on core + the meta tools (which live in CORE_TOOLS).
+    this.activeToolNames = new Set(CORE_TOOLS);
 
     this.server = new Server(
       {
@@ -37,7 +48,7 @@ export class RobloxStudioMCPServer {
       },
       {
         capabilities: {
-          tools: {},
+          tools: this.lazyTools ? { listChanged: true } : {},
         },
       }
     );
@@ -49,8 +60,11 @@ export class RobloxStudioMCPServer {
 
   private setupToolHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const visible = this.lazyTools
+        ? this.config.tools.filter(t => this.activeToolNames.has(t.name))
+        : this.config.tools;
       return {
-        tools: this.config.tools.map(t => ({
+        tools: visible.map(t => ({
           name: t.name,
           description: t.description,
           inputSchema: t.inputSchema,
@@ -71,7 +85,13 @@ export class RobloxStudioMCPServer {
       }
 
       try {
-        return await handler(this.tools, args ?? {});
+        const result = await handler(this.tools, args ?? {});
+        // In lazy mode, load_toolset also expands the advertised tool list and
+        // notifies the client so the newly-loaded domain's tools show up.
+        if (this.lazyTools && name === 'load_toolset') {
+          this.applyToolset((args ?? {}) as { toolsets?: string[] });
+        }
+        return result;
       } catch (error) {
         if (error instanceof RoutingFailure) {
           // Surface routing errors as structured tool-call results with
@@ -97,6 +117,24 @@ export class RobloxStudioMCPServer {
         );
       }
     });
+  }
+
+  // Expand the active tool set by the requested domains and notify the client.
+  private applyToolset(args: { toolsets?: string[] }): void {
+    const selectors = Array.isArray(args?.toolsets) ? args.toolsets : [];
+    if (selectors.length === 0) return;
+    const catalog = buildCatalog(this.config.tools);
+    const wanted = expandToolsets(catalog, selectors);
+    let added = false;
+    for (const n of wanted) {
+      if (this.allowedToolNames.has(n) && !this.activeToolNames.has(n)) {
+        this.activeToolNames.add(n);
+        added = true;
+      }
+    }
+    if (added) {
+      this.server.sendToolListChanged?.();
+    }
   }
 
   async run() {

@@ -8,6 +8,8 @@ import {
   type ToolDomain,
 } from '../tools/tool-catalog.js';
 import { TOOL_DEFINITIONS } from '../tools/definitions.js';
+import { RobloxStudioTools } from '../tools/index.js';
+import { BridgeService } from '../bridge-service.js';
 
 describe('classifyDomain', () => {
   const cases: Array<[string, ToolDomain]> = [
@@ -115,5 +117,18 @@ describe('expandToolsets', () => {
   it('ignores unknown selectors', () => {
     const set = expandToolsets(catalog, ['nonsense']);
     expect(set.size).toBe(CORE_TOOLS.size);
+  });
+});
+
+describe('RobloxStudioTools.loadToolset', () => {
+  const tools = new RobloxStudioTools(new BridgeService());
+
+  it('reports core + the requested domain tools', async () => {
+    const res = await tools.loadToolset({ toolsets: ['ui'] });
+    const payload = JSON.parse(res.content[0].text) as { tools: string[]; count: number; loaded: string[] };
+    expect(payload.loaded).toEqual(['ui']);
+    expect(payload.tools).toContain('ui_create_frame');
+    expect(payload.tools).toContain('tool_catalog_search'); // core always present
+    expect(payload.count).toBe(payload.tools.length);
   });
 });

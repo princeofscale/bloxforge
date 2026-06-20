@@ -16,7 +16,7 @@ import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
 import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
-import { buildCatalog, searchCatalog, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
+import { buildCatalog, searchCatalog, expandToolsets, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
 import { TOOL_DEFINITIONS } from './definitions.js';
 import {
   buildCreateSoundLuau,
@@ -3529,6 +3529,23 @@ export class RobloxStudioTools {
   // right tool without loading every schema. Pure (no Studio round-trip); the
   // catalog is built once from TOOL_DEFINITIONS and cached.
   private static _catalog: CatalogEntry[] | undefined;
+  // Informational by default: report which tools a set of domains contains. When
+  // lazy loading is enabled, the server intercepts this call to also expand the
+  // advertised tool list and send tools/list_changed (see RobloxStudioMCPServer).
+  async loadToolset(body: { toolsets?: string[] }) {
+    if (!RobloxStudioTools._catalog) {
+      RobloxStudioTools._catalog = buildCatalog(TOOL_DEFINITIONS);
+    }
+    const selectors = Array.isArray(body?.toolsets) ? body.toolsets : [];
+    const names = Array.from(expandToolsets(RobloxStudioTools._catalog, selectors)).sort();
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ loaded: selectors, tools: names, count: names.length }),
+      }],
+    };
+  }
+
   async toolCatalogSearch(body: { query: string; domains?: ToolDomain[]; readOnly?: boolean; limit?: number }) {
     if (!RobloxStudioTools._catalog) {
       RobloxStudioTools._catalog = buildCatalog(TOOL_DEFINITIONS);

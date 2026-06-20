@@ -32,6 +32,7 @@ export const TOOL_DOMAINS: ToolDomain[] = [
 // server, not listed here (they live outside TOOL_DEFINITIONS).
 export const CORE_TOOLS: ReadonlySet<string> = new Set([
   'tool_catalog_search',
+  'load_toolset',
   'get_connected_instances',
   'get_scene_summary',
   'execute_luau',

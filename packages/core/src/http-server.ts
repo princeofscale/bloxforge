@@ -24,6 +24,7 @@ export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   tool_catalog_search: (tools, body) => tools.toolCatalogSearch(body),
+  load_toolset: (tools, body) => tools.loadToolset(body),
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
   get_node_batch: (tools, body) => tools.getNodeBatch(body.paths, body.fields, body.includeChildrenCount, body.instance_id),
   get_changes_since: (tools, body) => tools.getChangesSince(body.snapshotId, body.path, body.instance_id),
