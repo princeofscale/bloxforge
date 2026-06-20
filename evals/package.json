@@ -1,0 +1,20 @@
+{
+  "name": "robloxstudio-mcp-evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Eval harness for the RobloxStudio MCP server (not published).",
+  "scripts": {
+    "selfcheck": "tsx selfcheck.ts",
+    "run": "tsx run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0",
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "5.5.3"
+  }
+}

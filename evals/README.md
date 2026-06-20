@@ -15,12 +15,29 @@ loading on a fixed benchmark and gate CI on regressions.
 - `cases/*.json` — the benchmark task set (discovery / trajectory / e2e buckets).
 - `selfcheck.ts` — deterministic check of the graders (no model). `npx tsx evals/selfcheck.ts`.
 
-## Wiring it to a model
+## Running it
 
-The model-driving part is intentionally an interface so it stays provider-agnostic.
-Implement `McpHarnessAdapter` against your client (Claude/Codex) + an MCP client
-transport: `startServer(mode)` launches the MCP server with `ROBLOX_MCP_LAZY_TOOLS`
-on/off, `runTask` runs the agent loop and records a `TraceEvent[]` + `RunMetrics`.
+A concrete Claude adapter ships in `adapters/claude-mcp-adapter.ts` and a runner in
+`run.ts`. Prereqs: the server is built (`npm run build` at the repo root),
+`ANTHROPIC_API_KEY` is set, and Roblox Studio is connected.
+
+```sh
+cd evals
+npm install
+ANTHROPIC_API_KEY=sk-... npx tsx run.ts        # A/B upfront vs lazy + gate
+ANTHROPIC_API_KEY=sk-... npx tsx run.ts --mode=lazy   # single mode
+```
+
+`ClaudeMcpAdapter` spawns the MCP server over stdio (`ROBLOX_MCP_LAZY_TOOLS` per
+mode), lists its tools, runs a manual Claude tool-use loop (`claude-opus-4-8`),
+re-lists tools after `load_toolset` in lazy mode, and records a `TraceEvent[]` +
+`RunMetrics` per task.
+
+## Wiring a different model
+
+The model-driving part is an interface so it stays provider-agnostic. Implement
+`McpHarnessAdapter` (see the Claude adapter as the reference): `startServer(mode)`
+launches the MCP server, `runTask` runs the agent loop and records the trace + metrics.
 
 ```ts
 import { runSuite, evaluateGates } from './harness.js';
