@@ -14,6 +14,8 @@ import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
 import { toolErrorResult } from './errors.js';
+import { attachStructuredContent } from './tools/structured-output.js';
+import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 
 export interface ServerConfig {
   name: string;
@@ -51,6 +53,7 @@ export class RobloxStudioMCPServer {
         capabilities: {
           tools: this.lazyTools ? { listChanged: true } : {},
         },
+        instructions: SERVER_INSTRUCTIONS,
       }
     );
 
@@ -92,7 +95,7 @@ export class RobloxStudioMCPServer {
         if (this.lazyTools && name === 'load_toolset') {
           this.applyToolset((args ?? {}) as { toolsets?: string[] });
         }
-        return result;
+        return attachStructuredContent(result as Record<string, unknown>);
       } catch (error) {
         if (error instanceof RoutingFailure) {
           // Surface routing errors as structured tool-call results with

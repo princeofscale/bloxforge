@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Server now returns MCP `instructions` at initialization (the cross-tool workflows — inspect→drill-down→refresh, marketplace discover→preflight→insert, dry-run→confirm, async-Luau polling, typed-error branching — stated once server-wide instead of duplicated per tool). Hosts like ChatGPT read these alongside tool metadata.
+- Every tool now also returns `structuredContent` (the machine-readable object channel) alongside the existing text block, applied centrally at dispatch when the payload is a JSON object — backward-compatible dual-format output, no strict `outputSchema` declared (which would break mixed clients). Contract-plane groundwork from the post-2.19.0 research review.
+
 ## [2.19.0] - 2026-06-20
 
 ### Added

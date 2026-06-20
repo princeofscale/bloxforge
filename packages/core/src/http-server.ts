@@ -14,6 +14,8 @@ import { BridgeService, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { toolErrorResult } from './errors.js';
+import { attachStructuredContent } from './tools/structured-output.js';
+import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -609,7 +611,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
         const server = new Server(
           { name: serverConfig.name, version: serverConfig.version },
-          { capabilities: { tools: {} } }
+          { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
         );
 
         server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -632,7 +634,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           }
 
           try {
-            return await handler(tools, args || {});
+            const result = await handler(tools, args || {});
+            return attachStructuredContent(result as Record<string, unknown>);
           } catch (error) {
             if (error instanceof RoutingFailure) {
               // Surface routing errors as structured tool-call results with
