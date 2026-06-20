@@ -188,4 +188,23 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     }
   },
+  {
+    name: 'asset_preflight_insert',
+    category: 'read',
+    description: 'Authoritatively check whether an asset can be inserted, BEFORE touching the live scene. Loads the asset with AssetService:LoadAssetAsync into an isolated, unparented container, inspects it (root summary, descendant + script counts), then destroys it. Returns insertabilityVerdict ("yes"/"no") with a typed error code on failure (AUTH for copy-locked/unowned assets) and hasScripts as a safety signal. Use this between marketplace_search and insert_asset — metadata like isFree is only a hint; a real load is the source of truth.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        assetId: {
+          type: 'number',
+          description: 'Roblox asset id to preflight (from marketplace_search).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      },
+      required: ['assetId']
+    }
+  },
 ];

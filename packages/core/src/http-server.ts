@@ -26,6 +26,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   tool_catalog_search: (tools, body) => tools.toolCatalogSearch(body),
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
   get_node_batch: (tools, body) => tools.getNodeBatch(body.paths, body.fields, body.includeChildrenCount, body.instance_id),
+  asset_preflight_insert: (tools, body) => tools.assetPreflightInsert(body.assetId, body.instance_id),
   get_file_tree: (tools, body) => tools.getFileTree(body.path, body.instance_id),
   search_files: (tools, body) => tools.searchFiles(body.query, body.searchType, body.instance_id),
   get_place_info: (tools, body) => tools.getPlaceInfo(body.instance_id),

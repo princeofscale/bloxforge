@@ -192,6 +192,7 @@ describe('Tool schema compatibility', () => {
       redo: 'redo',
       insert_asset: 'insertAsset',
       preview_asset: 'previewAsset',
+      asset_preflight_insert: 'assetPreflightInsert',
       clone_object: 'cloneObject',
       get_descendants: 'getDescendants',
       get_scene_summary: 'getSceneSummary',

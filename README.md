@@ -118,7 +118,8 @@ Responses are already compacted (trimmed floats, dropped null fields) and errors
 
 1. `marketplace_search` — returns real asset ids, names, creators, `favoriteCount`, a viewable `thumbnailUrl`, plus `isFree` and `hasScripts` so the agent can judge a candidate before inserting. Use `limit` to keep the list short.
 2. Analyze the candidates — prefer `isFree: true` (free toolbox models reliably load in Edit; paid/copy-locked ones fail `LoadAsset` with an `AUTH` error), and inspect `thumbnailUrl` to confirm the look.
-3. `insert_asset` (or `marketplace_search_and_insert` to do steps 1–3 in one call — it walks ranked candidates and skips copy-locked ones).
+3. `asset_preflight_insert` (optional but recommended) — the **authoritative** check: loads the asset in isolation via `AssetService:LoadAssetAsync`, reports `insertabilityVerdict` (`yes`/`no` with an `AUTH` code if copy-locked) and `hasScripts`, then destroys it without touching the scene. Metadata like `isFree` is only a hint; a real load is the source of truth.
+4. `insert_asset` (or `marketplace_search_and_insert` to do the search-and-insert in one call — it walks ranked candidates and skips copy-locked ones).
 
 ## How it compares to WEPPY
 
@@ -146,10 +147,11 @@ Responses are already compacted (trimmed floats, dropped null fields) and errors
 
 Where we lead: a real **safety layer**, **game-template generators**, **free marketplace search**, **free sync/history** (Pro-gated in WEPPY), `--doctor`, and a **read-only edition** — all MIT and self-hosted.
 
-## Tool catalog (124 tools)
+## Tool catalog (125 tools)
 
 - **Discovery:** `tool_catalog_search` — find the right tool for a task by domain without loading every schema (token-lean catalog of all tools).
 - **World model:** `get_world_snapshot` (token-lean place overview — counts, top classes, subtree roots, environment) and `get_node_batch` (read chosen fields of many instances in one call) — the cheap inspect-then-drill-down pipeline.
+- **Asset preflight:** `asset_preflight_insert` — authoritatively check whether an asset inserts (isolated `LoadAssetAsync` load + verdict) before touching the scene.
 - **Browse & inspect:** file tree, services, instances, properties, attributes, tags, descendants, scene/memory analysis.
 - **Edit:** create/delete/duplicate/move instances, set properties (typed), bulk operations, script read/patch/replace, grep.
 - **Runtime:** `execute_luau`, server/client runtime eval, playtest start/stop, multiplayer tests, runtime logs, screenshots, input simulation.

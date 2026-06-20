@@ -8,11 +8,12 @@ import type { ObbyTemplateOptions, SimulatorTemplateOptions, TycoonTemplateOptio
 import { SyncManager } from '../sync/sync-manager.js';
 import { MarketplaceClient } from '../marketplace-client.js';
 import { interpretInsertResponse } from '../assets.js';
-import { typedError, responseErrorCode } from '../errors.js';
+import { typedError, responseErrorCode, classifyError } from '../errors.js';
 import { compactText } from '../compact.js';
 import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '../builders/world-model.js';
+import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
 import { buildCatalog, searchCatalog, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
 import { TOOL_DEFINITIONS } from './definitions.js';
 import {
@@ -3524,6 +3525,30 @@ export class RobloxStudioTools {
     }
     const code = buildNodeBatchLuau(paths, fields ?? [], includeChildrenCount ?? false);
     return this._runGeneratedLuau(code, instance_id);
+  }
+
+  // Authoritative pre-insert check: load the asset in isolation, inspect, destroy.
+  // Attaches a typed error code (e.g. AUTH for copy-locked/unowned assets) so the
+  // agent can skip the candidate without parsing prose.
+  async assetPreflightInsert(assetId: number, instance_id?: string) {
+    if (!assetId || !Number.isFinite(Number(assetId))) {
+      throw new Error('assetId (a number) is required for asset_preflight_insert');
+    }
+    const response = await this._callSingle('/api/execute-luau', { code: buildAssetPreflightLuau(Number(assetId)) }, 'edit', instance_id);
+    // Unwrap the returnValue (a JSON string of the Luau result table) and, on a
+    // "no" verdict, classify the error string into a stable code.
+    let verdict: Record<string, unknown> | undefined;
+    try {
+      const rv = (response as { returnValue?: unknown })?.returnValue;
+      if (typeof rv === 'string') verdict = JSON.parse(rv);
+    } catch { /* fall through to raw response */ }
+    if (verdict && verdict.insertabilityVerdict === 'no' && typeof verdict.error === 'string') {
+      verdict.code = classifyError(verdict.error);
+      if (verdict.code === 'AUTH') {
+        verdict.hint = 'Copy-locked or not owned — pick another candidate (prefer a free, copy-unlocked asset).';
+      }
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(verdict ?? response) }] as ToolContent[] };
   }
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {

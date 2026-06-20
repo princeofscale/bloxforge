@@ -54,6 +54,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   import_rbxm: 'assets',
   export_rbxm: 'assets',
   import_scene: 'assets',
+  asset_preflight_insert: 'assets',
   list_library: 'assets',
   search_materials: 'assets',
   asset_apply_texture: 'media',
