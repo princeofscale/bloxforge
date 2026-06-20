@@ -8,17 +8,14 @@ import type { ObbyTemplateOptions, SimulatorTemplateOptions, TycoonTemplateOptio
 import { SyncManager } from '../sync/sync-manager.js';
 import { MarketplaceClient } from '../marketplace-client.js';
 import { interpretInsertResponse } from '../assets.js';
-import { typedError, responseErrorCode, classifyError } from '../errors.js';
+import { typedError, responseErrorCode } from '../errors.js';
 import { compactText } from '../compact.js';
 import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
-import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '../builders/world-model.js';
-import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
-import { buildSceneSearchLuau } from '../builders/scene-search.js';
-import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
-import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
-import { buildCatalog, searchCatalog, expandToolsets, recommendToolsets, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
-import { TOOL_DEFINITIONS } from './definitions.js';
+import { type SnapshotLevel } from '../builders/world-model.js';
+import { type ToolDomain } from './tool-catalog.js';
+import { DiscoveryTools } from './discovery-tools.js';
+import { WorldModelTools } from './world-model-tools.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -72,7 +69,8 @@ export class RobloxStudioTools {
   private marketplace: MarketplaceClient;
   private imageClient: PollinationsClient;
   private generatedTools: GeneratedBuilderTools;
-  private snapshots = new SnapshotStore();
+  private discoveryTools: DiscoveryTools;
+  private worldTools: WorldModelTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -90,6 +88,11 @@ export class RobloxStudioTools {
       runGeneratedLuau: this._runGeneratedLuau.bind(this),
       safetyGate: this._safetyGate.bind(this),
       recordOperation: (kind, summary) => this.safety.recordOperation({ kind, summary }),
+    });
+    this.discoveryTools = new DiscoveryTools();
+    this.worldTools = new WorldModelTools({
+      runGeneratedLuau: this._runGeneratedLuau.bind(this),
+      callSingle: this._callSingle.bind(this),
     });
   }
 
@@ -3526,130 +3529,17 @@ export class RobloxStudioTools {
     return this._runGeneratedLuau(code, instance_id);
   }
 
-  // Discovery: search the server's own tool catalog so an agent can find the
-  // right tool without loading every schema. Pure (no Studio round-trip); the
-  // catalog is built once from TOOL_DEFINITIONS and cached.
-  private static _catalog: CatalogEntry[] | undefined;
-  // Informational by default: report which tools a set of domains contains. When
-  // lazy loading is enabled, the server intercepts this call to also expand the
-  // advertised tool list and send tools/list_changed (see RobloxStudioMCPServer).
-  async loadToolset(body: { toolsets?: string[] }) {
-    if (!RobloxStudioTools._catalog) {
-      RobloxStudioTools._catalog = buildCatalog(TOOL_DEFINITIONS);
-    }
-    const selectors = Array.isArray(body?.toolsets) ? body.toolsets : [];
-    const names = Array.from(expandToolsets(RobloxStudioTools._catalog, selectors)).sort();
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({ loaded: selectors, tools: names, count: names.length }),
-      }],
-    };
-  }
+  // Discovery + world-model tools live in their own domain classes; the facade
+  // delegates so the public tool surface (names + signatures, incl. instance_id)
+  // stays identical.
+  async loadToolset(body: { toolsets?: string[] }) { return this.discoveryTools.loadToolset(body); }
+  async toolCatalogSearch(body: { query: string; domains?: ToolDomain[]; readOnly?: boolean; limit?: number }) { return this.discoveryTools.toolCatalogSearch(body); }
 
-  async toolCatalogSearch(body: { query: string; domains?: ToolDomain[]; readOnly?: boolean; limit?: number }) {
-    if (!RobloxStudioTools._catalog) {
-      RobloxStudioTools._catalog = buildCatalog(TOOL_DEFINITIONS);
-    }
-    const matches = searchCatalog(RobloxStudioTools._catalog, {
-      query: body?.query ?? '',
-      domains: body?.domains,
-      readOnly: body?.readOnly,
-      limit: body?.limit,
-    });
-    const recommendedToolsets = recommendToolsets(matches);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          query: body?.query ?? '',
-          count: matches.length,
-          matches,
-          recommendedToolsets,
-          client_hint: 'If a tool you need is not in your current tool list, call load_toolset with the recommended domain(s) first.',
-        }),
-      }],
-    };
-  }
-
-  // World model: token-lean snapshot + batch read (run via execute-luau).
-  async getWorldSnapshot(path?: string, level?: SnapshotLevel, topNPerClass?: number, instance_id?: string) {
-    const code = buildWorldSnapshotLuau(path ?? 'game', level ?? 'overview', topNPerClass ?? 12);
-    return this._runGeneratedLuau(code, instance_id);
-  }
-
-  async sceneSearch(query: string, path?: string, limit?: number, instance_id?: string) {
-    if (!query || !query.trim()) {
-      throw new Error('query is required for scene_search');
-    }
-    const code = buildSceneSearchLuau(query, path ?? 'game', limit ?? 10);
-    return this._runGeneratedLuau(code, instance_id);
-  }
-
-  async getNodeBatch(paths: string[], fields?: string[], includeChildrenCount?: boolean, instance_id?: string) {
-    if (!Array.isArray(paths) || paths.length === 0) {
-      throw new Error('paths (a non-empty array) is required for get_node_batch');
-    }
-    const code = buildNodeBatchLuau(paths, fields ?? [], includeChildrenCount ?? false);
-    return this._runGeneratedLuau(code, instance_id);
-  }
-
-  // Incremental changefeed: capture a cheap world fingerprint, diff it against a
-  // prior snapshot so the agent refreshes only what moved. First call (no
-  // snapshotId) returns a baseline id; later calls return added/removed/changed
-  // and roll the baseline forward.
-  private async _captureFingerprint(path: string, instance_id?: string): Promise<{ fp: Fingerprint; count: number; truncated: boolean; error?: string }> {
-    const response = await this._callSingle('/api/execute-luau', { code: buildWorldFingerprintLuau(path) }, 'edit', instance_id);
-    try {
-      const rv = (response as { returnValue?: unknown })?.returnValue;
-      if (typeof rv === 'string') {
-        const parsed = JSON.parse(rv) as { fingerprint?: Fingerprint; count?: number; truncated?: boolean; error?: string };
-        if (parsed.error) return { fp: {}, count: 0, truncated: false, error: parsed.error };
-        return { fp: parsed.fingerprint ?? {}, count: parsed.count ?? 0, truncated: parsed.truncated ?? false };
-      }
-    } catch { /* fall through */ }
-    return { fp: {}, count: 0, truncated: false, error: 'Could not parse world fingerprint' };
-  }
-
-  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string) {
-    const p = path ?? 'game';
-    const cur = await this._captureFingerprint(p, instance_id);
-    const wrap = (obj: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(obj) }] as ToolContent[] });
-    if (cur.error) return wrap({ error: cur.error, path: p });
-    if (!snapshotId) {
-      const id = this.snapshots.put(p, cur.fp);
-      return wrap({ snapshotId: id, baseline: true, count: cur.count, truncated: cur.truncated, path: p });
-    }
-    const prev = this.snapshots.get(snapshotId);
-    if (!prev) return wrap({ error: 'Unknown or expired snapshotId — call get_changes_since with no snapshotId to start a new baseline.', snapshotId });
-    const diff = diffFingerprints(prev.fingerprint, cur.fp);
-    this.snapshots.update(snapshotId, cur.fp); // rolling baseline
-    return wrap({ snapshotId, path: p, ...diff, count: cur.count, truncated: cur.truncated });
-  }
-
-  // Authoritative pre-insert check: load the asset in isolation, inspect, destroy.
-  // Attaches a typed error code (e.g. AUTH for copy-locked/unowned assets) so the
-  // agent can skip the candidate without parsing prose.
-  async assetPreflightInsert(assetId: number, instance_id?: string) {
-    if (!assetId || !Number.isFinite(Number(assetId))) {
-      throw new Error('assetId (a number) is required for asset_preflight_insert');
-    }
-    const response = await this._callSingle('/api/execute-luau', { code: buildAssetPreflightLuau(Number(assetId)) }, 'edit', instance_id);
-    // Unwrap the returnValue (a JSON string of the Luau result table) and, on a
-    // "no" verdict, classify the error string into a stable code.
-    let verdict: Record<string, unknown> | undefined;
-    try {
-      const rv = (response as { returnValue?: unknown })?.returnValue;
-      if (typeof rv === 'string') verdict = JSON.parse(rv);
-    } catch { /* fall through to raw response */ }
-    if (verdict && verdict.insertabilityVerdict === 'no' && typeof verdict.error === 'string') {
-      verdict.code = classifyError(verdict.error);
-      if (verdict.code === 'AUTH') {
-        verdict.hint = 'Copy-locked or not owned — pick another candidate (prefer a free, copy-unlocked asset).';
-      }
-    }
-    return { content: [{ type: 'text', text: JSON.stringify(verdict ?? response) }] as ToolContent[] };
-  }
+  async getWorldSnapshot(path?: string, level?: SnapshotLevel, topNPerClass?: number, instance_id?: string) { return this.worldTools.getWorldSnapshot(path, level, topNPerClass, instance_id); }
+  async sceneSearch(query: string, path?: string, limit?: number, instance_id?: string) { return this.worldTools.sceneSearch(query, path, limit, instance_id); }
+  async getNodeBatch(paths: string[], fields?: string[], includeChildrenCount?: boolean, instance_id?: string) { return this.worldTools.getNodeBatch(paths, fields, includeChildrenCount, instance_id); }
+  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string) { return this.worldTools.getChangesSince(snapshotId, path, instance_id); }
+  async assetPreflightInsert(assetId: number, instance_id?: string) { return this.worldTools.assetPreflightInsert(assetId, instance_id); }
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {
     if (!instancePathA || !instancePathB) {

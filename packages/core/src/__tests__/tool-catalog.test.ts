@@ -148,7 +148,8 @@ describe('RobloxStudioTools.loadToolset', () => {
 
   it('reports core + the requested domain tools', async () => {
     const res = await tools.loadToolset({ toolsets: ['ui'] });
-    const payload = JSON.parse(res.content[0].text) as { tools: string[]; count: number; loaded: string[] };
+    const first = res.content[0] as { type: 'text'; text: string };
+    const payload = JSON.parse(first.text) as { tools: string[]; count: number; loaded: string[] };
     expect(payload.loaded).toEqual(['ui']);
     expect(payload.tools).toContain('ui_create_frame');
     expect(payload.tools).toContain('tool_catalog_search'); // core always present
