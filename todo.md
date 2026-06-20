@@ -11,7 +11,7 @@ Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
   - `ScriptTools` — get/set/edit/insert/delete script lines, grep, find_and_replace, diagnose_scripts
   - `RuntimeTools` — playtest, multiplayer, eval_*, simulate_*, device/network sim, breakpoints, profiler, logs, screenshots, async jobs (execute_luau_async/get_job_*/cancel_job), undo/redo
   - `AssetTools` — search_assets, get_asset_details/thumbnail, insert/preview/upload, marketplace_*, import/export rbxm, image_generate*, import_scene
-  - `SafetyTools` — get_operation_history, list/restore script backups (+ the `_safetyGate`/`_formatSafety` helpers stay shared via runtime)
+  - [x] `SafetyTools` — get_operation_history, list/restore script backups (extracted; `_safetyGate`/`_formatSafety` stay shared on the facade)
   - Then optionally: a declarative `registerTool(...)` + `withStandardToolPipeline` registry so validation/timing/envelope/outputSchema are applied by construction (the error envelope is already applied centrally at dispatch; this would also cover outputSchema).
 - [ ] Headless Luau CI: run the Luau-adjacent logic (codecs, diff, progress/cancel helpers, chunk planners) under a luau/lune CLI in CI. Lower ROI for us than it sounds because our Luau is generated strings already verified live, but raises coverage.
 - [ ] MCP `resources` + subscriptions as a first-class world interface (`roblox://world/snapshot?mask=...`, `roblox://node/<id>`, `roblox://world/changes?since=...`) plus TTL/cache hints on list/read. Real protocol addition; layer it on top of the existing snapshot-store rather than replacing it.

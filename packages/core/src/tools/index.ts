@@ -16,6 +16,7 @@ import { type SnapshotLevel } from '../builders/world-model.js';
 import { type ToolDomain } from './tool-catalog.js';
 import { DiscoveryTools } from './discovery-tools.js';
 import { WorldModelTools } from './world-model-tools.js';
+import { SafetyTools } from './safety-tools.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -71,6 +72,7 @@ export class RobloxStudioTools {
   private generatedTools: GeneratedBuilderTools;
   private discoveryTools: DiscoveryTools;
   private worldTools: WorldModelTools;
+  private safetyTools: SafetyTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -92,6 +94,10 @@ export class RobloxStudioTools {
     this.discoveryTools = new DiscoveryTools();
     this.worldTools = new WorldModelTools({
       runGeneratedLuau: this._runGeneratedLuau.bind(this),
+      callSingle: this._callSingle.bind(this),
+    });
+    this.safetyTools = new SafetyTools({
+      safety: this.safety,
       callSingle: this._callSingle.bind(this),
     });
   }
@@ -142,37 +148,10 @@ export class RobloxStudioTools {
     return { content: [{ type: 'text', text: lines.join('\n\n') }] };
   }
 
-  async getOperationHistory(limit?: number) {
-    const entries = this.safety.getHistory().slice(0, limit ?? 50);
-    const header = `Operation history (${entries.length} entries):`;
-    const body = entries.length === 0
-      ? 'No operations recorded yet.'
-      : entries
-          .map((e) => `- [${new Date(e.timestamp).toISOString()}] ${e.kind}: ${e.summary}`)
-          .join('\n');
-    return { content: [{ type: 'text', text: `${header}\n${body}` }] as ToolContent[] };
-  }
-
-  async listScriptBackups() {
-    const backups = this.safety.listBackups();
-    const header = `Script backups (${backups.length}):`;
-    const body = backups.length === 0
-      ? 'No script backups captured yet.'
-      : backups
-          .map((b) => `- ${b.path} (backed up ${new Date(b.timestamp).toISOString()}, ${b.source.length} chars${b.previous !== undefined ? ', 1 prior version available' : ''})`)
-          .join('\n');
-    return { content: [{ type: 'text', text: `${header}\n${body}` }] as ToolContent[] };
-  }
-
-  async restoreScriptBackup(instancePath: string, instance_id?: string) {
-    const backup = this.safety.getBackup(instancePath);
-    if (!backup) {
-      return { content: [{ type: 'text', text: `No backup found for "${instancePath}". Use list_script_backups to see what is available.` }] as ToolContent[] };
-    }
-    const response = await this._callSingle('/api/set-script-source', { instancePath, source: backup.source }, undefined, instance_id);
-    this.safety.recordOperation({ kind: 'restore_script', summary: `restored ${instancePath} (${backup.source.length} chars)` });
-    return { content: [{ type: 'text', text: JSON.stringify({ restored: instancePath, bytes: backup.source.length, response }) }] as ToolContent[] };
-  }
+  // Safety/audit read tools live in SafetyTools; the facade delegates.
+  async getOperationHistory(limit?: number) { return this.safetyTools.getOperationHistory(limit); }
+  async listScriptBackups() { return this.safetyTools.listScriptBackups(); }
+  async restoreScriptBackup(instancePath: string, instance_id?: string) { return this.safetyTools.restoreScriptBackup(instancePath, instance_id); }
 
   // === Generated-Luau builders (UI / environment / terrain) ===
   // These tools compose typed parameters into Luau that runs in the plugin's
