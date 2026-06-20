@@ -10,7 +10,7 @@ Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
 
 ## World model / read pipeline
 
-- [ ] `get_changes_since(snapshotId)` — incremental changefeed (added/removed/mutated nodes, tag/attribute/script-hash diffs) so the agent doesn't re-pull the world after each action. Needs server-side snapshot storage + diff.
+- [x] `get_changes_since(snapshotId)` — incremental changefeed (added/removed/changed nodes) so the agent doesn't re-pull the world after each action. Server-side `SnapshotStore` + fingerprint diff.
 
 ## Reliability
 

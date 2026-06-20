@@ -14,6 +14,8 @@ import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '../builders/world-model.js';
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
+import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
+import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
 import { buildCatalog, searchCatalog, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
 import { TOOL_DEFINITIONS } from './definitions.js';
 import {
@@ -69,6 +71,7 @@ export class RobloxStudioTools {
   private marketplace: MarketplaceClient;
   private imageClient: PollinationsClient;
   private generatedTools: GeneratedBuilderTools;
+  private snapshots = new SnapshotStore();
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -3556,6 +3559,39 @@ export class RobloxStudioTools {
     }
     const code = buildNodeBatchLuau(paths, fields ?? [], includeChildrenCount ?? false);
     return this._runGeneratedLuau(code, instance_id);
+  }
+
+  // Incremental changefeed: capture a cheap world fingerprint, diff it against a
+  // prior snapshot so the agent refreshes only what moved. First call (no
+  // snapshotId) returns a baseline id; later calls return added/removed/changed
+  // and roll the baseline forward.
+  private async _captureFingerprint(path: string, instance_id?: string): Promise<{ fp: Fingerprint; count: number; truncated: boolean; error?: string }> {
+    const response = await this._callSingle('/api/execute-luau', { code: buildWorldFingerprintLuau(path) }, 'edit', instance_id);
+    try {
+      const rv = (response as { returnValue?: unknown })?.returnValue;
+      if (typeof rv === 'string') {
+        const parsed = JSON.parse(rv) as { fingerprint?: Fingerprint; count?: number; truncated?: boolean; error?: string };
+        if (parsed.error) return { fp: {}, count: 0, truncated: false, error: parsed.error };
+        return { fp: parsed.fingerprint ?? {}, count: parsed.count ?? 0, truncated: parsed.truncated ?? false };
+      }
+    } catch { /* fall through */ }
+    return { fp: {}, count: 0, truncated: false, error: 'Could not parse world fingerprint' };
+  }
+
+  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string) {
+    const p = path ?? 'game';
+    const cur = await this._captureFingerprint(p, instance_id);
+    const wrap = (obj: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(obj) }] as ToolContent[] });
+    if (cur.error) return wrap({ error: cur.error, path: p });
+    if (!snapshotId) {
+      const id = this.snapshots.put(p, cur.fp);
+      return wrap({ snapshotId: id, baseline: true, count: cur.count, truncated: cur.truncated, path: p });
+    }
+    const prev = this.snapshots.get(snapshotId);
+    if (!prev) return wrap({ error: 'Unknown or expired snapshotId — call get_changes_since with no snapshotId to start a new baseline.', snapshotId });
+    const diff = diffFingerprints(prev.fingerprint, cur.fp);
+    this.snapshots.update(snapshotId, cur.fp); // rolling baseline
+    return wrap({ snapshotId, path: p, ...diff, count: cur.count, truncated: cur.truncated });
   }
 
   // Authoritative pre-insert check: load the asset in isolation, inspect, destroy.

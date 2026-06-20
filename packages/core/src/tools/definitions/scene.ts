@@ -509,4 +509,26 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['paths']
     }
   },
+  {
+    name: 'get_changes_since',
+    category: 'read',
+    description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        snapshotId: {
+          type: 'string',
+          description: 'Snapshot id from a previous call. Omit to capture a fresh baseline.'
+        },
+        path: {
+          type: 'string',
+          description: 'Root path to track (default: game).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      }
+    }
+  },
 ];

@@ -82,6 +82,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   get_memory_breakdown: 'scene',
   get_scene_analysis: 'scene',
   get_descendants: 'scene',
+  get_changes_since: 'scene',
   // mutation
   clone_object: 'mutation',
   smart_duplicate: 'mutation',
