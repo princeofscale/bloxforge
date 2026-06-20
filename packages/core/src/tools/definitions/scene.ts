@@ -452,4 +452,61 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['instancePath']
     }
   },
+  // === World model (token-lean read pipeline) ===
+  {
+    name: 'get_world_snapshot',
+    category: 'read',
+    description: 'Token-lean world model for reasoning before drill-down. Returns place info, descendant counts (total, distinct classes, tagged, sounds + playing/looped, scripts/localScripts/moduleScripts), top classes, notable subtree roots, and an environment summary (clock time, lighting technology, atmosphere/sky/terrain presence). Use this first to answer "where is the UI", "is there music", "is the scene heavy" without dumping the tree.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Root path to snapshot (default: game).'
+        },
+        level: {
+          type: 'string',
+          enum: ['overview', 'standard'],
+          description: 'Detail level (default: overview).'
+        },
+        topNPerClass: {
+          type: 'number',
+          description: 'How many of the most common classes to list (default 12).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      }
+    }
+  },
+  {
+    name: 'get_node_batch',
+    category: 'read',
+    description: 'Read several instances in one round-trip, returning only the requested fields per node. Use after a snapshot or summary, when you already know which paths you want — cheaper than a cascade of get_instance_properties or an expensive get_descendants. Values are serialized compactly (Vector3 -> [x,y,z], Color3 -> [r,g,b], Instance -> full path).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Instance paths to read.'
+        },
+        fields: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Property names to read per node (e.g. ["Position","Anchored","Material"]). Omit to get just name/className.'
+        },
+        includeChildrenCount: {
+          type: 'boolean',
+          description: 'Include childCount per node (default false).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      },
+      required: ['paths']
+    }
+  },
 ];

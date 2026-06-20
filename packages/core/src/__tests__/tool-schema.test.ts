@@ -195,6 +195,8 @@ describe('Tool schema compatibility', () => {
       clone_object: 'cloneObject',
       get_descendants: 'getDescendants',
       get_scene_summary: 'getSceneSummary',
+      get_world_snapshot: 'getWorldSnapshot',
+      get_node_batch: 'getNodeBatch',
       compare_instances: 'compareInstances',
       bulk_set_attributes: 'bulkSetAttributes',
       capture_screenshot: 'captureScreenshot',

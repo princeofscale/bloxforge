@@ -146,9 +146,10 @@ Responses are already compacted (trimmed floats, dropped null fields) and errors
 
 Where we lead: a real **safety layer**, **game-template generators**, **free marketplace search**, **free sync/history** (Pro-gated in WEPPY), `--doctor`, and a **read-only edition** — all MIT and self-hosted.
 
-## Tool catalog (122 tools)
+## Tool catalog (124 tools)
 
 - **Discovery:** `tool_catalog_search` — find the right tool for a task by domain without loading every schema (token-lean catalog of all tools).
+- **World model:** `get_world_snapshot` (token-lean place overview — counts, top classes, subtree roots, environment) and `get_node_batch` (read chosen fields of many instances in one call) — the cheap inspect-then-drill-down pipeline.
 - **Browse & inspect:** file tree, services, instances, properties, attributes, tags, descendants, scene/memory analysis.
 - **Edit:** create/delete/duplicate/move instances, set properties (typed), bulk operations, script read/patch/replace, grep.
 - **Runtime:** `execute_luau`, server/client runtime eval, playtest start/stop, multiplayer tests, runtime logs, screenshots, input simulation.

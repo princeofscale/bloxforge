@@ -12,6 +12,7 @@ import { typedError, responseErrorCode } from '../errors.js';
 import { compactText } from '../compact.js';
 import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
+import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '../builders/world-model.js';
 import { buildCatalog, searchCatalog, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
 import { TOOL_DEFINITIONS } from './definitions.js';
 import {
@@ -3509,6 +3510,20 @@ export class RobloxStudioTools {
         text: JSON.stringify({ query: body?.query ?? '', count: matches.length, matches }),
       }],
     };
+  }
+
+  // World model: token-lean snapshot + batch read (run via execute-luau).
+  async getWorldSnapshot(path?: string, level?: SnapshotLevel, topNPerClass?: number, instance_id?: string) {
+    const code = buildWorldSnapshotLuau(path ?? 'game', level ?? 'overview', topNPerClass ?? 12);
+    return this._runGeneratedLuau(code, instance_id);
+  }
+
+  async getNodeBatch(paths: string[], fields?: string[], includeChildrenCount?: boolean, instance_id?: string) {
+    if (!Array.isArray(paths) || paths.length === 0) {
+      throw new Error('paths (a non-empty array) is required for get_node_batch');
+    }
+    const code = buildNodeBatchLuau(paths, fields ?? [], includeChildrenCount ?? false);
+    return this._runGeneratedLuau(code, instance_id);
   }
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {
