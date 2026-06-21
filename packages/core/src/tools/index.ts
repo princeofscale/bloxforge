@@ -9,9 +9,8 @@ import { SyncManager } from '../sync/sync-manager.js';
 import { MarketplaceClient } from '../marketplace-client.js';
 import { interpretInsertResponse } from '../assets.js';
 import { typedError } from '../errors.js';
-import { compactText } from '../compact.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
-import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
+import { type MutationOp } from '../builders/mutation-plan.js';
 import { listRecipes, buildRecipeLuau } from '../builders/recipes.js';
 import { buildGameplayAssertionsLuau, type GameplayAssertion } from '../builders/gameplay-assertions.js';
 import { type SnapshotLevel } from '../builders/world-model.js';
@@ -21,6 +20,7 @@ import { WorldModelTools } from './world-model-tools.js';
 import { SafetyTools } from './safety-tools.js';
 import { SceneReadTools } from './scene-read-tools.js';
 import { ScriptTools } from './script-tools.js';
+import { MutationTools } from './mutation-tools.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -78,6 +78,7 @@ export class RobloxStudioTools {
   private safetyTools: SafetyTools;
   private sceneReadTools: SceneReadTools;
   private scriptTools: ScriptTools;
+  private mutationTools: MutationTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -115,6 +116,11 @@ export class RobloxStudioTools {
       callSingle: this._callSingle.bind(this),
       safetyGate: this._safetyGate.bind(this),
       backupScript: (path, source) => this.safety.backupScript(path, source),
+      recordOperation: (kind, summary) => this.safety.recordOperation({ kind: kind as OperationKind, summary }),
+    });
+    this.mutationTools = new MutationTools({
+      callSingle: this._callSingle.bind(this),
+      safetyGate: this._safetyGate.bind(this),
       recordOperation: (kind, summary) => this.safety.recordOperation({ kind: kind as OperationKind, summary }),
     });
   }
@@ -670,120 +676,20 @@ export class RobloxStudioTools {
 
 
 
-  async setProperty(instancePath: string, propertyName: string, propertyValue: any, instance_id?: string) {
-    if (!instancePath || !propertyName) {
-      throw new Error('Instance path and property name are required for set_property');
-    }
-    const response = await this._callSingle('/api/set-property', {
-      instancePath,
-      propertyName,
-      propertyValue
-    }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  // Mutation tools live in MutationTools; the facade delegates with identical signatures.
+  async setProperty(instancePath: string, propertyName: string, propertyValue: any, instance_id?: string) { return this.mutationTools.setProperty(instancePath, propertyName, propertyValue, instance_id); }
 
-  async setProperties(instancePath: string, properties: Record<string, any>, instance_id?: string) {
-    if (!instancePath || !properties) {
-      throw new Error('instancePath and properties are required for set_properties');
-    }
-    const response = await this._callSingle('/api/set-properties', { instancePath, properties }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
-  }
+  async setProperties(instancePath: string, properties: Record<string, any>, instance_id?: string) { return this.mutationTools.setProperties(instancePath, properties, instance_id); }
 
-  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) {
-    if (!paths || paths.length === 0 || !propertyName) {
-      throw new Error('Paths array and property name are required for mass_set_property');
-    }
-    const response = await this._callSingle('/api/mass-set-property', {
-      paths,
-      propertyName,
-      propertyValue
-    }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) { return this.mutationTools.massSetProperty(paths, propertyName, propertyValue, instance_id); }
 
-  async massGetProperty(paths: string[], propertyName: string, instance_id?: string) {
-    if (!paths || paths.length === 0 || !propertyName) {
-      throw new Error('Paths array and property name are required for mass_get_property');
-    }
-    const response = await this._callSingle('/api/mass-get-property', {
-      paths,
-      propertyName
-    }, undefined, instance_id);
-    return compactText(response);
-  }
+  async massGetProperty(paths: string[], propertyName: string, instance_id?: string) { return this.mutationTools.massGetProperty(paths, propertyName, instance_id); }
 
+  async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) { return this.mutationTools.createObject(className, parent, name, properties, instance_id); }
 
-  async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) {
-    if (!className || !parent) {
-      throw new Error('Class name and parent are required for create_object');
-    }
-    const response = await this._callSingle('/api/create-object', {
-      className,
-      parent,
-      name,
-      properties
-    }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) { return this.mutationTools.massCreateObjects(objects, instance_id, options); }
 
-  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) {
-    if (!objects || objects.length === 0) {
-      throw new Error('Objects array is required for mass_create_objects');
-    }
-    const gated = this._safetyGate('bulk_create', `create ${objects.length} objects`, { count: objects.length }, options);
-    if (gated) return gated;
-    const response = await this._callSingle('/api/mass-create-objects', { objects }, undefined, instance_id);
-    this.safety.recordOperation({ kind: 'bulk_create', summary: `created ${objects.length} objects` });
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
-  async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) {
-    if (!instancePath) {
-      throw new Error('Instance path is required for delete_object');
-    }
-    const gated = this._safetyGate('delete', `delete ${instancePath}`, { path: instancePath }, options);
-    if (gated) return gated;
-    const response = await this._callSingle('/api/delete-object', { instancePath }, undefined, instance_id);
-    this.safety.recordOperation({ kind: 'delete', summary: `deleted ${instancePath}` });
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
+  async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) { return this.mutationTools.deleteObject(instancePath, instance_id, options); }
 
   async smartDuplicate(
     instancePath: string,
@@ -797,24 +703,7 @@ export class RobloxStudioTools {
       targetParents?: string[];
     },
     instance_id?: string
-  ) {
-    if (!instancePath || count < 1) {
-      throw new Error('Instance path and count > 0 are required for smart_duplicate');
-    }
-    const response = await this._callSingle('/api/smart-duplicate', {
-      instancePath,
-      count,
-      options
-    }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  ) { return this.mutationTools.smartDuplicate(instancePath, count, options, instance_id); }
 
   async massDuplicate(
     duplications: Array<{
@@ -830,20 +719,7 @@ export class RobloxStudioTools {
       }
     }>,
     instance_id?: string
-  ) {
-    if (!duplications || duplications.length === 0) {
-      throw new Error('Duplications array is required for mass_duplicate');
-    }
-    const response = await this._callSingle('/api/mass-duplicate', { duplications }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  ) { return this.mutationTools.massDuplicate(duplications, instance_id); }
 
 
 
@@ -874,111 +750,19 @@ export class RobloxStudioTools {
     instance_id?: string
   ) { return this.scriptTools.grepScripts(pattern, options, instance_id); }
 
-  async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) {
-    if (!instancePath || !attributeName) {
-      throw new Error('Instance path and attribute name are required for set_attribute');
-    }
-    const response = await this._callSingle('/api/set-attribute', { instancePath, attributeName, attributeValue, valueType }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) { return this.mutationTools.setAttribute(instancePath, attributeName, attributeValue, valueType, instance_id); }
 
-  async getAttributes(instancePath: string, instance_id?: string) {
-    if (!instancePath) {
-      throw new Error('Instance path is required for get_attributes');
-    }
-    const response = await this._callSingle('/api/get-attributes', { instancePath }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async getAttributes(instancePath: string, instance_id?: string) { return this.mutationTools.getAttributes(instancePath, instance_id); }
 
-  async deleteAttribute(instancePath: string, attributeName: string, instance_id?: string) {
-    if (!instancePath || !attributeName) {
-      throw new Error('Instance path and attribute name are required for delete_attribute');
-    }
-    const response = await this._callSingle('/api/delete-attribute', { instancePath, attributeName }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async deleteAttribute(instancePath: string, attributeName: string, instance_id?: string) { return this.mutationTools.deleteAttribute(instancePath, attributeName, instance_id); }
 
+  async getTags(instancePath: string, instance_id?: string) { return this.mutationTools.getTags(instancePath, instance_id); }
 
-  async getTags(instancePath: string, instance_id?: string) {
-    if (!instancePath) {
-      throw new Error('Instance path is required for get_tags');
-    }
-    const response = await this._callSingle('/api/get-tags', { instancePath }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async addTag(instancePath: string, tagName: string, instance_id?: string) { return this.mutationTools.addTag(instancePath, tagName, instance_id); }
 
-  async addTag(instancePath: string, tagName: string, instance_id?: string) {
-    if (!instancePath || !tagName) {
-      throw new Error('Instance path and tag name are required for add_tag');
-    }
-    const response = await this._callSingle('/api/add-tag', { instancePath, tagName }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async removeTag(instancePath: string, tagName: string, instance_id?: string) { return this.mutationTools.removeTag(instancePath, tagName, instance_id); }
 
-  async removeTag(instancePath: string, tagName: string, instance_id?: string) {
-    if (!instancePath || !tagName) {
-      throw new Error('Instance path and tag name are required for remove_tag');
-    }
-    const response = await this._callSingle('/api/remove-tag', { instancePath, tagName }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
-  async getTagged(tagName: string, instance_id?: string) {
-    if (!tagName) {
-      throw new Error('Tag name is required for get_tagged');
-    }
-    const response = await this._callSingle('/api/get-tagged', { tagName }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async getTagged(tagName: string, instance_id?: string) { return this.mutationTools.getTagged(tagName, instance_id); }
 
   async getSelection(instance_id?: string) { return this.sceneReadTools.getSelection(instance_id); }
 
@@ -3243,13 +3027,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async cloneObject(instancePath: string, targetParentPath: string, instance_id?: string) {
-    if (!instancePath || !targetParentPath) {
-      throw new Error('instancePath and targetParentPath are required for clone_object');
-    }
-    const response = await this._callSingle('/api/clone-object', { instancePath, targetParentPath }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
-  }
+  async cloneObject(instancePath: string, targetParentPath: string, instance_id?: string) { return this.mutationTools.cloneObject(instancePath, targetParentPath, instance_id); }
 
   async getDescendants(
     instancePath: string,
@@ -3263,21 +3041,7 @@ export class RobloxStudioTools {
 
   async getSceneSummary(instancePath?: string, topN?: number, instance_id?: string) { return this.sceneReadTools.getSceneSummary(instancePath, topN, instance_id); }
 
-  // Transactional batch mutations: apply many small edits in one round-trip with a
-  // dry-run diff and a ready-to-run reverse plan in the receipt (stateless rollback).
-  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string) {
-    if (!Array.isArray(operations) || operations.length === 0) {
-      throw new Error('operations (a non-empty array) is required for apply_mutation_plan');
-    }
-    // Only gate the apply path; dry-run is a safe preview that should always run.
-    if (!dryRun) {
-      const gated = this._safetyGate('bulk_mutate', `apply ${operations.length} mutation(s)`, { count: operations.length }, { confirm });
-      if (gated) return gated;
-    }
-    const response = await this._callSingle('/api/execute-luau', { code: buildMutationPlanLuau(operations, !!dryRun) }, 'edit', instance_id);
-    if (!dryRun) this.safety.recordOperation({ kind: 'bulk_mutate', summary: `mutation plan: ${operations.length} ops` });
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
-  }
+  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string) { return this.mutationTools.applyMutationPlan(operations, dryRun, confirm, instance_id); }
 
   // Recipes: proven idempotent build macros. list is pure; apply runs the recipe's
   // Luau (creates/replaces named instances).
@@ -3325,13 +3089,7 @@ export class RobloxStudioTools {
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) { return this.sceneReadTools.compareInstances(instancePathA, instancePathB, instance_id); }
 
-  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) {
-    if (!instancePath || !attributes) {
-      throw new Error('instancePath and attributes are required for bulk_set_attributes');
-    }
-    const response = await this._callSingle('/api/bulk-set-attributes', { instancePath, attributes }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
-  }
+  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) { return this.mutationTools.bulkSetAttributes(instancePath, attributes, instance_id); }
 
   async findAndReplaceInScripts(
     pattern: string,
