@@ -526,4 +526,24 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'list_recipes',
+    category: 'read',
+    description: 'List the available recipes — typed, proven, idempotent build macros (e.g. proximity_door, ambient_sound, kill_brick) — with their parameters. Pick one, then run it with apply_recipe instead of hand-writing the Luau.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'apply_recipe',
+    category: 'write',
+    description: 'Run a recipe (a proven, idempotent build macro) with typed parameters — faster and more reliable than generating gameplay Luau from scratch. Re-running a recipe replaces its named instances rather than duplicating. Use list_recipes to see ids and params.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        recipe: { type: 'string', description: 'Recipe id from list_recipes (e.g. "proximity_door").' },
+        params: { type: 'object', description: 'Recipe-specific parameters (see list_recipes).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['recipe'],
+    },
+  },
 ];

@@ -682,4 +682,29 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       }
     }
   },
+  {
+    name: 'run_gameplay_assertions',
+    category: 'read',
+    description: 'Run a list of named boolean assertions against the DataModel and get a structured pass/fail per assertion plus an allPassed summary — the QA primitive to PROVE a fix rather than declare it. Each assertion has a name and a Luau boolean `expr` (e.g. "workspace:FindFirstChild(\'Boss\') ~= nil"). Pair with start_playtest + target="server" to assert live runtime state after reproducing an issue.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        assertions: {
+          type: 'array',
+          description: 'Named boolean checks.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Human-readable assertion name.' },
+              expr: { type: 'string', description: 'Luau expression that should evaluate truthy.' }
+            },
+            required: ['name', 'expr']
+          }
+        },
+        target: { type: 'string', description: 'Instance target: "edit" (default), "server", "client-1".' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      },
+      required: ['assertions']
+    }
+  },
 ];

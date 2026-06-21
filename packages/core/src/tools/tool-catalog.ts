@@ -79,6 +79,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   get_job_result: 'runtime',
   cancel_job: 'runtime',
   playtest_sample_state: 'runtime',
+  run_gameplay_assertions: 'runtime',
   // scene read
   compare_instances: 'scene',
   get_memory_breakdown: 'scene',
@@ -92,6 +93,8 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   mass_duplicate: 'mutation',
   bulk_set_attributes: 'mutation',
   apply_mutation_plan: 'mutation',
+  list_recipes: 'build',
+  apply_recipe: 'build',
 };
 
 // Ordered prefix rules, applied after CORE and OVERRIDES.

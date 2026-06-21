@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.19.1] - 2026-06-21
+
 ### Added
 
+- Reworked the `evals/` harness to drive any Anthropic-Messages-compatible model: the runner auto-detects the provider from the environment (`OPENMODEL_API_KEY` → OpenModel gateway with the free `deepseek-v4-flash`, else `ANTHROPIC_API_KEY` → the real Anthropic API), with `EVAL_MODEL` / `*_BASE_URL` / `EVAL_REQUEST_DELAY_MS` knobs. The adapter drops the gateway's unsolicited `thinking` blocks from replayed history and retries 429s with backoff. Lets the eval suite run for free against `deepseek-v4-flash`.
+- Added `run_gameplay_assertions` — run named boolean checks against the DataModel and get structured per-assertion pass/fail + an `allPassed` summary (the prove-the-fix QA primitive; pair with start_playtest + target="server" to assert live runtime state). Research review #7 (fix→verify loop).
+- Added `list_recipes` + `apply_recipe` — typed, proven, idempotent build macros (proximity_door, ambient_sound, kill_brick) the agent picks by id + params instead of re-synthesizing gameplay Luau. Re-running replaces named instances rather than duplicating. Research review #5; higher success and fewer tokens than ad-hoc generation.
 - Added `apply_mutation_plan` — transactional batch edits in one round-trip (set_property primitives, set_attribute, add_tag, remove_tag) with a `dryRun` diff, per-op before/after, and a ready-to-run `rollback` reverse plan in the receipt (stateless — the rollback is itself a mutation plan, no server handle/TTL). Large plans gate on `confirm` via the safety layer's object-count limit (new `bulk_mutate` op kind). Research review #4; ops travel as JSONDecode data (injection-safe). Verified live (dry-run).
 - Added `playtest_sample_state` — sample LIVE runtime state during a playtest: players (position/health/team/tool/humanoid state), named world state in `ValueBase` objects, currently-playing audio, and runtime/role flags. Domain-masked; defaults to `target="server"`. The top Roblox-specific frontier from the research review — turns the MCP from a scene editor into a runtime-aware debugging surface. Verified live.
 - Added an MCP **resources** data plane (research review #2) over the existing world-model tools — the same data as cacheable canonical URIs, exposed from both the stdio and HTTP `/mcp` servers: `roblox://world/snapshot?view=overview|standard`, `roblox://node/<dot.path>`, `roblox://world/changes?since=<snapshotId>` (+ resource templates). Lets hosts (Cursor, Codex) read and reuse world state independently of the tool surface; a thin layer on top of the snapshot-store, tools unchanged.
@@ -77,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.0...HEAD
+[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.1...HEAD
+[2.19.1]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.0...v2.19.1
 [2.19.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.16.3...v2.17.0

@@ -14,6 +14,8 @@ import { shapeListResponse } from '../response-shape.js';
 import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
 import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
+import { listRecipes, buildRecipeLuau } from '../builders/recipes.js';
+import { buildGameplayAssertionsLuau, type GameplayAssertion } from '../builders/gameplay-assertions.js';
 import { type SnapshotLevel } from '../builders/world-model.js';
 import { type ToolDomain } from './tool-catalog.js';
 import { DiscoveryTools } from './discovery-tools.js';
@@ -3526,11 +3528,35 @@ export class RobloxStudioTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
   }
 
+  // Recipes: proven idempotent build macros. list is pure; apply runs the recipe's
+  // Luau (creates/replaces named instances).
+  async listRecipes() {
+    return { content: [{ type: 'text', text: JSON.stringify({ recipes: listRecipes() }) }] as ToolContent[] };
+  }
+
+  async applyRecipe(recipe: string, params?: Record<string, unknown>, instance_id?: string) {
+    if (!recipe) throw new Error('recipe is required for apply_recipe (see list_recipes)');
+    const code = buildRecipeLuau(recipe, params ?? {});
+    const result = await this._runGeneratedLuau(code, instance_id);
+    this.safety.recordOperation({ kind: 'bulk_create', summary: `applied recipe ${recipe}` });
+    return result;
+  }
+
   // Live playtest telemetry: sample runtime state (players/world/audio/runtime) on
   // a running peer. Defaults to the live server DataModel.
   async playtestSampleState(domains?: TelemetryDomain[], target?: string, instance_id?: string) {
     const code = buildPlaytestSampleLuau(domains ?? []);
     const response = await this._callSingle('/api/execute-luau', { code }, target || 'server', instance_id);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+  }
+
+  // Gameplay assertions: run named boolean checks against the DataModel, structured
+  // pass/fail — the prove-the-fix QA primitive.
+  async runGameplayAssertions(assertions: GameplayAssertion[], target?: string, instance_id?: string) {
+    if (!Array.isArray(assertions) || assertions.length === 0) {
+      throw new Error('assertions (a non-empty array) is required for run_gameplay_assertions');
+    }
+    const response = await this._callSingle('/api/execute-luau', { code: buildGameplayAssertionsLuau(assertions) }, target || 'edit', instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
   }
 

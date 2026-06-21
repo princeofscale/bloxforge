@@ -89,6 +89,8 @@ describe('Tool schema compatibility', () => {
     // Discovery/meta tools — operate on the server's own catalog, not a Studio place.
     'tool_catalog_search',
     'load_toolset',
+    // Recipe listing is pure (server-side registry), not a Studio call.
+    'list_recipes',
   ]);
 
   function toolHandlerBody(toolName: string): string {
@@ -190,6 +192,7 @@ describe('Tool schema compatibility', () => {
       cancel_job: 'cancelJob',
       capture_script_profiler: 'captureScriptProfiler',
       playtest_sample_state: 'playtestSampleState',
+      run_gameplay_assertions: 'runGameplayAssertions',
       breakpoints: 'breakpoints',
       export_build: 'exportBuild',
       import_build: 'importBuild',
@@ -252,6 +255,7 @@ describe('Tool schema compatibility', () => {
       animation_play: 'animationPlay',
       asset_apply_texture: 'assetApplyTexture',
       diagnose_scripts: 'diagnoseScripts',
+      apply_recipe: 'applyRecipe',
     };
     for (const tool of TOOL_DEFINITIONS) {
       if (STUDIO_AGNOSTIC_TOOLS.has(tool.name)) continue;
