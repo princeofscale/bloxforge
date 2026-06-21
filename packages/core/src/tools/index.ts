@@ -20,6 +20,7 @@ import { DiscoveryTools } from './discovery-tools.js';
 import { WorldModelTools } from './world-model-tools.js';
 import { SafetyTools } from './safety-tools.js';
 import { SceneReadTools } from './scene-read-tools.js';
+import { ScriptTools } from './script-tools.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -31,7 +32,6 @@ import {
   PlayAnimationOptions,
   ApplyTextureOptions,
 } from '../builders/media-builders.js';
-import { parseLogErrors, formatDiagnostics } from '../diagnostics.js';
 import { PollinationsClient, DEFAULT_IMAGE_MODEL, ImageGenOptions } from '../image-client.js';
 import { runBuildExecutor } from './build-executor.js';
 import { GeneratedBuilderTools } from './generated-builder-tools.js';
@@ -77,6 +77,7 @@ export class RobloxStudioTools {
   private worldTools: WorldModelTools;
   private safetyTools: SafetyTools;
   private sceneReadTools: SceneReadTools;
+  private scriptTools: ScriptTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -109,6 +110,12 @@ export class RobloxStudioTools {
       runGeneratedLuau: this._runGeneratedLuau.bind(this),
       bridge: this.bridge,
       client: this.client,
+    });
+    this.scriptTools = new ScriptTools({
+      callSingle: this._callSingle.bind(this),
+      safetyGate: this._safetyGate.bind(this),
+      backupScript: (path, source) => this.safety.backupScript(path, source),
+      recordOperation: (kind, summary) => this.safety.recordOperation({ kind: kind as OperationKind, summary }),
     });
   }
 
@@ -841,150 +848,16 @@ export class RobloxStudioTools {
 
 
 
-  async getScriptSource(instancePath: string, startLine?: number, endLine?: number, instance_id?: string) {
-    if (!instancePath) {
-      throw new Error('Instance path is required for get_script_source');
-    }
-    const response = await this._callSingle('/api/get-script-source', { instancePath, startLine, endLine }, undefined, instance_id);
+  // Script tools live in ScriptTools; the facade delegates with identical signatures.
+  async getScriptSource(instancePath: string, startLine?: number, endLine?: number, instance_id?: string) { return this.scriptTools.getScriptSource(instancePath, startLine, endLine, instance_id); }
 
-    if (response.error) {
-      return { content: [{ type: 'text', text: `Error: ${response.error}` }] };
-    }
+  async setScriptSource(instancePath: string, source: string, instance_id?: string, options?: SafetyOptions) { return this.scriptTools.setScriptSource(instancePath, source, instance_id, options); }
 
-    const scriptTypeInfo: Record<string, string> = {
-      'Script': 'Server Script, runs on the server only',
-      'LocalScript': 'Local Script, runs on the client',
-      'ModuleScript': 'Module Script, shared library loaded via require()',
-    };
+  async editScriptLines(instancePath: string, oldString: string, newString: string, startLine?: number, instance_id?: string) { return this.scriptTools.editScriptLines(instancePath, oldString, newString, startLine, instance_id); }
 
-    const serviceInfo: Record<string, string> = {
-      'Workspace': 'Workspace, 3D world replicated to all clients',
-      'ServerScriptService': 'ServerScriptService, server only',
-      'ServerStorage': 'ServerStorage, server only storage',
-      'StarterGui': 'StarterGui, UI templates copied to each player',
-      'StarterPlayerScripts': 'StarterPlayerScripts, client scripts',
-      'StarterCharacterScripts': 'StarterCharacterScripts, character scripts',
-      'ReplicatedStorage': 'ReplicatedStorage, shared server and client',
-      'ReplicatedFirst': 'ReplicatedFirst, first to load on client',
-    };
+  async insertScriptLines(instancePath: string, afterLine: number, newContent: string, instance_id?: string) { return this.scriptTools.insertScriptLines(instancePath, afterLine, newContent, instance_id); }
 
-    const pathStr = (response.instancePath as string) || instancePath;
-    const pathSegments = pathStr.split('.');
-    const topService =
-      typeof response.topService === 'string' && response.topService.length > 0
-        ? response.topService
-        : pathSegments[0] === 'game' ? (pathSegments[1] ?? 'game') : pathSegments[0];
-    const typeNote = scriptTypeInfo[response.className as string] || (response.className as string);
-    const serviceNote = serviceInfo[topService] || topService;
-
-    const headerLines: string[] = [
-      `Path:     ${pathStr}`,
-      `Type:     ${typeNote}`,
-      `Location: ${serviceNote}`,
-      `Lines:    ${response.lineCount} total${
-        response.isPartial ? ` (showing ${response.startLine}-${response.endLine})` : ''
-      }`,
-    ];
-
-    if (response.enabled === false) {
-      headerLines.push(`Status:   DISABLED`);
-    }
-
-    if (response.truncated) {
-      headerLines.push(`Note:     Truncated to first 1000 lines, use startLine/endLine to read more`);
-    }
-
-    const header = headerLines.join('\n');
-    const code = (response.numberedSource || response.source) as string;
-
-    return {
-      content: [{
-        type: 'text',
-        text: `${header}\n\n${code}`,
-      }]
-    };
-  }
-
-  async setScriptSource(instancePath: string, source: string, instance_id?: string, options?: SafetyOptions) {
-    if (!instancePath || typeof source !== 'string') {
-      throw new Error('Instance path and source code string are required for set_script_source');
-    }
-    const gated = this._safetyGate('set_script_source', `overwrite ${instancePath} (${source.length} chars)`, { scriptSize: source.length }, options);
-    if (gated) return gated;
-
-    // Back up the current source before overwriting so the change is reversible
-    // via restore_script_backup. A failed backup fetch must not block the write,
-    // but we surface it as a warning so the caller knows undo is unavailable.
-    let backupWarning = '';
-    try {
-      const current = await this._callSingle('/api/get-script-source', { instancePath }, undefined, instance_id);
-      if (typeof current?.source === 'string') {
-        this.safety.backupScript(instancePath, current.source);
-      }
-    } catch (error) {
-      backupWarning = ` (warning: could not back up previous source: ${errorMessage(error)})`;
-    }
-
-    const response = await this._callSingle('/api/set-script-source', { instancePath, source }, undefined, instance_id);
-    this.safety.recordOperation({ kind: 'set_script_source', summary: `overwrote ${instancePath} (${source.length} chars)` });
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response) + backupWarning
-        }
-      ]
-    };
-  }
-
-
-  async editScriptLines(instancePath: string, oldString: string, newString: string, startLine?: number, instance_id?: string) {
-    if (!instancePath || typeof oldString !== 'string' || typeof newString !== 'string') {
-      throw new Error('Instance path, old_string, and new_string are required for edit_script_lines');
-    }
-    const payload: Record<string, unknown> = { instancePath, old_string: oldString, new_string: newString };
-    if (startLine !== undefined) payload.startLine = startLine;
-    const response = await this._callSingle('/api/edit-script-lines', payload, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
-  async insertScriptLines(instancePath: string, afterLine: number, newContent: string, instance_id?: string) {
-    if (!instancePath || typeof newContent !== 'string') {
-      throw new Error('Instance path and newContent are required for insert_script_lines');
-    }
-    const response = await this._callSingle('/api/insert-script-lines', { instancePath, afterLine: afterLine || 0, newContent }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
-  async deleteScriptLines(instancePath: string, startLine: number, endLine: number, instance_id?: string) {
-    if (!instancePath || !startLine || !endLine) {
-      throw new Error('Instance path, startLine, and endLine are required for delete_script_lines');
-    }
-    const response = await this._callSingle('/api/delete-script-lines', { instancePath, startLine, endLine }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
+  async deleteScriptLines(instancePath: string, startLine: number, endLine: number, instance_id?: string) { return this.scriptTools.deleteScriptLines(instancePath, startLine, endLine, instance_id); }
 
   async grepScripts(
     pattern: string,
@@ -999,23 +872,7 @@ export class RobloxStudioTools {
       classFilter?: string;
     },
     instance_id?: string
-  ) {
-    if (!pattern) {
-      throw new Error('Pattern is required for grep_scripts');
-    }
-    const response = await this._callSingle('/api/grep-scripts', {
-      pattern,
-      ...options
-    }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  ) { return this.scriptTools.grepScripts(pattern, options, instance_id); }
 
   async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) {
     if (!instancePath || !attributeName) {
@@ -3216,17 +3073,7 @@ export class RobloxStudioTools {
 
   // === Diagnostics ("fix all script errors") ===
 
-  async diagnoseScripts(maxEntries?: number, instance_id?: string) {
-    const response = await this._callSingle('/api/get-runtime-logs', { tail: maxEntries ?? 200 }, 'edit', instance_id);
-    const entries = Array.isArray(response?.entries) ? response.entries : [];
-    const result = parseLogErrors(entries);
-    return {
-      content: [{
-        type: 'text',
-        text: `${formatDiagnostics(result)}\n\n${JSON.stringify({ errors: result.errors, warnings: result.warnings })}`,
-      }] as ToolContent[],
-    };
-  }
+  async diagnoseScripts(maxEntries?: number, instance_id?: string) { return this.scriptTools.diagnoseScripts(maxEntries, instance_id); }
 
   // Decal asset IDs are the wrapper asset; ImageLabel.Image needs the underlying image
   // content ID. The only reliable cross-auth way to resolve this is InsertService:LoadAsset
@@ -3498,25 +3345,7 @@ export class RobloxStudioTools {
       maxReplacements?: number;
     },
     instance_id?: string
-  ) {
-    if (!pattern) {
-      throw new Error('pattern is required for find_and_replace_in_scripts');
-    }
-    if (replacement === undefined || replacement === null) {
-      throw new Error('replacement is required for find_and_replace_in_scripts');
-    }
-    const response = await this._callSingle('/api/find-and-replace-in-scripts', {
-      pattern,
-      replacement,
-      ...options
-    }, undefined, instance_id);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(response)
-      }]
-    };
-  }
+  ) { return this.scriptTools.findAndReplaceInScripts(pattern, replacement, options, instance_id); }
 
   async getMemoryBreakdown(target?: string, tags?: string[], instance_id?: string) { return this.sceneReadTools.getMemoryBreakdown(target, tags, instance_id); }
 
