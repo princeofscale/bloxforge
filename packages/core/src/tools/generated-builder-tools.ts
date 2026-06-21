@@ -46,6 +46,7 @@ import {
 } from '../builders/template-builders.js';
 import type { OperationKind } from '../safety/safety-manager.js';
 import { errorMessage, type SafetyOptions, type ToolContent } from './runtime-support.js';
+import { toolErrorResult } from '../errors.js';
 
 type GeneratedToolRuntime = {
   runGeneratedLuau(code: string, instance_id?: string): Promise<{ content: ToolContent[] }>;
@@ -107,7 +108,7 @@ export class GeneratedBuilderTools {
     try {
       code = buildLightingPresetLuau(preset, withPostFx ?? false);
     } catch (error) {
-      return { content: [{ type: 'text', text: errorMessage(error) }] as ToolContent[] };
+      return toolErrorResult(error);
     }
     const result = await this.runtime.runGeneratedLuau(code, instance_id);
     this.runtime.recordOperation('environment', `lighting preset ${preset}${withPostFx ? ' +postFx' : ''}`);

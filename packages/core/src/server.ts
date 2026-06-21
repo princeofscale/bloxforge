@@ -15,6 +15,8 @@ import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService, RoutingFailure } from './bridge-service.js';
 import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
+import { ToolRegistry } from './tools/tool-pipeline.js';
+import { registerContractedTools } from './tools/setup-registry.js';
 import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
 import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
@@ -39,6 +41,7 @@ export class RobloxStudioMCPServer {
   // has pulled in via load_toolset, instead of all ~130 schemas upfront.
   private lazyTools: boolean;
   private activeToolNames: Set<string>;
+  private registry: ToolRegistry;
 
   constructor(config: ServerConfig) {
     this.config = config;
@@ -65,6 +68,15 @@ export class RobloxStudioMCPServer {
 
     this.bridge = new BridgeService();
     this.tools = new RobloxStudioTools(this.bridge);
+
+    // Declarative tool registry — first-wave tools register via defineTool,
+    // getting the standard pipeline (structuredContent, errorEnvelope).
+    this.registry = new ToolRegistry();
+    registerContractedTools(this.registry, this.tools);
+    if (this.lazyTools) {
+      this.registry.enableLazy([...CORE_TOOLS]);
+    }
+
     this.setupToolHandlers();
   }
 
@@ -96,6 +108,18 @@ export class RobloxStudioMCPServer {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
 
+      // 1. Try the registry first (pipeline-wrapped: structuredContent + error
+      //    envelope). Returns null if the tool isn't registered yet.
+      const registryResult: unknown = await this.registry.callTool(name, this.tools, args ?? {});
+      if (registryResult !== null && registryResult !== undefined) {
+        // Lazy: load_toolset expands the advertised tool list.
+        if (this.lazyTools && name === 'load_toolset') {
+          this.applyToolset((args ?? {}) as { toolsets?: string[] });
+        }
+        return registryResult;
+      }
+
+      // 2. Fall through to the legacy TOOL_HANDLERS map.
       const handler = TOOL_HANDLERS[name];
       if (!handler) {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
@@ -103,18 +127,12 @@ export class RobloxStudioMCPServer {
 
       try {
         const result = await handler(this.tools, args ?? {});
-        // In lazy mode, load_toolset also expands the advertised tool list and
-        // notifies the client so the newly-loaded domain's tools show up.
         if (this.lazyTools && name === 'load_toolset') {
           this.applyToolset((args ?? {}) as { toolsets?: string[] });
         }
         return attachStructuredContent(result as Record<string, unknown>);
       } catch (error) {
         if (error instanceof RoutingFailure) {
-          // Surface routing errors as structured tool-call results with
-          // the full instance list embedded so the LLM can recover by
-          // picking an instance_id from data.instances — no need for a
-          // separate get_connected_instances round-trip.
           return {
             content: [{
               type: 'text',
@@ -128,9 +146,6 @@ export class RobloxStudioMCPServer {
           };
         }
         if (error instanceof McpError) throw error;
-        // Uniform typed failure for every tool (envelope by topology): the agent
-        // gets a stable code + retryable + suggestedRecovery instead of an opaque
-        // internal error it can't branch on.
         return toolErrorResult(error, name);
       }
     });
@@ -146,6 +161,7 @@ export class RobloxStudioMCPServer {
     for (const n of wanted) {
       if (this.allowedToolNames.has(n) && !this.activeToolNames.has(n)) {
         this.activeToolNames.add(n);
+        this.registry.activate(n); // also activate in registry
         added = true;
       }
     }
@@ -171,7 +187,7 @@ export class RobloxStudioMCPServer {
     // every subsequent session = proxy forwarding to basePort. This matches the
     // official Roblox Studio MCP (Roblox/studio-rust-mcp-server, main.rs:43).
     try {
-      primaryApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config);
+      primaryApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config, this.registry);
       const result = await listenWithRetry(primaryApp, host, basePort, 1);
       httpHandle = result.server;
       boundPort = result.port;
@@ -231,7 +247,7 @@ export class RobloxStudioMCPServer {
     let legacyHandle: http.Server | undefined;
     let legacyApp: ReturnType<typeof createHttpServer> | undefined;
     if (boundPort !== LEGACY_PORT && bridgeMode === 'primary') {
-      legacyApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config);
+      legacyApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config, this.registry);
       try {
         const result = await listenWithRetry(legacyApp, host, LEGACY_PORT, 1);
         legacyHandle = result.server;

@@ -7,6 +7,7 @@
 import { parseLogErrors, formatDiagnostics } from '../diagnostics.js';
 import type { OperationKind } from '../safety/safety-manager.js';
 import { errorMessage, type SafetyOptions, type ToolContent } from './runtime-support.js';
+import { toolErrorResult } from '../errors.js';
 
 type ScriptToolRuntime = {
   callSingle(endpoint: string, data: unknown, target: string | undefined, instance_id: string | undefined): Promise<any>;
@@ -30,7 +31,7 @@ export class ScriptTools {
     const response = await this.runtime.callSingle('/api/get-script-source', { instancePath, startLine, endLine }, undefined, instance_id);
 
     if (response.error) {
-      return { content: [{ type: 'text', text: `Error: ${response.error}` }] };
+      return toolErrorResult(response.error);
     }
 
     const scriptTypeInfo: Record<string, string> = {

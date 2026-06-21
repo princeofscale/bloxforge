@@ -1,0 +1,39 @@
+[
+  {
+    "id": "marketplace.insert_free_tree",
+    "prompt": "Find a free low-poly tree in the marketplace and insert one into Workspace.",
+    "allowed_domains": ["core", "assets"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "marketplace_search", "asset_preflight_insert", "insert_asset", "marketplace_search_and_insert"],
+    "gold_tools_any_of": [
+      ["marketplace_search", "asset_preflight_insert", "insert_asset"],
+      ["marketplace_search_and_insert"]
+    ],
+    "must_contain_facts": ["asset id", "inserted"],
+    "grade_type": "trajectory"
+  },
+  {
+    "id": "marketplace.preview_audio_before_insert",
+    "prompt": "Find a free background music track on the marketplace and preview its details before inserting it.",
+    "allowed_domains": ["core", "assets"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "marketplace_search", "get_asset_details", "get_asset_thumbnail", "asset_preflight_insert"],
+    "gold_tools_any_of": [
+      ["marketplace_search", "get_asset_details"],
+      ["marketplace_search", "get_asset_thumbnail"]
+    ],
+    "must_contain_facts": ["name", "creator"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "marketplace.search_with_preflight_check",
+    "prompt": "Find a free low-poly tree model in the marketplace and check if it can be safely inserted, without actually inserting it.",
+    "allowed_domains": ["core", "assets"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "marketplace_search", "asset_preflight_insert"],
+    "gold_tools_any_of": [
+      ["marketplace_search", "asset_preflight_insert"]
+    ],
+    "must_contain_facts": ["insertability", "scripts"],
+    "forbiddenTools": ["insert_asset", "marketplace_search_and_insert"],
+    "grade_type": "trajectory+answer"
+  }
+]

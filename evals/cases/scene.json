@@ -1,0 +1,42 @@
+[
+  {
+    "id": "scene.find_door_system",
+    "prompt": "Find the door system in the scene — which scripts control it and where are they?",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "get_world_snapshot", "get_node_batch", "scene_search", "get_script_source", "search_objects", "get_instance_properties"],
+    "gold_tools_any_of": [
+      ["scene_search", "get_script_source"],
+      ["search_objects", "get_instance_properties"],
+      ["get_world_snapshot", "get_node_batch"]
+    ],
+    "must_contain_facts": ["script path or name", "door"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "scene.count_parts_and_scripts",
+    "prompt": "Get a quick overview of the scene: how many parts, scripts, and sounds are there?",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "get_world_snapshot", "get_scene_summary", "get_descendants"],
+    "gold_tools_any_of": [
+      ["get_world_snapshot"],
+      ["get_scene_summary"]
+    ],
+    "must_contain_facts": ["counts", "scripts"],
+    "forbiddenTools": ["execute_luau", "get_descendants"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "scene.inspect_specific_part",
+    "prompt": "A part named 'FinishLine' should be in Workspace. Read its position, size, and material.",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "search_objects", "get_node_batch", "get_instance_properties"],
+    "gold_tools_any_of": [
+      ["search_objects", "get_node_batch"],
+      ["search_objects", "get_instance_properties"]
+    ],
+    "must_contain_facts": ["position", "size", "material"],
+    "forbiddenTools": ["execute_luau", "scene_search"],
+    "grade_type": "trajectory"
+  }
+]

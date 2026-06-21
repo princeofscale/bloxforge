@@ -1,0 +1,41 @@
+[
+  {
+    "id": "mutation.tag_checkpoints",
+    "prompt": "Find all parts named 'Checkpoint' in Workspace and tag them with 'Checkpoint'.",
+    "allowed_domains": ["core", "scene", "mutation"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "search_objects", "add_tag", "apply_mutation_plan", "get_instance_children"],
+    "gold_tools_any_of": [
+      ["search_objects", "apply_mutation_plan"],
+      ["search_objects", "add_tag"]
+    ],
+    "must_contain_facts": ["tag", "Checkpoint"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "mutation.rename_and_reposition",
+    "prompt": "Rename 'SpawnPart' to 'PlayerSpawn' and set its position to (0, 5, 0).",
+    "allowed_domains": ["core", "scene", "mutation"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "search_objects", "set_property", "apply_mutation_plan", "set_properties"],
+    "gold_tools_any_of": [
+      ["search_objects", "apply_mutation_plan"],
+      ["search_objects", "set_property"],
+      ["search_objects", "set_properties"]
+    ],
+    "must_contain_facts": ["PlayerSpawn", "position"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory"
+  },
+  {
+    "id": "mutation.dry_run_then_apply",
+    "prompt": "Preview what would happen if you anchor all parts in a 'Build' model, then apply the change.",
+    "allowed_domains": ["core", "scene", "mutation"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "search_objects", "apply_mutation_plan", "get_descendants", "set_property"],
+    "gold_tools_any_of": [
+      ["search_objects", "apply_mutation_plan"]
+    ],
+    "must_contain_facts": ["dry run", "anchored"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  }
+]

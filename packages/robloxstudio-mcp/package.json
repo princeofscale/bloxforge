@@ -1,7 +1,7 @@
 {
   "name": "@princeofscale/robloxstudio-mcp",
   "version": "2.19.3",
-  "description": "MCP server for testing, debugging, and controlling Roblox Studio from AI coding tools",
+  "description": "Free, open-source MCP server for AI agents (Claude Code, Codex, Cursor, Gemini) to operate Roblox Studio — inspect, edit, debug, and automate places locally.",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -18,11 +18,22 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "roblox",
-    "studio",
-    "ai",
+    "roblox-studio",
     "model-context-protocol",
-    "game-development"
+    "claude-code",
+    "codex",
+    "cursor",
+    "gemini",
+    "ai-agent",
+    "ai-coding",
+    "luau",
+    "roblox-plugin",
+    "game-development",
+    "automation",
+    "open-source",
+    "developer-tools"
   ],
   "author": "",
   "license": "MIT",

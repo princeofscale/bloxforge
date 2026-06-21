@@ -1,0 +1,87 @@
+name: Bug Report
+description: Report a problem with the MCP server or Studio plugin
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report.
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: e.g. macOS 14, Windows 11, Ubuntu 22.04
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Run `node --version`
+    validations:
+      required: true
+
+  - type: input
+    id: studio-version
+    attributes:
+      label: Roblox Studio version
+      description: Help → About Roblox Studio
+    validations:
+      required: true
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: AI client
+      description: Which AI client are you using?
+      options:
+        - Claude Code
+        - Codex CLI
+        - Cursor
+        - Gemini CLI
+        - Other MCP client
+    validations:
+      required: true
+
+  - type: input
+    id: install-command
+    attributes:
+      label: Install command used
+      description: e.g. `npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin`
+
+  - type: checkboxes
+    id: http-enabled
+    attributes:
+      label: Allow HTTP Requests
+      description: Is "Allow HTTP Requests" enabled in Game Settings → Security?
+      options:
+        - label: Yes
+        - label: I don't know
+
+  - type: textarea
+    id: doctor-output
+    attributes:
+      label: Doctor output
+      description: Run `npx -y @princeofscale/robloxstudio-mcp@latest --doctor` and paste the output
+      render: text
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: MCP server logs
+      description: Any error messages from the terminal where the MCP server is running
+      render: text
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: How to reproduce the issue
+      placeholder: |
+        1. Connected with '...'
+        2. Asked agent to '...'
+        3. Expected '...', got '...'
+    validations:
+      required: true

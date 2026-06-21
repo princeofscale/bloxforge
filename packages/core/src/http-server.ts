@@ -16,6 +16,7 @@ import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
+import { ToolRegistry } from './tools/tool-pipeline.js';
 import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
@@ -279,7 +280,7 @@ setInterval(refresh, 3000);
 </body>
 </html>`;
 
-export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig) {
+export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig, registry?: ToolRegistry) {
   const app = express();
   let mcpServerActive = false;
   let lastMCPActivity = 0;
@@ -613,7 +614,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
   // Streamable HTTP MCP transport
   if (serverConfig) {
-    const filteredTools = serverConfig.tools.filter(t => !allowedTools || allowedTools.has(t.name));
+    const legacyFilteredTools = serverConfig.tools.filter(t => !allowedTools || allowedTools.has(t.name));
+    const isLazyHttp = !!(registry?.lazyMode);
 
     app.post('/mcp', async (req, res) => {
       try {
@@ -621,7 +623,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
         const server = new Server(
           { name: serverConfig.name, version: serverConfig.version },
-          { capabilities: { tools: {}, resources: {} }, instructions: SERVER_INSTRUCTIONS }
+          { capabilities: { tools: isLazyHttp ? { listChanged: true } : {}, resources: {} }, instructions: SERVER_INSTRUCTIONS }
         );
 
         server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: RESOURCE_LIST }));
@@ -634,9 +636,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           }
         });
 
-        server.setRequestHandler(ListToolsRequestSchema, async () => ({
-          tools: filteredTools.map(toolDefinitionToMcpTool),
-        }));
+        server.setRequestHandler(ListToolsRequestSchema, async () => {
+          const candidates = (isLazyHttp && registry)
+            ? registry.definitions
+            : legacyFilteredTools;
+          return { tools: candidates.map(toolDefinitionToMcpTool) };
+        });
 
         server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const { name, arguments: args } = request.params;
@@ -644,6 +649,18 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           if (allowedTools && !allowedTools.has(name)) {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
           }
+
+          // 1. Try the registry first (pipeline-wrapped). Returns null when
+          //    the tool isn't registered; cast through unknown for the MCP
+          //    SDK's ServerResult type.
+          if (registry) {
+            const registryResult: unknown = await registry.callTool(name, tools, args || {});
+            if (registryResult !== null && registryResult !== undefined) {
+              return registryResult;
+            }
+          }
+
+          // 2. Fall through to the legacy TOOL_HANDLERS map.
           const handler = TOOL_HANDLERS[name];
           if (!handler) {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
@@ -723,6 +740,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
     app.post(`/mcp/${toolName}`, async (req, res) => {
       try {
+        // Try the registry first (pipeline-wrapped tools).
+        if (registry) {
+          const registryResult = await registry.callTool(toolName, tools, req.body);
+          if (registryResult !== undefined) { res.json(registryResult); return; }
+        }
+        // Fall through to legacy handler.
         const result = await handler(tools, req.body);
         res.json(result);
       } catch (error) {

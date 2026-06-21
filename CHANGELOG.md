@@ -19,11 +19,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clients and the same JSON text block for compatibility.
 - Added schema conformance tests with representative golden payloads so published
   contracts are validated in CI before they are advertised to MCP clients.
+- **Declarative `ToolRegistry` + `defineTool()` + standard execution pipeline.**
+  New `tool-pipeline.ts` keeps tool metadata, schemas, and handler together in one
+  place. The pipeline wraps every call with structuredContent attachment and typed
+  error envelopes (via errorEnvelope). First-wave contracted tools are registered
+  through the pipeline; both stdio and streamable HTTP servers dispatch through the
+  registry first, falling back to `TOOL_HANDLERS` for non-migrated tools.
+- **Mirrored lazy tool loading to the streamable HTTP `/mcp` path.** The `ListTools`
+  handler now uses the `ToolRegistry` (which respects `ROBLOX_MCP_LAZY_TOOLS`) when
+  available, so the streamable HTTP endpoint also benefits from reduced bootstrap
+  token costs. `listChanged` capability is advertised in lazy mode.
+- Eval benchmark suite expanded to 15 cases across 5 buckets (discovery,
+  marketplace, scene-read, mutation, runtime), up from 3 in discovery-only.
+  Each case has typed gold tools, forbidden tools, and answer-fact checks.
+- Added 12 unit tests for the declarative tool pipeline — `defineTool`,
+  `ToolRegistry`, and lazy mode — now at 419 total tests.
+- `get_asset_details` now normalizes responses from both OpenCloud and cookie
+  auth paths into a structured shape with `creatorName`, `creatorId`,
+  `isCopyLocked`, `isPublicDomain`, `price`, `voting`, and `assetTypeId` fields.
 
 ### Changed
 
 - Centralized MCP tool-list shaping so stdio and streamable HTTP advertise
   `inputSchema`/`outputSchema` consistently from the same helper.
+- Converted raw error returns across all major tool domains (`exportRbxm`,
+  `importRbxm`, `getAssetDetails`, `marketplaceSearch`, `imageGenerate`,
+  `imageGenerateAndUpload`, `captureScreenshot`, `getScriptSource`,
+  `environmentSetLightingPreset`) to use `toolErrorResult()`, so every tool
+  surface returns the uniform typed error envelope instead of opaque error strings.
+- **Extracted `AssetTools` domain class** from the facade (`index.ts` −1129 lines).
+  Moved 20 asset/build/marketplace/image tools and all private helpers
+  (normalizePalette, normalizeBuildParts, computeBounds, findLibraryPath,
+  _generateImageToFile, resolveImageId) into `asset-tools.ts`. Same delegation
+  pattern as SceneReadTools / ScriptTools / MutationTools — signatures and
+  `instance_id` invariants unchanged.
 
 ## [2.19.2] - 2026-06-21
 

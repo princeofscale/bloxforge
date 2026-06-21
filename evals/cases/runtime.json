@@ -1,0 +1,39 @@
+[
+  {
+    "id": "runtime.sample_playtest_state",
+    "prompt": "Start a playtest, sample the runtime state to see player positions, then stop the playtest.",
+    "allowed_domains": ["core", "runtime"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "start_playtest", "playtest_sample_state", "stop_playtest", "get_runtime_logs"],
+    "gold_tools_any_of": [
+      ["start_playtest", "playtest_sample_state", "stop_playtest"]
+    ],
+    "must_contain_facts": ["players", "position"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "runtime.assert_after_edit",
+    "prompt": "After moving the spawn part to (0, 5, 0), start a playtest and run gameplay assertions to confirm the spawn position.",
+    "allowed_domains": ["core", "scene", "runtime", "mutation"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "start_playtest", "run_gameplay_assertions", "stop_playtest", "set_property", "apply_mutation_plan"],
+    "gold_tools_any_of": [
+      ["start_playtest", "run_gameplay_assertions", "stop_playtest"]
+    ],
+    "must_contain_facts": ["assertions", "passed"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "runtime.read_logs_for_errors",
+    "prompt": "Start a playtest and read the runtime log to find any script errors.",
+    "allowed_domains": ["core", "runtime"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "start_playtest", "get_runtime_logs", "diagnose_scripts", "stop_playtest"],
+    "gold_tools_any_of": [
+      ["start_playtest", "get_runtime_logs", "stop_playtest"],
+      ["diagnose_scripts"]
+    ],
+    "must_contain_facts": ["error", "warning"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  }
+]

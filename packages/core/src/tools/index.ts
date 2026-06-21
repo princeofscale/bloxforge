@@ -21,6 +21,7 @@ import { SafetyTools } from './safety-tools.js';
 import { SceneReadTools } from './scene-read-tools.js';
 import { ScriptTools } from './script-tools.js';
 import { MutationTools } from './mutation-tools.js';
+import { AssetTools } from './asset-tools.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -81,6 +82,7 @@ export class RobloxStudioTools {
   private sceneReadTools: SceneReadTools;
   private scriptTools: ScriptTools;
   private mutationTools: MutationTools;
+  private assetTools: AssetTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -123,6 +125,15 @@ export class RobloxStudioTools {
       callSingle: this._callSingle.bind(this),
       safetyGate: this._safetyGate.bind(this),
       recordOperation: (kind, summary) => this.safety.recordOperation({ kind: kind as OperationKind, summary }),
+    });
+    this.assetTools = new AssetTools({
+      callSingle: this._callSingle.bind(this),
+      runGeneratedLuau: (code, instance_id) => this._runGeneratedLuau(code, instance_id),
+      recordOperation: (kind, summary) => this.safety.recordOperation({ kind, summary }),
+      openCloudClient: this.openCloudClient,
+      cookieClient: this.cookieClient,
+      marketplace: this.marketplace,
+      imageClient: this.imageClient,
     });
   }
 

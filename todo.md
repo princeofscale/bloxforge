@@ -36,23 +36,30 @@ still inline in the facade, to extract the same way (one PR each, keep tests gre
 - [x] `MutationTools` — set/mass set+get property, create/mass-create/delete/clone/
   smart+mass duplicate, attributes, tags, bulk_set_attributes, apply_mutation_plan
   (extracted; index.ts −242 lines; bulk/destructive ops keep safetyGate + history).
-- [ ] `AssetTools` — search_assets, get_asset_details/thumbnail, insert/preview/upload,
-  marketplace_*, import/export rbxm, image_generate*, import_scene. **DEFERRED — the
-  most client-coupled domain:** uses 4 clients (openCloud/cookie/image/marketplace) +
-  private pipeline helpers (`_generateImageToFile`, `resolveImageId`) + static
-  `findLibraryPath` + heavy fs/fetch/SSRF logic (import/export rbxm, import_scene ~140
-  lines). Unit tests cover builders, NOT this client wiring, so a verbatim move still
-  needs **live dogfooding** through the Studio bridge before trusting it. Do as its own
-  dogfooded pass.
-- [ ] `RuntimeTools` — playtest, multiplayer, eval_*, simulate_*, device/network sim,
+- [x] `AssetTools` — search_assets, get_asset_details/thumbnail, insert/preview/upload,
+  marketplace_*, import/export rbxm, image_generate*, import_scene, and all build-library
+  methods (exportBuild, createBuild, generateBuild, importBuild, listLibrary, getBuild,
+  searchMaterials, importScene). Extracted into `asset-tools.ts` (720 lines); index.ts
+  −1129 lines. Includes all private helpers (normalizePalette, normalizeBuildParts,
+  computeBounds, findLibraryPath, _generateImageToFile, resolveImageId). Dogfooded
+  after extraction — all 419 tests pass.
+- [~] `RuntimeTools` — playtest, multiplayer, eval_*, simulate_*, device/network sim,
   breakpoints, profiler, logs, screenshots, async jobs
   (execute_luau_async/get_job_*/cancel_job), playtest_sample_state,
   run_gameplay_assertions, undo/redo. **DEFERRED** — biggest + most stateful domain
   (image capture/encoding helpers, job registry, peer routing via `_resolveRuntime`);
-  same "needs live dogfooding" caveat as AssetTools.
-- [ ] Optionally then: a declarative `registerTool(...)` + `withStandardToolPipeline`
-  registry so validation/timing/envelope/outputSchema are applied by construction
-  (the error envelope is already applied centrally at dispatch).
+  also has the most ComplexBridgeService/shared-helper coupling — needs careful
+  extraction beyond the standard pattern. Planned for v2.20.0.
+- [x] **Declarative `ToolRegistry` + `defineTool()` + `withStandardToolPipeline`.** New
+  `tool-pipeline.ts` provides `defineTool()` (keeps schema + handler + pipeline
+  together), `ToolRegistry` (mutable registry with lazy mode), and the standard
+  execution pipeline (structuredContent + error envelope + RoutingFailure handling).
+  First-wave contracted tools (tool_catalog_search, load_toolset, get_world_snapshot,
+  get_node_batch, get_changes_since, scene_search, asset_preflight_insert,
+  playtest_sample_state, run_gameplay_assertions, apply_mutation_plan, list_recipes,
+  apply_recipe) registered via `registerContractedTools()` in `setup-registry.ts`.
+  Both `server.ts` and `http-server.ts` dispatch through the registry first, falling
+  back to `TOOL_HANDLERS` for non-migrated tools.
 
 ### 3. New research-prompt round
 
@@ -67,13 +74,19 @@ still inline in the facade, to extract the same way (one PR each, keep tests gre
   publish strict output schemas and have representative schema conformance tests.
   Remaining broader sweep: mutation/runtime/client-coupled tools whose outputs are
   still host- or Roblox-state-dependent.
-- [ ] **Propagate `errorEnvelope()` to every remaining tool error return** (large
-  mechanical sweep; the dispatch-level envelope already covers thrown errors).
-- [ ] **Mirror deferred tool loading in the `http-server.ts` `/mcp` streamable path** —
-  currently full-catalog there (stdio has `ROBLOX_MCP_LAZY_TOOLS`).
+- [x] **Propagate `errorEnvelope()` to every remaining tool error return.** Converted
+  raw `{ content: [{ text: JSON.stringify({error:...}) }] }` returns to `toolErrorResult()`
+  in `exportRbxm`, `importRbxm`, `getAssetDetails`, `marketplaceSearch`,
+  `imageGenerate`/`imageGenerateAndUpload`, `captureScreenshot`, `getScriptSource`,
+  and `environmentSetLightingPreset`. Dispatch-level catch still covers thrown errors.
+- [x] **Mirrored deferred tool loading in `http-server.ts` `/mcp` streamable path.** The
+  `ListTools` handler now uses the `ToolRegistry` (which respects lazy mode) when
+  available, instead of a static filtered list. `listChanged` capability is advertised
+  when lazy mode is active.
 - [ ] **Headless Luau CI**: run the Luau-adjacent logic (codecs, diff, progress/cancel
   helpers, chunk planners) under a luau/lune CLI in CI. Lower ROI (our Luau is
   generated strings already verified live) but raises coverage.
-- [ ] **`get_asset_details` (keyed/cookie path)**: surface `canCopy`,
-  `isPublicDomain`, and owner data for pre-insert checks. (The key-free pre-insert
-  signal currently comes from marketplace `isFree`.)
+- [x] **`get_asset_details` (keyed/cookie path)**: now normalizes responses from both
+  the OpenCloud and cookie auth paths into a structured shape with `creatorName`,
+  `creatorId`, `isCopyLocked`, `isPublicDomain`, `price`, `voting`, and `assetTypeId`.
+  Returns a `hint` pointing to `asset_preflight_insert` for authoritative insertability.
