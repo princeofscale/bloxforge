@@ -284,10 +284,10 @@ export class AssetTools {
     let entries: Array<{ id: string; style: string; bounds?: number[]; partCount?: number }> = [];
 
     if (fs.existsSync(libPath)) {
-      const readDir = (dir: string, parentStyle: string = '') => {
+      const readDir = (dir: string) => {
         for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
           if (entry.isDirectory()) {
-            readDir(path.join(dir, entry.name), entry.name);
+            readDir(path.join(dir, entry.name));
           } else if (entry.name.endsWith('.json')) {
             try {
               const data = JSON.parse(fs.readFileSync(path.join(dir, entry.name), 'utf-8'));

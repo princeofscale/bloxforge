@@ -45,7 +45,7 @@ import {
   type RoundTemplateOptions,
 } from '../builders/template-builders.js';
 import type { OperationKind } from '../safety/safety-manager.js';
-import { errorMessage, type SafetyOptions, type ToolContent } from './runtime-support.js';
+import { type SafetyOptions, type ToolContent } from './runtime-support.js';
 import { toolErrorResult } from '../errors.js';
 
 type GeneratedToolRuntime = {
