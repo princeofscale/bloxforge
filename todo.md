@@ -11,23 +11,25 @@ built with it. Completed notable changes move to [CHANGELOG.md](./CHANGELOG.md).
   bulk-change approval. Host-gated: needs an MCP-Apps-capable host to render the UI.
   Revisit when the host (Cursor / Codex / ChatGPT) supports it; not verifiable here
   until then.
-- [ ] **Track H — Semantic scene search (embeddings)**. The current `scene_search`
-  is the lexical multi-signal version; an optional embedding index over
-  name+class+tags+attrs+script-summaries would need an external/local model. Per the
-  research review, do this only once evals show the lexical ceiling — so it's gated
-  on the eval metrics (now runnable for free via `deepseek-v4-flash`).
+- [~] **Track H — Semantic scene search (embeddings)** — **PARKED (data-gated)**. The
+  first real A/B eval (2026-06-21, deepseek-v4-flash) showed the bottleneck is upfront
+  schema tokens (lazy loading cut bootstrap tax 77%, no success regression), NOT
+  lexical-search recall. So embeddings aren't justified by data. **Trigger to revisit:**
+  an eval where lexical `scene_search` measurably misses (low recall on "where is X")
+  — only then build the embedding index over name+class+tags+attrs+script-summaries.
 
 ### 2. Finish the domain-split of `index.ts`
 
 The facade `RobloxStudioTools` delegates to domain classes with identical signatures
 (so the schema-parity invariants hold). DONE: `GeneratedBuilderTools`, `SyncTools`,
-`DiscoveryTools`, `WorldModelTools`, `SafetyTools`. REMAINING domains still inline in
-the facade, to extract the same way (one PR each, keep tests green):
+`DiscoveryTools`, `WorldModelTools`, `SafetyTools`, `SceneReadTools`. REMAINING domains
+still inline in the facade, to extract the same way (one PR each, keep tests green):
 
-- [ ] `SceneReadTools` — get_file_tree, get_place_info, get_services, search_objects,
+- [x] `SceneReadTools` — get_file_tree, get_place_info, get_services, search_objects,
   get_instance_properties/children, search_by_property, get_class_info,
   get_project_structure, get_descendants, get_scene_summary, compare_instances,
-  get_memory_breakdown, get_scene_analysis, get_selection
+  get_memory_breakdown, get_scene_analysis, get_selection (extracted; index.ts −192
+  lines; multi-peer reads share a `_fanOutRead` helper). search_files left inline.
 - [ ] `MutationTools` — create/delete/clone/duplicate, set_property/properties,
   mass_*, attributes, tags, apply_mutation_plan
 - [ ] `ScriptTools` — get/set/edit/insert/delete script lines, grep,

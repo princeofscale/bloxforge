@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Eval-validated lazy tool loading.** First real A/B run of the `evals/` harness
+  (deepseek-v4-flash via OpenModel, discovery cases) confirms `ROBLOX_MCP_LAZY_TOOLS`
+  pays off: mean bootstrap tax dropped **77%** (187k → 43k input tokens) with **no
+  success regression** (67% → 67%) and ~5× better success-per-1k-tokens. The bottleneck
+  is upfront tool-schema tokens (which lazy loading cuts), not lexical search recall —
+  so the embeddings/semantic-search upgrade stays parked until an eval shows a real
+  lexical-recall ceiling.
+
 ## [2.19.1] - 2026-06-21
 
 ### Added

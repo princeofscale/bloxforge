@@ -8,10 +8,8 @@ import type { ObbyTemplateOptions, SimulatorTemplateOptions, TycoonTemplateOptio
 import { SyncManager } from '../sync/sync-manager.js';
 import { MarketplaceClient } from '../marketplace-client.js';
 import { interpretInsertResponse } from '../assets.js';
-import { typedError, responseErrorCode } from '../errors.js';
+import { typedError } from '../errors.js';
 import { compactText } from '../compact.js';
-import { shapeListResponse } from '../response-shape.js';
-import { buildSceneSummaryLuau } from '../builders/scene-summary.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
 import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
 import { listRecipes, buildRecipeLuau } from '../builders/recipes.js';
@@ -21,6 +19,7 @@ import { type ToolDomain } from './tool-catalog.js';
 import { DiscoveryTools } from './discovery-tools.js';
 import { WorldModelTools } from './world-model-tools.js';
 import { SafetyTools } from './safety-tools.js';
+import { SceneReadTools } from './scene-read-tools.js';
 import {
   buildCreateSoundLuau,
   buildPlaySoundLuau,
@@ -77,6 +76,7 @@ export class RobloxStudioTools {
   private discoveryTools: DiscoveryTools;
   private worldTools: WorldModelTools;
   private safetyTools: SafetyTools;
+  private sceneReadTools: SceneReadTools;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
@@ -103,6 +103,12 @@ export class RobloxStudioTools {
     this.safetyTools = new SafetyTools({
       safety: this.safety,
       callSingle: this._callSingle.bind(this),
+    });
+    this.sceneReadTools = new SceneReadTools({
+      callSingle: this._callSingle.bind(this),
+      runGeneratedLuau: this._runGeneratedLuau.bind(this),
+      bridge: this.bridge,
+      client: this.client,
     });
   }
 
@@ -622,10 +628,9 @@ export class RobloxStudioTools {
   }
 
 
-  async getFileTree(path: string = '', instance_id?: string) {
-    const response = await this._callSingle('/api/file-tree', { path }, undefined, instance_id);
-    return compactText(response);
-  }
+  // Scene-read inspection tools live in SceneReadTools; the facade delegates with
+  // identical signatures.
+  async getFileTree(path: string = '', instance_id?: string) { return this.sceneReadTools.getFileTree(path, instance_id); }
 
   async searchFiles(query: string, searchType: string = 'name', instance_id?: string) {
     const response = await this._callSingle('/api/search-files', { query, searchType }, undefined, instance_id);
@@ -640,108 +645,21 @@ export class RobloxStudioTools {
   }
 
 
-  async getPlaceInfo(instance_id?: string) {
-    const response = await this._callSingle('/api/place-info', {}, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async getPlaceInfo(instance_id?: string) { return this.sceneReadTools.getPlaceInfo(instance_id); }
 
-  async getServices(serviceName?: string, instance_id?: string) {
-    const response = await this._callSingle('/api/services', { serviceName }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async getServices(serviceName?: string, instance_id?: string) { return this.sceneReadTools.getServices(serviceName, instance_id); }
 
-  async searchObjects(query: string, searchType: string = 'name', propertyName?: string, limit?: number, offset?: number, fields?: string[], instance_id?: string) {
-    const response = await this._callSingle('/api/search-objects', {
-      query,
-      searchType,
-      propertyName
-    }, undefined, instance_id);
-    return compactText(shapeListResponse(response, 'results', { limit, offset, fields }));
-  }
+  async searchObjects(query: string, searchType: string = 'name', propertyName?: string, limit?: number, offset?: number, fields?: string[], instance_id?: string) { return this.sceneReadTools.searchObjects(query, searchType, propertyName, limit, offset, fields, instance_id); }
 
+  async getInstanceProperties(instancePath: string, excludeSource?: boolean, instance_id?: string) { return this.sceneReadTools.getInstanceProperties(instancePath, excludeSource, instance_id); }
 
-  async getInstanceProperties(instancePath: string, excludeSource?: boolean, instance_id?: string) {
-    if (!instancePath) {
-      throw new Error('Instance path is required for get_instance_properties');
-    }
-    // Default to excluding Source: a script's Source can be thousands of tokens and
-    // there's a dedicated get_script_source for reading it. Callers can opt back in
-    // with excludeSource: false.
-    const response = await this._callSingle('/api/instance-properties', { instancePath, excludeSource: excludeSource ?? true }, undefined, instance_id);
-    return compactText(response);
-  }
+  async getInstanceChildren(instancePath: string, instance_id?: string) { return this.sceneReadTools.getInstanceChildren(instancePath, instance_id); }
 
-  async getInstanceChildren(instancePath: string, instance_id?: string) {
-    if (!instancePath) {
-      throw new Error('Instance path is required for get_instance_children');
-    }
-    // The plugin's file watcher debounces ~500ms behind edits, so a path that was
-    // just created can briefly read back as NOT_FOUND (bug B3/B5). Retry once after
-    // a short delay before surfacing the failure.
-    let response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
-    if (responseErrorCode(response) === 'NOT_FOUND') {
-      await sleep(450);
-      response = await this._callSingle('/api/instance-children', { instancePath }, undefined, instance_id);
-    }
-    return compactText(response);
-  }
+  async searchByProperty(propertyName: string, propertyValue: string, instance_id?: string) { return this.sceneReadTools.searchByProperty(propertyName, propertyValue, instance_id); }
 
-  async searchByProperty(propertyName: string, propertyValue: string, instance_id?: string) {
-    if (!propertyName || !propertyValue) {
-      throw new Error('Property name and value are required for search_by_property');
-    }
-    const response = await this._callSingle('/api/search-by-property', {
-      propertyName,
-      propertyValue
-    }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
+  async getClassInfo(className: string, instance_id?: string) { return this.sceneReadTools.getClassInfo(className, instance_id); }
 
-  async getClassInfo(className: string, instance_id?: string) {
-    if (!className) {
-      throw new Error('Class name is required for get_class_info');
-    }
-    const response = await this._callSingle('/api/class-info', { className }, undefined, instance_id);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response)
-        }
-      ]
-    };
-  }
-
-
-  async getProjectStructure(path?: string, maxDepth?: number, scriptsOnly?: boolean, instance_id?: string) {
-    const response = await this._callSingle('/api/project-structure', {
-      path,
-      maxDepth,
-      scriptsOnly
-    }, undefined, instance_id);
-    return compactText(response);
-  }
+  async getProjectStructure(path?: string, maxDepth?: number, scriptsOnly?: boolean, instance_id?: string) { return this.sceneReadTools.getProjectStructure(path, maxDepth, scriptsOnly, instance_id); }
 
 
 
@@ -1205,10 +1123,7 @@ export class RobloxStudioTools {
     };
   }
 
-  async getSelection(instance_id?: string) {
-    const response = await this._callSingle('/api/get-selection', {}, undefined, instance_id);
-    return compactText(response);
-  }
+  async getSelection(instance_id?: string) { return this.sceneReadTools.getSelection(instance_id); }
 
   async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
     if (!code) {
@@ -3497,20 +3412,9 @@ export class RobloxStudioTools {
     offset?: number,
     fields?: string[],
     instance_id?: string,
-  ) {
-    if (!instancePath) {
-      throw new Error('instancePath is required for get_descendants');
-    }
-    const response = await this._callSingle('/api/get-descendants', { instancePath, maxDepth, classFilter }, undefined, instance_id);
-    return compactText(shapeListResponse(response, 'descendants', { limit, offset, fields }));
-  }
+  ) { return this.sceneReadTools.getDescendants(instancePath, maxDepth, classFilter, limit, offset, fields, instance_id); }
 
-  async getSceneSummary(instancePath?: string, topN?: number, instance_id?: string) {
-    // Aggregation: counts descendants by class instead of dumping the whole tree —
-    // a few tokens to understand a scene's shape vs thousands for get_descendants.
-    const code = buildSceneSummaryLuau(instancePath ?? 'game.Workspace', topN ?? 20);
-    return this._runGeneratedLuau(code, instance_id);
-  }
+  async getSceneSummary(instancePath?: string, topN?: number, instance_id?: string) { return this.sceneReadTools.getSceneSummary(instancePath, topN, instance_id); }
 
   // Transactional batch mutations: apply many small edits in one round-trip with a
   // dry-run diff and a ready-to-run reverse plan in the receipt (stateless rollback).
@@ -3572,13 +3476,7 @@ export class RobloxStudioTools {
   async getChangesSince(snapshotId?: string, path?: string, instance_id?: string) { return this.worldTools.getChangesSince(snapshotId, path, instance_id); }
   async assetPreflightInsert(assetId: number, instance_id?: string) { return this.worldTools.assetPreflightInsert(assetId, instance_id); }
 
-  async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) {
-    if (!instancePathA || !instancePathB) {
-      throw new Error('instancePathA and instancePathB are required for compare_instances');
-    }
-    const response = await this._callSingle('/api/compare-instances', { instancePathA, instancePathB }, undefined, instance_id);
-    return compactText(response);
-  }
+  async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) { return this.sceneReadTools.compareInstances(instancePathA, instancePathB, instance_id); }
 
   async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) {
     if (!instancePath || !attributes) {
@@ -3620,99 +3518,9 @@ export class RobloxStudioTools {
     };
   }
 
-  async getMemoryBreakdown(target?: string, tags?: string[], instance_id?: string) {
-    const tgt = target ?? 'all';
-    const data: Record<string, unknown> = {};
-    if (tags !== undefined) data.tags = tags;
+  async getMemoryBreakdown(target?: string, tags?: string[], instance_id?: string) { return this.sceneReadTools.getMemoryBreakdown(target, tags, instance_id); }
 
-    const resolved = this.bridge.resolveTarget({ instance_id, target: tgt });
-    if (!resolved.ok) throw new RoutingFailure(resolved.error);
-
-    if (resolved.mode === 'single') {
-      const response = await this.client.request(
-        '/api/get-memory-breakdown',
-        data,
-        resolved.targetInstanceId,
-        resolved.targetRole,
-      );
-      return compactText(response);
-    }
-
-    const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
-
-    const responses = await Promise.allSettled(
-      targets.map(async (t) => ({
-        peer: t.targetRole,
-        result: await this.client.request(
-          '/api/get-memory-breakdown',
-          data,
-          t.targetInstanceId,
-          t.targetRole,
-        ),
-      })),
-    );
-
-    const body: Record<string, unknown> = {};
-    for (let i = 0; i < responses.length; i++) {
-      const r = responses[i];
-      const peer = targets[i].targetRole;
-      if (r.status === 'fulfilled') {
-        body[peer] = r.value.result;
-      } else {
-        body[peer] = { error: 'disconnected' };
-      }
-    }
-
-    return compactText(body);
-  }
-
-  async getSceneAnalysis(mode?: string, target?: string, topN?: number, raw?: boolean, instance_id?: string) {
-    const tgt = target ?? 'all';
-    const data: Record<string, unknown> = {};
-    if (mode !== undefined) data.mode = mode;
-    if (topN !== undefined) data.topN = topN;
-    if (raw !== undefined) data.raw = raw;
-
-    const resolved = this.bridge.resolveTarget({ instance_id, target: tgt });
-    if (!resolved.ok) throw new RoutingFailure(resolved.error);
-
-    if (resolved.mode === 'single') {
-      const response = await this.client.request(
-        '/api/get-scene-analysis',
-        data,
-        resolved.targetInstanceId,
-        resolved.targetRole,
-      );
-      return compactText(response);
-    }
-
-    const targets = resolved.targets.filter((t) => t.targetRole !== 'edit-proxy');
-
-    const responses = await Promise.allSettled(
-      targets.map(async (t) => ({
-        peer: t.targetRole,
-        result: await this.client.request(
-          '/api/get-scene-analysis',
-          data,
-          t.targetInstanceId,
-          t.targetRole,
-        ),
-      })),
-    );
-
-    const body: Record<string, unknown> = {};
-    for (let i = 0; i < responses.length; i++) {
-      const r = responses[i];
-      const peer = targets[i].targetRole;
-      if (r.status === 'fulfilled') {
-        body[peer] = r.value.result;
-      } else {
-        body[peer] = { error: 'disconnected' };
-      }
-    }
-
-    return compactText(body);
-  }
+  async getSceneAnalysis(mode?: string, target?: string, topN?: number, raw?: boolean, instance_id?: string) { return this.sceneReadTools.getSceneAnalysis(mode, target, topN, raw, instance_id); }
 
   async exportRbxm(instancePaths: string[], outputPath: string, target?: string, instance_id?: string) {
     if (!Array.isArray(instancePaths) || instancePaths.length === 0) {
