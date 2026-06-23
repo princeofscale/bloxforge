@@ -10,6 +10,8 @@ import {
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
   ReadResourceRequestSchema,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RobloxStudioTools } from './tools/index.js';
@@ -43,6 +45,9 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   list_recipes: (tools) => tools.listRecipes(),
   apply_recipe: (tools, body) => tools.applyRecipe(body.recipe, body.params, body.instance_id),
   run_gameplay_assertions: (tools, body) => tools.runGameplayAssertions(body.assertions, body.target, body.instance_id),
+  run_playtest_episode: (tools, body) => tools.runPlaytestEpisode(body.mode, body.assertions, body.sampleDomains, body.durationS, body.instance_id),
+  summarize_episode: (tools, body) => tools.summarizeEpisode(body.episodeId, body.comparedToEpisodeId),
+  get_reproduction_bundle: (tools, body) => tools.getReproductionBundle(body.instance_id),
   asset_preflight_insert: (tools, body) => tools.assetPreflightInsert(body.assetId, body.instance_id),
   execute_luau_async: (tools, body) => tools.executeLuauAsync(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   get_job_status: (tools, body) => tools.getJobStatus(body.jobId, body.target, body.instance_id),
@@ -199,6 +204,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   // Free marketplace (no Open Cloud key).
   marketplace_search: (tools, body) => tools.marketplaceSearch(body.keyword, body.category, body.limit, body.sortType),
   marketplace_search_and_insert: (tools, body) => tools.marketplaceSearchAndInsert(body.keyword, body.category, body.parentPath, body.position, body.instance_id),
+  plan_asset_insert: (tools, body) => tools.planAssetInsert(body.keyword, body.category, body.count, body.instance_id),
 
   // Media (audio / animation / texture).
   audio_create_sound: (tools, body) => tools.audioCreateSound(body, body.instance_id),
@@ -623,7 +629,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
         const server = new Server(
           { name: serverConfig.name, version: serverConfig.version },
-          { capabilities: { tools: isLazyHttp ? { listChanged: true } : {}, resources: {} }, instructions: SERVER_INSTRUCTIONS }
+          { capabilities: { tools: isLazyHttp ? { listChanged: true } : {}, resources: { subscribe: true, listChanged: true } }, instructions: SERVER_INSTRUCTIONS }
         );
 
         server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: RESOURCE_LIST }));
@@ -635,6 +641,11 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
             throw new McpError(ErrorCode.InvalidParams, error instanceof Error ? error.message : String(error));
           }
         });
+        // Subscriptions are accepted for protocol conformance, but this transport is
+        // stateless (a fresh server per POST, closed on response), so resources/updated
+        // can't be pushed here — subscriptions deliver on the persistent stdio server.
+        server.setRequestHandler(SubscribeRequestSchema, async () => ({}));
+        server.setRequestHandler(UnsubscribeRequestSchema, async () => ({}));
 
         server.setRequestHandler(ListToolsRequestSchema, async () => {
           const candidates = (isLazyHttp && registry)

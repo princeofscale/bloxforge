@@ -1,0 +1,56 @@
+[
+  {
+    "id": "scene_semantic.find_win_trigger",
+    "prompt": "Find the part players touch to complete or win the level. It may be named anything (Goal, FinishLine, EndPad, WinZone…). Report its name and full path.",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "get_world_snapshot", "scene_search", "get_node_batch", "get_instance_properties"],
+    "gold_tools_any_of": [
+      ["scene_search"],
+      ["get_world_snapshot", "scene_search"]
+    ],
+    "must_contain_facts": ["path", "name"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "scene_semantic.find_damage_logic",
+    "prompt": "Which script reduces player health or deals damage? The function may be called TakeDamage, Hurt, ApplyDamage, etc. Report the script's path.",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "scene_search", "grep_scripts", "get_script_source"],
+    "gold_tools_any_of": [
+      ["scene_search"],
+      ["grep_scripts"],
+      ["scene_search", "get_script_source"]
+    ],
+    "must_contain_facts": ["script", "path"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "scene_semantic.find_persistence",
+    "prompt": "Where does the game save or load player progress? Look for whatever persists data (a DataStore wrapper, a save manager, a profile service…). Report the script path.",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "scene_search", "grep_scripts", "get_script_source"],
+    "gold_tools_any_of": [
+      ["scene_search"],
+      ["grep_scripts"],
+      ["scene_search", "get_script_source"]
+    ],
+    "must_contain_facts": ["script", "path"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "scene_semantic.find_powerup",
+    "prompt": "Find the object that gives the player a temporary boost — extra speed, a jump pad, or a power-up of some kind. It won't be named 'powerup'. Report its name and path.",
+    "allowed_domains": ["core", "scene"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "get_world_snapshot", "scene_search", "get_node_batch", "get_instance_properties"],
+    "gold_tools_any_of": [
+      ["scene_search"],
+      ["get_world_snapshot", "scene_search"]
+    ],
+    "must_contain_facts": ["path", "name"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
+  }
+]

@@ -14,7 +14,9 @@ import type { EvalCase, HarnessMode, McpHarnessAdapter, RunResult } from '../har
 import type { TraceEvent, RunMetrics } from '../metrics.js';
 
 const DEFAULT_MODEL = 'claude-opus-4-8';
-const MAX_ITERATIONS = 14;
+// Weak free models thrash (repeat the same call many times) and need headroom to
+// finish before the loop cap turns a capability into a false FAIL. Tunable via env.
+const MAX_ITERATIONS = Number(process.env.EVAL_MAX_ITERATIONS) || 20;
 
 interface McpToolDef {
   name: string;
@@ -56,6 +58,7 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
   }
 
   async startServer(mode: HarnessMode): Promise<void> {
+    console.log(`[harness] spawning MCP server (mode=${mode}, lazy=${mode === 'lazy' ? '1' : '0'})…`);
     this.transport = new StdioClientTransport({
       command: 'node',
       args: [this.opts.serverEntry],
@@ -65,9 +68,54 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
         // Lazy mode advertises only the core + meta tools upfront.
         ROBLOX_MCP_LAZY_TOOLS: mode === 'lazy' ? '1' : '0',
       },
+      // Surface the server's own startup logs (plugin install, bridge status,
+      // "Studio connected") so a failed/proxy-mode bridge is visible, not silent.
+      stderr: 'inherit',
     });
     this.client = new Client({ name: 'mcp-eval-harness', version: '1.0.0' }, { capabilities: {} });
     await this.client.connect(this.transport);
+    const toolCount = (await this.listTools()).length;
+    console.log(`[harness] MCP server connected over stdio (${toolCount} tools advertised).`);
+    await this.waitForStudio();
+  }
+
+  /**
+   * Block until the Studio plugin has (re)connected to this server, or abort with
+   * an actionable message. The plugin long-polls on an interval, so after a server
+   * (re)spawn it takes a few seconds to register — checking once immediately races
+   * that and yields a false "no Studio". Polls until a place appears or timeout.
+   */
+  private async waitForStudio(
+    timeoutMs = Number(process.env.EVAL_STUDIO_TIMEOUT_MS) || 30000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let announcedWait = false;
+    for (;;) {
+      const conn = await this.checkStudioConnection();
+      if (conn.count > 0) {
+        console.log(
+          `[harness] Studio connected: ${conn.count} instance(s) — ` +
+            conn.instances.map((i) => `${i.role ?? '?'}@${i.instanceId ?? '?'}`).join(', '),
+        );
+        return;
+      }
+      if (Date.now() >= deadline) {
+        await this.stopServer();
+        throw new Error(
+          `No Roblox Studio connected after ${Math.round(timeoutMs / 1000)}s.\n` +
+            '  - Open Roblox Studio with the MCP plugin installed and a place loaded.\n' +
+            "  - If you saw 'entering proxy mode' above, another MCP server (a Claude Code /\n" +
+            '    Cursor session) holds port 58741 — close it so this run is the primary.\n' +
+            '  - The plugin reconnects to a new primary on its poll interval; raise the wait\n' +
+            '    with EVAL_STUDIO_TIMEOUT_MS if your Studio is slow to reconnect.',
+        );
+      }
+      if (!announcedWait) {
+        console.log('[harness] waiting for Studio plugin to connect…');
+        announcedWait = true;
+      }
+      await sleep(2000);
+    }
   }
 
   async stopServer(): Promise<void> {
@@ -75,6 +123,25 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
     await this.transport?.close().catch(() => {});
     this.client = undefined;
     this.transport = undefined;
+  }
+
+  /**
+   * Ask the running server which Roblox Studio places are connected. Used as a
+   * preflight so the run aborts loudly when Studio isn't reachable (the spawned
+   * server falls back to proxy mode and every case would silently fail).
+   * Requires startServer() to have been called.
+   */
+  async checkStudioConnection(): Promise<{ count: number; instances: Array<Record<string, unknown>> }> {
+    if (!this.client) throw new Error('checkStudioConnection called before startServer');
+    try {
+      const result = await this.client.callTool({ name: 'get_connected_instances', arguments: {} });
+      const text = extractText(result.content);
+      const parsed = JSON.parse(text) as { instances?: Array<Record<string, unknown>>; count?: number };
+      const instances = parsed.instances ?? [];
+      return { count: parsed.count ?? instances.length, instances };
+    } catch {
+      return { count: 0, instances: [] };
+    }
   }
 
   private async listTools(): Promise<McpToolDef[]> {
@@ -109,11 +176,13 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
         tools: toAnthropicTools(),
         messages,
       });
-      const usageIn = response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0);
+      const cacheReadIn = response.usage.cache_read_input_tokens ?? 0;
+      const cacheWriteIn = response.usage.cache_creation_input_tokens ?? 0;
+      const usageIn = response.usage.input_tokens + cacheReadIn + cacheWriteIn;
       cumulativeInputTokens += usageIn;
       cumulativeOutputTokens += response.usage.output_tokens;
       if (i === 0) initInputTokens = usageIn;
-      trace.push({ t: Date.now() - start, type: 'model', tokensIn: usageIn, tokensOut: response.usage.output_tokens });
+      trace.push({ t: Date.now() - start, type: 'model', tokensIn: usageIn, cacheReadIn, cacheWriteIn, tokensOut: response.usage.output_tokens });
 
       const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
       for (const b of response.content) {
@@ -150,6 +219,7 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
           text = err instanceof Error ? err.message : String(err);
         }
         if (isError) invalidToolCalls += 1;
+        console.log(`      → ${tu.name}${isError ? ' [error]' : ''}`);
         trace.push({ t: Date.now() - start, type: 'tool_call', name: tu.name, args: tu.input, isError });
         trace.push({ t: Date.now() - start, type: 'tool_result', name: tu.name, resultSummary: text.slice(0, 200) });
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: text, is_error: isError });

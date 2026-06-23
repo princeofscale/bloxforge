@@ -1,85 +1,134 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
   <defs>
+    <!-- Deep background -->
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f172a"/>
-      <stop offset="50%" style="stop-color:#1e1b4b"/>
-      <stop offset="100%" style="stop-color:#0f172a"/>
+      <stop offset="0%" stop-color="#0b1024"/>
+      <stop offset="48%" stop-color="#1a1640"/>
+      <stop offset="100%" stop-color="#0a0e20"/>
     </linearGradient>
-    <linearGradient id="accent1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6366f1"/>
-      <stop offset="100%" style="stop-color:#4f46e5"/>
+    <!-- Corner glows -->
+    <radialGradient id="glowIndigo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowCyan" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.40"/>
+      <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Accents -->
+    <linearGradient id="cubeTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a5b4fc"/>
+      <stop offset="100%" stop-color="#6366f1"/>
     </linearGradient>
-    <linearGradient id="accent2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#22d3ee"/>
-      <stop offset="100%" style="stop-color:#818cf8"/>
+    <linearGradient id="cubeLeft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#3730a3"/>
     </linearGradient>
+    <linearGradient id="cubeRight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#312e81"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#c7d2fe"/>
+      <stop offset="100%" stop-color="#67e8f9"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#a5b4fc"/>
+    </linearGradient>
+    <!-- Soft glow -->
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Faint dot grid -->
+    <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#ffffff" opacity="0.05"/>
+    </pattern>
   </defs>
+
   <!-- Background -->
   <rect width="1200" height="400" fill="url(#bg)"/>
+  <rect width="1200" height="400" fill="url(#dots)"/>
+  <ellipse cx="180" cy="120" rx="420" ry="300" fill="url(#glowIndigo)"/>
+  <ellipse cx="1020" cy="320" rx="420" ry="300" fill="url(#glowCyan)"/>
+  <rect width="1200" height="400" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
 
-  <!-- Grid pattern -->
-  <g opacity="0.04">
-    <line x1="0" y1="50" x2="1200" y2="50" stroke="#fff" stroke-width="1"/>
-    <line x1="0" y1="100" x2="1200" y2="100" stroke="#fff" stroke-width="1"/>
-    <line x1="0" y1="150" x2="1200" y2="150" stroke="#fff" stroke-width="1"/>
-    <line x1="0" y1="200" x2="1200" y2="200" stroke="#fff" stroke-width="1"/>
-    <line x1="0" y1="250" x2="1200" y2="250" stroke="#fff" stroke-width="1"/>
-    <line x1="0" y1="300" x2="1200" y2="300" stroke="#fff" stroke-width="1"/>
-    <line x1="0" y1="350" x2="1200" y2="350" stroke="#fff" stroke-width="1"/>
-    <line x1="100" y1="0" x2="100" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="200" y1="0" x2="200" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="300" y1="0" x2="300" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="400" y1="0" x2="400" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="500" y1="0" x2="500" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="600" y1="0" x2="600" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="700" y1="0" x2="700" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="800" y1="0" x2="800" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="900" y1="0" x2="900" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="1000" y1="0" x2="1000" y2="400" stroke="#fff" stroke-width="1"/>
-    <line x1="1100" y1="0" x2="1100" y2="400" stroke="#fff" stroke-width="1"/>
+  <!-- Left: isometric block + neural overlay (logo) -->
+  <g transform="translate(150,200)">
+    <!-- glow halo -->
+    <circle cx="0" cy="0" r="84" fill="url(#glowIndigo)" opacity="0.9"/>
+    <!-- isometric cube -->
+    <g filter="url(#soft)">
+      <polygon points="0,-66 62,-30 0,6 -62,-30" fill="url(#cubeTop)"/>
+      <polygon points="-62,-30 0,6 0,72 -62,36" fill="url(#cubeLeft)"/>
+      <polygon points="62,-30 0,6 0,72 62,36" fill="url(#cubeRight)"/>
+    </g>
+    <!-- edge highlights -->
+    <polyline points="-62,-30 0,6 62,-30" fill="none" stroke="#c7d2fe" stroke-width="1.5" opacity="0.5"/>
+    <line x1="0" y1="6" x2="0" y2="72" stroke="#c7d2fe" stroke-width="1.5" opacity="0.35"/>
+    <!-- neural nodes on the top face -->
+    <g>
+      <line x1="-30" y1="-36" x2="2" y2="-22" stroke="url(#node)" stroke-width="1.6" opacity="0.55"/>
+      <line x1="2" y1="-22" x2="34" y2="-36" stroke="url(#node)" stroke-width="1.6" opacity="0.45"/>
+      <line x1="-30" y1="-36" x2="0" y2="-50" stroke="url(#node)" stroke-width="1.6" opacity="0.4"/>
+      <line x1="34" y1="-36" x2="0" y2="-50" stroke="url(#node)" stroke-width="1.6" opacity="0.35"/>
+      <circle cx="0" cy="-50" r="4.5" fill="url(#node)"/>
+      <circle cx="-30" cy="-36" r="4.5" fill="url(#node)"/>
+      <circle cx="34" cy="-36" r="4.5" fill="url(#node)"/>
+      <circle cx="2" cy="-22" r="6" fill="#ffffff"/>
+      <circle cx="2" cy="-22" r="11" fill="none" stroke="#67e8f9" stroke-width="1.5" opacity="0.6"/>
+    </g>
   </g>
 
-  <!-- Left: tilted block + nodes (logo) -->
-  <g transform="translate(100,200) rotate(-12)">
-    <rect x="-80" y="-80" width="160" height="160" rx="12" fill="url(#accent1)" opacity="0.85"/>
-    <circle cx="-40" cy="-40" r="6" fill="url(#accent2)" opacity="0.7"/>
-    <circle cx="0" cy="-40" r="6" fill="url(#accent2)" opacity="0.5"/>
-    <circle cx="40" cy="-40" r="6" fill="url(#accent2)" opacity="0.3"/>
-    <circle cx="-40" cy="0" r="6" fill="url(#accent2)" opacity="0.5"/>
-    <circle cx="0" cy="0" r="8" fill="url(#accent2)" opacity="1"/>
-    <circle cx="40" cy="0" r="6" fill="url(#accent2)" opacity="0.4"/>
-    <circle cx="-40" cy="40" r="6" fill="url(#accent2)" opacity="0.3"/>
-    <circle cx="0" cy="40" r="6" fill="url(#accent2)" opacity="0.5"/>
-    <circle cx="40" cy="40" r="6" fill="url(#accent2)" opacity="0.7"/>
-    <line x1="-32" y1="-40" x2="-6" y2="-40" stroke="url(#accent2)" stroke-width="1.5" opacity="0.4"/>
-    <line x1="6" y1="-40" x2="34" y2="-40" stroke="url(#accent2)" stroke-width="1.5" opacity="0.3"/>
-    <line x1="-40" y1="-32" x2="-40" y2="-6" stroke="url(#accent2)" stroke-width="1.5" opacity="0.4"/>
-    <circle cx="0" cy="0" r="3" fill="#fff" opacity="0.9"/>
+  <!-- Center: title + subtitle -->
+  <text x="300" y="172" font-size="52" font-weight="800" fill="url(#title)" letter-spacing="-0.5">Roblox Studio MCP</text>
+  <text x="302" y="208" font-size="19" font-weight="500" fill="#aab4d4">Drive Roblox Studio from Claude Code, Codex, Cursor &amp; AI agents</text>
+
+  <!-- Center-bottom: capability chips -->
+  <g font-size="13" font-weight="600" fill="#c7d2fe">
+    <g transform="translate(300,236)">
+      <rect x="0" y="0" width="118" height="26" rx="13" fill="#ffffff" opacity="0.06"/>
+      <rect x="0" y="0" width="118" height="26" rx="13" fill="none" stroke="#6366f1" stroke-opacity="0.5"/>
+      <text x="59" y="17" text-anchor="middle">132 tools</text>
+    </g>
+    <g transform="translate(426,236)">
+      <rect x="0" y="0" width="150" height="26" rx="13" fill="#ffffff" opacity="0.06"/>
+      <rect x="0" y="0" width="150" height="26" rx="13" fill="none" stroke="#6366f1" stroke-opacity="0.5"/>
+      <text x="75" y="17" text-anchor="middle">lazy discovery</text>
+    </g>
+    <g transform="translate(584,236)">
+      <rect x="0" y="0" width="190" height="26" rx="13" fill="#ffffff" opacity="0.06"/>
+      <rect x="0" y="0" width="190" height="26" rx="13" fill="none" stroke="#22d3ee" stroke-opacity="0.45"/>
+      <text x="95" y="17" text-anchor="middle">runtime episodes + resources</text>
+    </g>
   </g>
 
-  <!-- Center: title and subtitle -->
-  <text x="440" y="180" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="#e2e8f0">Roblox Studio MCP</text>
-  <text x="440" y="225" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="400" fill="#94a3b8">Control Roblox Studio from Claude Code, Codex, Cursor &amp; AI agents</text>
+  <!-- Right: architecture flow -->
+  <g transform="translate(1018,116)" font-size="13" text-anchor="middle">
+    <g filter="url(#soft)">
+      <rect x="-86" y="-6" width="172" height="44" rx="10" fill="#2a2f52"/>
+    </g>
+    <text x="0" y="21" fill="#c7d2fe" font-weight="600">AI Agent</text>
 
-  <!-- Right: architecture flow arrows -->
-  <g transform="translate(900,200)">
-    <!-- Agent block -->
-    <rect x="-80" y="-60" width="160" height="40" rx="6" fill="#334155" opacity="0.8"/>
-    <text x="0" y="-33" font-family="system-ui, sans-serif" font-size="12" fill="#94a3b8" text-anchor="middle">AI Agent</text>
-    <!-- Arrow down -->
-    <line x1="0" y1="-20" x2="0" y2="0" stroke="#6366f1" stroke-width="2"/>
-    <polygon points="-5,0 5,0 0,6" fill="#6366f1"/>
-    <!-- MCP block -->
-    <rect x="-80" y="0" width="160" height="40" rx="6" fill="#6366f1" opacity="0.8"/>
-    <text x="0" y="27" font-family="system-ui, sans-serif" font-size="12" fill="#fff" text-anchor="middle" font-weight="600">MCP Server</text>
-    <!-- Arrow down -->
-    <line x1="0" y1="40" x2="0" y2="60" stroke="#22d3ee" stroke-width="2"/>
-    <polygon points="-5,60 5,60 0,66" fill="#22d3ee"/>
-    <!-- Studio block -->
-    <rect x="-80" y="60" width="160" height="40" rx="6" fill="#22d3ee" opacity="0.8"/>
-    <text x="0" y="87" font-family="system-ui, sans-serif" font-size="12" fill="#0f172a" text-anchor="middle" font-weight="600">Roblox Studio</text>
+    <line x1="0" y1="44" x2="0" y2="66" stroke="#818cf8" stroke-width="2.5"/>
+    <polygon points="-6,66 6,66 0,74" fill="#818cf8"/>
+
+    <g filter="url(#soft)">
+      <rect x="-86" y="74" width="172" height="44" rx="10" fill="#4f46e5"/>
+    </g>
+    <text x="0" y="101" fill="#ffffff" font-weight="700">MCP Server</text>
+
+    <line x1="0" y1="124" x2="0" y2="146" stroke="#22d3ee" stroke-width="2.5"/>
+    <polygon points="-6,146 6,146 0,154" fill="#22d3ee"/>
+
+    <g filter="url(#soft)">
+      <rect x="-86" y="154" width="172" height="44" rx="10" fill="#22d3ee"/>
+    </g>
+    <text x="0" y="181" fill="#08233a" font-weight="700">Roblox Studio</text>
   </g>
 
   <!-- Bottom tagline -->
-  <text x="600" y="360" font-family="system-ui, -apple-system, sans-serif" font-size="14" fill="#64748b" text-anchor="middle">Free · Open Source · MIT · Local-first · 130+ Tools</text>
+  <text x="600" y="372" font-size="14" font-weight="500" fill="#8a93b8" text-anchor="middle" letter-spacing="0.3">Free · Open Source · MIT · Local-first · stdio + HTTP</text>
 </svg>

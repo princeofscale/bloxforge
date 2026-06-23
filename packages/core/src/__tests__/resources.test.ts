@@ -1,4 +1,5 @@
 import { parseResourceUri, RESOURCE_LIST, RESOURCE_TEMPLATES } from '../resources.js';
+import { EpisodeStore } from '../tools/episode-store.js';
 
 describe('parseResourceUri', () => {
   it('parses the world snapshot URI with a view', () => {
@@ -16,10 +17,45 @@ describe('parseResourceUri', () => {
     expect(parseResourceUri('roblox://node/game.Workspace.My%20Model')).toEqual({ kind: 'node', path: 'game.Workspace.My Model' });
   });
 
+  it('parses playtest episode + episode-list + repro URIs', () => {
+    expect(parseResourceUri('roblox://playtest/episode/ep_abc')).toEqual({ kind: 'episode', id: 'ep_abc' });
+    expect(parseResourceUri('roblox://playtest/episodes')).toEqual({ kind: 'episodes' });
+    expect(parseResourceUri('roblox://repro/bundle')).toEqual({ kind: 'repro' });
+  });
+
   it('returns unknown for foreign or malformed URIs', () => {
     expect(parseResourceUri('https://example.com').kind).toBe('unknown');
     expect(parseResourceUri('roblox://nope/thing').kind).toBe('unknown');
     expect(parseResourceUri('not a uri').kind).toBe('unknown');
+  });
+});
+
+describe('EpisodeStore', () => {
+  it('stores, retrieves, and lists newest-first', () => {
+    const store = new EpisodeStore();
+    store.add({ episodeId: 'ep_1', createdAt: 1, verdict: 'fail', mode: 'play' });
+    store.add({ episodeId: 'ep_2', createdAt: 2, verdict: 'pass', mode: 'play' });
+    expect(store.get('ep_1')?.verdict).toBe('fail');
+    expect(store.list().map((r) => r.episodeId)).toEqual(['ep_2', 'ep_1']);
+  });
+
+  it('caps the ring buffer and evicts oldest', () => {
+    const store = new EpisodeStore(2);
+    store.add({ episodeId: 'a', createdAt: 1 });
+    store.add({ episodeId: 'b', createdAt: 2 });
+    store.add({ episodeId: 'c', createdAt: 3 });
+    expect(store.get('a')).toBeUndefined();
+    expect(store.list().map((r) => r.episodeId)).toEqual(['c', 'b']);
+  });
+
+  it('notifies listeners on add and supports unsubscribe', () => {
+    const store = new EpisodeStore();
+    const seen: string[] = [];
+    const remove = store.addListener((id) => seen.push(id));
+    store.add({ episodeId: 'ep_x', createdAt: 1 });
+    remove();
+    store.add({ episodeId: 'ep_y', createdAt: 2 });
+    expect(seen).toEqual(['ep_x']);
   });
 });
 

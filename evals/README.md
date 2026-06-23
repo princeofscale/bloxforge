@@ -5,14 +5,38 @@ across three layers (per the research review): **bootstrap cost**, **trajectory
 quality**, and **end-to-end task success**. Lets you A/B `upfront` vs `lazy` tool
 loading on a fixed benchmark and gate CI on regressions.
 
+> **What this harness is — and isn't.** The only available model is
+> `deepseek-v4-flash`: a weak, **non-caching** model. So treat it as a **differential
+> regression gate**, not an absolute-quality oracle. It reliably measures *deltas of one
+> model against itself* across a design change — tool-call count, invalid-call rate,
+> `recoveryCostAfterFirstError`, recall — where model strength cancels out. It does **not**
+> give success rates that transfer to a strong model (Claude/Cursor), nor real caching
+> economics (`warmBootstrapTax` only lights up if a caching model is ever wired). For
+> strong-model quality, **dogfood live in Claude Code** — that's the real-model signal a
+> flash eval can't provide. Don't over-read flash's absolute numbers.
+
 ## Pieces
 
-- `metrics.ts` — pure metrics over a recorded run trace: `bootstrapTax` (tokens before
-  the first world read), `scoreTrajectory` (tool-selection precision/recall,
-  unnecessary calls, invalid-call rate), `successPer1kInputTokens`.
+- `metrics.ts` — pure metrics over a recorded run trace: `bootstrapTax` (raw input
+  tokens before the first real, non-meta tool call), `scoreTrajectory` (tool-selection
+  precision/recall, unnecessary calls, invalid-call rate), `successPer1kInputTokens`,
+  plus a **caching-aware** set so an A/B isn't biased by whether the model caches:
+  `effectivePaidInput` (cache-weighted cost — reads 0.1×, 5-min writes 1.25× base;
+  equals raw input for a non-caching provider like deepseek), `warmBootstrapTax`
+  (bootstrap tax in effective-paid tokens — the recurring per-task discovery cost a
+  warm-cache client actually sees), `firstValidActionTokens` (tokens until the first
+  non-error real action — stricter than bootstrap, which stops at the first real call
+  even if it errors), and `recoveryCostAfterFirstError` (tokens burned after the first
+  errored call — flags brittle handling / weak-model thrashing). Each mode's summary
+  prints all of these.
 - `harness.ts` — `runSuite` + the `McpHarnessAdapter` interface and the CI `evaluateGates`
   (success must not drop > N pp; bootstrap tax must drop ≥ M%).
-- `cases/*.json` — the benchmark task set (discovery / trajectory / e2e buckets).
+- `cases/*.json` — the benchmark task set. The runner loads **every** bucket in this
+  directory (discovery, marketplace, mutation, runtime, scene, scene_semantic) and tags
+  each case with its bucket so the report breaks results down per bucket.
+  `scene_semantic.json` describes targets by behaviour, not name (e.g. "the part players
+  touch to win") — a low success / recall there is the **data-gated trigger to revisit
+  embedding-based scene search (Track H)**, since it means lexical `scene_search` misses.
 - `selfcheck.ts` — deterministic check of the graders (no model). `npx tsx evals/selfcheck.ts`.
 
 ## Running it
@@ -43,6 +67,12 @@ Knobs (env):
 - `OPENMODEL_BASE_URL` / `ANTHROPIC_BASE_URL` — override the API base URL.
 - `EVAL_REQUEST_DELAY_MS` — fixed delay before each model call (default `2000` for
   OpenModel to respect its per-user rate limit, `0` for Anthropic).
+- `EVAL_MAX_ITERATIONS` — agent-loop cap per task (default `20`). Weak free models
+  thrash and need headroom or capability shows up as a false FAIL.
+- `EVAL_REPEATS` — run each mode N times and gate on the **median** (default `1`).
+  Use ≥3 for a decision-grade verdict so one noisy draw doesn't decide the gate.
+- `EVAL_STUDIO_TIMEOUT_MS` — how long each server start waits for the Studio plugin
+  to (re)connect before aborting (default `30000`).
 
 `ClaudeMcpAdapter` spawns the MCP server over stdio (`ROBLOX_MCP_LAZY_TOOLS` per
 mode), lists its tools, runs a manual tool-use loop against the configured model,
@@ -54,6 +84,26 @@ replayed history and retries 429s with backoff (`maxRetries`, default 8).
 > Don't run it while another MCP client (e.g. an active Claude Code / Cursor session)
 > already holds the bridge — the spawned server falls back to proxy mode and can't
 > reach Studio. Close other MCP clients first, or run evals from a clean shell.
+
+On each server (re)start the harness **waits for the Studio plugin to connect**
+(polling `get_connected_instances`, up to `EVAL_STUDIO_TIMEOUT_MS`, default 30s) and
+aborts with an actionable message if it never does — so you never burn a full run
+against a cold or proxy-mode bridge. The plugin long-polls on an interval, so after a
+server respawn it takes a few seconds to (re)register; that's what the wait covers.
+Progress is logged live — server spawn, tool count, the Studio instances seen, per-case
+`running…`/`PASS|FAIL`, and each tool call — and each mode prints a **per-bucket**
+success + mean-recall breakdown.
+
+> **Primary vs proxy:** only one MCP server can own port 58741 (the Studio bridge) at a
+> time. If you see `entering proxy mode` in the logs, another server (a Claude Code /
+> Cursor session, or a leftover process) holds it and tool calls will fail — close it so
+> the eval run is the **primary**. After the old primary dies, give the plugin a few
+> seconds to reconnect to the new one (the wait above handles this).
+
+The benchmark cases are place-dependent (they ask about a door system, a finish
+line, damage scripts…). Run them against a reasonably populated place — a game
+template or a real project — not an empty baseplate, or most cases fail for lack of
+content rather than a real tool/recall gap.
 
 ## Wiring a different model
 

@@ -7,6 +7,8 @@ import {
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
   ReadResourceRequestSchema,
+  SubscribeRequestSchema,
+  UnsubscribeRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import http from 'http';
@@ -36,9 +38,15 @@ export class RobloxStudioMCPServer {
   private bridge: BridgeService;
   private allowedToolNames: Set<string>;
   private config: ServerConfig;
-  // Lazy tool loading (opt-in via ROBLOX_MCP_LAZY_TOOLS): when on, ListTools
-  // advertises only the always-on core + meta tools plus any domains the agent
-  // has pulled in via load_toolset, instead of all ~130 schemas upfront.
+  // URIs the client has subscribed to (resources/subscribe) — drives which
+  // resources/updated notifications we push. Track G3.
+  private subscribedUris = new Set<string>();
+  // Lazy tool loading (default ON; opt out via ROBLOX_MCP_LAZY_TOOLS=0): when on,
+  // ListTools advertises only the always-on core + meta tools plus any domains the
+  // agent has pulled in via load_toolset, instead of all ~130 schemas upfront.
+  // Default flipped to lazy after a decision-grade eval (median of 3): −67%
+  // bootstrap tax at success parity. Set the flag to 0/false/off for the old
+  // upfront behaviour.
   private lazyTools: boolean;
   private activeToolNames: Set<string>;
   private registry: ToolRegistry;
@@ -47,8 +55,9 @@ export class RobloxStudioMCPServer {
     this.config = config;
     this.allowedToolNames = new Set(config.tools.map(t => t.name));
 
+    // Default ON: lazy unless explicitly disabled. Unset => lazy.
     const flag = (process.env.ROBLOX_MCP_LAZY_TOOLS ?? '').toLowerCase();
-    this.lazyTools = flag === '1' || flag === 'true' || flag === 'on';
+    this.lazyTools = !(flag === '0' || flag === 'false' || flag === 'off');
     // Start with the always-on core + the meta tools (which live in CORE_TOOLS).
     this.activeToolNames = new Set(CORE_TOOLS);
 
@@ -60,7 +69,7 @@ export class RobloxStudioMCPServer {
       {
         capabilities: {
           tools: this.lazyTools ? { listChanged: true } : {},
-          resources: {},
+          resources: { subscribe: true, listChanged: true },
         },
         instructions: SERVER_INSTRUCTIONS,
       }
@@ -98,6 +107,26 @@ export class RobloxStudioMCPServer {
         return await readResource(this.tools, request.params.uri);
       } catch (error) {
         throw new McpError(ErrorCode.InvalidParams, error instanceof Error ? error.message : String(error));
+      }
+    });
+
+    // Resource subscriptions: a client subscribes to an episode (or the episode
+    // list); when run_playtest_episode stores a new one we push resources/updated
+    // so the agent can react without polling. Track G3.
+    this.server.setRequestHandler(SubscribeRequestSchema, async (request) => {
+      this.subscribedUris.add(request.params.uri);
+      return {};
+    });
+    this.server.setRequestHandler(UnsubscribeRequestSchema, async (request) => {
+      this.subscribedUris.delete(request.params.uri);
+      return {};
+    });
+    this.tools.getEpisodeStore().addListener((episodeId) => {
+      // The episode list always changed; an episode URI updates only if subscribed.
+      void this.server.sendResourceListChanged();
+      const episodeUri = `roblox://playtest/episode/${episodeId}`;
+      for (const uri of [episodeUri, 'roblox://playtest/episodes']) {
+        if (this.subscribedUris.has(uri)) void this.server.sendResourceUpdated({ uri });
       }
     });
 

@@ -7,6 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-06-23
+
+- **Track D — runtime episode loop, full.** Playtest episodes are now a first-class,
+  addressable, comparable unit: `run_playtest_episode` persists each result in a capped
+  in-memory store and returns an `episodeUri`; they're readable as resources
+  (`roblox://playtest/episode/{id}` and the newest-first index `roblox://playtest/episodes`).
+  New `summarize_episode` distills a stored episode (verdict, failed assertions, top error
+  lines, implicated scripts, suggested next step) and — given `comparedToEpisodeId` — reports
+  `fixed=true` on a fail→pass transition, so the agent can PROVE a fix across turns. (An
+  autonomous `fix_from_episode` is intentionally not built — the MCP has no LLM; the loop is
+  run → summarize/compare → agent edits with existing tools → re-run.)
+- **Track G — reliability surface, full.**
+  - **Evented resources / subscriptions (G3):** both transports advertise
+    `resources: { subscribe: true, listChanged: true }`. On stdio, subscribing to an episode
+    (or the episode list) gets `notifications/resources/updated` + `list_changed` pushed when
+    a new episode is stored — no polling. Streamable HTTP accepts subscribe/unsubscribe for
+    conformance but is stateless, so it can't push (documented).
+  - **Tool-risk annotations (G4):** every tool advertises MCP `annotations` derived from its
+    category + explicit sets — `readOnlyHint` (read vs write), `destructiveHint` (delete/clear/
+    overwrite/bulk/import/reset), `openWorldHint` (marketplace/asset/image services) — so hosts
+    can auto-approve reads and confirm destructive writes.
+  - **Reproduction bundle (G2):** `get_reproduction_bundle` (+ `roblox://repro/bundle`) captures
+    a point-in-time audit in one call — connected places, world overview, recent mutating
+    operations, and stored episodes — for hand-off, auditing an agent run, or before/after deltas.
+  - **Multi-place routing + conformance (G1):** documented the existing `instance_id` routing
+    (required only when >1 place is connected; failures return the instance list) and the full
+    capability/host matrix in `docs/host-conformance.md`.
+- **`playtest_sample_state` `world` domain de-noised** — it walked every `ValueBase`
+  under Workspace/ReplicatedStorage/ServerStorage (cap 100), so a spawned player
+  character flooded the result with ~100 rig-internal values (`*.OriginalPosition`,
+  `*.OriginalSize`, `Animate.*` string values) — pure engine noise that also crowded out
+  real game state before the cap. Now skips `ValueBase`s inside a player's character
+  (`Players:GetPlayerFromCharacter` on the nearest Model ancestor). Found via live
+  dogfooding the `run_playtest_episode` flow on a real place.
+- **`run_playtest_episode`** (research round-5, Track D) — one-shot runtime episode that
+  starts a playtest, lets it run briefly (`durationS`, default 3s, max 30), gathers the
+  evidence an agent needs (runtime error/warning counts + entries, optional gameplay
+  `assertions`, an optional `sampleDomains` state sample), stops the playtest, and returns
+  a single object with a **pass/fail/error verdict** (fail on any failed assertion or
+  logged runtime error). Collapses the start_playtest → sample/assert/logs → stop_playtest
+  loop into one call so an agent can drive an edit→playtest→observe→assert→fix cycle without
+  hand-orchestrating the lifecycle. Composes the existing playtest primitives — no new
+  plugin endpoint. Added eval case `runtime.episode_verdict` (accepts the one-shot or the
+  hand-looped path) to measure the call-count delta. **ponytail:** returns the episode
+  inline — the MCP resource plane (`roblox://playtest/episode/{id}`) and replay/
+  fix_from_episode are deferred until dogfooding asks for them.
+- **`plan_asset_insert`** (research round-5, Track E) — one-shot asset discovery that
+  marketplace-searches a keyword, runs the authoritative insertability preflight on the
+  top N candidates in a single batched call, and returns a ranked, vetted plan
+  (insertable + free + script-free first, with per-candidate warnings). Collapses the
+  search→preflight→search round-trip churn the eval flagged on asset-heavy builds into
+  one call; the agent then inserts the recommended id with `insert_asset`. Added an eval
+  case (`marketplace.plan_then_insert_vetted`) that accepts either the one-shot path or
+  the old hand-looped path, so the tool-call-count delta is measurable. Plan-only by
+  design — a batch-transactional `apply_asset_plan` is deferred until dogfooding shows
+  demand (single `insert_asset` covers the common case).
+- **Caching-aware eval metrics** (research round-5, Track B). The raw `bootstrapTax` /
+  success-per-1k numbers over-state discovery cost for a prompt-caching client (Claude)
+  and can't be compared cleanly against a non-caching one (deepseek). Added four
+  trace-derived companions in `evals/metrics.ts`: `effectivePaidInput` (cache-weighted —
+  reads 0.1×, 5-min writes 1.25× base; equals raw input when the provider doesn't cache),
+  `warmBootstrapTax` (bootstrap tax in effective-paid tokens — the recurring per-task
+  discovery cost a warm-cache client sees), `firstValidActionTokens` (tokens to the first
+  non-error real action), and `recoveryCostAfterFirstError` (tokens burned after the first
+  errored call — flags thrashing). The adapter now records the cache read/write token
+  split per turn; each mode's summary prints all four; selfcheck covers them (12 graders).
+- **Lazy tool loading is now the default.** `ROBLOX_MCP_LAZY_TOOLS` flipped from
+  opt-in to opt-out: unset => lazy; set `0`/`false`/`off` for the old upfront
+  behaviour. Based on a decision-grade eval (OpenModel deepseek-v4-flash, median of
+  3): lazy cut bootstrap tax −67% (31.8k → 10.6k input tokens) at **success parity**
+  (84% vs 84%) and 2.5× success-per-1k-input. Upfront is kept behind the flag (strong
+  models may still prefer seeing all schemas at once; the A/B harness needs both paths).
+- Extracted `RuntimeTools` (`tools/runtime-tools.ts`, 1828 lines) — the final and
+  most stateful domain split out of the `RobloxStudioTools` facade. Moves the
+  runtime/playtest/eval/simulation surface: `execute_luau` (+async/job polling),
+  `eval_*`, network + device-simulator state, runtime logs, script profiler,
+  breakpoints, single- + multi-client playtest lifecycle, undo/redo, synthetic
+  input, character navigation, screenshot/device-matrix capture, and the
+  playtest-telemetry / gameplay-assertion QA primitives, plus all their private
+  peer-routing/wait-loop/image-capture helpers. `_safetyGate` + `_runGeneratedLuau`
+  stay in the facade (shared with other domains) and the gate + `recordOperation`
+  are injected. Facade methods keep identical public signatures; `index.ts` −1685
+  lines. All 419 tests green.
+- Made the `evals/` harness decision-grade: the runner now loads **every** `cases/*.json`
+  bucket (was only `discovery.json` — 3 of 19 cases) and tags each case with its bucket;
+  each mode prints a per-bucket success + mean-recall breakdown. Added a `scene_semantic`
+  bucket (targets described by behaviour, not name) whose recall is the data-gated trigger
+  to revisit embedding-based scene search (Track H).
+- Made the eval numbers decision-grade after the first full 19-case run exposed three
+  issues: (1) **fixed the `bootstrapTax` metric** — its boundary was "first world read",
+  so tasks that never do one (marketplace inserts, grep-only scene search) mis-summed the
+  *entire* run (500k+ tokens) and corrupted the mean; the boundary is now the first *real*
+  (non-discovery) tool call, with `tool_catalog_search`/`load_toolset` counted as bootstrap.
+  (2) **`EVAL_MAX_ITERATIONS`** (default raised 14→20) so a weak free model's thrashing
+  isn't scored as a false FAIL. (3) **`EVAL_REPEATS`** — run each mode N times and gate on
+  the across-repeat **median**, so one noisy draw doesn't decide the outcome.
+- Added eval-run observability: on each server (re)start the harness now **waits for the
+  Studio plugin to (re)connect** (polls `get_connected_instances` up to
+  `EVAL_STUDIO_TIMEOUT_MS`, default 30s) and aborts with an actionable message — fixing a
+  false "no Studio connected" when the plugin hadn't finished re-registering with the new
+  primary server yet. Plus live progress logs (server spawn, advertised tool count, Studio
+  instances seen, per-case `running…`/`PASS|FAIL` with recall/calls/bootstrap, each tool
+  call), and the spawned server's stderr is inherited so its bridge/proxy-mode logs are
+  visible.
+- Removed stale top-level docs (`SUPPORT.md`, `docs/safety.md`, `docs/roadmap.md`,
+  `docs/troubleshooting.md`, `docs/marketing-checklist.md`); untracked the local-only
+  `docs/superpowers/` artifact (already gitignored).
 - Moved `data/logo.png` and `data/banner.png` to `assets/`; updated README references.
 - Added `.superpowers/` to `.gitignore`.
 - Added CHANGELOG reminder to CLAUDE.md.

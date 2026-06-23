@@ -6,7 +6,15 @@
 // Wire an adapter, then: `tsx evals/harness.ts` (or import runSuite from your runner).
 
 import type { RunMetrics, TraceEvent, TrajectoryScores } from './metrics.js';
-import { bootstrapTax, scoreTrajectory, successPer1kInputTokens } from './metrics.js';
+import {
+  bootstrapTax,
+  warmBootstrapTax,
+  effectivePaidInput,
+  firstValidActionTokens,
+  recoveryCostAfterFirstError,
+  scoreTrajectory,
+  successPer1kInputTokens,
+} from './metrics.js';
 
 export type HarnessMode = 'upfront' | 'lazy';
 
@@ -19,6 +27,8 @@ export interface EvalCase {
   gold_tools_any_of: string[][];
   must_contain_facts?: string[];
   grade_type: 'trajectory' | 'answer' | 'trajectory+answer';
+  /** Source bucket file (set by the runner's loader; used for per-bucket reporting). */
+  bucket?: string;
 }
 
 export interface RunResult {
@@ -36,9 +46,14 @@ export interface McpHarnessAdapter {
 
 export interface CaseReport {
   id: string;
+  bucket?: string;
   mode: HarnessMode;
   success: boolean;
   bootstrapTax: number;
+  warmBootstrapTax: number;
+  effectivePaidInput: number;
+  firstValidActionTokens: number;
+  recoveryCostAfterFirstError: number;
   scores: TrajectoryScores;
   metrics: RunMetrics;
 }
@@ -49,24 +64,49 @@ export interface SuiteReport {
   successRate: number;
   successPer1kInputTokens: number;
   meanBootstrapTax: number;
+  // Caching-aware companions (equal the raw numbers for a non-caching provider):
+  meanWarmBootstrapTax: number;
+  meanEffectivePaidInput: number;
+  meanFirstValidActionTokens: number;
+  meanRecoveryCostAfterFirstError: number;
 }
 
 export async function runSuite(adapter: McpHarnessAdapter, cases: EvalCase[], mode: HarnessMode): Promise<SuiteReport> {
   await adapter.startServer(mode);
   const reports: CaseReport[] = [];
   try {
+    let i = 0;
     for (const c of cases) {
+      i += 1;
+      console.log(`  [${mode}] ${i}/${cases.length} ${c.id} — running…`);
       const res = await adapter.runTask(c);
+      const scores = scoreTrajectory(res.trace, {
+        goldToolsAnyOf: c.gold_tools_any_of,
+        allowedTools: c.allowedTools,
+        forbiddenTools: c.forbiddenTools,
+      });
+      const tax = bootstrapTax(res.trace);
+      const warmTax = warmBootstrapTax(res.trace);
+      const effPaid = effectivePaidInput(res.trace);
+      const firstValid = firstValidActionTokens(res.trace);
+      const recovery = recoveryCostAfterFirstError(res.trace);
+      console.log(
+        `  [${mode}] ${i}/${cases.length} ${c.id} — ${res.metrics.success ? 'PASS' : 'FAIL'}` +
+          ` (recall ${(scores.toolSelectionRecall * 100).toFixed(0)}%,` +
+          ` ${res.metrics.toolCalls} calls, ${res.metrics.invalidToolCalls} invalid,` +
+          ` bootstrap ${tax} tok)`,
+      );
       reports.push({
         id: c.id,
+        bucket: c.bucket,
         mode,
         success: res.metrics.success,
-        bootstrapTax: bootstrapTax(res.trace),
-        scores: scoreTrajectory(res.trace, {
-          goldToolsAnyOf: c.gold_tools_any_of,
-          allowedTools: c.allowedTools,
-          forbiddenTools: c.forbiddenTools,
-        }),
+        bootstrapTax: tax,
+        warmBootstrapTax: warmTax,
+        effectivePaidInput: effPaid,
+        firstValidActionTokens: firstValid,
+        recoveryCostAfterFirstError: recovery,
+        scores,
         metrics: res.metrics,
       });
     }
@@ -74,12 +114,18 @@ export async function runSuite(adapter: McpHarnessAdapter, cases: EvalCase[], mo
     await adapter.stopServer();
   }
   const metrics = reports.map((r) => r.metrics);
+  const mean = (pick: (r: CaseReport) => number) =>
+    reports.length === 0 ? 0 : reports.reduce((s, r) => s + pick(r), 0) / reports.length;
   return {
     mode,
     cases: reports,
     successRate: reports.length === 0 ? 0 : reports.filter((r) => r.success).length / reports.length,
     successPer1kInputTokens: successPer1kInputTokens(metrics),
-    meanBootstrapTax: reports.length === 0 ? 0 : reports.reduce((s, r) => s + r.bootstrapTax, 0) / reports.length,
+    meanBootstrapTax: mean((r) => r.bootstrapTax),
+    meanWarmBootstrapTax: mean((r) => r.warmBootstrapTax),
+    meanEffectivePaidInput: mean((r) => r.effectivePaidInput),
+    meanFirstValidActionTokens: mean((r) => r.firstValidActionTokens),
+    meanRecoveryCostAfterFirstError: mean((r) => r.recoveryCostAfterFirstError),
   };
 }
 

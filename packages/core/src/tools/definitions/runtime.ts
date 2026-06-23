@@ -707,4 +707,71 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['assertions']
     }
   },
+  {
+    name: 'run_playtest_episode',
+    category: 'write',
+    description: 'One-shot runtime episode: start a playtest, let it run briefly, then gather the evidence an agent needs to reason about behaviour — runtime logs (error/warning counts + entries), optional gameplay assertions, an optional live state sample — and stop the playtest, returning a single episode object with a pass/fail verdict. Collapses the start_playtest → (sample/assert/logs) → stop_playtest loop into one call so the agent can drive an edit→playtest→observe→assert→fix cycle without hand-orchestrating the lifecycle. Verdict is "fail" if any assertion fails or runtime errors are logged, "error" if the playtest never reaches a ready runtime.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          enum: ['play', 'run'],
+          description: 'Playtest mode (default "play").'
+        },
+        assertions: {
+          type: 'array',
+          description: 'Optional named boolean checks to evaluate live during the episode (same shape as run_gameplay_assertions).',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Human-readable assertion name.' },
+              expr: { type: 'string', description: 'Luau expression that should evaluate truthy.' }
+            },
+            required: ['name', 'expr']
+          }
+        },
+        sampleDomains: {
+          type: 'array',
+          description: 'Optional telemetry domains to sample once during the episode (e.g. "players", "world", "audio"). Omit to skip the state sample.',
+          items: { type: 'string' }
+        },
+        durationS: {
+          type: 'number',
+          description: 'How long to let the game run before sampling/stopping, in seconds (default 3, max 30).'
+        },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      }
+    }
+  },
+  {
+    name: 'summarize_episode',
+    category: 'read',
+    description: 'Distill a stored playtest episode (from run_playtest_episode) into the few facts that matter — verdict, failed assertions, the top error lines, the scripts those errors implicate, and a suggested next step — without re-running it. Pass comparedToEpisodeId of an earlier (failing) episode to PROVE a fix: it reports fixed=true on a fail→pass transition. Episodes are also readable as resources at roblox://playtest/episode/{id}.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        episodeId: {
+          type: 'string',
+          description: 'The episodeId returned by run_playtest_episode.'
+        },
+        comparedToEpisodeId: {
+          type: 'string',
+          description: 'Optional earlier episodeId to diff against (e.g. the failing run before your fix) to prove fail→pass.'
+        }
+      },
+      required: ['episodeId']
+    }
+  },
+  {
+    name: 'get_reproduction_bundle',
+    category: 'read',
+    description: 'Capture a point-in-time reproduction/audit bundle in one call: connected Studio places, a world overview snapshot, the recent mutating-operation history, and the stored playtest episodes. Use it to answer "what state is this place in and how did it get here" — for handing off, auditing an agent run, or pairing with get_changes_since for before/after deltas. Also readable as a resource at roblox://repro/bundle.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      }
+    }
+  },
 ];

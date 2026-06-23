@@ -35,5 +35,17 @@
     "must_contain_facts": ["insertability", "scripts"],
     "forbiddenTools": ["insert_asset", "marketplace_search_and_insert"],
     "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "marketplace.plan_then_insert_vetted",
+    "prompt": "Find a free, script-free low-poly rock in the marketplace, vet that it can actually be inserted, then insert the best vetted candidate into Workspace.",
+    "allowed_domains": ["core", "assets"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "plan_asset_insert", "marketplace_search", "asset_preflight_insert", "insert_asset"],
+    "gold_tools_any_of": [
+      ["plan_asset_insert", "insert_asset"],
+      ["marketplace_search", "asset_preflight_insert", "insert_asset"]
+    ],
+    "must_contain_facts": ["asset id", "inserted"],
+    "grade_type": "trajectory"
   }
 ]

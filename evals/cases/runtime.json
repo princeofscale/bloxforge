@@ -35,5 +35,18 @@
     "must_contain_facts": ["error", "warning"],
     "forbiddenTools": ["execute_luau"],
     "grade_type": "trajectory+answer"
+  },
+  {
+    "id": "runtime.episode_verdict",
+    "prompt": "Run a playtest episode to check whether the game starts cleanly: play for a few seconds, collect any runtime errors, and report a pass/fail verdict. Stop the playtest when done.",
+    "allowed_domains": ["core", "runtime"],
+    "allowedTools": ["tool_catalog_search", "load_toolset", "run_playtest_episode", "start_playtest", "get_runtime_logs", "stop_playtest"],
+    "gold_tools_any_of": [
+      ["run_playtest_episode"],
+      ["start_playtest", "get_runtime_logs", "stop_playtest"]
+    ],
+    "must_contain_facts": ["verdict", "error"],
+    "forbiddenTools": ["execute_luau"],
+    "grade_type": "trajectory+answer"
   }
 ]

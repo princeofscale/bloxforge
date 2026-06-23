@@ -40,6 +40,7 @@
         "packages/core/src/marketplace-client.ts",
         "packages/core/src/image-client.ts",
         "packages/core/src/tools/asset-tools.ts",
+        "packages/core/src/tools/runtime-tools.ts",
         "packages/core/src/tools/setup-registry.ts"
       ],
       "rules": {
