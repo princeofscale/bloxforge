@@ -10,7 +10,9 @@ export interface TraceEvent {
   name?: string;
   args?: unknown;
   resultSummary?: unknown;
-  tokensIn?: number;
+  tokensIn?: number; // total input tokens for this model turn (incl. cache read+write)
+  cacheReadIn?: number; // of tokensIn, how many were served from prompt cache
+  cacheWriteIn?: number; // of tokensIn, how many were written to prompt cache
   tokensOut?: number;
   isError?: boolean;
 }
@@ -36,20 +38,88 @@ export interface TrajectoryScores {
   invalidCallRate: number;
 }
 
-const firstWorldReadTools = new Set([
-  'get_world_snapshot',
-  'get_scene_summary',
-  'get_node_batch',
-  'get_instance_children',
-  'get_descendants',
-]);
+// Discovery/meta tools are not "real work" — in lazy mode the agent calls these
+// to find + load the toolset before doing anything useful, so they belong to the
+// bootstrap window, not after it.
+const bootstrapMetaTools = new Set(['tool_catalog_search', 'load_toolset']);
 
-/** Tokens spent before the first real world read — what lazy loading should cut. */
+/**
+ * Tokens spent before the first *real* (non-discovery) tool call — the cost lazy
+ * loading trades against extra discovery round-trips. The boundary is the first
+ * tool call that isn't a meta tool (`tool_catalog_search` / `load_toolset`), so
+ * the meta turns count toward bootstrap but the first actual action ends it.
+ *
+ * This stays well-defined even for tasks that never do a "world read" (marketplace
+ * inserts, grep-only scene search) — the previous world-read-only boundary mis-summed
+ * those as the *entire* run, which dominated and corrupted the mean.
+ */
 export function bootstrapTax(trace: TraceEvent[]): number {
   let tokens = 0;
   for (const e of trace) {
     if (e.type === 'model') tokens += e.tokensIn ?? 0;
-    if (e.type === 'tool_call' && e.name && firstWorldReadTools.has(e.name)) break;
+    if (e.type === 'tool_call' && e.name && !bootstrapMetaTools.has(e.name)) break;
+  }
+  return tokens;
+}
+
+// Anthropic prompt-cache pricing multipliers vs base input (claude.com/pricing):
+// a cache *read* costs 0.1× base input, a 5-minute cache *write* 1.25×. Providers
+// without caching (e.g. deepseek-v4-flash) report zero cache tokens, so a warm-cache
+// model's *effective paid* input is far below its raw token count — and the raw-token
+// bootstrap tax over/under-states the real discovery cost for a caching client. These
+// metrics correct for that so an A/B isn't biased by whether the model caches.
+// ponytail: 5-minute write multiplier only; add the 1h tier (2×) if a case ever uses it.
+const CACHE_READ_MULT = 0.1;
+const CACHE_WRITE_MULT = 1.25;
+
+function effectivePaidForEvent(e: TraceEvent): number {
+  const total = e.tokensIn ?? 0;
+  const read = e.cacheReadIn ?? 0;
+  const write = e.cacheWriteIn ?? 0;
+  const base = Math.max(0, total - read - write);
+  return base + write * CACHE_WRITE_MULT + read * CACHE_READ_MULT;
+}
+
+/** Cache-weighted input cost across the whole run — what a caching client actually
+ *  pays. Equals raw cumulative input for a non-caching provider. */
+export function effectivePaidInput(trace: TraceEvent[]): number {
+  let tokens = 0;
+  for (const e of trace) if (e.type === 'model') tokens += effectivePaidForEvent(e);
+  return tokens;
+}
+
+/** Bootstrap tax measured in *effective paid* tokens — the recurring discovery cost a
+ *  warm-cache client sees per task once the tool prefix is cached. Same boundary as
+ *  bootstrapTax (first real, non-meta tool call). */
+export function warmBootstrapTax(trace: TraceEvent[]): number {
+  let tokens = 0;
+  for (const e of trace) {
+    if (e.type === 'model') tokens += effectivePaidForEvent(e);
+    if (e.type === 'tool_call' && e.name && !bootstrapMetaTools.has(e.name)) break;
+  }
+  return tokens;
+}
+
+/** Raw input tokens spent before the first *valid* (non-meta, non-error) real tool
+ *  call — i.e. how long until the agent does something useful that actually works.
+ *  Differs from bootstrapTax, which stops at the first real call even if it errors. */
+export function firstValidActionTokens(trace: TraceEvent[]): number {
+  let tokens = 0;
+  for (const e of trace) {
+    if (e.type === 'model') tokens += e.tokensIn ?? 0;
+    if (e.type === 'tool_call' && e.name && !bootstrapMetaTools.has(e.name) && !e.isError) break;
+  }
+  return tokens;
+}
+
+/** Raw input tokens spent *after* the first errored tool call — the cost of recovery
+ *  (or thrashing). A high value flags brittle error handling / weak-model flailing. */
+export function recoveryCostAfterFirstError(trace: TraceEvent[]): number {
+  let seenError = false;
+  let tokens = 0;
+  for (const e of trace) {
+    if (e.type === 'tool_call' && e.isError) seenError = true;
+    if (seenError && e.type === 'model') tokens += e.tokensIn ?? 0;
   }
   return tokens;
 }

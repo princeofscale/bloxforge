@@ -23,4 +23,5 @@ Then restart Cursor. The Roblox Studio tools appear in Cursor's MCP tool list.
 
 - Cursor's agent mode works well with multi-step Roblox workflows.
 - Use `tool_catalog_search` to discover the right tool without browsing the full list.
-- The `ROBLOX_MCP_LAZY_TOOLS=1` env var reduces the initial tool list, which helps Cursor load faster.
+- Lazy tool loading is on by default (smaller initial tool list, faster load). Set
+  `ROBLOX_MCP_LAZY_TOOLS=0` to advertise all tools upfront instead.

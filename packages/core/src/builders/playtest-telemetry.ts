@@ -53,13 +53,21 @@ end
 
 if ${mask('world')} then
 \t-- Named state held in ValueBase objects (round counters, flags, ids).
+\tlocal Players = game:GetService("Players")
 \tlocal values = {}
 \tlocal roots = { game:GetService("Workspace"), game:GetService("ReplicatedStorage"), game:GetService("ServerStorage") }
 \tfor _, root in ipairs(roots) do
 \t\tfor _, d in ipairs(root:GetDescendants()) do
 \t\t\tif d:IsA("ValueBase") and #values < 100 then
-\t\t\t\tlocal okv, v = pcall(function() return d.Value end)
-\t\t\t\tif okv then table.insert(values, { path = d:GetFullName(), class = d.ClassName, value = tostring(v) }) end
+\t\t\t\t-- Skip ValueBases inside a player's character (rig OriginalPosition/
+\t\t\t\t-- OriginalSize, Animate string values) — engine noise, not game state,
+\t\t\t\t-- and it floods the 100-cap before real state is reached.
+\t\t\t\tlocal charModel = d:FindFirstAncestorWhichIsA("Model")
+\t\t\t\tlocal inCharacter = charModel ~= nil and Players:GetPlayerFromCharacter(charModel) ~= nil
+\t\t\t\tif not inCharacter then
+\t\t\t\t\tlocal okv, v = pcall(function() return d.Value end)
+\t\t\t\t\tif okv then table.insert(values, { path = d:GetFullName(), class = d.ClassName, value = tostring(v) }) end
+\t\t\t\tend
 \t\t\tend
 \t\tend
 \tend

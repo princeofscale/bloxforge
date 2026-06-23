@@ -56,6 +56,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   export_rbxm: 'assets',
   import_scene: 'assets',
   asset_preflight_insert: 'assets',
+  plan_asset_insert: 'assets',
   list_library: 'assets',
   search_materials: 'assets',
   asset_apply_texture: 'media',
@@ -80,6 +81,9 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   cancel_job: 'runtime',
   playtest_sample_state: 'runtime',
   run_gameplay_assertions: 'runtime',
+  run_playtest_episode: 'runtime',
+  summarize_episode: 'runtime',
+  get_reproduction_bundle: 'runtime',
   // scene read
   compare_instances: 'scene',
   get_memory_breakdown: 'scene',

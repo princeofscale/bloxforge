@@ -207,4 +207,31 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['assetId']
     }
   },
+  {
+    name: 'plan_asset_insert',
+    category: 'read',
+    description: 'One-shot asset discovery: marketplace-search a keyword, run the authoritative insertability preflight (asset_preflight_insert) on the top candidates IN ONE BATCH, and return a ranked, vetted plan — insertable + free + script-free first, with per-candidate warnings (scripts, paid/copy-locked, preflight error). Collapses the search→preflight→search churn an agent otherwise does as many separate round-trips into a single call; then insert the recommended assetId with insert_asset. Use this instead of hand-looping marketplace_search + asset_preflight_insert.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        keyword: {
+          type: 'string',
+          description: 'What to search for, e.g. "low poly tree".'
+        },
+        category: {
+          type: 'string',
+          description: 'Marketplace category (Model, Decal, Audio, …). Defaults to Model.'
+        },
+        count: {
+          type: 'number',
+          description: 'How many top candidates to preflight (default 5, max 10).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      },
+      required: ['keyword']
+    }
+  },
 ];

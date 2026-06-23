@@ -78,6 +78,7 @@ describe('Tool schema compatibility', () => {
       name: 'example_no_output',
       description: 'Example without output schema.',
       inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
     });
 
     const withOutput = toolDefinitionToMcpTool({
@@ -100,7 +101,22 @@ describe('Tool schema compatibility', () => {
         properties: { ok: { type: 'boolean' } },
         required: ['ok'],
       },
+      annotations: { readOnlyHint: true },
     });
+  });
+
+  test('annotations: reads are readOnly, destructive writes flagged, marketplace is open-world', () => {
+    const byName = new Map(TOOL_DEFINITIONS.map((t) => [t.name, t]));
+    const ann = (name: string) => toolDefinitionToMcpTool(byName.get(name)!).annotations;
+    // A pure read.
+    expect(ann('get_world_snapshot')).toMatchObject({ readOnlyHint: true });
+    expect(ann('get_world_snapshot')).not.toHaveProperty('destructiveHint');
+    // A destructive write.
+    expect(ann('delete_object')).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    // A non-destructive write.
+    expect(ann('create_object')).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    // An external-service tool.
+    expect(ann('marketplace_search')).toMatchObject({ openWorldHint: true });
   });
 
   test('first-wave contracted tools advertise outputSchema from the central registry', () => {
@@ -156,6 +172,8 @@ describe('Tool schema compatibility', () => {
     'load_toolset',
     // Recipe listing is pure (server-side registry), not a Studio call.
     'list_recipes',
+    // Episode summary reads the in-memory episode store, not a Studio place.
+    'summarize_episode',
   ]);
 
   function toolHandlerBody(toolName: string): string {
@@ -258,6 +276,9 @@ describe('Tool schema compatibility', () => {
       capture_script_profiler: 'captureScriptProfiler',
       playtest_sample_state: 'playtestSampleState',
       run_gameplay_assertions: 'runGameplayAssertions',
+      run_playtest_episode: 'runPlaytestEpisode',
+      summarize_episode: 'summarizeEpisode',
+      get_reproduction_bundle: 'getReproductionBundle',
       breakpoints: 'breakpoints',
       export_build: 'exportBuild',
       import_build: 'importBuild',
@@ -314,6 +335,7 @@ describe('Tool schema compatibility', () => {
       sync_status: 'syncStatus',
       sync_push: 'syncPush',
       marketplace_search_and_insert: 'marketplaceSearchAndInsert',
+      plan_asset_insert: 'planAssetInsert',
       audio_create_sound: 'audioCreateSound',
       audio_play_sound: 'audioPlaySound',
       animation_create: 'animationCreate',

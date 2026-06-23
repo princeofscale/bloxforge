@@ -29,18 +29,34 @@ export const RESOURCE_LIST: ResourceDescriptor[] = [
     description: 'Capture a change-tracking baseline; read roblox://world/changes?since=<id> afterwards for the diff.',
     mimeType: 'application/json',
   },
+  {
+    uri: 'roblox://playtest/episodes',
+    name: 'Playtest episodes',
+    description: 'Newest-first index of recent run_playtest_episode results (id, verdict, mode, time).',
+    mimeType: 'application/json',
+  },
+  {
+    uri: 'roblox://repro/bundle',
+    name: 'Reproduction bundle',
+    description: 'Point-in-time audit bundle: connected places, world overview, recent operations, episodes.',
+    mimeType: 'application/json',
+  },
 ];
 
 export const RESOURCE_TEMPLATES = [
   { uriTemplate: 'roblox://world/snapshot{?view}', name: 'World snapshot', description: 'view=overview|standard', mimeType: 'application/json' },
   { uriTemplate: 'roblox://node/{path}', name: 'Node', description: 'Dot-path of an instance, e.g. game.Workspace.Map', mimeType: 'application/json' },
   { uriTemplate: 'roblox://world/changes{?since}', name: 'World changefeed', description: 'Omit `since` for a baseline; pass a prior snapshotId for the diff.', mimeType: 'application/json' },
+  { uriTemplate: 'roblox://playtest/episode/{id}', name: 'Playtest episode', description: 'A stored run_playtest_episode result by episodeId.', mimeType: 'application/json' },
 ];
 
 export type ParsedResource =
   | { kind: 'snapshot'; view: 'overview' | 'standard' }
   | { kind: 'node'; path: string }
   | { kind: 'changes'; since?: string }
+  | { kind: 'episode'; id: string }
+  | { kind: 'episodes' }
+  | { kind: 'repro' }
   | { kind: 'unknown' };
 
 /** Pure URI parser — maps a roblox:// URI to a resource descriptor. */
@@ -67,6 +83,15 @@ export function parseResourceUri(uri: string): ParsedResource {
     const path = decodeURIComponent(segments.slice(1).join('/'));
     return { kind: 'node', path };
   }
+  if (segments[0] === 'playtest' && segments[1] === 'episode' && segments.length >= 3) {
+    return { kind: 'episode', id: decodeURIComponent(segments.slice(2).join('/')) };
+  }
+  if (segments[0] === 'playtest' && segments[1] === 'episodes') {
+    return { kind: 'episodes' };
+  }
+  if (segments[0] === 'repro' && segments[1] === 'bundle') {
+    return { kind: 'repro' };
+  }
   return { kind: 'unknown' };
 }
 
@@ -91,6 +116,15 @@ export async function readResource(
       break;
     case 'changes':
       result = await tools.getChangesSince(parsed.since);
+      break;
+    case 'episode':
+      result = tools.getEpisode(parsed.id);
+      break;
+    case 'episodes':
+      result = tools.listEpisodes();
+      break;
+    case 'repro':
+      result = await tools.getReproductionBundle();
       break;
     default:
       throw new Error(`Unknown resource URI: ${uri}`);
