@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Track A — multi-provider CC0 asset discovery + provenance resource (round-6).**
+  `asset_source_search` searches free, license-clean libraries OUTSIDE the Roblox
+  marketplace and returns ONE normalized descriptor shape across providers
+  (`{ provider, id, name, type, license, attributionRequired, pageUrl, downloadUrl?,
+  thumbnailUrl?, note }`). Live search hits Poly Haven (textures/HDRIs/models) and
+  ambientCG (PBR materials, with the preview PNG as a directly-importable
+  `downloadUrl`); Kenney and Quaternius are returned as browse-only pointers (no
+  search API). The flow is asset_source_search → pick → `import_external_asset` with
+  the downloadUrl (uploads + records provenance). Studio-agnostic, all-CC0. The
+  normalizers are pure and unit-tested against fixtures; the live fetch is thin and
+  network-gated (same posture as import_external_asset). Per-provider failures are
+  reported, not fatal.
+  - Provenance is now also an **MCP resource**: `roblox://asset/provenance` (all
+    records) and `roblox://asset/provenance/{assetId}` (one), backed by the existing
+    `get_asset_provenance`.
+
 - **outputSchema sweep — self-driving loop tools.** `run_playtest_episode`,
   `summarize_episode`, and `propose_next_action` now publish strict-ish
   `outputSchema`s (these outputs are owned by the server, so the contract is

@@ -176,6 +176,8 @@ describe('Tool schema compatibility', () => {
     'ui_component_catalog',
     // Provenance lookup reads the in-memory store, not a Studio place.
     'get_asset_provenance',
+    // CC0 asset discovery is a web search — no Studio place involved.
+    'asset_source_search',
     // Episode summary reads the in-memory episode store, not a Studio place.
     'summarize_episode',
     // Deterministic next-action reasons over the in-memory episode store.

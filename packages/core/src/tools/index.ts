@@ -22,6 +22,7 @@ import { SceneReadTools } from './scene-read-tools.js';
 import { ScriptTools } from './script-tools.js';
 import { MutationTools } from './mutation-tools.js';
 import { AssetTools } from './asset-tools.js';
+import { searchAssetSources, type AssetSourceProvider } from './asset-sources.js';
 import { EpisodeStore } from './episode-store.js';
 import { RuntimeTools } from './runtime-tools.js';
 import {
@@ -1545,6 +1546,17 @@ export class RobloxStudioTools {
     }
 
     return { content: [{ type: 'text', text: JSON.stringify({ assetId, provenance: record, upload: uploadRaw, inserted: inserted ?? null }) }] as ToolContent[] };
+  }
+
+  // Multi-provider CC0 asset discovery (Track A). Live search across free,
+  // license-clean libraries returning one normalized descriptor shape; a result's
+  // downloadUrl feeds straight into import_external_asset. Studio-agnostic (web only).
+  async assetSourceSearch(
+    query?: string,
+    options?: { providers?: AssetSourceProvider[]; limit?: number },
+  ) {
+    const result = await searchAssetSources(query ?? '', options ?? {});
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] as ToolContent[] };
   }
 
   async getAssetProvenance(assetId?: string) {

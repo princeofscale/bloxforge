@@ -144,6 +144,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   insert_asset: (tools, body) => tools.insertAsset(body.assetId, body.parentPath, body.position, body.instance_id),
   preview_asset: (tools, body) => tools.previewAsset(body.assetId, body.includeProperties, body.maxDepth, body.instance_id),
   upload_asset: (tools, body) => tools.uploadAsset(body.filePath, body.assetType, body.displayName, body.description, body.userId, body.groupId),
+  asset_source_search: (tools, body) => tools.assetSourceSearch(body.query, { providers: body.providers, limit: body.limit }),
   import_external_asset: (tools, body) => tools.importExternalAsset(body, body.instance_id),
   get_asset_provenance: (tools, body) => tools.getAssetProvenance(body.assetId),
   clone_object: (tools, body) => tools.cloneObject(body.instancePath, body.targetParentPath, body.instance_id),

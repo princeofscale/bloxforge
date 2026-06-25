@@ -101,6 +101,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   list_recipes: 'build',
   apply_recipe: 'build',
   generate_model_native: 'assets',
+  asset_source_search: 'assets',
   import_external_asset: 'assets',
   get_asset_provenance: 'assets',
   design_lint: 'ui',
