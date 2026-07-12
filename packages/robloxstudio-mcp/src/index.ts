@@ -1,4 +1,4 @@
-import { BloxForgeServer, getAllTools, runDoctor } from '@princeofscale/bloxforge-core';
+import { BloxForgeServer, getAllTools, runDoctor, generateDiagnosticReport } from '@princeofscale/bloxforge-core';
 import { createRequire } from 'module';
 
 const argFlagValue = (flag: string): string | undefined => {
@@ -18,6 +18,15 @@ if (process.argv.includes('--doctor')) {
     version,
     port: portArg ? parseInt(portArg) : undefined,
   });
+} else if (process.argv.includes('--report') || process.argv.includes('report')) {
+  const require = createRequire(import.meta.url);
+  const { version } = require('../package.json');
+  const reportText = await generateDiagnosticReport({
+    version,
+    port: portArg ? parseInt(portArg) : undefined,
+  });
+  console.log(reportText);
+  process.exit(0);
 } else if (process.argv.includes('--install-plugin')) {
   const { installPlugin } = await import('./install-plugin.js');
   await installPlugin().catch((err) => {

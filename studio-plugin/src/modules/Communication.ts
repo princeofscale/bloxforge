@@ -56,6 +56,8 @@ let assignedRole: string | undefined;
 let duplicateInstanceRole = false;
 let hasVersionMismatch = false;
 let lastVersionMismatchWarningKey: string | undefined;
+let hasProtocolMismatch = false;
+let lastProtocolMismatchWarningKey: string | undefined;
 let lastReadyInstanceId: string | undefined;
 const readyFailureLogKeys = new Set<string>();
 
@@ -418,6 +420,20 @@ function pollForRequests(connIndex: number) {
 		} else if (hasVersionMismatch) {
 			hasVersionMismatch = false;
 			UI.hideBanner("version-mismatch");
+		}
+
+		const serverProtocol = data.serverProtocolVersion ?? 0;
+		if (data.protocolMismatch === true) {
+			hasProtocolMismatch = true;
+			const warningKey = `${State.PROTOCOL_VERSION}:${serverProtocol}`;
+			if (lastProtocolMismatchWarningKey !== warningKey) {
+				lastProtocolMismatchWarningKey = warningKey;
+				warn(`[BloxForge] Protocol mismatch: Studio plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}. Run npx -y @princeofscale/bloxforge@latest --auto-install-plugin and restart Studio.`);
+			}
+			UI.showBanner("protocol-mismatch", `Protocol mismatch: Plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}`);
+		} else if (hasProtocolMismatch) {
+			hasProtocolMismatch = false;
+			UI.hideBanner("protocol-mismatch");
 		}
 
 		// Server tells us when its in-memory instances map doesn't have us

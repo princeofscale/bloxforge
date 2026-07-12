@@ -4,7 +4,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { getPluginsFolder } from './install-plugin-helpers.js';
+import { MCP_PROTOCOL_VERSION } from './bridge-service.js';
 
 export type DoctorStatus = 'ok' | 'warn' | 'fail';
 
@@ -132,4 +134,81 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<number> {
   // eslint-disable-next-line no-console
   console.log(formatDoctorReport(checks));
   return checks.some((c) => c.status === 'fail') ? 1 : 0;
+}
+
+export async function generateDiagnosticReport(options: DoctorOptions = {}): Promise<string> {
+  const checks = await collectDoctorChecks(options);
+  const home = os.homedir();
+  const sanitize = (text: string) => {
+    const escapedHome = home.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(escapedHome, 'g'), '<home>');
+  };
+
+  const lines: string[] = [];
+  lines.push('==================================================');
+  lines.push('            BLOXFORGE DIAGNOSTIC REPORT           ');
+  lines.push('==================================================');
+  lines.push('');
+  lines.push(`Generated: ${new Date().toISOString()}`);
+  lines.push(`OS: ${process.platform} (${os.type()} ${os.release()} ${os.arch()})`);
+  lines.push(`Node Version: ${process.version}`);
+  lines.push(`BloxForge Version: ${options.version ?? 'unknown'}`);
+  lines.push(`Protocol Version: ${MCP_PROTOCOL_VERSION}`);
+  lines.push(`Selected Profile: ${process.env.BLOXFORGE_TOOL_PROFILE || 'core'}`);
+  lines.push('');
+  lines.push('--- Doctor Results ---');
+  for (const c of checks) {
+    const statusSymbol = c.status === 'ok' ? '[ OK ]' : c.status === 'warn' ? '[WARN]' : '[FAIL]';
+    lines.push(`${statusSymbol} ${c.name}: ${sanitize(c.detail)}`);
+  }
+  lines.push('');
+
+  // Try to query the running server's health endpoint if it is up
+  const port = options.port ?? (process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741);
+  const doFetch = options.fetchImpl ?? fetch;
+  try {
+    const res = await doFetch(`http://localhost:${port}/health`);
+    if (res.ok) {
+      const health = await res.json() as any;
+      lines.push('--- Running Server Status ---');
+      lines.push(`Server Uptime: ${Math.round((health.uptime ?? 0) / 1000)}s`);
+      lines.push(`Lazy Tools Enabled: ${health.lazyTools ?? 'unknown'}`);
+      lines.push(`Active Tool Count: ${health.activeToolCount ?? 'unknown'}`);
+      lines.push(`Loaded Toolsets: ${health.loadedToolsets?.join(', ') ?? 'none'}`);
+      lines.push(`Connected Instances: ${health.instanceCount ?? 0}`);
+      if (health.instances && health.instances.length > 0) {
+        for (const inst of health.instances) {
+          lines.push(`  - Instance: ${inst.role} (variant: ${inst.pluginVariant ?? 'unknown'}, version: ${inst.pluginVersion ?? 'unknown'}, protocol: ${inst.pluginProtocolVersion ?? 'unknown'})`);
+        }
+      }
+      lines.push('');
+      if (health.recentDisconnects && health.recentDisconnects.length > 0) {
+        lines.push('--- Recent Disconnects ---');
+        for (const disc of health.recentDisconnects) {
+          lines.push(`  - [${new Date(disc.disconnectedAt).toISOString()}] role: ${disc.role}, reason: ${disc.reason}`);
+        }
+        lines.push('');
+      }
+      if (health.session) {
+        lines.push('--- Session Summary ---');
+        lines.push(`Total Calls: ${health.session.totalCalls ?? 0}`);
+        lines.push(`Failed Calls: ${health.session.failedCalls ?? 0}`);
+        if (health.session.perToolStats) {
+          for (const [tool, stats] of Object.entries(health.session.perToolStats)) {
+            const s = stats as any;
+            lines.push(`  - ${tool}: ${s.calls} calls, ${s.failures} failures, avg ${Math.round(s.averageDurationMs ?? 0)}ms`);
+          }
+        }
+        lines.push('');
+      }
+    }
+  } catch {
+    lines.push('--- Running Server Status ---');
+    lines.push('MCP server is not currently running on this port.');
+    lines.push('');
+  }
+
+  lines.push('==================================================');
+  lines.push('End of Report');
+  return lines.join('\n');
 }

@@ -46,19 +46,33 @@ export interface RegistryEvent {
 }
 
 export function defaultManagedInstanceRegistryDir(): string {
+  // Explicit env var overrides — new name takes precedence.
+  if (process.env.BLOXFORGE_MANAGED_INSTANCE_REGISTRY_DIR) {
+    return process.env.BLOXFORGE_MANAGED_INSTANCE_REGISTRY_DIR;
+  }
   if (process.env.ROBLOXSTUDIO_MCP_MANAGED_INSTANCE_REGISTRY_DIR) {
     return process.env.ROBLOXSTUDIO_MCP_MANAGED_INSTANCE_REGISTRY_DIR;
   }
 
+  const suffix = path.join('managed-instances', 'v1');
+  let newDir: string;
+  let legacyDir: string;
+
   if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, 'robloxstudio-mcp', 'managed-instances', 'v1');
+    newDir = path.join(process.env.LOCALAPPDATA, 'bloxforge', suffix);
+    legacyDir = path.join(process.env.LOCALAPPDATA, 'robloxstudio-mcp', suffix);
+  } else if (process.platform === 'darwin') {
+    newDir = path.join(os.homedir(), 'Library', 'Application Support', 'bloxforge', suffix);
+    legacyDir = path.join(os.homedir(), 'Library', 'Application Support', 'robloxstudio-mcp', suffix);
+  } else {
+    newDir = path.join(os.homedir(), '.local', 'state', 'bloxforge', suffix);
+    legacyDir = path.join(os.homedir(), '.local', 'state', 'robloxstudio-mcp', suffix);
   }
 
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'robloxstudio-mcp', 'managed-instances', 'v1');
-  }
-
-  return path.join(os.homedir(), '.local', 'state', 'robloxstudio-mcp', 'managed-instances', 'v1');
+  // Prefer new path; fall back to legacy if it exists and new doesn't.
+  if (fs.existsSync(newDir)) return newDir;
+  if (fs.existsSync(legacyDir)) return legacyDir;
+  return newDir; // Fresh install -> use new name.
 }
 
 function sleepSync(ms: number) {

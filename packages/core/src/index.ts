@@ -1,4 +1,8 @@
-export { BloxForgeServer, BloxForgeServer as RobloxStudioMCPServer } from './server.js';
+export { BloxForgeServer } from './server.js';
+/**
+ * @deprecated Use {@link BloxForgeServer} instead. This alias will be removed in a future major release.
+ */
+export { BloxForgeServer as RobloxStudioMCPServer } from './server.js';
 export type { ServerConfig } from './server.js';
 export { createHttpServer } from './http-server.js';
 export { BridgeService } from './bridge-service.js';
@@ -17,7 +21,7 @@ export {
 export type { ToolDefinition, ToolCategory } from './tools/definitions.js';
 export { OpenCloudClient } from './opencloud-client.js';
 export { getPluginsFolder, isWSL, handleVariantConflict } from './install-plugin-helpers.js';
-export { runDoctor, collectDoctorChecks, formatDoctorReport, checkNodeVersion } from './doctor.js';
+export { runDoctor, collectDoctorChecks, formatDoctorReport, checkNodeVersion, generateDiagnosticReport } from './doctor.js';
 export type { DoctorCheck, DoctorStatus, DoctorOptions } from './doctor.js';
 export { RobloxCookieClient } from './roblox-cookie-client.js';
 export type {

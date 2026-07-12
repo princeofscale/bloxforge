@@ -103,8 +103,8 @@ describe('HTTP Server', () => {
           versionMismatch: true,
           protocolMismatch: true,
         });
-        expect(errorSpy).toHaveBeenCalledTimes(1);
-        expect(errorSpy.mock.calls[0][0]).toContain('[version-mismatch]');
+        expect(errorSpy.mock.calls.some(call => call[0].includes('[version-mismatch]'))).toBe(true);
+        expect(errorSpy.mock.calls.some(call => call[0].includes('[protocol-mismatch]'))).toBe(true);
       } finally {
         errorSpy.mockRestore();
       }
