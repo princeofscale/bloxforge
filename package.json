@@ -31,7 +31,7 @@
     "test:coverage": "npm run test:coverage -w packages/core",
     "publish:all": "node scripts/publish.mjs",
     "test:plugin:smoke": "node tests/plugin-compiled-smoke.mjs",
-    "test:plugin:runtime": "lune tests/plugin-runtime-smoke.luau",
+    "test:plugin:runtime": "lune run tests/plugin-runtime-smoke.luau",
     "verify-package": "node scripts/verify-package.mjs",
     "release:check": "npm run lint && npm run typecheck && npm test && npm run build:all && npm run test:plugin:smoke && npm run test:plugin:runtime && npm run verify-package"
   },
