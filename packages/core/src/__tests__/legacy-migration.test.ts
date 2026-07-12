@@ -72,7 +72,7 @@ describe('Legacy migration', () => {
     it('respects BLOXFORGE_BUILD_LIBRARY env var override', () => {
       process.env.BLOXFORGE_BUILD_LIBRARY = '/custom/library/bf';
       process.env.ROBLOXSTUDIO_MCP_BUILD_LIBRARY = '/custom/library/rsmcp';
-      
+
       (AssetTools as any)._cachedLibraryPath = undefined;
       (RobloxStudioTools as any)._cachedLibraryPath = undefined;
 
@@ -89,7 +89,7 @@ describe('Legacy migration', () => {
 
       (AssetTools as any)._cachedLibraryPath = undefined;
       (RobloxStudioTools as any)._cachedLibraryPath = undefined;
-      
+
       const assetPath = (AssetTools as any).findLibraryPath();
       expect(assetPath).toBe(path.resolve('/custom/library/rsmcp'));
     });
@@ -116,7 +116,7 @@ describe('Legacy migration', () => {
       delete process.env.BLOXFORGE_BUILD_LIBRARY;
       delete process.env.ROBLOXSTUDIO_MCP_BUILD_LIBRARY;
       delete process.env.BUILD_LIBRARY_PATH;
-      
+
       mockExistsSync.mockImplementation((p: string) => {
         return p.includes('.robloxstudio-mcp');
       });

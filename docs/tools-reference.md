@@ -2469,4 +2469,3 @@ Load one or more tool domains. This expands the advertised MCP tool list and sen
 | `toolsets` | `array` | Yes | Domains to load (e.g. ["ui","assets"]). Accepts "domain.suffix" shorthand too. |
 
 ---
-
