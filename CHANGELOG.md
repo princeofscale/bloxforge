@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-rc.1] - 2026-07-12
+
+### Added
+- **Acceptance Testing Documentation**: Added `docs/release-acceptance-test.md` to define manual verification steps for server and plugin interoperability prior to publication.
+- **Package Verification CI**: Added `scripts/verify-package.mjs` to automate smoke tests on the packed npm workspaces (`npm pack`), ensuring successful `npm install` functionality.
+
+### Fixed
+- **Plugin Compilation Issue**: Fixed `compile:plugin` failure in clean environments. `studio-plugin/package.json` dependencies (like `rbxtsc`) are now correctly installed via a nested `npm install` before running `rbxtsc`.
+- **Lune Runtime Tests**: Fixed `test:plugin:runtime` by correcting the CLI command to `lune run tests/plugin-runtime-smoke.luau`. The script now also explicitly requires `@lune/process` and its pattern matching expectations have been corrected.
+- **Security Documentation**: Updated `SECURITY.md` to explicitly clarify capabilities, boundaries, and limitations across different tool profiles.
+- **Diagnostic/Telemetry Alignment**: Updated issue templates (`bug_report.yml`) and configuration documentation to correctly refer to "local anonymized diagnostic reports" instead of "telemetry", addressing user concerns about data collection implications.
+- **Help Menus Standardized**: Added comprehensive `--help` flags and instructions to CLI scripts and plugins to ensure standardized discovery of options.
+
 ## [2.20.2] - 2026-07-08
 
 - **Renamed the product to BloxForge.** Public npm packages are now
