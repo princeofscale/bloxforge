@@ -1,11 +1,11 @@
-# Claude Code + Roblox Studio MCP
+# Claude Code + BloxForge
 
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) is Anthropic's official agentic coding tool. It connects to MCP servers natively and is the primary supported client for this project.
 
 ## Setup
 
 ```bash
-claude mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+claude mcp add robloxstudio -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 Then restart Claude Code and open a Roblox Studio place.
@@ -26,7 +26,7 @@ Place this in `~/.claude/settings.json` to auto-start the server:
   "mcpServers": {
     "robloxstudio": {
       "command": "npx",
-      "args": ["-y", "@princeofscale/robloxstudio-mcp@latest", "--auto-install-plugin"]
+      "args": ["-y", "@princeofscale/bloxforge@latest", "--auto-install-plugin"]
     }
   }
 }
@@ -35,7 +35,7 @@ Place this in `~/.claude/settings.json` to auto-start the server:
 ## Inspector mode for code review
 
 ```bash
-claude mcp add robloxstudio-inspector -- npx -y @princeofscale/robloxstudio-mcp-inspector@latest --auto-install-plugin
+claude mcp add robloxstudio-inspector -- npx -y @princeofscale/bloxforge-inspector@latest --auto-install-plugin
 ```
 
 Use the inspector edition when you only need to browse and review — no write risk.

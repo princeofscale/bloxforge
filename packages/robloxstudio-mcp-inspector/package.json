@@ -1,15 +1,16 @@
 {
-  "name": "@princeofscale/robloxstudio-mcp-inspector",
-  "version": "2.20.1",
+  "name": "@princeofscale/bloxforge-inspector",
+  "version": "2.20.2",
   "description": "Read-only MCP server for AI agents to inspect and debug Roblox Studio — safe browsing with zero write risk.",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "robloxstudio-mcp-inspector": "dist/index.js"
+    "bloxforge-inspector": "dist/index.js"
   },
   "files": [
     "dist/**/*",
-    "studio-plugin/**/*"
+    "studio-plugin/**/*",
+    "assets/**/*"
   ],
   "scripts": {
     "build": "tsup",
@@ -42,11 +43,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/princeofscale/robloxstudio-mcp.git"
+    "url": "git+https://github.com/princeofscale/bloxforge.git"
   },
-  "homepage": "https://github.com/princeofscale/robloxstudio-mcp#readme",
+  "homepage": "https://github.com/princeofscale/bloxforge#readme",
   "bugs": {
-    "url": "https://github.com/princeofscale/robloxstudio-mcp/issues"
+    "url": "https://github.com/princeofscale/bloxforge/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -56,6 +57,6 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@princeofscale/robloxstudio-mcp-core": "*"
+    "@princeofscale/bloxforge-core": "*"
   }
 }

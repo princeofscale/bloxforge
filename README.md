@@ -1,31 +1,34 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
-    <img src="assets/logo.png" width="120" alt="Roblox Studio MCP logo" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/logo.svg">
+    <img src="assets/logo.svg" width="120" alt="BloxForge logo" />
   </picture>
-  <h1 align="center">Roblox Studio MCP</h1>
+  <h1 align="center">BloxForge</h1>
   <p align="center">
-    <strong>Free, open-source MCP server for AI agents to operate Roblox Studio.</strong><br />
+    <strong>Open-source AI agent toolkit for Roblox Studio.</strong><br />
+    Build, inspect, test, and automate Roblox games with AI.<br />
     <em>Claude Code · Codex · Cursor · Gemini · Any MCP-compatible AI client</em>
   </p>
 
-  [![CI](https://github.com/princeofscale/robloxstudio-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/princeofscale/robloxstudio-mcp/actions/workflows/ci.yml)
-  [![NPM Version](https://img.shields.io/npm/v/@princeofscale/robloxstudio-mcp)](https://www.npmjs.com/package/@princeofscale/robloxstudio-mcp)
-  [![npm downloads](https://img.shields.io/npm/dm/@princeofscale/robloxstudio-mcp)](https://www.npmjs.com/package/@princeofscale/robloxstudio-mcp)
+  [![CI](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml/badge.svg)](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml)
+  [![NPM Version](https://img.shields.io/npm/v/@princeofscale/bloxforge)](https://www.npmjs.com/package/@princeofscale/bloxforge)
+  [![npm downloads](https://img.shields.io/npm/dm/@princeofscale/bloxforge)](https://www.npmjs.com/package/@princeofscale/bloxforge)
   [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
   [![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](package.json)
 
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/banner.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/banner.png">
-    <img src="assets/banner.png" width="100%" alt="Roblox Studio MCP banner" />
+    <source media="(prefers-color-scheme: light)" srcset="assets/banner.svg">
+    <img src="assets/banner.svg" width="100%" alt="BloxForge banner" />
   </picture>
 </div>
 
 ---
 
-**Roblox Studio MCP** bridges AI coding agents to Roblox Studio through the [Model Context Protocol (MCP)](https://modelcontextprotocol.io). An agent can inspect places, edit Luau scripts, bulk-manage instances, scaffold games, debug live playtests, and automate Studio workflows — all through local, safe, tool-driven access.
+Connect Claude, Codex, Cursor, or Gemini to Roblox Studio and let the agent build,
+edit, test, and debug your game directly. BloxForge is a local, open-source agent
+runtime with safe editing, game scaffolding, asset workflows, and automated playtesting.
 
 > 🏆 **Free · MIT · Self-hosted · No account required for core features**
 
@@ -38,22 +41,25 @@
 # 2. Connect your AI client (one command):
 
 # Claude Code
-claude mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+claude mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 
 # Codex CLI
-codex mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+codex mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 
 # Cursor — add to .cursor/mcp.json
 # Gemini CLI
-gemini mcp add robloxstudio npx --trust -- -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+gemini mcp add bloxforge npx --trust -- -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 > Fully close and reopen **Roblox Studio** after the plugin is first installed or updated.
 
 **Run diagnostics to confirm:**
 ```bash
-npx -y @princeofscale/robloxstudio-mcp@latest --doctor
+npx -y @princeofscale/bloxforge@latest --doctor
 ```
+
+Preload only the tools needed for the job with `--profile core|builder|tester|full`.
+`core` remains the token-lean default; the read-only package uses the inspector tool set.
 
 ### 🎮 Try these prompts
 
@@ -68,6 +74,9 @@ npx -y @princeofscale/robloxstudio-mcp@latest --doctor
 | **Environment** | _"Set horror lighting and add a day/night cycle script."_ |
 | **Debug live** | _"Start a playtest, sample player positions, run gameplay assertions."_ |
 
+> Full documentation, [known limitations](docs/known-limitations.md), and a
+> [troubleshooting guide](docs/troubleshooting.md) live in [docs/](docs/README.md).
+
 ---
 
 ## How it works
@@ -76,7 +85,7 @@ npx -y @princeofscale/robloxstudio-mcp@latest --doctor
 Your AI Client (Claude Code / Codex / Cursor / Gemini)
         │
         ▼  MCP (stdio)
-Roblox Studio MCP Server (Node/TypeScript)
+BloxForge Server (Node/TypeScript)
         │
         ▼  local HTTP bridge (long-poll, never leaves your machine)
 Roblox Studio Plugin
@@ -89,7 +98,7 @@ Your open place: Workspace · ServerScriptService · ReplicatedStorage · Starte
 
 ---
 
-## Features (130+ tools)
+## What BloxForge can do
 
 ### 🔍 Scene inspection
 `get_scene_summary` · `get_node_batch` · `get_changes_since` · `scene_search` · `get_descendants` · `get_file_tree` · properties · attributes · tags · memory/analysis breakdowns
@@ -98,6 +107,7 @@ Your open place: Workspace · ServerScriptService · ReplicatedStorage · Starte
 ### 📝 Script & Luau
 `get_script_source` · `set_script_source` · `edit_script_lines` · `grep_scripts` · `find_and_replace` · `diagnose_scripts` (errors → script:line) · `execute_luau` · async Luau jobs
 → Full read/write/patch over any Script, LocalScript, or ModuleScript.
+`get_roblox_docs` fetches official engine reference markdown (also available as `robloxdocs://...` MCP resources) before agents touch uncertain APIs.
 
 ### ✏️ Bulk editing
 `apply_mutation_plan` (transactional batch: set property, attribute, tag — one call, rollback included) · `mass_set_property` · `smart_duplicate` · `mass_create_objects` · dry-run on every mutation.
@@ -182,12 +192,12 @@ Everything core works **key-free**. Two optional integrations add more:
 
 ## Inspector edition (read-only)
 
-[![NPM Version](https://img.shields.io/npm/v/@princeofscale/robloxstudio-mcp-inspector)](https://www.npmjs.com/package/@princeofscale/robloxstudio-mcp-inspector)
+[![NPM Version](https://img.shields.io/npm/v/@princeofscale/bloxforge-inspector)](https://www.npmjs.com/package/@princeofscale/bloxforge-inspector)
 
 Same plugin, read-only tools only — no writes, no script edits, no creation. Safe for browsing, code review, and debugging with zero mutation risk.
 
 ```bash
-claude mcp add robloxstudio-inspector -- npx -y @princeofscale/robloxstudio-mcp-inspector@latest --auto-install-plugin
+claude mcp add robloxstudio-inspector -- npx -y @princeofscale/bloxforge-inspector@latest --auto-install-plugin
 ```
 
 ---
@@ -245,7 +255,7 @@ We welcome contributors from every background:
 - **Luau developers** — want to improve generated code quality?
 - **Plugin testers** — help us test against different places and Studio versions?
 
-Check the [todo.md](todo.md) for current priorities and [open an issue](https://github.com/princeofscale/robloxstudio-mcp/issues) before starting significant work.
+Open an issue at https://github.com/princeofscale/bloxforge/issues before starting significant work.
 
 ---
 
@@ -265,9 +275,14 @@ Check the [todo.md](todo.md) for current priorities and [open an issue](https://
 
 ## License
 
-MIT © princeofscale. Based on [Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp) and [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp).
+MIT © princeofscale. BloxForge began as a fork of
+[Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp), itself
+derived from [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp),
+and is now independently maintained with expanded building, testing, safety,
+and asset workflows. Roblox is a trademark of Roblox Corporation; BloxForge is
+not endorsed by or affiliated with Roblox Corporation.
 See [LICENSE](LICENSE) for full text.
 
 ---
 
-*Looking for a **Roblox Studio MCP server** for **Claude Code**, **Codex**, **Cursor**, or **Gemini**? This project is a free, open-source way to connect AI agents to Roblox Studio — inspect, edit, debug, and automate your places locally without subscriptions, accounts, or cloud dependencies.*
+*Looking for an open-source **Roblox Studio MCP server** for **Claude Code**, **Codex**, **Cursor**, or **Gemini**? BloxForge connects AI agents to Studio locally without subscriptions, accounts, or cloud dependencies.*

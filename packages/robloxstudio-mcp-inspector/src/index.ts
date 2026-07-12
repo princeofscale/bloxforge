@@ -1,4 +1,4 @@
-import { RobloxStudioMCPServer, getReadOnlyTools } from '@princeofscale/robloxstudio-mcp-core';
+import { BloxForgeServer, getReadOnlyTools } from '@princeofscale/bloxforge-core';
 import { createRequire } from 'module';
 
 if (process.argv.includes('--install-plugin')) {
@@ -8,6 +8,7 @@ if (process.argv.includes('--install-plugin')) {
     process.exitCode = 1;
   });
 } else {
+  process.env.BLOXFORGE_TOOL_PROFILE ??= 'inspector';
   if (process.argv.includes('--auto-install-plugin')) {
     const { installBundledPlugin } = await import('./install-plugin.js');
     await installBundledPlugin({
@@ -23,8 +24,8 @@ if (process.argv.includes('--install-plugin')) {
   const require = createRequire(import.meta.url);
   const { version: VERSION } = require('../package.json');
 
-  const server = new RobloxStudioMCPServer({
-    name: 'robloxstudio-mcp-inspector',
+  const server = new BloxForgeServer({
+    name: 'bloxforge-inspector',
     version: VERSION,
     tools: getReadOnlyTools(),
   });

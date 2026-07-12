@@ -76,16 +76,22 @@ end
 
 if ${mask('audio')} then
 \tlocal playing = {}
+\tlocal isEdit = not game:GetService("RunService").IsRunning
 \tfor _, d in ipairs(game:GetDescendants()) do
 \t\tif d:IsA("Sound") then
 \t\t\tlocal okp, p = pcall(function() return d.Playing end)
 \t\t\tif okp and p then
-\t\t\t\ttable.insert(playing, { path = d:GetFullName(), soundId = tostring(d.SoundId), looped = d.Looped, volume = d.Volume })
+\t\t\t\tlocal entry = { path = d:GetFullName(), soundId = tostring(d.SoundId), looped = d.Looped, volume = d.Volume }
+\t\t\t\tif not isEdit then
+\t\t\t\t\tlocal okl, l = pcall(function() return d.PlaybackLoudness end)
+\t\t\t\t\tif okl then entry.playbackLoudness = l end
+\t\t\t\tend
+\t\t\t\ttable.insert(playing, entry)
 \t\t\tend
 \t\tend
-\tend
-\tout.activeAudio = playing
-\tout.activeAudioCount = #playing
+\t\tend
+\t\tout.activeAudio = playing
+\t\tout.activeAudioCount = #playing
 end
 
 return out`;

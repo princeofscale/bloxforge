@@ -17,14 +17,14 @@ import {
 
 const VARIANTS = {
   main: {
-    packageName: '@princeofscale/robloxstudio-mcp',
+    packageName: '@princeofscale/bloxforge',
     workspace: 'packages/robloxstudio-mcp',
     asset: 'MCPPlugin.rbxmx',
     otherAsset: 'MCPInspectorPlugin.rbxmx',
     variant: 'main',
   },
   inspector: {
-    packageName: '@princeofscale/robloxstudio-mcp-inspector',
+    packageName: '@princeofscale/bloxforge-inspector',
     workspace: 'packages/robloxstudio-mcp-inspector',
     asset: 'MCPInspectorPlugin.rbxmx',
     otherAsset: 'MCPPlugin.rbxmx',

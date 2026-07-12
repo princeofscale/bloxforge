@@ -1,4 +1,4 @@
-import { RobloxStudioMCPServer, getAllTools, runDoctor } from '@princeofscale/robloxstudio-mcp-core';
+import { BloxForgeServer, getAllTools, runDoctor } from '@princeofscale/bloxforge-core';
 import { createRequire } from 'module';
 
 const argFlagValue = (flag: string): string | undefined => {
@@ -45,18 +45,20 @@ if (process.argv.includes('--doctor')) {
   const openCloudKey = flagValue('--open-cloud-key');
   const creatorId = flagValue('--creator-id');
   const creatorGroupId = flagValue('--creator-group-id');
-  const pollinationsKey = flagValue('--pollinations-key');
+const pollinationsKey = flagValue('--pollinations-key');
+  const toolProfile = flagValue('--profile');
 
   if (openCloudKey) process.env.ROBLOX_OPEN_CLOUD_API_KEY = openCloudKey;
   if (creatorId) process.env.ROBLOX_CREATOR_USER_ID = creatorId;
   if (creatorGroupId) process.env.ROBLOX_CREATOR_GROUP_ID = creatorGroupId;
   if (pollinationsKey) process.env.POLLINATIONS_API_KEY = pollinationsKey;
+  if (toolProfile) process.env.BLOXFORGE_TOOL_PROFILE = toolProfile;
 
   const require = createRequire(import.meta.url);
   const { version: VERSION } = require('../package.json');
 
-  const server = new RobloxStudioMCPServer({
-    name: 'robloxstudio-mcp',
+  const server = new BloxForgeServer({
+    name: 'bloxforge',
     version: VERSION,
     tools: getAllTools(),
   });

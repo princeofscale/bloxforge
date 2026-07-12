@@ -8,6 +8,7 @@
 //   roblox://world/changes?since=<snapshotId>         -> get_changes_since
 
 import type { RobloxStudioTools } from './tools/index.js';
+import { DOC_CATEGORIES, fetchRobloxDoc, isDocCategory } from './roblox-docs.js';
 
 export interface ResourceDescriptor {
   uri: string;
@@ -55,6 +56,11 @@ export const RESOURCE_TEMPLATES = [
   { uriTemplate: 'roblox://world/changes{?since}', name: 'World changefeed', description: 'Omit `since` for a baseline; pass a prior snapshotId for the diff.', mimeType: 'application/json' },
   { uriTemplate: 'roblox://playtest/episode/{id}', name: 'Playtest episode', description: 'A stored run_playtest_episode result by episodeId.', mimeType: 'application/json' },
   { uriTemplate: 'roblox://asset/provenance/{assetId}', name: 'Asset provenance record', description: 'Provenance for one imported asset by assetId; omit the id for all records.', mimeType: 'application/json' },
+  { uriTemplate: 'robloxdocs://classes/{className}', name: 'Roblox class documentation', description: 'Official engine reference for a class, e.g. robloxdocs://classes/ProximityPrompt.', mimeType: 'text/markdown' },
+  { uriTemplate: 'robloxdocs://enums/{enumName}', name: 'Roblox enum documentation', description: 'Official engine reference for an enum, e.g. robloxdocs://enums/KeyCode.', mimeType: 'text/markdown' },
+  { uriTemplate: 'robloxdocs://datatypes/{dataTypeName}', name: 'Roblox datatype documentation', description: 'Official engine reference for a datatype, e.g. robloxdocs://datatypes/CFrame.', mimeType: 'text/markdown' },
+  { uriTemplate: 'robloxdocs://libraries/{libraryName}', name: 'Roblox library documentation', description: 'Official engine reference for a Luau library, e.g. robloxdocs://libraries/table.', mimeType: 'text/markdown' },
+  { uriTemplate: 'robloxdocs://globals/{globalsPage}', name: 'Roblox globals documentation', description: 'Official engine reference for globals, e.g. robloxdocs://globals/LuaGlobals.', mimeType: 'text/markdown' },
 ];
 
 export type ParsedResource =
@@ -65,6 +71,7 @@ export type ParsedResource =
   | { kind: 'episodes' }
   | { kind: 'repro' }
   | { kind: 'provenance'; assetId?: string }
+  | { kind: 'robloxdoc'; category: (typeof DOC_CATEGORIES)[number]; name: string }
   | { kind: 'unknown' };
 
 /** Pure URI parser — maps a roblox:// URI to a resource descriptor. */
@@ -74,6 +81,13 @@ export function parseResourceUri(uri: string): ParsedResource {
     u = new URL(uri);
   } catch {
     return { kind: 'unknown' };
+  }
+  if (u.protocol === 'robloxdocs:') {
+    const category = u.host;
+    if (!isDocCategory(category)) return { kind: 'unknown' };
+    const name = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+    if (!name) return { kind: 'unknown' };
+    return { kind: 'robloxdoc', category, name };
   }
   if (u.protocol !== 'roblox:') return { kind: 'unknown' };
   // host + pathname together form the logical path (URL puts the first segment in host)
@@ -141,6 +155,10 @@ export async function readResource(
     case 'provenance':
       result = await tools.getAssetProvenance(parsed.assetId);
       break;
+    case 'robloxdoc': {
+      const text = await fetchRobloxDoc(parsed.category, parsed.name);
+      return { contents: [{ uri, mimeType: 'text/markdown', text }] };
+    }
     default:
       throw new Error(`Unknown resource URI: ${uri}`);
   }

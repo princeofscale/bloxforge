@@ -1,6 +1,6 @@
 {
-  "name": "@princeofscale/robloxstudio-mcp-monorepo",
-  "version": "2.20.1",
+  "name": "@princeofscale/bloxforge-monorepo",
+  "version": "2.20.2",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -25,11 +25,13 @@
     "test:studio:tools": "node tests/studio-tooling-smoke.mjs",
     "test:watch": "npm run test:watch -w packages/core",
     "test:coverage": "npm run test:coverage -w packages/core",
-    "publish:all": "node scripts/publish.mjs"
+    "publish:all": "node scripts/publish.mjs",
+    "test:plugin:smoke": "node tests/plugin-compiled-smoke.mjs",
+    "test:plugin:runtime": "if command -v lune >/dev/null 2>&1; then lune tests/plugin-runtime-smoke.luau; else echo 'SKIP: install Lune to run tests/plugin-runtime-smoke.luau'; fi"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.62.0",
-    "@typescript-eslint/parser": "^8.62.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
     "eslint": "^8.57.0",
     "tsup": "^8.0.0",
     "tsx": "^4.22.4",
@@ -37,5 +39,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1"
+  },
+  "overrides": {
+    "esbuild": "0.28.1"
   }
 }

@@ -1,9 +1,9 @@
 {
-  "Name": "Roblox Studio MCP Plugin",
+  "Name": "BloxForge Plugin",
   "Description": "Provides AI tool access to Roblox Studio data through MCP protocol",
-  "Author": "MCP Integration",
+  "Author": "BloxForge",
   "Version": "2.19.3",
-  "Id": "robloxstudio-mcp-plugin",
+  "Id": "bloxforge-plugin",
   "Permissions": [
     "HTTP"
   ]

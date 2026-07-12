@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import http from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
@@ -15,7 +16,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RobloxStudioTools } from './tools/index.js';
-import { BridgeService, RoutingFailure, toPublic } from './bridge-service.js';
+import { BridgeService, MCP_PROTOCOL_VERSION, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { ToolRegistry } from './tools/tool-pipeline.js';
@@ -24,6 +25,7 @@ import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
+import { CORE_TOOLS } from './tools/tool-catalog.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -34,6 +36,8 @@ interface StreamableHttpConfig {
 export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
+  get_roblox_docs: (tools, body) => tools.getRobloxDocs(body.name, body.doc_type, body.section),
+  get_session_summary: (tools) => tools.getSessionSummary(),
   tool_catalog_search: (tools, body) => tools.toolCatalogSearch(body),
   load_toolset: (tools, body) => tools.loadToolset(body),
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
@@ -103,6 +107,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   eval_server_runtime: (tools, body) => tools.evalServerRuntime(body.code, body.instance_id),
   eval_client_runtime: (tools, body) => tools.evalClientRuntime(body.code, body.target, body.instance_id),
   set_network_profile: (tools, body) => tools.setNetworkProfile(body.profile, body.target, body.overrides, body.instance_id),
+  solo_playtest: (tools, body) => tools.soloPlaytest(body.action, body.mode, body.timeout, body.instance_id),
+  multiplayer_playtest: (tools, body) => tools.multiplayerPlaytest(body.action, body.numPlayers, body.target, body.testArgs, body.value, body.timeout, body.instance_id),
   get_simulation_state: (tools, body) => tools.getSimulationState(body.include, body.target, body.instance_id),
   reset_simulation_state: (tools, body) => tools.resetSimulationState(body.target, body.network, body.deviceSimulator, body.instance_id),
   get_device_simulator_state: (tools, body) => tools.getDeviceSimulatorState(body.target, body.deviceId, body.includeDeviceList, body.instance_id),
@@ -126,6 +132,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
     include_plugin: body.include_plugin,
     output_path: body.output_path,
   }, body.instance_id),
+  capture_micro_profiler: (tools, body) => tools.captureMicroProfiler(body.target, body, body.instance_id),
+  manage_instance: (tools, body) => tools.manageInstance({ ...body, instance_id: body.instance_id }),
   breakpoints: (tools, body) => tools.breakpoints(body.action, body, body.target, body.instance_id),
   get_connected_instances: (tools) => tools.getConnectedInstances(),
   export_build: (tools, body) => tools.exportBuild(body.instancePath, body.outputId, body.style, body.instance_id),
@@ -151,9 +159,9 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_descendants: (tools, body) => tools.getDescendants(body.instancePath, body.maxDepth, body.classFilter, body.limit, body.offset, body.fields, body.instance_id),
   compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB, body.instance_id),
   bulk_set_attributes: (tools, body) => tools.bulkSetAttributes(body.instancePath, body.attributes, body.instance_id),
-  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id, body.format, body.quality),
+  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id, body.format, body.quality, body.cameraPosition, body.lookAt),
   simulate_mouse_input: (tools, body) => tools.simulateMouseInput(body.action, body.x, body.y, body.button, body.scrollDirection, body.target, body.instance_id),
-  simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.text, body.target, body.instance_id),
+  simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.text, body.target, body.instance_id, body.holdDuration),
   character_navigation: (tools, body) => tools.characterNavigation(body.position, body.instancePath, body.waitForCompletion, body.timeout, body.target, body.instance_id),
   get_memory_breakdown: (tools, body) => tools.getMemoryBreakdown(body.target, body.tags, body.instance_id),
   get_scene_analysis: (tools, body) => tools.getSceneAnalysis(body.mode, body.target, body.topN, body.raw, body.instance_id),
@@ -222,6 +230,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
 
   // Native AI 3D model generation (GenerationService) — runs in the place.
   generate_model_native: (tools, body) => tools.generateModelNative(body, body.instance_id),
+  generate_model: (tools, body) => tools.generateModel(body, body.instance_id),
 
   // UI design quality (Track D).
   ui_component_catalog: (tools) => tools.uiComponentCatalog(),
@@ -240,7 +249,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>robloxstudio-mcp dashboard</title>
+<title>BloxForge dashboard</title>
 <style>
   body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #14161c; color: #e6e6ea; margin: 0; padding: 24px; }
   h1 { font-size: 18px; margin: 0 0 16px; }
@@ -256,7 +265,7 @@ const DASHBOARD_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>robloxstudio-mcp dashboard</h1>
+<h1>BloxForge dashboard</h1>
 <div class="row">
   <div class="card"><div class="label">Studio</div><div class="value" id="conn"><span class="dot bad"></span>—</div></div>
   <div class="card"><div class="label">Places connected</div><div class="value" id="count">—</div></div>
@@ -290,7 +299,7 @@ function exportDiag() {
   const blob = new Blob([JSON.stringify(last, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'robloxstudio-mcp-diagnostics.json';
+  a.download = 'bloxforge-diagnostics.json';
   a.click();
 }
 refresh();
@@ -332,6 +341,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   const isPluginConnected = () => {
     return bridge.getInstances().length > 0;
   };
+  const envLazyFlag = (process.env.ROBLOX_MCP_LAZY_TOOLS ?? '').trim().toLowerCase();
+  const isLazyTools = () => registry ? registry.lazyMode : !(envLazyFlag === '0' || envLazyFlag === 'false' || envLazyFlag === 'off');
+  const getActiveToolCount = () => isLazyTools()
+    ? (registry ? registry.activeNames.size : CORE_TOOLS.size)
+    : (serverConfig?.tools.length ?? 0);
+  const getLoadedToolsets = () => isLazyTools()
+    ? [process.env.BLOXFORGE_TOOL_PROFILE?.trim().toLowerCase() || 'core']
+    : ['all'];
 
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
@@ -343,16 +360,23 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     const publicInstances = instances.map(toPublic);
     res.json({
       status: 'ok',
-      service: 'robloxstudio-mcp',
+      service: 'bloxforge',
       version: serverConfig?.version,
       serverVersion: serverConfig?.version,
+      protocolVersion: MCP_PROTOCOL_VERSION,
       pluginConnected: instances.length > 0,
       instanceCount: instances.length,
       instances: publicInstances,
       versionMismatch: publicInstances.some((inst) => inst.versionMismatch),
+      protocolMismatch: publicInstances.some((inst) => inst.protocolMismatch),
+      lazyTools: isLazyTools(),
+      activeToolCount: getActiveToolCount(),
+      loadedToolsets: getLoadedToolsets(),
+      session: tools.getSessionRecorder().summarize(),
       mcpServerActive: isMCPServerActive(),
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0,
       pendingRequests: bridge.getPendingRequestCount(),
+      recentDisconnects: bridge.getRecentDisconnects(),
       proxyInstanceCount: proxyInstances.size,
       streamableHttp: !!serverConfig,
     });
@@ -370,6 +394,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       isRunning,
       pluginVersion,
       pluginVariant,
+      protocolVersion,
     } = req.body;
     const requestContext = {
       instanceId: typeof instanceId === 'string' ? instanceId : undefined,
@@ -380,6 +405,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       isRunning: typeof isRunning === 'boolean' ? isRunning : undefined,
       pluginVersion: typeof pluginVersion === 'string' ? pluginVersion : undefined,
       pluginVariant: typeof pluginVariant === 'string' ? pluginVariant : undefined,
+      protocolVersion: typeof protocolVersion === 'number' ? protocolVersion : undefined,
     };
 
     if (!pluginSessionId || !instanceId || !role) {
@@ -410,7 +436,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         isRunning: !!isRunning,
         pluginVersion: typeof pluginVersion === 'string' ? pluginVersion : '',
         pluginVariant: typeof pluginVariant === 'string' ? pluginVariant : 'unknown',
+        protocolVersion: typeof protocolVersion === 'number' ? protocolVersion : 0,
         serverVersion: serverConfig?.version ?? '',
+        serverProtocolVersion: MCP_PROTOCOL_VERSION,
       });
     } catch (err) {
       res.status(500).json({
@@ -446,7 +474,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       assignedRole: result.assignedRole,
       instanceId: result.instanceId,
       serverVersion: serverConfig?.version,
+      serverProtocolVersion: MCP_PROTOCOL_VERSION,
       versionMismatch: registered?.versionMismatch ?? false,
+      protocolMismatch: registered?.protocolMismatch ?? false,
     });
   });
 
@@ -455,7 +485,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     const { pluginSessionId } = req.body;
 
     if (pluginSessionId) {
-      bridge.unregisterInstance(pluginSessionId);
+      bridge.unregisterInstance(pluginSessionId, 'plugin_request');
     }
     res.json({ success: true });
   });
@@ -469,7 +499,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       instanceCount: instances.length,
       instances: publicInstances,
       serverVersion: serverConfig?.version,
+      protocolVersion: MCP_PROTOCOL_VERSION,
       versionMismatch: publicInstances.some((inst) => inst.versionMismatch),
+      protocolMismatch: publicInstances.some((inst) => inst.protocolMismatch),
+      lazyTools: isLazyTools(),
+      activeToolCount: getActiveToolCount(),
+      loadedToolsets: getLoadedToolsets(),
+      session: tools.getSessionRecorder().summarize(),
+      recentDisconnects: bridge.getRecentDisconnects(),
       mcpServerActive: isMCPServerActive(),
       lastMCPActivity,
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0
@@ -491,10 +528,16 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     }
     res.json({
       serverVersion: serverConfig?.version,
+      protocolVersion: MCP_PROTOCOL_VERSION,
       pluginConnected: instances.length > 0,
       instanceCount: instances.length,
       instances,
       versionMismatch: instances.some((inst) => inst.versionMismatch),
+      protocolMismatch: instances.some((inst) => inst.protocolMismatch),
+      lazyTools: isLazyTools(),
+      activeToolCount: getActiveToolCount(),
+      loadedToolsets: getLoadedToolsets(),
+      session: tools.getSessionRecorder().summarize(),
       mcpServerActive: isMCPServerActive(),
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0,
       pendingRequests: bridge.getPendingRequestCount(),
@@ -515,7 +558,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     res.json({
       instances,
       serverVersion: serverConfig?.version,
+      protocolVersion: MCP_PROTOCOL_VERSION,
       versionMismatch: instances.some((inst) => inst.versionMismatch),
+      protocolMismatch: instances.some((inst) => inst.protocolMismatch),
     });
   });
 
@@ -532,7 +577,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     let knownInstance = false;
     let callerPluginVersion: string | undefined;
     let callerPluginVariant: string | undefined;
+    let callerPluginProtocolVersion: number | undefined;
     let versionMismatch = false;
+    let protocolMismatch = false;
     if (pluginSessionId) {
       const inst = bridge.getInstanceBySessionId(pluginSessionId);
       if (inst) {
@@ -540,7 +587,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         callerRole = inst.role;
         callerPluginVersion = inst.pluginVersion;
         callerPluginVariant = inst.pluginVariant;
+        callerPluginProtocolVersion = inst.pluginProtocolVersion;
         versionMismatch = inst.versionMismatch;
+        protocolMismatch = inst.protocolMismatch;
         knownInstance = true;
       }
     }
@@ -552,9 +601,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         mcpConnected: false,
         knownInstance,
         serverVersion: serverConfig?.version,
+        serverProtocolVersion: MCP_PROTOCOL_VERSION,
         pluginVersion: callerPluginVersion,
         pluginVariant: callerPluginVariant,
+        protocolVersion: callerPluginProtocolVersion,
         versionMismatch,
+        protocolMismatch,
         request: null
       });
       return;
@@ -576,9 +628,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         pluginConnected: true,
         knownInstance,
         serverVersion: serverConfig?.version,
+        serverProtocolVersion: MCP_PROTOCOL_VERSION,
         pluginVersion: callerPluginVersion,
         pluginVariant: callerPluginVariant,
+        protocolVersion: callerPluginProtocolVersion,
         versionMismatch,
+        protocolMismatch,
         proxyInstanceCount: proxyInstances.size
       });
     } else {
@@ -588,9 +643,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         pluginConnected: true,
         knownInstance,
         serverVersion: serverConfig?.version,
+        serverProtocolVersion: MCP_PROTOCOL_VERSION,
         pluginVersion: callerPluginVersion,
         pluginVariant: callerPluginVariant,
+        protocolVersion: callerPluginProtocolVersion,
         versionMismatch,
+        protocolMismatch,
         proxyInstanceCount: proxyInstances.size
       });
     }
@@ -634,7 +692,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   // Streamable HTTP MCP transport
   if (serverConfig) {
     const legacyFilteredTools = serverConfig.tools.filter(t => !allowedTools || allowedTools.has(t.name));
-    const isLazyHttp = !!(registry?.lazyMode);
+    const isLazyHttp = registry ? registry.lazyMode : isLazyTools();
 
     app.post('/mcp', async (req, res) => {
       try {
@@ -669,32 +727,52 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
         server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const { name, arguments: args } = request.params;
+          const startedAt = Date.now();
 
           if (allowedTools && !allowedTools.has(name)) {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
           }
 
-          // 1. Try the registry first (pipeline-wrapped). Returns null when
-          //    the tool isn't registered; cast through unknown for the MCP
-          //    SDK's ServerResult type.
-          if (registry) {
-            const registryResult: unknown = await registry.callTool(name, tools, args || {});
-            if (registryResult !== null && registryResult !== undefined) {
-              return registryResult;
-            }
-          }
-
-          // 2. Fall through to the legacy TOOL_HANDLERS map.
-          const handler = TOOL_HANDLERS[name];
-          if (!handler) {
-            throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
-          }
-
           try {
+            // 1. Try the registry first (pipeline-wrapped). Returns null when
+            //    the tool isn't registered; cast through unknown for the MCP
+            //    SDK's ServerResult type.
+            if (registry) {
+              const registryResult: unknown = await registry.callTool(name, tools, args || {});
+              if (registryResult !== null && registryResult !== undefined) {
+                tools.getSessionRecorder().recordToolCall({
+                  toolName: name,
+                  durationMs: Date.now() - startedAt,
+                  ok: !(registryResult as { isError?: boolean })?.isError,
+                  errorCode: (registryResult as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+                });
+                return registryResult;
+              }
+            }
+
+            // 2. Fall through to the legacy TOOL_HANDLERS map.
+            const handler = TOOL_HANDLERS[name];
+            if (!handler) {
+              throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+            }
+
             const result = await handler(tools, args || {});
-            return attachStructuredContent(result as Record<string, unknown>);
+            const shaped = attachStructuredContent(result as Record<string, unknown>);
+            tools.getSessionRecorder().recordToolCall({
+              toolName: name,
+              durationMs: Date.now() - startedAt,
+              ok: !(shaped as { isError?: boolean })?.isError,
+              errorCode: (shaped as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+            });
+            return shaped;
           } catch (error) {
             if (error instanceof RoutingFailure) {
+              tools.getSessionRecorder().recordToolCall({
+                toolName: name,
+                durationMs: Date.now() - startedAt,
+                ok: false,
+                errorCode: error.routingError.code,
+              });
               // Surface routing errors as structured tool-call results with
               // the full instance list embedded so the LLM can recover by
               // picking an instance_id from data.instances — no need for a
@@ -712,7 +790,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
               };
             }
             if (error instanceof McpError) throw error;
-            return toolErrorResult(error, name);
+            const errorResult = toolErrorResult(error, name);
+            tools.getSessionRecorder().recordToolCall({
+              toolName: name,
+              durationMs: Date.now() - startedAt,
+              ok: false,
+              errorCode: 'TOOL_ERROR',
+            });
+            return errorResult;
           }
         });
 
@@ -788,6 +873,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
 
   (app as any).isPluginConnected = isPluginConnected;
+  (app as any).bridge = bridge;
   (app as any).setMCPServerActive = setMCPServerActive;
   (app as any).isMCPServerActive = isMCPServerActive;
   (app as any).trackMCPActivity = trackMCPActivity;
@@ -828,6 +914,7 @@ export function listenWithRetry(
 function bindPort(app: express.Express, host: string, port: number): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
+    attachBridgeWebSocket(server, (app as any).bridge);
     const onError = (err: NodeJS.ErrnoException) => {
       server.removeListener('error', onError);
       reject(err);
@@ -836,6 +923,56 @@ function bindPort(app: express.Express, host: string, port: number): Promise<htt
     server.listen(port, host, () => {
       server.removeListener('error', onError);
       resolve(server);
+    });
+  });
+}
+
+function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
+  const streams = new Map<string, WebSocket>();
+  const wss = new WebSocketServer({ noServer: true });
+
+  const deliver = (pluginSessionId: string) => {
+    const socket = streams.get(pluginSessionId);
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const pending = bridge.getPendingRequestForSession(pluginSessionId);
+    if (!pending) return;
+    socket.send(JSON.stringify({ type: 'request', ...pending }), (error) => {
+      if (error) bridge.releasePendingRequest(pending.requestId);
+    });
+  };
+  bridge.addRequestNotifier(deliver);
+
+  server.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (url.pathname !== '/stream') return;
+    const pluginSessionId = url.searchParams.get('pluginSessionId');
+    if (!pluginSessionId || !bridge.getInstanceBySessionId(pluginSessionId)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, pluginSessionId));
+  });
+
+  wss.on('connection', (socket: WebSocket, pluginSessionId: string) => {
+    streams.set(pluginSessionId, socket);
+    bridge.updateInstanceActivity(pluginSessionId);
+    deliver(pluginSessionId);
+
+    socket.on('message', (raw) => {
+      bridge.updateInstanceActivity(pluginSessionId);
+      try {
+        const message = JSON.parse(raw.toString());
+        if (message.type !== 'response' || typeof message.requestId !== 'string') return;
+        if (message.error) bridge.rejectRequest(message.requestId, message.error);
+        else bridge.resolveRequest(message.requestId, message.response);
+      } catch {
+        // Ignore malformed stream frames; the HTTP fallback remains available.
+      }
+    });
+    socket.on('close', () => {
+      if (streams.get(pluginSessionId) === socket) streams.delete(pluginSessionId);
+      bridge.releasePendingRequestsForSession(pluginSessionId);
     });
   });
 }

@@ -217,7 +217,7 @@ function startPlaytest(requestData: Record<string, unknown>) {
 
 	const [injected, injErr] = pcall(() => injectStopListener());
 	if (!injected) {
-		warn(`[robloxstudio-mcp] Failed to inject stop listener: ${injErr}`);
+		warn(`[BloxForge] Failed to inject stop listener: ${injErr}`);
 	}
 
 	task.spawn(() => {
@@ -229,7 +229,7 @@ function startPlaytest(requestData: Record<string, unknown>) {
 		});
 
 		if (!ok) {
-			warn(`[robloxstudio-mcp] Playtest ended with error: ${result}`);
+			warn(`[BloxForge] Playtest ended with error: ${result}`);
 		}
 
 		disconnectNavLogListener();
@@ -299,10 +299,11 @@ function stopPlaytest(_requestData: Record<string, unknown>) {
 	if (testRunning) {
 		return {
 			success: true,
+			alreadyEnded: consumption.alreadyEnded,
 			message: "Playtest stop signal sent; teardown still in progress.",
 		};
 	}
-	return { success: true, message: "Playtest stopped." };
+	return { success: true, alreadyEnded: consumption.alreadyEnded, message: "Playtest stopped." };
 }
 
 function multiplayerTestStart(requestData: Record<string, unknown>) {
@@ -459,6 +460,14 @@ function multiplayerTestEnd(requestData: Record<string, unknown>) {
 	const value = requestData.value !== undefined ? requestData.value : "ended_by_mcp";
 	const [ok, result] = pcall(() => StudioTestService.EndTest(value));
 	if (!ok) {
+		if (tostring(result).find("EndTest can only be called once")[0] !== undefined || tostring(result).find("can only be called once")[0] !== undefined) {
+			return {
+				success: true,
+				alreadyEnded: true,
+				message: "StudioTestService:EndTest was already called; teardown is in progress.",
+				value,
+			};
+		}
 		return { error: tostring(result) };
 	}
 	return {

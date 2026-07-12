@@ -3,6 +3,39 @@ import type { ToolDefinition } from '../definitions.js';
 export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   // === Playtest ===
   {
+    name: 'solo_playtest',
+    category: 'write',
+    description: 'Compatibility wrapper for start_playtest/stop_playtest/status. Use action="start" with mode="play" or "run", action="stop" to stop, or action="status" to inspect runtime roles.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['start', 'stop', 'status'], description: 'Lifecycle action.' },
+        mode: { type: 'string', enum: ['play', 'run'], description: 'Required for action="start".' },
+        timeout: { type: 'number', description: 'Max seconds to wait.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' },
+      },
+      required: ['action'],
+    },
+  },
+  {
+    name: 'multiplayer_playtest',
+    category: 'write',
+    description: 'Compatibility wrapper for multiplayer_test_* tools. Supports action="start", "status", "add_players", "leave_client", and "end".',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['start', 'status', 'add_players', 'leave_client', 'end'], description: 'Lifecycle action.' },
+        numPlayers: { type: 'number', description: 'Required for start/add_players.' },
+        target: { type: 'string', description: 'Client target for leave_client.' },
+        testArgs: { description: 'JSON-compatible test args for start.' },
+        value: { description: 'Value passed to end.' },
+        timeout: { type: 'number', description: 'Max seconds to wait.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' },
+      },
+      required: ['action'],
+    },
+  },
+  {
     name: 'start_playtest',
     category: 'write',
     description: 'Start a simple single-player Studio playtest in play or run mode, waiting until a runtime peer registers with MCP. Read print/warn/error output with get_runtime_logs, then end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
@@ -609,7 +642,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'execute_luau_async',
     category: 'write',
-    description: 'Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target.',
+    description: 'Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target. Shares the same execute_luau wrapper, so fresh_require(module) is available and the require-cache caveat applies identically.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -665,7 +698,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'playtest_sample_state',
     category: 'read',
-    description: 'Sample LIVE runtime state during a playtest: players (position/health/team/tool/humanoid state), named world state held in ValueBase objects (round counters, flags, ids), currently-playing audio, and runtime/role flags. Use this to debug gameplay while a test runs — pair with start_playtest/get_runtime_logs. Defaults to target="server"; in edit mode the player/world domains come back empty. Domain-masked via `domains`.',
+    description: 'Sample LIVE runtime state during a playtest: players (position/health/team/tool/humanoid state), named world state held in ValueBase objects (round counters, flags, ids), currently-playing audio, and runtime/role flags. Use this to debug gameplay while a test runs — pair with start_playtest/get_runtime_logs. Defaults to target="server"; in edit mode the player/world domains come back empty. Domain-masked via `domains`. AUDIO NOTE: Sound.PlaybackLoudness is always 0 in the Edit DataModel (no active audio listener/render) even when IsPlaying=true — only IsLoaded/IsPlaying are meaningful in edit; judge actual audibility/timbre in a playtest.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -785,6 +818,186 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
+      }
+    }
+  },
+  {
+    name: 'manage_instance',
+    category: 'write',
+    description: 'Launch, close, inspect, and find revisions for Studio instances. Use action="launch" with source="baseplate" for a blank place, or source="local_file" with local_place_file for a local place; neither uses place_id. Use action="list_place_versions" with place_id to retrieve version numbers through Open Cloud asset versions, then action="launch" with source="place_revision", place_id, and place_version to open an older revision. action="close" can close an MCP-managed instance or an explicitly connected edit instance by instance_id. action="launch" source="published_place" opens the latest published place and is blocked if that place_id is already connected; source="place_revision" is allowed because Studio opens explicit past revisions as anonymous local copies. Requires ROBLOX_OPEN_CLOUD_API_KEY with asset:read for list_place_versions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['launch', 'close', 'status', 'list_place_versions'],
+          description: 'Instance management action.'
+        },
+        source: {
+          type: 'string',
+          enum: ['baseplate', 'local_file', 'published_place', 'place_revision'],
+          description: 'Required for action="launch". baseplate/local_file do not use place_id; published_place opens the latest place; place_revision opens a specific older version as an anonymous local copy.'
+        },
+        local_place_file: {
+          type: 'string',
+          description: 'Required for source="local_file". Path to a .rbxl/.rbxlx place file.'
+        },
+        place_id: {
+          type: 'number',
+          description: 'Only used for source="published_place", source="place_revision", and action="list_place_versions". Do not pass for source="baseplate" or source="local_file".'
+        },
+        place_version: {
+          type: 'number',
+          description: 'Required for source="place_revision". Use action="list_place_versions" to discover available version numbers.'
+        },
+        wait_for_connection: {
+          type: 'boolean',
+          description: 'For action="launch": wait until the MCP plugin connects and return instance_id (default true).'
+        },
+        timeout_ms: {
+          type: 'number',
+          description: 'For action="launch": max milliseconds to wait for plugin connection (default 120000).'
+        },
+        max_page_size: {
+          type: 'number',
+          description: 'For action="list_place_versions": number of versions to return, clamped to 1-50 (default 10).'
+        },
+        page_token: {
+          type: 'string',
+          description: 'For action="list_place_versions": pagination token returned by a prior call.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'For action="close" or action="status": Studio instance to inspect or close. close accepts MCP-managed instances and explicitly connected edit instances.'
+        }
+      },
+      required: ['action']
+    }
+  },
+  {
+    name: 'capture_micro_profiler',
+    category: 'read',
+    description: 'Capture one short Roblox MicroProfiler sample on a running server or client peer using LibMP and return a structured CPU-time attribution dataset. Use this when the performance question is "where is the frame time going?" across scripts, physics, render, network, jobs, scheduler, GC, and engine timers. The primary data is top_groups/top_timers sorted by inclusive_us, exclusive-sorted companion lists, top_threads, top_call_edges, frame_summary, and analysis_window/data_quality so an agent can tell whether a result is steady, spiky, thread-bound, wrapper-heavy, or truncated. For baseline comparison, first capture an empty baseplate/control with the same target/settings and summary_output_path, then capture the game with baseline_path pointing at that saved JSON; saved summaries include a compact comparison_index so baseline_comparison can compare full compact aggregates instead of only visible top rows. Pass baseline inline when the previous capture is already in context. Times are reported in microseconds by converting LibMP MicroProfiler nanosecond ticks; inclusive_us is cumulative nested timer time and can overlap across timers/threads, so do not sum rows as total frame time. *_per_s fields are normalized by analysis_window.analysis_duration_us, not requested duration_ms. pct_of_analyzed_wall can exceed 100 when work overlaps. focus can restrict to script, physics, render, network, or jobs. include_idle defaults false so Sleep/idle noise is omitted. max_events bounds iterator work; event_limit_hit and partial_reasons explain when rankings are useful but partial, so narrow focus/filter or raise max_events for deeper analysis. recommended_tools is intentionally brief; the main purpose is digestible attribution data, not an agent diagnosis.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          pattern: '^(server|client-[0-9]+)$',
+          description: 'Runtime peer to profile: "server" (default) or "client-N". Use get_connected_instances to discover available runtime roles.'
+        },
+        duration_ms: {
+          type: 'number',
+          default: 1000,
+          minimum: 100,
+          maximum: 5000,
+          description: 'MicroProfiler capture duration in milliseconds. Defaults to 1000; clamped to 100-5000 because decoded event streams are much larger than ScriptProfiler output.'
+        },
+        focus: {
+          type: 'string',
+          enum: ['all', 'script', 'physics', 'render', 'network', 'jobs'],
+          default: 'all',
+          description: 'Optional subsystem focus. Use "all" first for unknown bottlenecks; use a narrower focus after top_groups identifies the area.'
+        },
+        filter: {
+          type: 'string',
+          description: 'Optional case-insensitive substring matched against timer name and group after capture. Use to inspect a specific timer family such as Heartbeat, Simulation, $Script, or RbxTransport.'
+        },
+        max_timers: {
+          type: 'number',
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+          description: 'Maximum number of top_timers to return. Defaults to 20.'
+        },
+        max_groups: {
+          type: 'number',
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+          description: 'Maximum number of top_groups to return. Each group includes its own hot timers. Defaults to 20.'
+        },
+        max_timers_per_group: {
+          type: 'number',
+          default: 5,
+          minimum: 0,
+          maximum: 20,
+          description: 'Maximum number of nested top_timers included inside each top_groups row. Defaults to 5; use 0 to omit nested timers.'
+        },
+        max_related_timers: {
+          type: 'number',
+          default: 3,
+          minimum: 0,
+          maximum: 10,
+          description: 'Maximum per-row parent, child, and thread context entries. Defaults to 3; use 0 to omit per-row relationship context.'
+        },
+        min_total_us: {
+          type: 'number',
+          default: 0,
+          minimum: 0,
+          description: 'Omit timers below this inclusive_us threshold after idle/focus/filter processing. Defaults to 0.'
+        },
+        include_idle: {
+          type: 'boolean',
+          description: 'Include Sleep/idle timers. Defaults to false because idle time usually hides actionable engine work.'
+        },
+        include_gpu: {
+          type: 'boolean',
+          description: 'Include GPU thread events when LibMP exposes them. Defaults to false to keep CPU diagnosis focused.'
+        },
+        max_events: {
+          type: 'number',
+          default: 250000,
+          minimum: 10000,
+          maximum: 1000000,
+          description: 'Maximum LibMP log events to walk. Defaults to 250000; raise for deeper captures or lower to keep quick iterations snappy.'
+        },
+        frame_window: {
+          type: 'number',
+          default: 240,
+          minimum: 1,
+          maximum: 2000,
+          description: 'Analyze only the last N MicroProfiler frames from the snapshot. Defaults to 240.'
+        },
+        output_path: {
+          type: 'string',
+          description: 'Optional local path where the MCP server writes the raw MicroProfiler snapshot bytes. The normal response stays summarized.'
+        },
+        summary_output_path: {
+          type: 'string',
+          description: 'Optional local path where the MCP server writes the summarized JSON response, including a compact comparison_index. Use this to save an empty-baseplate/control capture for later baseline_path comparison.'
+        },
+        baseline_path: {
+          type: 'string',
+          description: 'Optional local path to a prior capture_micro_profiler summarized JSON response. The tool adds baseline_comparison using current minus baseline, normalized by capture duration.'
+        },
+        baseline: {
+          type: 'object',
+          description: 'Optional inline prior capture_micro_profiler summarized response to compare against. Prefer baseline_path for large captures.'
+        },
+        baseline_label: {
+          type: 'string',
+          description: 'Label used for the baseline side of baseline_comparison, such as "empty_baseplate".'
+        },
+        current_label: {
+          type: 'string',
+          description: 'Label used for the current capture side of baseline_comparison, such as the game or scenario name.'
+        },
+        max_comparison_rows: {
+          type: 'number',
+          default: 20,
+          minimum: 1,
+          maximum: 100,
+          description: 'Maximum delta rows returned per baseline_comparison section: groups, timers, threads, and call_edges. Defaults to 20.'
+        },
+        include_comparison_index: {
+          type: 'boolean',
+          description: 'Include the full compact comparison_index in the normal response. Defaults to false; summary_output_path still saves it for baseline comparison.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Which connected Studio place to target. Required when multiple places are connected; omit when one. Use get_connected_instances to list available IDs.'
+        }
       }
     }
   },

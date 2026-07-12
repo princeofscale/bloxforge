@@ -16,6 +16,10 @@ export interface Connection {
 	lastMcpOk: boolean;
 	mcpWaitStartTime?: number;
 	isPolling: boolean;
+	streamClient?: WebStreamClient;
+	streamOpen: boolean;
+	lastStreamHeartbeat: number;
+	nextStreamRetryAt: number;
 	heartbeatConnection?: RBXScriptConnection;
 }
 
@@ -33,7 +37,10 @@ export interface PollResponse {
 	serverVersion?: string;
 	pluginVersion?: string;
 	pluginVariant?: string;
+	protocolVersion?: number;
+	serverProtocolVersion?: number;
 	versionMismatch?: boolean;
+	protocolMismatch?: boolean;
 	request?: RequestPayload;
 	requestId?: string;
 	// Server signals knownInstance=false when its in-memory instances map
@@ -64,7 +71,9 @@ export interface ReadyResponse {
 	assignedRole?: string;
 	instanceId?: string;
 	serverVersion?: string;
+	serverProtocolVersion?: number;
 	versionMismatch?: boolean;
+	protocolMismatch?: boolean;
 	error?: string;
 	message?: string;
 }

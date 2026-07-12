@@ -1,4 +1,4 @@
-# Roblox Studio MCP Plugin Installation Guide
+# BloxForge Plugin Installation Guide
 
 Complete your AI assistant integration with this easy-to-install Studio plugin. Works with Claude Code, Claude Desktop, and any MCP-compatible AI.
 
@@ -14,8 +14,8 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
 
 ### Method 2: Direct Download
 1. **Download the plugin:**
-   - **GitHub Release**: [Download MCPPlugin.rbxmx](https://github.com/princeofscale/robloxstudio-mcp/releases/latest/download/MCPPlugin.rbxmx)
-   - **CLI installer**: `npx -y @princeofscale/robloxstudio-mcp@latest --install-plugin`
+   - **GitHub Release**: [Download MCPPlugin.rbxmx](https://github.com/princeofscale/bloxforge/releases/latest/download/MCPPlugin.rbxmx)
+   - **CLI installer**: `npx -y @princeofscale/bloxforge@latest --install-plugin`
    - This is the official Roblox plugin format
 
 2. **Install to plugins folder:**
@@ -28,7 +28,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
 
 ### Method 3: Save as Local Plugin
 1. **Copy the plugin code:**
-   - Open [studio-plugin/src/server/index.server.ts](https://github.com/princeofscale/robloxstudio-mcp/blob/main/studio-plugin/src/server/index.server.ts) on GitHub (or build locally - see project README)
+   - Open [studio-plugin/src/server/index.server.ts](https://github.com/princeofscale/bloxforge/blob/main/studio-plugin/src/server/index.server.ts) on GitHub (or build locally - see project README)
    - Copy all the code (Ctrl+A, Ctrl+C)
 
 2. **Create in Studio:**
@@ -36,7 +36,7 @@ Complete your AI assistant integration with this easy-to-install Studio plugin. 
    - Create a new Script in ServerScriptService
    - Paste the plugin code
    - **Right-click script** > **"Save as Local Plugin..."**
-   - Name it "Roblox Studio MCP"
+   - Name it "BloxForge"
 
 3. **Plugin appears immediately** in your toolbar!
 
@@ -55,21 +55,21 @@ Choose your AI assistant:
 
 **For Claude Code:**
 ```bash
-claude mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+claude mcp add robloxstudio -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 **For Codex CLI:**
 ```bash
-codex mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+codex mcp add robloxstudio -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 **For Claude Desktop/Others:**
 ```json
 {
   "mcpServers": {
-    "robloxstudio-mcp": {
+    "bloxforge": {
       "command": "npx",
-      "args": ["-y", "@princeofscale/robloxstudio-mcp@latest", "--auto-install-plugin"]
+      "args": ["-y", "@princeofscale/bloxforge@latest", "--auto-install-plugin"]
     }
   }
 }
@@ -86,9 +86,9 @@ If you encounter issues, you may need to run it through `cmd`. Update your confi
 ```json
 {
   "mcpServers": {
-    "robloxstudio-mcp": {
+    "bloxforge": {
       "command": "cmd",
-      "args": ["/c", "npx", "-y", "@princeofscale/robloxstudio-mcp@latest", "--auto-install-plugin"]
+      "args": ["/c", "npx", "-y", "@princeofscale/bloxforge@latest", "--auto-install-plugin"]
     }
   }
 }

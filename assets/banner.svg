@@ -83,7 +83,7 @@
   </g>
 
   <!-- Center: title + subtitle -->
-  <text x="300" y="172" font-size="52" font-weight="800" fill="url(#title)" letter-spacing="-0.5">Roblox Studio MCP</text>
+  <text x="300" y="172" font-size="52" font-weight="800" fill="url(#title)" letter-spacing="-0.5">BloxForge</text>
   <text x="302" y="208" font-size="19" font-weight="500" fill="#aab4d4">Drive Roblox Studio from Claude Code, Codex, Cursor &amp; AI agents</text>
 
   <!-- Center-bottom: capability chips -->

@@ -7,14 +7,14 @@ const { getInstancePath, getInstanceByPath, readScriptSource, splitLines, joinLi
 const { beginRecording, finishRecording } = Recording;
 
 function normalizeEscapes(s: string): string {
-	let result = s;
-	result = result.gsub("\\\\", "\x01")[0];
-	result = result.gsub("\\n", "\n")[0];
-	result = result.gsub("\\t", "\t")[0];
-	result = result.gsub("\\r", "\r")[0];
-	result = result.gsub('\\"', '"')[0];
-	result = result.gsub("\x01", "\\")[0];
-	return result;
+	return s;
+}
+
+function updateScriptSourceVerified(instance: LuaSourceContainer, newSource: string) {
+	ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
+	if (readScriptSource(instance) !== newSource) {
+		error("UpdateSourceAsync completed without updating the live script draft");
+	}
 }
 
 function getScriptSource(requestData: Record<string, unknown>) {
@@ -131,10 +131,7 @@ function setScriptSource(requestData: Record<string, unknown>) {
 	const [updateSuccess, updateResult] = pcall(() => {
 		const oldSourceLength = readScriptSource(instance).size();
 
-		ScriptEditorService.UpdateSourceAsync(instance, () => sourceToSet);
-		if (readScriptSource(instance) !== sourceToSet) {
-			error("UpdateSourceAsync completed without updating the script source");
-		}
+		updateScriptSourceVerified(instance, sourceToSet);
 
 		return {
 			success: true, instancePath,
@@ -267,7 +264,7 @@ function editScriptLines(requestData: Record<string, unknown>) {
 		// Byte-slice replacement avoids Lua pattern escaping (safe for multi-byte chars like em dashes).
 		const newSource = string.sub(source, 1, matchStart - 1) + newString + string.sub(source, matchStart + searchLen);
 
-		ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
+		updateScriptSourceVerified(instance, newSource);
 
 		return {
 			success: true,
@@ -315,7 +312,7 @@ function insertScriptLines(requestData: Record<string, unknown>) {
 		for (let i = afterLine; i < totalLines; i++) resultLines.push(lines[i]);
 
 		const newSource = joinLines(resultLines, hadTrailingNewline);
-		ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
+		updateScriptSourceVerified(instance, newSource);
 
 		return {
 			success: true, instancePath,
@@ -363,7 +360,7 @@ function deleteScriptLines(requestData: Record<string, unknown>) {
 		for (let i = endLine; i < totalLines; i++) resultLines.push(lines[i]);
 
 		const newSource = joinLines(resultLines, hadTrailingNewline);
-		ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
+		updateScriptSourceVerified(instance, newSource);
 
 		return {
 			success: true, instancePath,
@@ -482,7 +479,7 @@ function findAndReplaceInScripts(requestData: Record<string, unknown>) {
 
 				if (!dryRun) {
 					const [ok] = pcall(() => {
-						ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
+						updateScriptSourceVerified(instance, newSource);
 					});
 					if (!ok) {
 						(instance as unknown as { Source: string }).Source = newSource;

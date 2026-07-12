@@ -168,7 +168,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'capture_screenshot',
     category: 'read',
-    description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the exact pixel dimensions. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The returned image is never downscaled, so its pixel grid is exactly the coordinate space simulate_mouse_input uses — read click positions straight off this image. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
+    description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the physical image size and logical viewport size. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The returned image is never downscaled, but OS display scaling can make physical image pixels larger than the logical viewport coordinates used by simulate_mouse_input; when that happens the response states the exact coordinate conversion. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -180,6 +180,18 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
         quality: {
           type: 'number',
           description: 'JPEG quality 1-100 (default 92). Higher = sharper text, larger size. Ignored for png.'
+        },
+        cameraPosition: {
+          type: 'object',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          required: ['x', 'y', 'z'],
+          description: 'Optional temporary edit-camera position. Requires lookAt; the prior camera type/CFrame are restored after capture.'
+        },
+        lookAt: {
+          type: 'object',
+          properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
+          required: ['x', 'y', 'z'],
+          description: 'World point the temporary camera faces. Requires cameraPosition.'
         },
         instance_id: {
           type: 'string',

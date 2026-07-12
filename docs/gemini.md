@@ -1,11 +1,11 @@
-# Gemini CLI + Roblox Studio MCP
+# Gemini CLI + BloxForge
 
 [Gemini CLI](https://google-gemini.github.io/gemini-cli/) is Google's AI coding assistant. It supports MCP servers.
 
 ## Setup
 
 ```bash
-gemini mcp add robloxstudio npx --trust -- -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+gemini mcp add robloxstudio npx --trust -- -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 The `--trust` flag tells Gemini CLI to trust the `npx` command.

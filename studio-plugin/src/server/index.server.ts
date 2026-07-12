@@ -96,7 +96,7 @@ task.delay(2, () => {
 	} else {
 		const result = ensureRuntimeBridgeInstalled();
 		if (!result.installed) {
-			warn(`[robloxstudio-mcp] Runtime eval bridge install failed: ${result.error}`);
+			warn(`[BloxForge] Runtime eval bridge install failed: ${result.error}`);
 		}
 	}
 	if (role === "edit" || role === "server") {

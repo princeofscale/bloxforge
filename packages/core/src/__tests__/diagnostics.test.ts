@@ -51,4 +51,10 @@ describe('formatDiagnostics', () => {
   it('reports a clean bill of health when there are no errors or warnings', () => {
     expect(formatDiagnostics({ errors: [], warnings: [] })).toMatch(/no errors|clean/i);
   });
+
+  it('warns that diagnostics only cover the current Studio output buffer', () => {
+    const report = formatDiagnostics({ errors: [], warnings: [] });
+    expect(report).toContain('current Studio output log');
+    expect(report).toContain('restart the playtest');
+  });
 });

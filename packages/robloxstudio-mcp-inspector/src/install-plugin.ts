@@ -3,9 +3,9 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { get } from 'https';
 import { IncomingMessage } from 'http';
-import { getPluginsFolder, handleVariantConflict } from '@princeofscale/robloxstudio-mcp-core';
+import { getPluginsFolder, handleVariantConflict } from '@princeofscale/bloxforge-core';
 
-const REPO = 'princeofscale/robloxstudio-mcp';
+const REPO = 'princeofscale/bloxforge';
 const ASSET_NAME = 'MCPInspectorPlugin.rbxmx';
 const OTHER_VARIANT = 'MCPPlugin.rbxmx';
 const TIMEOUT_MS = 30_000;
@@ -19,7 +19,7 @@ interface InstallOptions {
 
 function httpsGet(url: string): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
-    const req = get(url, { headers: { 'User-Agent': 'robloxstudio-mcp-inspector' } }, resolve);
+    const req = get(url, { headers: { 'User-Agent': 'bloxforge-inspector' } }, resolve);
     req.on('error', reject);
     req.setTimeout(TIMEOUT_MS, () => { req.destroy(new Error(`Request timed out after ${TIMEOUT_MS}ms`)); });
   });

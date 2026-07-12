@@ -7,6 +7,143 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.20.2] - 2026-07-08
+
+- **Renamed the product to BloxForge.** Public npm packages are now
+  `@princeofscale/bloxforge`, `@princeofscale/bloxforge-inspector`, and the
+  internal `@princeofscale/bloxforge-core`; CLI binaries, MCP service names,
+  plugin UI/logging, docs, repository links, and diagnostics use the BloxForge
+  brand. Legacy source-directory and environment-variable names remain accepted
+  for compatibility.
+- **Tool profiles.** Added `--profile core|builder|tester|full` via
+  `BLOXFORGE_TOOL_PROFILE`, preloading task-relevant schemas while keeping the
+  token-lean core default. `load_toolset` now explicitly documents that some MCP
+  hosts require a client-side schema-selection step after `tools/list_changed`.
+- **Bridge diagnostics.** `/health` and `/status` now retain the ten most recent
+  disconnects with reason (`plugin_request`, `stale_timeout`, or `unknown`), last
+  activity, and disconnect timestamp.
+- **Runtime reliability.** `stop_playtest` is now an idempotent no-op when no
+  runtime peer is active, instead of waiting for a nonexistent play-server.
+  Invalid UTF-8 produced by byte-sliced `execute_luau` output is replaced with a
+  clear marker before JSON serialization, preventing 120-second bridge stalls.
+- **Safe screenshot camera framing.** `capture_screenshot` accepts paired
+  `cameraPosition`/`lookAt` values in Edit mode and always restores the previous
+  CameraType and CFrame after capture.
+- **Dogfood limitations reference.** Documented playtest wall-clock behavior,
+  eval time windows, VM-local `_G`, runtime `GetDebugId` security, shared-log peer
+  attribution, ModuleScript diagnostics/reload behavior, unique edit anchors,
+  screenshot/input scaling, ProximityPrompt triggering, marketplace permissions,
+  audio constraints, and safety confirmation behavior.
+
+- **Bridge: WebSocket request delivery with polling fallback.** Studio plugins
+  now prefer `HttpService:CreateWebStreamClient(WebSocket)` for immediate
+  request delivery and same-stream responses. `/poll` remains the fallback
+  before connection and after a close/error, preserving compatibility with
+  older plugins and denied stream permissions. Failed stream sends release
+  the request back to the normal queue.
+- **Wrapper tests: correct Lua pattern escaping.** Node and Lune smoke tests
+  now match Lua/Luau `%w`: underscores are escaped, while letters and digits
+  remain literal. Added `npm run test:plugin:runtime` for the Lune smoke test
+  when the `lune` executable is installed.
+
+- **Plugin: `fresh_require()` helper for stale `require()` cache.** Added a
+  built-in `_G.fresh_require(module)` available inside every
+  `execute_luau` / `execute_luau_async` call. After editing a `ModuleScript`'s
+  `Source`, Roblox's per-instance `require()` cache returns the stale pre-edit
+  copy, so edits look like they "didn't apply". `fresh_require()` clones the
+  module under `Workspace`, requires the clone (new identity → no cache hit),
+  then `Destroy()`s it. It is a verification tool, not a drop-in `require()`
+  (different table identity; nested `require()` is not fresh; errors are raw) —
+  see [docs/known-limitations.md](docs/known-limitations.md).
+- **Plugin: dynamic `WRAPPER_LINE_OFFSET`.** The execute_luau wrapper's
+  user-relative line offset is now derived from the rendered template (a probe
+  with a sentinel counts preamble newlines) instead of a hand-maintained
+  constant, so reordering the wrapper preamble can never silently desync
+  `__mcp_LINE_OFFSET` / `remapPayloadLines` from the real line count.
+- **Bridge: more resilient to Studio throttling.** The server now tolerates up
+  to 90s of plugin silence before reaping an instance (was 30s), absorbing the
+  `HttpService:RequestAsync` throttling gaps Studio imposes when its window is
+  backgrounded/minimized — the most common cause of the bridge "dropping"
+  mid-session. Configurable via `MCP_STALE_INSTANCE_MS`. The plugin also re-fires
+  `/ready` immediately on the failing→ok poll transition, closing the window
+  where a recovered plugin is still anonymous to the server.
+- **CI: plugin compiled-output smoke check.** Added
+  `tests/plugin-compiled-smoke.mjs` that asserts key invariants on the
+  `rbxtsc`-compiled Luau (dynamic offset, fresh_require presence, renderWrapper
+  template, recovery re-ready). Runs as `npm run test:plugin:smoke` locally and as
+  a CI step after the existing `compile:plugin` job, so regressions in the
+  compiled wrapper surface without needing a Studio runtime.
+- **Documentation: Roblox-engine platform limits.** New
+  [docs/known-limitations.md](docs/known-limitations.md) as the canonical
+  reference for three dogfooded constraints: (1) `require()` cache by instance
+  after `Source` edits, (2) catalog/uploaded audio (`rbxassetid://`) failing to
+  load in Edit (`IsLoaded=false`, `TimeLength=0`; only `rbxasset://sounds/*`
+  loads in Edit), (3) `Sound.PlaybackLoudness` always `0` in Edit. Surfaced the
+  same limits in `SERVER_INSTRUCTIONS`, and in the `execute_luau`,
+  `edit_script_lines`, `set_script_source`, `audio_create_sound`, and
+  `playtest_sample_state` tool descriptions. Added [docs/README.md](docs/README.md)
+  index and [docs/troubleshooting.md](docs/troubleshooting.md) symptom→fix guide.
+  Removed the stale "library audio loads in Edit" note from the deleted `bugs.md`.
+
+- **Upstream Chrrxs v2.21.0 parity slice: Studio instance management and MicroProfiler capture.**
+  - Added `manage_instance` for launching baseplates/local files, inspecting/closing managed Studio instances, and listing Open Cloud place versions for revision launches.
+  - Added `capture_micro_profiler` plus Studio plugin `/api/capture-micro-profiler` routing, `LibMP.lua`, raw snapshot export, summarized JSON export, and baseline comparison deltas for groups/timers/threads/call edges.
+  - Added upstream-compatible aliases `solo_playtest`, `multiplayer_playtest`, and `generate_model` over this fork's existing runtime/model-generation architecture.
+
+- **Dependency hygiene.**
+  - Folded Dependabot PR #23 into this release: `@typescript-eslint/eslint-plugin` and `@typescript-eslint/parser` now use `^8.62.1`.
+  - Ran `npm audit fix` and added an `esbuild` override to `0.28.1`, reducing `npm audit` from 16 reported vulnerabilities to 0 while keeping the build/test suite green.
+
+- **Dogfooded papercut fixes from gas-station tycoon MCP work.**
+  - Lazy tool loading remains the **default** MCP path. `ROBLOX_MCP_LAZY_TOOLS=0`
+    / `false` / `off` is the escape hatch for hosts that need all schemas upfront,
+    while `doctor`, `/health`, and `get_session_summary` now make schema mode,
+    loaded core state, and recent failures visible for reconnect debugging.
+  - `/ready`, `/poll`, `/health`, `/status`, and `doctor` now surface protocol
+    version metadata alongside plugin/server versions, so an updated npm package
+    paired with an old Studio plugin is visible immediately.
+  - Safety-gated Luau now reports the exact matched dangerous pattern(s), not just
+    a generic confirmation request.
+  - Added lightweight dogfood session telemetry (`get_session_summary` plus
+    `/health.session`) that records tool name, duration, success/failure, and error
+    code without capturing tool payloads.
+  - Catalog search can mark legacy overlap tools with replacement metadata; public
+    tools are not removed in this patch release.
+  - Script editing no longer decodes literal `\n`, `\t`, `\r`, or escaped quotes in
+    source/edit payloads. JSON already transports real newlines, so preserving
+    backslashes prevents malformed string literals such as `"foo\nbar"` being split
+    across lines. Script edit/insert/delete/find-replace paths also verify the live
+    `ScriptDocument` draft after `UpdateSourceAsync`, preventing stale editor drafts
+    from being mistaken for successful writes.
+  - `diagnose_scripts` now states that it reads the current Studio output log only
+    and that ModuleScript compile/load errors require a playtest restart/require
+    before a clean result is trustworthy.
+  - `simulate_keyboard_input` now accepts `holdDuration` as an alias for `duration`
+    and forwards it all the way to the Studio plugin. `duration` wins when both are
+    supplied, preserving the original parameter while accepting ProximityPrompt-style
+    naming.
+  - `capture_screenshot` now reports both physical image size and logical viewport
+    size. When OS display scaling makes screenshot pixels differ from
+    `simulate_mouse_input` coordinates, the response gives the exact conversion
+    (`x = imageX / scaleX`, `y = imageY / scaleY`) instead of claiming 1:1 pixels.
+    The Studio capture DM now returns `viewportW`/`viewportH`; tool descriptions no
+    longer promise the image always matches the input coordinate space.
+  - Playtest teardown is idempotent for Roblox's "EndTest can only be called once"
+    failure mode. `multiplayer_test_end` and the cross-DM `stop_playtest` monitor now
+    treat that signal as teardown already in progress (`success + alreadyEnded`)
+    rather than failing and leaving the session stuck.
+
+- **Upstream Chrrxs v2.21.0 parity slice: official Roblox docs.** Ported the
+  isolated `get_roblox_docs` feature from upstream into this fork's split tool
+  architecture, including cached markdown fetching, section extraction, a
+  `robloxdocs://...` resource template surface, and helper tests. Larger upstream
+  additions (`manage_instance`, `capture_micro_profiler`, monolithic playtest API
+  renames) were identified but not merged wholesale because they conflict with this
+  fork's round-6 toolset/resource/outputSchema architecture and need a separate port.
+
+- Removed stale `bugs.md` and `todo.md`; release history lives in this changelog and
+  regressions are covered by tests.
+
 - **Track A — multi-provider CC0 asset discovery + provenance resource (round-6).**
   `asset_source_search` searches free, license-clean libraries OUTSIDE the Roblox
   marketplace and returns ONE normalized descriptor shape across providers
@@ -104,7 +241,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   make the native path the right first cut.)
 - Branding: replaced upstream `Chrrxs`/`chrrxs` references with `princeofscale` across the
   studio-plugin (credits label, update banner, install docs) and pointed the installers'
-  release-download `REPO` at `princeofscale/robloxstudio-mcp`. The release workflow now
+  release-download `REPO` at `princeofscale/bloxforge`. The release workflow now
   creates a GitHub release per tag and attaches both `.rbxmx` plugin variants, so the
   `--dev`/fallback download path resolves real assets.
 
@@ -372,10 +509,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.3...HEAD
-[2.19.3]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.2...v2.19.3
-[2.19.2]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.1...v2.19.2
-[2.19.1]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.19.0...v2.19.1
-[2.19.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.18.0...v2.19.0
-[2.18.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.17.0...v2.18.0
-[2.17.0]: https://github.com/princeofscale/robloxstudio-mcp/compare/v2.16.3...v2.17.0
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v2.19.3...HEAD
+[2.19.3]: https://github.com/princeofscale/bloxforge/compare/v2.19.2...v2.19.3
+[2.19.2]: https://github.com/princeofscale/bloxforge/compare/v2.19.1...v2.19.2
+[2.19.1]: https://github.com/princeofscale/bloxforge/compare/v2.19.0...v2.19.1
+[2.19.0]: https://github.com/princeofscale/bloxforge/compare/v2.18.0...v2.19.0
+[2.18.0]: https://github.com/princeofscale/bloxforge/compare/v2.17.0...v2.18.0
+[2.17.0]: https://github.com/princeofscale/bloxforge/compare/v2.16.3...v2.17.0

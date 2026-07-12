@@ -68,6 +68,13 @@ describe('buildCatalog', () => {
     expect(catalog.find((e) => e.name === 'create_object')!.mode).toBe('write');
   });
 
+  it('marks legacy overlap tools with replacement metadata instead of removing them', () => {
+    expect(catalog.find((e) => e.name === 'get_descendants')).toMatchObject({
+      deprecated: true,
+      replacement: 'get_world_snapshot + scene_search/get_node_batch',
+    });
+  });
+
   it('keeps whenToUse to a single short sentence', () => {
     for (const e of catalog) {
       expect(e.whenToUse).not.toContain('. '); // first sentence only

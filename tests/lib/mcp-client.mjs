@@ -148,7 +148,7 @@ export class McpClient {
   }
 
   /** tools/call wrapper. Returns the parsed first text-content body (the
-      common shape used by the Roblox Studio MCP). Throws if no text content. */
+      common shape used by the BloxForge). Throws if no text content. */
   async callTool(name, args = {}) {
     const routedArgs = { ...args };
     if (process.env.MCP_INSTANCE_ID && ROUTED_TOOLS.has(name) && routedArgs.instance_id === undefined) {

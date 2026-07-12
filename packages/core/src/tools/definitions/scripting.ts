@@ -32,7 +32,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'set_script_source',
     category: 'write',
-    description: 'Replace entire script source. The previous source is backed up first (restore via restore_script_backup). For partial edits use edit/insert/delete_script_lines.',
+    description: 'Replace entire script source. The previous source is backed up first (restore via restore_script_backup). For partial edits use edit/insert/delete_script_lines. NOTE for ModuleScripts: editing Source does NOT invalidate Roblox\'s per-instance require() cache, so a subsequent require() in execute_luau returns the stale copy — re-verify with fresh_require(module) or a playtest, not a plain require().',
     inputSchema: {
       type: 'object',
       properties: {
@@ -63,7 +63,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'edit_script_lines',
     category: 'write',
-    description: 'Replace exact text in a script. Without startLine, old_string must match exactly once in the script. Pass startLine (1-indexed, from get_script_source) to anchor the edit to a specific line when old_string is ambiguous (e.g. repeated closing braces).',
+    description: 'Replace exact text in a script. Without startLine, old_string must match exactly once in the script. Pass startLine (1-indexed, from get_script_source) to anchor the edit to a specific line when old_string is ambiguous (e.g. repeated closing braces). NOTE for ModuleScripts: editing Source does NOT invalidate Roblox\'s per-instance require() cache, so a subsequent require() in execute_luau returns the stale pre-edit copy — re-verify with fresh_require(module) or a playtest instead of plain require().',
     inputSchema: {
       type: 'object',
       properties: {
@@ -326,7 +326,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'execute_luau',
     category: 'write',
-    description: 'Execute Luau code in plugin context. target="server" and target="client-N" run against live runtime DataModels with PluginSecurity permissions; use eval_*_runtime instead when you need the game Script/LocalScript VM require cache. Use print()/warn() for output. Return value is captured.',
+    description: 'Execute Luau code in plugin context. target="server" and target="client-N" run against live runtime DataModels with PluginSecurity permissions; use eval_*_runtime instead when you need the game Script/LocalScript VM require cache. Use print()/warn() for output. Return value is captured. REQUIRE-CACHE GOTCHA: Roblox caches require() per ModuleScript instance, and editing a module\'s Source (edit_script_lines / set_script_source) does NOT invalidate that cache — so a plain require(module) right after editing returns the STALE pre-edit copy and your change looks like it "didn\'t apply". To require a fresh copy, call the built-in fresh_require(module) (clone->require->destroy, bypasses the cache) instead of require(module). Alternatively use eval_*_runtime (shares the live game\'s require cache) or playtest to exercise the real module.',
     inputSchema: {
       type: 'object',
       properties: {

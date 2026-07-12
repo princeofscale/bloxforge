@@ -44,6 +44,7 @@ describe('SafetyManager.assess', () => {
     const a = safety.assess({ kind: 'execute_luau', code: 'game:GetService("Workspace"):ClearAllChildren()' });
     expect(a.requiresConfirmation).toBe(true);
     expect(a.warnings.length).toBeGreaterThan(0);
+    expect(a.matchedPatterns).toContain('/ClearAllChildren\\s*\\(/');
   });
 
   it('does not require confirmation for benign luau', () => {

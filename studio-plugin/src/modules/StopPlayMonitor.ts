@@ -52,6 +52,7 @@ interface StopPayload {
 	consumedAt?: number;
 	ok?: boolean;
 	error?: string;
+	alreadyEnded?: boolean;
 }
 
 interface StopRequestResult {
@@ -63,6 +64,7 @@ interface StopConsumptionResult {
 	ok: boolean;
 	consumed: boolean;
 	error?: string;
+	alreadyEnded?: boolean;
 }
 
 function init(p: Plugin): void {
@@ -137,7 +139,7 @@ function writePayload(key: string, payload: StopPayload): boolean {
 	return writeSetting(key, encoded);
 }
 
-function writeResult(key: string, request: StopPayload, ok: boolean, errText?: string): void {
+function writeResult(key: string, request: StopPayload, ok: boolean, errText?: string, alreadyEnded?: boolean): void {
 	writePayload(key, {
 		kind: "result",
 		id: request.id,
@@ -145,6 +147,7 @@ function writeResult(key: string, request: StopPayload, ok: boolean, errText?: s
 		consumedAt: tick(),
 		ok,
 		error: errText,
+		alreadyEnded,
 	});
 }
 
@@ -165,8 +168,9 @@ function handleStopRequest(key: string, request: StopPayload): void {
 		writeResult(
 			key,
 			request,
-			false,
-			"StudioTestService:EndTest was already issued for this play session, but the runtime DataModel is still alive.",
+			true,
+			undefined,
+			true,
 		);
 		return;
 	}
@@ -178,6 +182,10 @@ function handleStopRequest(key: string, request: StopPayload): void {
 
 	endTestIssued = true;
 	const [endOk, endErr] = pcall(() => StudioTestService.EndTest("stopped_by_mcp"));
+	if (!endOk && (tostring(endErr).find("EndTest can only be called once")[0] !== undefined || tostring(endErr).find("can only be called once")[0] !== undefined)) {
+		writeResult(key, request, true, undefined, true);
+		return;
+	}
 	writeResult(key, request, endOk, endOk ? undefined : tostring(endErr));
 	if (!endOk) {
 		endTestIssued = false;
@@ -186,7 +194,7 @@ function handleStopRequest(key: string, request: StopPayload): void {
 
 function startMonitor(): void {
 	if (!pluginRef) {
-		warn("[robloxstudio-mcp] StopPlayMonitor.startMonitor called before init; skipping");
+		warn("[BloxForge] StopPlayMonitor.startMonitor called before init; skipping");
 		return;
 	}
 	task.spawn(() => {
@@ -235,6 +243,7 @@ function waitForConsumption(requestId: string): StopConsumptionResult {
 					ok: payload.ok === true,
 					consumed: true,
 					error: payload.error,
+					alreadyEnded: payload.alreadyEnded,
 				};
 			}
 		}

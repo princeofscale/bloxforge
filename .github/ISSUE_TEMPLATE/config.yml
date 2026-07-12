@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Documentation
-    url: https://github.com/princeofscale/robloxstudio-mcp/blob/main/README.md
+    url: https://github.com/princeofscale/bloxforge/blob/main/README.md
     about: Read the README first
   - name: Discussion
-    url: https://github.com/princeofscale/robloxstudio-mcp/discussions
+    url: https://github.com/princeofscale/bloxforge/discussions
     about: Ask questions and share workflows

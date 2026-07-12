@@ -65,6 +65,10 @@ type RuntimeToolRuntime = {
   episodes: EpisodeStore;
 };
 
+function isEndTestAlreadyCalledError(value: unknown): boolean {
+  return /EndTest.*can only be called once|can only be called once/i.test(errorMessage(value));
+}
+
 export class RuntimeTools {
   constructor(private readonly runtime: RuntimeToolRuntime) {}
 
@@ -1305,6 +1309,16 @@ export class RuntimeTools {
     // involved — the cross-DM signal works regardless of MCP server state,
     // peer-role bookkeeping, or restart cycles.
     const { instanceId } = this._resolveSingleTarget('edit', instance_id);
+    const peers = this.bridge.getPublicInstances()
+      .filter((peer) => this.bridge.getEquivalentInstanceIds(instanceId).includes(peer.instanceId));
+    if (!peers.some((peer) => peer.isRunning || peer.role === 'server' || /^client-\d+$/.test(peer.role))) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ success: true, alreadyStopped: true, runtimeStopped: true, roles: ['edit'] }),
+        }],
+      };
+    }
     let response: Record<string, unknown>;
     let stopRequestError: string | undefined;
     try {
@@ -1585,7 +1599,15 @@ export class RuntimeTools {
       serverTarget.instanceId,
       serverTarget.role,
     );
-    if (response?.error) {
+    const endResponse = response?.error && isEndTestAlreadyCalledError(response.error)
+      ? {
+        ...response,
+        success: true,
+        alreadyEnded: true,
+        message: 'StudioTestService:EndTest was already called; treating teardown as already in progress.',
+      }
+      : response;
+    if (endResponse?.error && !endResponse.alreadyEnded) {
       return { content: [{ type: 'text', text: JSON.stringify(response) }] };
     }
     const editDone = await this._waitForMultiplayerEditDone(serverTarget.instanceId, timeout ?? 30);
@@ -1599,7 +1621,7 @@ export class RuntimeTools {
       content: [{
         type: 'text',
         text: JSON.stringify({
-          ...response,
+          ...endResponse,
           ended: wait.ok,
           editDone,
           timedOut: wait.timedOut,
@@ -1652,13 +1674,13 @@ export class RuntimeTools {
     };
   }
 
-  async simulateKeyboardInput(keyCode?: string, action?: string, duration?: number, text?: string, target?: string, instance_id?: string) {
+  async simulateKeyboardInput(keyCode?: string, action?: string, duration?: number, text?: string, target?: string, instance_id?: string, holdDuration?: number) {
     if (!keyCode && text === undefined) {
       throw new Error('keyCode or text is required for simulate_keyboard_input');
     }
     const { instanceId, clientRole } = this._resolveRuntime(instance_id);
     const response = await this._callSingle('/api/simulate-keyboard-input', {
-      keyCode, action, duration, text
+      keyCode, action, duration, holdDuration, text
     }, target || clientRole || 'edit', instanceId);
     return {
       content: [{
@@ -1889,6 +1911,8 @@ export class RuntimeTools {
     targetRole: string,
     format?: string,
     quality?: number,
+    cameraPosition?: { x: number; y: number; z: number },
+    lookAt?: { x: number; y: number; z: number },
   ): Promise<EncodedViewportCapture> {
     let response: RawImageCaptureResponse;
     if (targetRole.startsWith('client-')) {
@@ -1897,17 +1921,26 @@ export class RuntimeTools {
       // the client to get the rbxtemp:// id, then read it back in the edit DM —
       // the rbxtemp handle is process-scoped and the edit/plugin identity is
       // allowed to promote it into a readable EditableImage.
-      const begin = await this._callSingle('/api/capture-begin', {}, targetRole, instanceId) as { contentId?: string; error?: string };
+      const begin = await this._callSingle('/api/capture-begin', {}, targetRole, instanceId) as {
+        contentId?: string;
+        error?: string;
+        viewportW?: number;
+        viewportH?: number;
+      };
       if (begin.error) {
         return { success: false, error: begin.error };
       }
       if (!begin.contentId) {
         return { success: false, error: 'Screenshot capture failed: no content id returned from client.' };
       }
-      response = await this._callSingle('/api/capture-read', { contentId: begin.contentId }, 'edit', instanceId) as RawImageCaptureResponse;
+      response = await this._callSingle('/api/capture-read', {
+        contentId: begin.contentId,
+        viewportW: begin.viewportW,
+        viewportH: begin.viewportH,
+      }, 'edit', instanceId) as RawImageCaptureResponse;
     } else {
       // Edit mode: capture and read back in the same (edit) context.
-      response = await this._callSingle('/api/capture-screenshot', {}, 'edit', instanceId) as RawImageCaptureResponse;
+      response = await this._callSingle('/api/capture-screenshot', { cameraPosition, lookAt }, 'edit', instanceId) as RawImageCaptureResponse;
     }
 
     if (response.error) {
@@ -1965,20 +1998,32 @@ export class RuntimeTools {
       note = ` — auto-reduced to q${usedQ} to fit the inline size limit; enlarge the Studio window or capture a smaller region for finer detail`;
     }
 
-    // Explicit coordinate contract: the image is returned at native viewport
-    // resolution and is never downscaled, so its pixel grid IS the coordinate
-    // space simulate_mouse_input expects. Stating the dimensions removes any
-    // ambiguity about what (x, y) mean.
-
-    const message =
-      `Screenshot ${w}x${h}px (${fmt}${fmt === 'jpeg' ? ` q${usedQ}` : ''})${note}. ` +
+    const viewportW = response.viewportW;
+    const viewportH = response.viewportH;
+    const hasViewport = viewportW !== undefined && viewportH !== undefined && viewportW > 0 && viewportH > 0;
+    let coordinateText =
       `For simulate_mouse_input, x/y are pixel coordinates in this exact image with (0,0) at the ` +
       `top-left; it is not downscaled, so use coordinates as you read them off the image.`;
+    if (hasViewport && (viewportW !== w || viewportH !== h)) {
+      const scaleX = w / viewportW;
+      const scaleY = h / viewportH;
+      coordinateText =
+        `OS/display scaling makes the physical screenshot differ from the logical viewport used by simulate_mouse_input. ` +
+        `Convert raw screenshot pixels before clicking: x = imageX / ${scaleX.toFixed(4)}, ` +
+        `y = imageY / ${scaleY.toFixed(4)}.`;
+    }
+
+    const viewportText = hasViewport ? `; logical viewport ${viewportW}x${viewportH}px` : '';
+    const message =
+      `Screenshot ${w}x${h}px${viewportText} (${fmt}${fmt === 'jpeg' ? ` q${usedQ}` : ''})${note}. ` +
+      coordinateText;
 
     return {
       success: true,
       width: w,
       height: h,
+      viewportW,
+      viewportH,
       format: fmt,
       quality: fmt === 'jpeg' ? usedQ : undefined,
       note,
@@ -1988,9 +2033,13 @@ export class RuntimeTools {
     };
   }
 
-  async captureScreenshot(instance_id?: string, format?: string, quality?: number) {
+  async captureScreenshot(instance_id?: string, format?: string, quality?: number, cameraPosition?: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }) {
+    if ((cameraPosition === undefined) !== (lookAt === undefined)) {
+      throw new Error('capture_screenshot cameraPosition and lookAt must be provided together');
+    }
     const { instanceId, clientRole } = this._resolveRuntime(instance_id);
-    const capture = await this._captureViewportImage(instanceId, clientRole ?? 'edit', format, quality);
+    if (cameraPosition && clientRole) throw new Error('Temporary camera framing is only supported in Edit mode');
+    const capture = await this._captureViewportImage(instanceId, clientRole ?? 'edit', format, quality, cameraPosition, lookAt);
     if (!capture.success) {
       return { content: [{ type: 'text', text: capture.error }] };
     }

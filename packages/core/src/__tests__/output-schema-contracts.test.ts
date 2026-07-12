@@ -84,7 +84,7 @@ const samples: Record<string, unknown> = {
       recommendedTools: ['ui_create_text_button'],
       load: { tool: 'load_toolset', args: { toolsets: ['ui'] } },
     }],
-    client_hint: 'If a tool you need is not in your current tool list, call load_toolset with the recommended domain(s) first.',
+    client_hint: 'Lazy-loading is the default path. If a needed tool is not currently advertised, call load_toolset with the recommended domain(s); set ROBLOX_MCP_LAZY_TOOLS=0 only for full upfront schemas.',
   },
   load_toolset: {
     loaded: ['ui'],

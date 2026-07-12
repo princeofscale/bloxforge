@@ -5,8 +5,10 @@
 //
 //   1. The IIFE wrapper that captures print/warn, wraps require() so nested
 //      ModuleScript load failures can recover the real LogService diagnostic,
-//      runs user code in xpcall, and always returns { ok, value, output } so
-//      the ModuleScript itself always returns exactly one value (otherwise
+//      also exposes fresh_require() (clone->require->destroy) to bypass the
+//      engine's per-instance require() cache after a Source edit, runs user
+//      code in xpcall, and always returns { ok, value, output } so the
+//      ModuleScript itself always returns exactly one value (otherwise
 //      `print("hi")` with no return would fail with "Module code did not
 //      return exactly one value").
 //
@@ -48,9 +50,25 @@ const REQUIRE_GENERIC_ERROR = "Requested module experienced an error while loadi
 // Used both inside the wrapper (Luau __mcp_LINE_OFFSET) and on the TS side
 // (remapPayloadLines, for compile errors recovered from LogService) so user
 // code errors report user-relative line numbers instead of the inflated
-// "line 49" the wrapper would otherwise expose. If you reorder buildWrapper's
-// prefix lines, update this constant.
-const WRAPPER_LINE_OFFSET = 84;
+// "line 49" the wrapper would otherwise expose.
+//
+// Computed dynamically from the actual wrapper prefix (see computeWrapperLine
+// Offset) so reordering buildWrapper's preamble can never silently desync this
+// constant from the real line count. The probe renders the wrapper with a
+// sentinel on the code line and counts newlines before it; the offset value
+// itself always occupies exactly one line, so a dummy 0 yields the right count.
+const CODE_SENTINEL = "__MCP_USER_CODE_LINE__";
+function computeWrapperLineOffset(): number {
+	const probe = renderWrapper(0, 0, CODE_SENTINEL, luaPatternEscape(PAYLOAD_INSTANCE_NAME));
+	const [start] = string.find(probe, CODE_SENTINEL, 1, true);
+	if (start === undefined) {
+		// Should be unreachable — the sentinel is emitted by renderWrapper.
+		error("MCP internal error: wrapper code sentinel not found while computing line offset", 0);
+	}
+	const before = string.sub(probe, 1, (start as number) - 1);
+	return countLines(before) - 1;
+}
+const WRAPPER_LINE_OFFSET = computeWrapperLineOffset();
 
 // Count source lines so the wrapper can filter traceback frames that fall
 // outside the user code range (the wrapper's own preamble/postamble lines).
@@ -68,17 +86,21 @@ function luaPatternEscape(s: string): string {
 	return escaped;
 }
 
-function buildWrapper(code: string, payloadInstanceName = PAYLOAD_INSTANCE_NAME): string {
-	// If you reorder the prefix lines below, update WRAPPER_LINE_OFFSET to
-	// match the number of lines emitted BEFORE the ${code} substitution.
-	// The constant is mirrored inside the wrapper (__mcp_LINE_OFFSET) and
-	// used by remapPayloadLines on the TS side.
-	const userLines = countLines(code);
-	const payloadPattern = luaPatternEscape(payloadInstanceName);
+// Pure string renderer shared by buildWrapper (real offset/userLines) and
+// computeWrapperLineOffset (probes with a sentinel to measure the prefix).
+// Keeping the template in one place means the offset can be DERIVED from it
+// instead of hand-maintained, so reordering preamble lines can never desync
+// __mcp_LINE_OFFSET / remapPayloadLines from the real line count.
+function renderWrapper(
+	lineOffset: number,
+	userLines: number,
+	code: string,
+	payloadPattern: string,
+): string {
 	return `return ((function()
 \tlocal __mcp_traceback
 \tlocal __mcp_remap
-\tlocal __mcp_LINE_OFFSET = ${WRAPPER_LINE_OFFSET}
+\tlocal __mcp_LINE_OFFSET = ${lineOffset}
 \tlocal __mcp_USER_LINES = ${userLines}
 \tlocal __mcp_LogService = game:GetService("LogService")
 \tlocal __mcp_REQUIRE_GENERIC = "${REQUIRE_GENERIC_ERROR}"
@@ -86,18 +108,24 @@ function buildWrapper(code: string, payloadInstanceName = PAYLOAD_INSTANCE_NAME)
 \tlocal __mcp_real_print = print
 \tlocal __mcp_real_warn = warn
 \tlocal __mcp_real_require = require
+\tlocal function __mcp_string(value)
+\t\tlocal s = tostring(value)
+\t\tlocal valid = utf8.len(s)
+\t\tif valid == false then return "<invalid UTF-8 omitted; avoid byte-slicing Unicode strings>" end
+\t\treturn s
+\tend
 \tlocal print = function(...)
 \t\t__mcp_real_print(...)
 \t\tlocal args = {...}
 \t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\tfor i, a in ipairs(args) do parts[i] = __mcp_string(a) end
 \t\ttable.insert(__mcp_output, table.concat(parts, "\\t"))
 \tend
 \tlocal warn = function(...)
 \t\t__mcp_real_warn(...)
 \t\tlocal args = {...}
 \t\tlocal parts = table.create(#args)
-\t\tfor i, a in ipairs(args) do parts[i] = tostring(a) end
+\t\tfor i, a in ipairs(args) do parts[i] = __mcp_string(a) end
 \t\ttable.insert(__mcp_output, "[warn] " .. table.concat(parts, "\\t"))
 \tend
 \tlocal function __mcp_is_stack_noise(msg)
@@ -158,6 +186,28 @@ function buildWrapper(code: string, payloadInstanceName = PAYLOAD_INSTANCE_NAME)
 \t\tif ok then return value end
 \t\terror(__mcp_recover_require_error(value, history_start, module), 0)
 \tend
+\t-- fresh_require(module): require a FRESH copy, bypassing the engine's
+\t-- per-instance require() cache. After editing a ModuleScript's Source
+\t-- (edit_script_lines / set_script_source), a plain require() of that same
+\t-- instance returns the STALE cached copy, so the edit looks like it "didn't
+\t-- apply". fresh_require clones the module under Workspace (a new instance
+\t-- identity = no cache hit), requires the clone, then Destroy()s it. Exposed
+\t-- via _G so it is reachable from any nesting depth in user code.
+\t-- CAVEATS: the returned table is a DIFFERENT instance than the cached one
+\t-- (identity checks like require(M) == require(M) will not hold); nested
+\t-- require() inside the module still hits the live cache. Use it to VERIFY
+\t-- freshly edited code, not as a drop-in replacement for require().
+\tlocal function fresh_require(module)
+\t\tlocal clone = module:Clone()
+\t\tclone.Name = "__MCP_fresh_require_clone"
+\t\tclone.Parent = game:GetService("Workspace")
+\t\tlocal history_start = #__mcp_LogService:GetLogHistory()
+\t\tlocal ok, value = pcall(__mcp_real_require, clone)
+\t\tclone:Destroy()
+\t\tif ok then return value end
+\t\terror(__mcp_recover_require_error(value, history_start, clone), 0)
+\tend
+\t_G.fresh_require = fresh_require
 \tlocal function __mcp_run()
 ${code}
 \tend
@@ -225,7 +275,17 @@ ${code}
 \tend
 \tlocal ok, errOrValue = xpcall(__mcp_run, __mcp_traceback)
 \treturn { ok = ok, value = errOrValue, output = __mcp_output }
-end)())`;
+end)()`;
+}
+
+function buildWrapper(code: string, payloadInstanceName = PAYLOAD_INSTANCE_NAME): string {
+	// The line offset is DERIVED from the rendered template (see
+	// computeWrapperLineOffset) instead of hand-maintained, so reordering the
+	// preamble can never silently desync __mcp_LINE_OFFSET / remapPayloadLines
+	// from the real prefix line count.
+	const userLines = countLines(code);
+	const payloadPattern = luaPatternEscape(payloadInstanceName);
+	return renderWrapper(WRAPPER_LINE_OFFSET, userLines, code, payloadPattern);
 }
 
 // TS-side mirror of the Lua __mcp_remap. Used by runViaModuleScript when
@@ -309,7 +369,9 @@ function formatReturnValue(value: unknown): string {
 		const [ok, encoded] = pcall(() => HttpService.JSONEncode(value));
 		if (ok) return encoded as string;
 	}
-	return tostring(value);
+	const text = tostring(value);
+	const [valid] = utf8.len(text);
+	return valid === false ? "<invalid UTF-8 omitted; avoid byte-slicing Unicode strings>" : text;
 }
 
 function recoverPayloadRequireError(
