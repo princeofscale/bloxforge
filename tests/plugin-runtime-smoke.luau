@@ -5,6 +5,7 @@
 -- and fresh_require wrapper semantics WITHOUT a Roblox Studio runtime.
 -- Requires: lune (https://lune-org.github.io/lune/)
 
+local process = require("@lune/process")
 local test = {}
 
 local passed = 0
@@ -51,7 +52,7 @@ local function luaPatternEscape(s)
 end
 
 print("luaPatternEscape")
-assert_eq("dots and parens", luaPatternEscape("hello.world(test)"), "hello%.(%)world%(%)")
+assert_eq("dots and parens", luaPatternEscape("hello.world(test)"), "hello%.world%(test%)")
 assert_eq("alphanumeric unchanged", luaPatternEscape("abc123"), "abc123")
 assert_eq("payload name", luaPatternEscape("__MCPExecLuauPayload"), "%_%_MCPExecLuauPayload")
 
@@ -78,7 +79,7 @@ local function remap(s, userLines, offset)
 end
 
 print("remapPayloadLines")
-assert_eq("basic remap", remap("Workspace.__MCPExecLuauPayload:95: err", 10, 90), "user_code:6: err")
+assert_eq("basic remap", remap("Workspace.__MCPExecLuauPayload:95: err", 10, 90), "user_code:5: err")
 assert_eq("clamp below", remap("Workspace.__MCPExecLuauPayload:50: early", 10, 90), "user_code:1: early")
 assert_eq("clamp above", remap("__MCPExecLuauPayload:200: overflow", 10, 90), "user_code:10 (at end of input): overflow")
 
