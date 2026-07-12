@@ -1,6 +1,10 @@
 {
   "name": "@princeofscale/bloxforge-monorepo",
   "version": "2.20.2",
+  "author": {
+    "name": "princeofscale",
+    "url": "https://github.com/princeofscale"
+  },
   "private": true,
   "type": "module",
   "workspaces": [
