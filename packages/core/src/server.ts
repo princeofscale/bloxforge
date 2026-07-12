@@ -32,7 +32,7 @@ export interface ServerConfig {
   tools: ToolDefinition[];
 }
 
-export class RobloxStudioMCPServer {
+export class BloxForgeServer {
   private server: Server;
   private tools: RobloxStudioTools;
   private bridge: BridgeService;
@@ -41,12 +41,10 @@ export class RobloxStudioMCPServer {
   // URIs the client has subscribed to (resources/subscribe) — drives which
   // resources/updated notifications we push. Track G3.
   private subscribedUris = new Set<string>();
-  // Lazy tool loading (default ON; opt out via ROBLOX_MCP_LAZY_TOOLS=0): when on,
+  // Lazy tool loading (default; opt out via ROBLOX_MCP_LAZY_TOOLS=0|false|off): when on,
   // ListTools advertises only the always-on core + meta tools plus any domains the
   // agent has pulled in via load_toolset, instead of all ~130 schemas upfront.
-  // Default flipped to lazy after a decision-grade eval (median of 3): −67%
-  // bootstrap tax at success parity. Set the flag to 0/false/off for the old
-  // upfront behaviour.
+  // Health/doctor make the schema mode explicit so reconnect recovery is visible.
   private lazyTools: boolean;
   private activeToolNames: Set<string>;
   private registry: ToolRegistry;
@@ -55,11 +53,12 @@ export class RobloxStudioMCPServer {
     this.config = config;
     this.allowedToolNames = new Set(config.tools.map(t => t.name));
 
-    // Default ON: lazy unless explicitly disabled. Unset => lazy.
-    const flag = (process.env.ROBLOX_MCP_LAZY_TOOLS ?? '').toLowerCase();
-    this.lazyTools = !(flag === '0' || flag === 'false' || flag === 'off');
-    // Start with the always-on core + the meta tools (which live in CORE_TOOLS).
+    this.lazyTools = shouldUseLazyToolLoading(process.env.ROBLOX_MCP_LAZY_TOOLS);
+    // Start with the always-on core, optionally preloading a small task profile.
     this.activeToolNames = new Set(CORE_TOOLS);
+    const profileDomains = toolProfileDomains(process.env.BLOXFORGE_TOOL_PROFILE);
+    const catalog = buildCatalog(config.tools);
+    for (const name of expandToolsets(catalog, profileDomains)) this.activeToolNames.add(name);
 
     this.server = new Server(
       {
@@ -83,7 +82,7 @@ export class RobloxStudioMCPServer {
     this.registry = new ToolRegistry();
     registerContractedTools(this.registry, this.tools);
     if (this.lazyTools) {
-      this.registry.enableLazy([...CORE_TOOLS]);
+      this.registry.enableLazy([...this.activeToolNames]);
     }
 
     this.setupToolHandlers();
@@ -132,36 +131,56 @@ export class RobloxStudioMCPServer {
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
+      const startedAt = Date.now();
 
       if (!this.allowedToolNames.has(name)) {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
 
-      // 1. Try the registry first (pipeline-wrapped: structuredContent + error
-      //    envelope). Returns null if the tool isn't registered yet.
-      const registryResult: unknown = await this.registry.callTool(name, this.tools, args ?? {});
-      if (registryResult !== null && registryResult !== undefined) {
-        // Lazy: load_toolset expands the advertised tool list.
-        if (this.lazyTools && name === 'load_toolset') {
-          this.applyToolset((args ?? {}) as { toolsets?: string[] });
-        }
-        return registryResult;
-      }
-
-      // 2. Fall through to the legacy TOOL_HANDLERS map.
-      const handler = TOOL_HANDLERS[name];
-      if (!handler) {
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
-      }
-
       try {
+        // 1. Try the registry first (pipeline-wrapped: structuredContent + error
+        //    envelope). Returns null if the tool isn't registered yet.
+        const registryResult: unknown = await this.registry.callTool(name, this.tools, args ?? {});
+        if (registryResult !== null && registryResult !== undefined) {
+          // Lazy: load_toolset expands the advertised tool list.
+          if (this.lazyTools && name === 'load_toolset') {
+            this.applyToolset((args ?? {}) as { toolsets?: string[] });
+          }
+          this.tools.getSessionRecorder().recordToolCall({
+            toolName: name,
+            durationMs: Date.now() - startedAt,
+            ok: !(registryResult as { isError?: boolean })?.isError,
+            errorCode: (registryResult as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+          });
+          return registryResult;
+        }
+
+        // 2. Fall through to the legacy TOOL_HANDLERS map.
+        const handler = TOOL_HANDLERS[name];
+        if (!handler) {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+        }
+
         const result = await handler(this.tools, args ?? {});
         if (this.lazyTools && name === 'load_toolset') {
           this.applyToolset((args ?? {}) as { toolsets?: string[] });
         }
-        return attachStructuredContent(result as Record<string, unknown>);
+        const shaped = attachStructuredContent(result as Record<string, unknown>);
+        this.tools.getSessionRecorder().recordToolCall({
+          toolName: name,
+          durationMs: Date.now() - startedAt,
+          ok: !(shaped as { isError?: boolean })?.isError,
+          errorCode: (shaped as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+        });
+        return shaped;
       } catch (error) {
         if (error instanceof RoutingFailure) {
+          this.tools.getSessionRecorder().recordToolCall({
+            toolName: name,
+            durationMs: Date.now() - startedAt,
+            ok: false,
+            errorCode: error.routingError.code,
+          });
           return {
             content: [{
               type: 'text',
@@ -175,7 +194,14 @@ export class RobloxStudioMCPServer {
           };
         }
         if (error instanceof McpError) throw error;
-        return toolErrorResult(error, name);
+        const errorResult = toolErrorResult(error, name);
+        this.tools.getSessionRecorder().recordToolCall({
+          toolName: name,
+          durationMs: Date.now() - startedAt,
+          ok: false,
+          errorCode: 'TOOL_ERROR',
+        });
+        return errorResult;
       }
     });
   }
@@ -214,7 +240,7 @@ export class RobloxStudioMCPServer {
     // bridge queue nothing ever reads from, hanging tool calls until they time
     // out. The intended multi-session pattern is: first session = primary,
     // every subsequent session = proxy forwarding to basePort. This matches the
-    // official Roblox Studio MCP (Roblox/studio-rust-mcp-server, main.rs:43).
+    // official Roblox Studio MCP server (Roblox/studio-rust-mcp-server, main.rs:43).
     try {
       primaryApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config, this.registry);
       const result = await listenWithRetry(primaryApp, host, basePort, 1);
@@ -347,5 +373,20 @@ export class RobloxStudioMCPServer {
 
     process.stdin.on('end', shutdown);
     process.stdin.on('close', shutdown);
+  }
+}
+
+export function shouldUseLazyToolLoading(value: string | undefined): boolean {
+  const flag = (value ?? '').trim().toLowerCase();
+  return !(flag === '0' || flag === 'false' || flag === 'off');
+}
+
+export function toolProfileDomains(value: string | undefined): string[] {
+  switch ((value ?? 'core').trim().toLowerCase()) {
+    case 'builder': return ['scene', 'mutation', 'scripts', 'assets', 'ui', 'environment', 'terrain', 'build', 'media', 'safety'];
+    case 'tester': return ['scene', 'scripts', 'runtime', 'media', 'safety'];
+    case 'full': return ['core', 'scene', 'mutation', 'scripts', 'runtime', 'assets', 'ui', 'environment', 'terrain', 'build', 'media', 'sync', 'safety'];
+    case 'inspector': return ['core', 'scene', 'scripts', 'runtime'];
+    default: return [];
   }
 }

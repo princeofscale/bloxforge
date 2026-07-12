@@ -5,7 +5,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'simulate_mouse_input',
     category: 'write',
-    description: 'Simulate a mouse click in the running game via UserInputService:CreateVirtualInput. Use during a playtest to click UI buttons, interact with objects, or aim. Fires real UserInputService input and activates GUI buttons. Coordinates are viewport pixels matching capture_screenshot (top-left is 0,0) — take a screenshot first to find positions. Auto-targets the running client; only works during a playtest. Note: only click/mouseDown/mouseUp are supported (the API has no mouse-move or scroll).',
+    description: 'Simulate a mouse click in the running game via UserInputService:CreateVirtualInput. Use during a playtest to click UI buttons, interact with objects, or aim. Fires real UserInputService input and activates GUI buttons. Coordinates are logical viewport pixels (top-left is 0,0). Take a capture_screenshot first: if OS display scaling makes the physical image larger than the logical viewport, the screenshot response states the exact image-pixel-to-input conversion. Auto-targets the running client; only works during a playtest. Note: only click/mouseDown/mouseUp are supported (the API has no mouse-move or scroll).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -16,11 +16,11 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         x: {
           type: 'number',
-          description: 'Viewport pixel X coordinate (as seen in capture_screenshot)'
+          description: 'Logical viewport X coordinate. If reading from a scaled capture_screenshot image, apply the conversion stated in that response first.'
         },
         y: {
           type: 'number',
-          description: 'Viewport pixel Y coordinate (as seen in capture_screenshot)'
+          description: 'Logical viewport Y coordinate. If reading from a scaled capture_screenshot image, apply the conversion stated in that response first.'
         },
         button: {
           type: 'string',
@@ -57,7 +57,11 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         duration: {
           type: 'number',
-          description: 'Hold duration in seconds for "tap" action (default: 0.1). Use longer values for sustained input like walking.'
+          description: 'Hold duration in seconds for "tap" action (default: 0.1). Use longer values for sustained input like walking. Takes precedence over holdDuration when both are provided.'
+        },
+        holdDuration: {
+          type: 'number',
+          description: 'Alias for duration, accepted for ProximityPrompt-style callers. If both duration and holdDuration are provided, duration wins.'
         },
         text: {
           type: 'string',

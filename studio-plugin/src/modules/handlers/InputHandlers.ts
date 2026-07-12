@@ -17,13 +17,10 @@
 // There is NO SendMouseMove / SendMouseWheel / SendKeyEvent — so "move" and
 // "scroll" mouse actions are not supported.
 //
-// Coordinate space: SendMouseButton coordinates are viewport pixels matching
-// what capture_screenshot returns (window space, origin at the top-left of the
-// rendered viewport). Pass screenshot pixel coordinates straight through. Note
-// that UserInputService reports input positions in GUI space, which is offset
-// from this by GuiService:GetGuiInset() (~58px on the Y axis) — irrelevant for
-// callers who pick coordinates off a screenshot, which is why we do not
-// translate here.
+// Coordinate space: SendMouseButton coordinates are logical viewport pixels
+// (origin at the top-left of the rendered viewport). On OS-scaled displays,
+// CaptureScreenshot may return a larger physical image; the MCP server reports
+// the conversion from image pixels to these logical input coordinates.
 
 import * as RenderMonitor from "../RenderMonitor";
 
@@ -126,7 +123,7 @@ function simulateKeyboardInput(requestData: Record<string, unknown>) {
 	if (!keyCodeName) return { error: "keyCode (or text) is required" };
 
 	const action = (requestData.action as string) ?? "tap";
-	const duration = (requestData.duration as number) ?? 0.1;
+	const duration = (requestData.duration as number | undefined) ?? (requestData.holdDuration as number | undefined) ?? 0.1;
 
 	const [enumOk, keyCode] = pcall(() => {
 		return (Enum.KeyCode as unknown as Record<string, Enum.KeyCode>)[keyCodeName];

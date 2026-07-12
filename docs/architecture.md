@@ -10,7 +10,7 @@
                            MCP protocol (stdio)
                                    │
                     ┌──────────────▼──────────────────────┐
-                    │     Roblox Studio MCP Server         │
+                    │     BloxForge Server         │
                     │     (Node.js / TypeScript)            │
                     │                                      │
                     │  ┌────────────────────────────────┐  │
@@ -79,6 +79,19 @@ Every tool response includes both a text block (for backward-compatible MCP clie
 
 | Package | Description |
 |---|---|
-| `@princeofscale/robloxstudio-mcp` | Main MCP server with full read/write tool set |
-| `@princeofscale/robloxstudio-mcp-inspector` | Read-only edition — no write tools |
-| `@princeofscale/robloxstudio-mcp-core` | Shared core library (tools, builders, bridge) |
+| `@princeofscale/bloxforge` | Main MCP server with full read/write tool set |
+| `@princeofscale/bloxforge-inspector` | Read-only edition — no write tools |
+| `@princeofscale/bloxforge-core` | Shared core library (tools, builders, bridge) |
+
+## Studio bridge transport
+
+The plugin registers with `/ready`, then prefers a WebSocket stream at
+`/stream`. The Node bridge pushes queued tool requests over that stream and
+the plugin returns the response on the same connection. A heartbeat refreshes
+the normal instance TTL while the stream is open.
+
+HTTP `/poll` remains the compatibility fallback. It is used until the stream
+opens and resumes after a stream error or close, so older plugin builds and
+Studio installations that deny stream permissions retain the established
+bridge behavior. A failed send releases the in-flight request back to the
+queue rather than waiting for its timeout.

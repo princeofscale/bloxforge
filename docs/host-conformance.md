@@ -12,16 +12,16 @@ transports and the common hosts. Track G of the round-5 roadmap (reliability sur
 
 ## Capabilities advertised
 
-- `tools` — `{ listChanged: true }` when lazy loading is active (the default; see below).
+- `tools` — `{ listChanged: true }` in default lazy-loading mode.
 - `resources` — `{ subscribe: true, listChanged: true }` on both transports.
 
 ## Lazy tool loading (default ON)
 
-`ROBLOX_MCP_LAZY_TOOLS` is **opt-out** (set `0`/`false`/`off` for the old upfront
-behaviour). Lazy advertises only the core + meta tools; `tool_catalog_search` +
-`load_toolset` pull in the rest. Validated by a decision-grade eval (median of 3):
-−67% bootstrap tax at success parity. Hosts that don't honour `notifications/tools/
-list_changed` still work — they just see the core set until they call `load_toolset`.
+Lazy mode is the primary path: the server advertises core + meta tools first, then
+`tool_catalog_search` + `load_toolset` pull in domains and emit
+`notifications/tools/list_changed`. Set `ROBLOX_MCP_LAZY_TOOLS=0` / `false` / `off`
+only for hosts that require the full schema set upfront. `/health` and `doctor`
+report the current schema mode, active tool count, and loaded core state.
 
 ## Resources plane (`roblox://…`)
 
@@ -74,7 +74,7 @@ Verified = exercised live; Expected = standard MCP feature, not separately dogfo
 | Feature | Claude Code (stdio) | Cursor (stdio) | Codex / ChatGPT (HTTP) |
 |---|---|---|---|
 | Tool calls | Verified | Expected | Expected |
-| Lazy `load_toolset` | Verified | Expected | Expected |
+| Lazy `load_toolset` | Default | Default | Default |
 | Resources read | Verified | Expected | Expected |
 | Resource subscribe/push | Expected (stdio) | Expected (stdio) | N/A (stateless) |
 | Tool annotations | Expected | Expected | Expected |

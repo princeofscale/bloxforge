@@ -402,7 +402,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'audio_create_sound',
     category: 'write',
-    description: 'Create a Sound under a parent with a SoundId (number or rbxassetid://). Configure volume, looping, playback speed, and optionally play it.',
+    description: 'Create a Sound under a parent with a SoundId (number or rbxassetid://). Configure volume, looping, playback speed, and optionally play it. AUDIO-LOAD LIMITATION: in the Edit DataModel, catalog/uploaded audio (rbxassetid://) frequently fails to load (IsLoaded=false, TimeLength=0) because Edit has no active audio render path and is subject to asset-permission gating — same constraint class as catalog models in a session. Only built-in rbxasset://sounds/* assets reliably load in Edit. Verify real playback and TimeLength in a playtest. Useful built-in broadband noise sources: rbxasset://sounds/action_falling.mp3 (~10s, wind-like) and rbxasset://sounds/action_swim.mp3 (~4.9s, water).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -529,6 +529,25 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
         size: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } }, description: 'Optional target size (studs) as {x,y,z}.' },
         maxTriangles: { type: 'number', description: 'Optional max triangle budget for the generated mesh.' },
         generateTextures: { type: 'boolean', description: 'Whether to texture the result (default true).' },
+        instance_id: INSTANCE_ID_PROP,
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'generate_model',
+    category: 'write',
+    description: 'Compatibility alias for generate_model_native. Generate a 3D model from a text prompt using Roblox GenerationService.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'Text description of the model to generate.' },
+        name: { type: 'string', description: 'Name for the generated model.' },
+        schema: { type: 'string', enum: ['Body1', 'Car5'], description: 'Alias for predefinedSchema.' },
+        schema_groups: { type: 'array', items: { type: 'string' }, description: 'Alias for parts.' },
+        size: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } } },
+        max_triangles: { type: 'number', minimum: 1, description: 'Alias for maxTriangles.' },
+        generate_textures: { type: 'boolean', description: 'Alias for generateTextures.' },
         instance_id: INSTANCE_ID_PROP,
       },
       required: ['prompt'],

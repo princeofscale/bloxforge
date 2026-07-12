@@ -1,11 +1,11 @@
-# Codex CLI + Roblox Studio MCP
+# Codex CLI + BloxForge
 
 [Codex CLI](https://github.com/openai/codex) is OpenAI's terminal-native AI coding agent. It supports MCP servers natively.
 
 ## Setup
 
 ```bash
-codex mcp add robloxstudio -- npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin
+codex mcp add robloxstudio -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 ## Tips

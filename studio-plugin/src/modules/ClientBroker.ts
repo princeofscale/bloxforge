@@ -145,6 +145,7 @@ function reRegisterProxy(proxyId: string, role: string): void {
 			isRunning: RunService.IsRunning(),
 			pluginVersion: State.CURRENT_VERSION,
 			pluginVariant: State.PLUGIN_VARIANT,
+			protocolVersion: State.PROTOCOL_VERSION,
 		}),
 	);
 }
@@ -251,7 +252,7 @@ function handleMultiplayerTestLeaveClient(): unknown {
 function setupClientBroker() {
 	const rf = ReplicatedStorage.WaitForChild(BROKER_NAME, 10);
 	if (!rf || !rf.IsA("RemoteFunction")) {
-		warn(`[robloxstudio-mcp] client: ${BROKER_NAME} not found`);
+		warn(`[BloxForge] client: ${BROKER_NAME} not found`);
 		return;
 	}
 	rf.OnClientInvoke = (payload: BrokerEnvelope | undefined) => {
@@ -386,10 +387,11 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 		isRunning: RunService.IsRunning(),
 		pluginVersion: State.CURRENT_VERSION,
 		pluginVariant: State.PLUGIN_VARIANT,
+		protocolVersion: State.PROTOCOL_VERSION,
 	});
 	if (!ok || !res || !res.Success) {
 		proxyRegisterFailuresByPlayer.add(player);
-		warn(`[robloxstudio-mcp] proxy register failed for ${player.Name}: ${formatPostJsonFailure("/ready", ok, res)}`);
+		warn(`[BloxForge] proxy register failed for ${player.Name}: ${formatPostJsonFailure("/ready", ok, res)}`);
 		return;
 	}
 	const body = HttpService.JSONDecode(res.Body) as ReadyResponseBody;
@@ -397,7 +399,7 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 	proxyByPlayer.set(player, { pluginSessionId: proxyId, role: assigned });
 	if (proxyRegisterFailuresByPlayer.has(player)) {
 		proxyRegisterFailuresByPlayer.delete(player);
-		print(`[robloxstudio-mcp] proxy registered for ${player.Name} as ${assigned} via ${mcpUrl}`);
+		print(`[BloxForge] proxy registered for ${player.Name} as ${assigned} via ${mcpUrl}`);
 	}
 	task.spawn(pollProxy, proxyId, player, rf);
 }

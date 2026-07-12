@@ -18,8 +18,11 @@ export interface PluginInstance {
   isRunning: boolean;
   pluginVersion: string;
   pluginVariant: string;
+  pluginProtocolVersion: number;
   serverVersion: string;
+  serverProtocolVersion: number;
   versionMismatch: boolean;
+  protocolMismatch: boolean;
   lastActivity: number;
   connectedAt: number;
 }
@@ -73,10 +76,22 @@ export interface PublicPluginInstance {
   isRunning: boolean;
   pluginVersion: string;
   pluginVariant: string;
+  pluginProtocolVersion: number;
   serverVersion: string;
+  serverProtocolVersion: number;
   versionMismatch: boolean;
+  protocolMismatch: boolean;
   lastActivity: number;
   connectedAt: number;
+}
+
+export interface PluginDisconnect {
+  pluginSessionId: string;
+  instanceId: string;
+  role: string;
+  reason: 'plugin_request' | 'stale_timeout' | 'unknown';
+  disconnectedAt: number;
+  lastActivity: number;
 }
 
 export interface ResolveTargetInput {
@@ -99,7 +114,9 @@ export interface RegisterInstanceInput {
   isRunning?: boolean;
   pluginVersion?: string;
   pluginVariant?: string;
+  protocolVersion?: number;
   serverVersion?: string;
+  serverProtocolVersion?: number;
 }
 
 export type RegisterInstanceResult =
@@ -116,14 +133,26 @@ export function toPublic(inst: PluginInstance): PublicPluginInstance {
     isRunning: inst.isRunning,
     pluginVersion: inst.pluginVersion,
     pluginVariant: inst.pluginVariant,
+    pluginProtocolVersion: inst.pluginProtocolVersion,
     serverVersion: inst.serverVersion,
+    serverProtocolVersion: inst.serverProtocolVersion,
     versionMismatch: inst.versionMismatch,
+    protocolMismatch: inst.protocolMismatch,
     lastActivity: inst.lastActivity,
     connectedAt: inst.connectedAt,
   };
 }
 
-const STALE_INSTANCE_MS = 30000;
+export const MCP_PROTOCOL_VERSION = 1;
+
+// Grace period before a silent plugin (no /poll) is reaped. Polls run every
+// ~0.5s, so 30s was the historical floor, but Roblox Studio throttles
+// HttpService.RequestAsync when its window is backgrounded/minimized or while
+// it is busy with heavy work — easily producing a >30s poll gap. That made the
+// bridge "drop" during Studio backgrounding, failing in-flight tool calls with
+// "disconnected". 90s keeps the reaping intent (truly dead plugins go away)
+// while tolerating Studio throttling gaps. Tune via MCP_STALE_INSTANCE_MS.
+const STALE_INSTANCE_MS = envStaleInstanceMs();
 const INSTANCE_ALIAS_TTL_MS = 5 * 60 * 1000;
 
 // Base bridge request timeout. Heavy plugin work (big execute-luau scripts that
@@ -148,6 +177,12 @@ function envRequestTimeout(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
+function envStaleInstanceMs(): number {
+  const raw = Number(process.env.MCP_STALE_INSTANCE_MS);
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  return 90000;
+}
+
 interface InstanceAlias {
   targetInstanceId: string;
   lastSeen: number;
@@ -163,7 +198,13 @@ export class BridgeService {
   // Keyed by pluginSessionId (the per-plugin GUID).
   private instances: Map<string, PluginInstance> = new Map();
   private instanceAliases: Map<string, InstanceAlias> = new Map();
+  private requestNotifiers = new Set<(pluginSessionId: string) => void>();
+  private recentDisconnects: PluginDisconnect[] = [];
   private requestTimeout = envRequestTimeout();
+  // Configurable per-instance so tests can exercise cleanupStaleInstances()
+  // with a small TTL without depending on wall-clock env vars. Production
+  // callers leave this at the module-level STALE_INSTANCE_MS default.
+  staleInstanceMs = STALE_INSTANCE_MS;
 
   private canonicalInstanceId(instanceId: string, placeId?: number): string {
     return publishedInstanceId(placeId) ?? instanceId;
@@ -241,8 +282,11 @@ export class BridgeService {
     let assignedRole = role;
     const pluginVersion = input.pluginVersion ?? '';
     const pluginVariant = input.pluginVariant ?? 'unknown';
+    const pluginProtocolVersion = Number.isFinite(input.protocolVersion) ? Number(input.protocolVersion) : 0;
     const serverVersion = input.serverVersion ?? '';
+    const serverProtocolVersion = Number.isFinite(input.serverProtocolVersion) ? Number(input.serverProtocolVersion) : MCP_PROTOCOL_VERSION;
     const versionMismatch = pluginVersion !== '' && serverVersion !== '' && pluginVersion !== serverVersion;
+    const protocolMismatch = pluginProtocolVersion !== serverProtocolVersion;
 
     this.rememberInstanceAlias(rawInstanceId, instanceId);
     if (prior && prior.instanceId !== instanceId) {
@@ -296,8 +340,11 @@ export class BridgeService {
       isRunning: input.isRunning ?? false,
       pluginVersion,
       pluginVariant,
+      pluginProtocolVersion,
       serverVersion,
+      serverProtocolVersion,
       versionMismatch,
+      protocolMismatch,
       lastActivity: Date.now(),
       connectedAt: prior?.connectedAt ?? Date.now(),
     });
@@ -305,11 +352,20 @@ export class BridgeService {
     return { ok: true, assignedRole, instanceId };
   }
 
-  unregisterInstance(pluginSessionId: string) {
+  unregisterInstance(pluginSessionId: string, reason: PluginDisconnect['reason'] = 'unknown') {
     const removed = this.instances.get(pluginSessionId);
     this.instances.delete(pluginSessionId);
 
     if (!removed) return;
+    this.recentDisconnects.unshift({
+      pluginSessionId,
+      instanceId: removed.instanceId,
+      role: removed.role,
+      reason,
+      disconnectedAt: Date.now(),
+      lastActivity: removed.lastActivity,
+    });
+    this.recentDisconnects.length = Math.min(this.recentDisconnects.length, 10);
 
     // Reject any pending requests targeted at this (instanceId, role) tuple
     // if no other plugin handles it.
@@ -333,12 +389,26 @@ export class BridgeService {
     return this.getInstances().map(toPublic);
   }
 
+  getRecentDisconnects(): PluginDisconnect[] {
+    return [...this.recentDisconnects];
+  }
+
   getInstanceBySessionId(pluginSessionId: string): PluginInstance | undefined {
     return this.instances.get(pluginSessionId);
   }
 
   getPendingRequestCount(): number {
     return this.pendingRequests.size;
+  }
+
+  setRequestNotifier(notifier: ((pluginSessionId: string) => void) | undefined) {
+    this.requestNotifiers.clear();
+    if (notifier) this.requestNotifiers.add(notifier);
+  }
+
+  addRequestNotifier(notifier: (pluginSessionId: string) => void): () => void {
+    this.requestNotifiers.add(notifier);
+    return () => this.requestNotifiers.delete(notifier);
   }
 
   updateInstanceActivity(pluginSessionId: string) {
@@ -375,8 +445,8 @@ export class BridgeService {
   cleanupStaleInstances() {
     const now = Date.now();
     for (const [id, inst] of this.instances.entries()) {
-      if (now - inst.lastActivity > STALE_INSTANCE_MS) {
-        this.unregisterInstance(id);
+      if (now - inst.lastActivity > this.staleInstanceMs) {
+        this.unregisterInstance(id, 'stale_timeout');
       }
     }
     this.cleanupStaleAliases(now);
@@ -555,7 +625,21 @@ export class BridgeService {
       };
 
       this.pendingRequests.set(requestId, request);
+      for (const instance of this.instances.values()) {
+        if (instance.instanceId === targetInstanceId && instance.role === targetRole) {
+          for (const notify of this.requestNotifiers) notify(instance.pluginSessionId);
+        }
+      }
     });
+  }
+
+  getPendingRequestForSession(
+    pluginSessionId: string,
+  ): { requestId: string; request: { endpoint: string; data: any } } | null {
+    const instance = this.instances.get(pluginSessionId);
+    if (!instance) return null;
+    this.updateInstanceActivity(pluginSessionId);
+    return this.getPendingRequest(instance.instanceId, instance.role);
   }
 
   getPendingRequest(
@@ -585,6 +669,21 @@ export class BridgeService {
     }
 
     return null;
+  }
+
+  releasePendingRequest(requestId: string) {
+    const request = this.pendingRequests.get(requestId);
+    if (request) request.inFlight = false;
+  }
+
+  releasePendingRequestsForSession(pluginSessionId: string) {
+    const instance = this.instances.get(pluginSessionId);
+    if (!instance) return;
+    for (const request of this.pendingRequests.values()) {
+      if (request.targetInstanceId === instance.instanceId && request.targetRole === instance.role) {
+        request.inFlight = false;
+      }
+    }
   }
 
   resolveRequest(requestId: string, response: any) {

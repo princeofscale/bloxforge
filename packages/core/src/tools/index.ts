@@ -44,7 +44,10 @@ import { runBuildExecutor } from './build-executor.js';
 import { GeneratedBuilderTools } from './generated-builder-tools.js';
 import { SyncTools } from './sync-tools.js';
 import { OpenCloudClient } from '../opencloud-client.js';
+import { StudioInstanceManager } from '../studio-instance-manager.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
+import { DOC_CATEGORIES, getRobloxDoc, isDocCategory } from '../roblox-docs.js';
+import { SessionRecorder } from '../session-recorder.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -60,6 +63,180 @@ import {
 /** Whether a license obliges crediting the source (CC-BY family / explicit attribution). */
 export function requiresAttribution(license?: string): boolean {
   return /cc[\s-]?by|attribution/i.test(license ?? '');
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function asRows(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(asRecord).filter((row): row is Record<string, unknown> => row !== undefined) : [];
+}
+
+function numberField(row: Record<string, unknown> | undefined, key: string): number {
+  const value = row?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function stringField(row: Record<string, unknown> | undefined, key: string): string {
+  const value = row?.[key];
+  return typeof value === 'string' && value !== '' ? value : '';
+}
+
+function microProfilerDurationMs(body: Record<string, unknown> | undefined): number {
+  const analysisWindow = asRecord(body?.analysis_window);
+  const analysisDurationUs = analysisWindow?.analysis_duration_us;
+  if (typeof analysisDurationUs === 'number' && Number.isFinite(analysisDurationUs) && analysisDurationUs > 0) return analysisDurationUs / 1000;
+  const duration = body?.duration_ms;
+  return typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : 1000;
+}
+
+function perSecond(totalUs: number, durationMs: number): number {
+  return durationMs > 0 ? totalUs / (durationMs / 1000) : totalUs;
+}
+
+function roundNumber(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function percentDelta(current: number, baseline: number): number | undefined {
+  if (baseline === 0) return current === 0 ? 0 : undefined;
+  return roundNumber(((current - baseline) / baseline) * 100);
+}
+
+function inclusiveUsField(row: Record<string, unknown> | undefined): number {
+  const inclusive = numberField(row, 'inclusive_us');
+  return inclusive !== 0 ? inclusive : numberField(row, 'total_us');
+}
+
+function rowSet(body: Record<string, unknown>, key: 'groups' | 'timers' | 'threads' | 'call_edges', fallback: string): Record<string, unknown>[] {
+  const comparisonIndex = asRecord(body.comparison_index);
+  const indexed = asRows(comparisonIndex?.[key]);
+  return indexed.length > 0 ? indexed : asRows(body[fallback]);
+}
+
+function nestedRecord(row: Record<string, unknown> | undefined, key: string): Record<string, unknown> | undefined {
+  return asRecord(row?.[key]);
+}
+
+function loadMicroProfilerBaseline(source: unknown, sourcePath: unknown): Record<string, unknown> | undefined {
+  if (source !== undefined) {
+    const inline = asRecord(source);
+    if (!inline) throw new Error('baseline must be an object when provided');
+    return inline;
+  }
+  if (sourcePath !== undefined) {
+    if (typeof sourcePath !== 'string' || sourcePath === '') throw new Error('baseline_path must be a non-empty string when provided');
+    const resolved = path.resolve(sourcePath);
+    const parsed = JSON.parse(fs.readFileSync(resolved, 'utf8')) as unknown;
+    const record = asRecord(parsed);
+    if (!record) throw new Error(`baseline_path did not contain a JSON object: ${resolved}`);
+    return record;
+  }
+  return undefined;
+}
+
+function compareMicroProfilerRows(
+  currentRows: Record<string, unknown>[],
+  baselineRows: Record<string, unknown>[],
+  currentDurationMs: number,
+  baselineDurationMs: number,
+  keyForRow: (row: Record<string, unknown>) => string,
+  labelForRow: (row: Record<string, unknown>, fallbackKey: string) => Record<string, unknown>,
+  maxRows: number,
+): Record<string, unknown>[] {
+  const currentByKey = new Map<string, Record<string, unknown>>();
+  const baselineByKey = new Map<string, Record<string, unknown>>();
+  for (const row of currentRows) {
+    const key = keyForRow(row);
+    if (key) currentByKey.set(key, row);
+  }
+  for (const row of baselineRows) {
+    const key = keyForRow(row);
+    if (key) baselineByKey.set(key, row);
+  }
+
+  const usesFullIndex = currentRows.length > 0 && baselineRows.length > 0;
+  const keys = new Set<string>([...currentByKey.keys(), ...baselineByKey.keys()]);
+  const deltas: Record<string, unknown>[] = [];
+  for (const key of keys) {
+    const current = currentByKey.get(key);
+    const baseline = baselineByKey.get(key);
+    const currentInclusiveUs = inclusiveUsField(current);
+    const baselineInclusiveUs = inclusiveUsField(baseline);
+    const currentExclusiveUs = numberField(current, 'exclusive_us');
+    const baselineExclusiveUs = numberField(baseline, 'exclusive_us');
+    const currentCount = numberField(current, 'count');
+    const baselineCount = numberField(baseline, 'count');
+    const currentUsPerS = perSecond(currentInclusiveUs, currentDurationMs);
+    const baselineUsPerS = perSecond(baselineInclusiveUs, baselineDurationMs);
+    const currentExclusiveUsPerS = perSecond(currentExclusiveUs, currentDurationMs);
+    const baselineExclusiveUsPerS = perSecond(baselineExclusiveUs, baselineDurationMs);
+    const currentCountPerS = perSecond(currentCount, currentDurationMs);
+    const baselineCountPerS = perSecond(baselineCount, baselineDurationMs);
+    const row: Record<string, unknown> = {
+      ...labelForRow(current ?? baseline!, key),
+      matched_by: 'stable_label',
+      match_confidence: 'medium',
+      current_inclusive_us: currentInclusiveUs,
+      baseline_inclusive_us: baselineInclusiveUs,
+      delta_inclusive_us: currentInclusiveUs - baselineInclusiveUs,
+      current_inclusive_us_per_s: roundNumber(currentUsPerS),
+      baseline_inclusive_us_per_s: roundNumber(baselineUsPerS),
+      delta_inclusive_us_per_s: roundNumber(currentUsPerS - baselineUsPerS),
+      current_exclusive_us: currentExclusiveUs,
+      baseline_exclusive_us: baselineExclusiveUs,
+      delta_exclusive_us: currentExclusiveUs - baselineExclusiveUs,
+      current_exclusive_us_per_s: roundNumber(currentExclusiveUsPerS),
+      baseline_exclusive_us_per_s: roundNumber(baselineExclusiveUsPerS),
+      delta_exclusive_us_per_s: roundNumber(currentExclusiveUsPerS - baselineExclusiveUsPerS),
+      current_count: currentCount,
+      baseline_count: baselineCount,
+      delta_count: currentCount - baselineCount,
+      current_count_per_s: roundNumber(currentCountPerS),
+      baseline_count_per_s: roundNumber(baselineCountPerS),
+      delta_count_per_s: roundNumber(currentCountPerS - baselineCountPerS),
+    };
+    if (!usesFullIndex) row.match_scope = 'returned_rows';
+    const pct = percentDelta(currentUsPerS, baselineUsPerS);
+    if (pct !== undefined) row.delta_pct = pct;
+    deltas.push(row);
+  }
+
+  deltas.sort((a, b) => Math.abs(numberField(b, 'delta_inclusive_us_per_s')) - Math.abs(numberField(a, 'delta_inclusive_us_per_s')));
+  return deltas.slice(0, maxRows);
+}
+
+function compareMicroProfilerCaptures(
+  current: Record<string, unknown>,
+  baseline: Record<string, unknown>,
+  options: { currentLabel?: string; baselineLabel?: string; maxRows?: number } = {},
+): Record<string, unknown> {
+  const currentDurationMs = microProfilerDurationMs(current);
+  const baselineDurationMs = microProfilerDurationMs(baseline);
+  const maxRows = Math.max(1, Math.min(100, Math.trunc(options.maxRows ?? 20)));
+  const groupDeltas = compareMicroProfilerRows(rowSet(current, 'groups', 'top_groups'), rowSet(baseline, 'groups', 'top_groups'), currentDurationMs, baselineDurationMs, (row) => stringField(row, 'group'), (row, key) => ({ group: stringField(row, 'group') || key }), maxRows);
+  const timerDeltas = compareMicroProfilerRows(rowSet(current, 'timers', 'top_timers'), rowSet(baseline, 'timers', 'top_timers'), currentDurationMs, baselineDurationMs, (row) => `${stringField(row, 'group')}::${stringField(row, 'name') || stringField(row, 'timer_id')}`, (row, key) => ({ group: stringField(row, 'group') || key.split('::')[0], name: stringField(row, 'name') || key.split('::')[1], timer_id: row.timer_id }), maxRows);
+  const threadDeltas = compareMicroProfilerRows(rowSet(current, 'threads', 'top_threads'), rowSet(baseline, 'threads', 'top_threads'), currentDurationMs, baselineDurationMs, (row) => stringField(row, 'thread_name') || String(numberField(row, 'thread_id')), (row, key) => ({ thread_id: row.thread_id, thread_name: stringField(row, 'thread_name') || key, is_gpu: row.is_gpu }), maxRows);
+  const edgeDeltas = compareMicroProfilerRows(rowSet(current, 'call_edges', 'top_call_edges'), rowSet(baseline, 'call_edges', 'top_call_edges'), currentDurationMs, baselineDurationMs, (row) => {
+    const parent = nestedRecord(row, 'parent');
+    const child = nestedRecord(row, 'child');
+    return [stringField(parent, 'group'), stringField(parent, 'name') || stringField(parent, 'timer_id'), '>', stringField(child, 'group'), stringField(child, 'name') || stringField(child, 'timer_id')].join('::');
+  }, (row, key) => ({ parent: nestedRecord(row, 'parent') ?? { label: key }, child: nestedRecord(row, 'child') ?? { label: key } }), maxRows);
+  return {
+    baseline_label: options.baselineLabel ?? 'baseline',
+    current_label: options.currentLabel ?? 'current',
+    basis: 'inclusive_us_per_second normalized by each capture analysis duration; deltas use current minus baseline.',
+    coverage: {
+      current: asRecord(current.comparison_index) ? 'comparison_index' : 'returned_rows',
+      baseline: asRecord(baseline.comparison_index) ? 'comparison_index' : 'returned_rows',
+    },
+    duration_ms: { baseline: baselineDurationMs, current: currentDurationMs },
+    groups: groupDeltas,
+    timers: timerDeltas,
+    threads: threadDeltas,
+    call_edges: edgeDeltas,
+  };
 }
 
 /** Provenance for an externally-imported asset (Track A). */
@@ -80,6 +257,7 @@ export class RobloxStudioTools {
   private client: StudioHttpClient;
   private bridge: BridgeService;
   private openCloudClient: OpenCloudClient;
+  private instanceManager: StudioInstanceManager;
   private cookieClient: RobloxCookieClient;
   private safety: SafetyManager;
   private syncTools: SyncTools;
@@ -95,6 +273,7 @@ export class RobloxStudioTools {
   private assetTools: AssetTools;
   private runtimeTools: RuntimeTools;
   private episodes: EpisodeStore;
+  private sessionRecorder: SessionRecorder;
   /** Provenance for externally-imported assets (Track A) — source/license/hash/assetId. */
   private provenance = new Map<string, ProvenanceRecord>();
 
@@ -102,6 +281,7 @@ export class RobloxStudioTools {
     this.client = new StudioHttpClient(bridge);
     this.bridge = bridge;
     this.openCloudClient = new OpenCloudClient();
+    this.instanceManager = new StudioInstanceManager();
     this.cookieClient = new RobloxCookieClient();
     this.safety = new SafetyManager();
     this.marketplace = new MarketplaceClient();
@@ -150,6 +330,7 @@ export class RobloxStudioTools {
       imageClient: this.imageClient,
     });
     this.episodes = new EpisodeStore();
+    this.sessionRecorder = new SessionRecorder();
     this.runtimeTools = new RuntimeTools({
       bridge: this.bridge,
       client: this.client,
@@ -163,6 +344,30 @@ export class RobloxStudioTools {
   /** The playtest-episode store — used by the resource plane (roblox://playtest/...)
    *  and by the server to wire resources/updated notifications (Track G3). */
   getEpisodeStore(): EpisodeStore { return this.episodes; }
+  getSessionRecorder(): SessionRecorder { return this.sessionRecorder; }
+
+  async getSessionSummary() {
+    return wrapToolJsonText(this.sessionRecorder.summarize());
+  }
+
+  async getRobloxDocs(name: string, docType?: string, section?: string) {
+    if (!name || typeof name !== 'string') {
+      throw new Error('get_roblox_docs requires a name (e.g. "ProximityPrompt")');
+    }
+    const category = docType ?? 'classes';
+    if (!isDocCategory(category)) {
+      throw new Error(`doc_type must be one of: ${DOC_CATEGORIES.join(', ')}`);
+    }
+    const result = await getRobloxDoc(category, name, section);
+    return wrapToolJsonText({
+      name,
+      doc_type: category,
+      section,
+      truncated: result.truncated,
+      sections: result.sections,
+      content: result.content,
+    });
+  }
 
   // === Safety layer ===
   // A single guard every destructive/bulk tool consults before touching the
@@ -204,8 +409,9 @@ export class RobloxStudioTools {
     }
     if (assessment.reasons.length) lines.push('Reasons:\n- ' + assessment.reasons.join('\n- '));
     if (assessment.warnings.length) lines.push('Warnings:\n- ' + assessment.warnings.join('\n- '));
+    if (assessment.matchedPatterns?.length) lines.push('Matched patterns:\n- ' + assessment.matchedPatterns.join('\n- '));
     if (!assessment.dryRun && assessment.requiresConfirmation && !assessment.blocked) {
-      lines.push('To proceed, re-run this tool with confirm: true.');
+      lines.push('To proceed, inspect the matched operation(s), then re-run this tool with confirm: true.');
     }
     return { content: [{ type: 'text', text: lines.join('\n\n') }] };
   }
@@ -434,6 +640,22 @@ export class RobloxStudioTools {
   async evalClientRuntime(code: string, target?: string, instance_id?: string) { return this.runtimeTools.evalClientRuntime(code, target, instance_id); }
 
   async setNetworkProfile(profile: string, target?: string, overrides?: Record<string, unknown>, instance_id?: string) { return this.runtimeTools.setNetworkProfile(profile, target, overrides, instance_id); }
+
+  async soloPlaytest(action: string, mode?: string, timeout?: number, instance_id?: string) {
+    if (action === 'start') return this.startPlaytest(mode ?? 'play', undefined, instance_id);
+    if (action === 'stop') return this.stopPlaytest(instance_id);
+    if (action === 'status') return this.multiplayerTestState(instance_id);
+    throw new Error('solo_playtest action must be start|stop|status');
+  }
+
+  async multiplayerPlaytest(action: string, numPlayers?: number, target?: string, testArgs?: unknown, value?: unknown, timeout?: number, instance_id?: string) {
+    if (action === 'start') return this.multiplayerTestStart(numPlayers ?? 1, testArgs, timeout, instance_id);
+    if (action === 'status') return this.multiplayerTestState(instance_id);
+    if (action === 'add_players') return this.multiplayerTestAddPlayers(numPlayers ?? 1, timeout, instance_id);
+    if (action === 'leave_client') return this.multiplayerTestLeaveClient(target, timeout, instance_id);
+    if (action === 'end') return this.multiplayerTestEnd(value, timeout, instance_id);
+    throw new Error('multiplayer_playtest action must be start|status|add_players|leave_client|end');
+  }
 
   async getSimulationState(include?: string, target?: string, instance_id?: string) { return this.runtimeTools.getSimulationState(include, target, instance_id); }
 
@@ -1410,6 +1632,18 @@ export class RobloxStudioTools {
     return result;
   }
 
+  async generateModel(options: Record<string, unknown>, instance_id?: string) {
+    return this.generateModelNative({
+      prompt: options.prompt as string,
+      name: options.name as string | undefined,
+      predefinedSchema: options.schema as GenerateModelOptions['predefinedSchema'],
+      parts: options.schema_groups as string[] | undefined,
+      size: options.size as GenerateModelOptions['size'],
+      maxTriangles: options.max_triangles as number | undefined,
+      generateTextures: options.generate_textures as boolean | undefined,
+    }, instance_id);
+  }
+
   async designLint(options: DesignLintOptions = {}, instance_id?: string) {
     return this._runGeneratedLuau(buildDesignLintLuau(options), instance_id);
   }
@@ -1752,7 +1986,7 @@ export class RobloxStudioTools {
 
   async simulateMouseInput(action: string, x: number, y: number, button?: string, scrollDirection?: string, target?: string, instance_id?: string) { return this.runtimeTools.simulateMouseInput(action, x, y, button, scrollDirection, target, instance_id); }
 
-  async simulateKeyboardInput(keyCode?: string, action?: string, duration?: number, text?: string, target?: string, instance_id?: string) { return this.runtimeTools.simulateKeyboardInput(keyCode, action, duration, text, target, instance_id); }
+  async simulateKeyboardInput(keyCode?: string, action?: string, duration?: number, text?: string, target?: string, instance_id?: string, holdDuration?: number) { return this.runtimeTools.simulateKeyboardInput(keyCode, action, duration, text, target, instance_id, holdDuration); }
 
   async characterNavigation(position?: number[], instancePath?: string, waitForCompletion?: boolean, timeout?: number, target?: string, instance_id?: string) { return this.runtimeTools.characterNavigation(position, instancePath, waitForCompletion, timeout, target, instance_id); }
 
@@ -2004,5 +2238,222 @@ export class RobloxStudioTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async captureScreenshot(instance_id?: string, format?: string, quality?: number) { return this.runtimeTools.captureScreenshot(instance_id, format, quality); }
+  private positiveInteger(value: unknown, name: string): number {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+      throw new Error(`${name} must be a positive integer`);
+    }
+    return value;
+  }
+
+  private optionalNumber(value: unknown, name: string): number | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`${name} must be a finite number`);
+    }
+    return value;
+  }
+
+  private versionNumberFromPath(value: string | undefined): number | undefined {
+    const match = value?.match(/versions\/(\d+)$/);
+    return match ? Number(match[1]) : undefined;
+  }
+
+  private async universeIdForPlace(placeId: number): Promise<number> {
+    const response = await fetch(`https://games.roblox.com/v1/games/multiget-place-details?placeIds=${placeId}`);
+    if (!response.ok) throw new Error(`Failed to resolve universeId for place ${placeId}: HTTP ${response.status}`);
+    const places = await response.json() as Array<{ universeId?: number }>;
+    const universeId = places[0]?.universeId;
+    if (!universeId) throw new Error(`Failed to resolve universeId for place ${placeId}`);
+    return universeId;
+  }
+
+  private managedStatus(record: { instanceId?: string; source: string; placeId?: number; placeVersion?: number; launchedAt: number }) {
+    return {
+      instance_id: record.instanceId,
+      source: record.source,
+      place_id: record.placeId,
+      place_version: record.placeVersion,
+      launched_at: new Date(record.launchedAt).toISOString(),
+    };
+  }
+
+  async manageInstance(request: Record<string, unknown>) {
+    const action = request.action;
+    const instanceId = typeof request.instance_id === 'string' ? request.instance_id : undefined;
+
+    if (action === 'list_place_versions') {
+      if (!this.openCloudClient.hasApiKey()) {
+        return wrapToolJsonText({ error: 'ROBLOX_OPEN_CLOUD_API_KEY is required to list place versions.' });
+      }
+      const placeId = this.positiveInteger(request.place_id, 'place_id');
+      const rawMaxPageSize = Math.trunc(this.optionalNumber(request.max_page_size, 'max_page_size') ?? 10);
+      const maxPageSize = Math.max(1, Math.min(50, rawMaxPageSize));
+      const pageToken = typeof request.page_token === 'string' ? request.page_token : undefined;
+      const response = await this.openCloudClient.listAssetVersions(placeId, maxPageSize, pageToken);
+      return wrapToolJsonText({
+        versions: (response.assetVersions ?? []).map((version) => ({
+          version: this.versionNumberFromPath(version.path),
+          created_at: version.createTime,
+          path: version.path,
+          moderation_state: version.moderationResult?.moderationState,
+        })),
+        next_page_token: response.nextPageToken,
+      });
+    }
+
+    if (action === 'status') {
+      if (instanceId) {
+        const record = this.instanceManager.get(instanceId);
+        const connected = this.bridge.getPublicInstances().filter((instance) => instance.instanceId === instanceId);
+        if (!record && connected.length === 0) return wrapToolJsonText({ error: 'Instance is not connected or managed.', instance_id: instanceId });
+        return wrapToolJsonText({
+          instance_id: instanceId,
+          managed: !!record,
+          source: record?.source,
+          place_id: record?.placeId ?? connected[0]?.placeId,
+          place_version: record?.placeVersion,
+          roles: connected.map((instance) => instance.role).sort(),
+        });
+      }
+      return wrapToolJsonText({
+        managed: this.instanceManager.list().filter((record) => record.closedAt === undefined).map((record) => this.managedStatus(record)),
+        connected: this.bridge.getPublicInstances().map((instance) => ({
+          instance_id: instance.instanceId,
+          role: instance.role,
+          place_id: instance.placeId,
+          place_name: instance.placeName,
+        })),
+      });
+    }
+
+    if (action === 'close') {
+      if (instanceId) {
+        const managedClose = this.instanceManager.closeByInstanceId(instanceId);
+        if (managedClose.status !== 'not_found') {
+          return wrapToolJsonText({
+            instance_id: instanceId,
+            message: managedClose.status === 'already_closed' ? 'Studio instance was already closed.' : 'Studio instance closed.',
+          });
+        }
+        const edit = this.bridge.getPublicInstances().find((instance) => instance.instanceId === instanceId && instance.role === 'edit');
+        if (!edit) return wrapToolJsonText({ error: 'Instance is not connected or managed.', instance_id: instanceId });
+        this.instanceManager.closeConnectedInstance(edit);
+        return wrapToolJsonText({ instance_id: instanceId, message: 'Studio instance closed.' });
+      }
+      const active = this.instanceManager.list().filter((entry) => entry.closedAt === undefined);
+      if (active.length === 0) return wrapToolJsonText({ message: 'No managed Studio instances are active.' });
+      if (active.length > 1) {
+        return wrapToolJsonText({
+          error: 'instance_id is required because multiple managed Studio instances are active.',
+          managed: active.map((entry) => this.managedStatus(entry)),
+        });
+      }
+      const result = this.instanceManager.close(active[0]);
+      return wrapToolJsonText({
+        instance_id: active[0].instanceId,
+        message: result.status === 'already_closed' ? 'Studio instance was already closed.' : 'Studio instance closed.',
+      });
+    }
+
+    if (action !== 'launch') {
+      throw new Error('manage_instance requires action=launch|close|status|list_place_versions');
+    }
+
+    const source = request.source;
+    if (source !== 'baseplate' && source !== 'local_file' && source !== 'published_place' && source !== 'place_revision') {
+      throw new Error('manage_instance action=launch requires source=baseplate|local_file|published_place|place_revision');
+    }
+
+    const placeId = source === 'published_place' || source === 'place_revision'
+      ? this.positiveInteger(request.place_id, 'place_id')
+      : undefined;
+    const universeId = placeId ? await this.universeIdForPlace(placeId) : undefined;
+    const placeVersion = source === 'place_revision' ? this.positiveInteger(request.place_version, 'place_version') : undefined;
+    const localPlaceFile = source === 'local_file'
+      ? String(request.local_place_file ?? '')
+      : undefined;
+    if (source === 'local_file' && !localPlaceFile) throw new Error('local_place_file is required when source="local_file"');
+
+    if (source === 'published_place') {
+      const alreadyConnected = this.bridge.getPublicInstances().some((instance) => instance.placeId === placeId);
+      if (alreadyConnected) return wrapToolJsonText({ error: `place_id ${placeId} is already connected.` });
+    }
+
+    const record = await this.instanceManager.launch({ source, localPlaceFile, placeId, universeId, placeVersion });
+    const wait = request.wait_for_connection !== false;
+    const timeoutMs = Math.max(1000, Math.min(300000, Math.trunc(this.optionalNumber(request.timeout_ms, 'timeout_ms') ?? 120000)));
+    if (wait) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const connected = this.bridge.getPublicInstances().find((instance) =>
+          source === 'baseplate' || source === 'local_file' || source === 'place_revision'
+            ? instance.role === 'edit' && instance.connectedAt >= record.launchedAt - 1000 && !this.instanceManager.get(instance.instanceId)
+            : instance.placeId === placeId && instance.role === 'edit',
+        );
+        if (connected) {
+          this.instanceManager.attachInstanceId(record, connected.instanceId);
+          return wrapToolJsonText({ ...this.managedStatus(record), instance_id: connected.instanceId, connected: true });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+    return wrapToolJsonText({ ...this.managedStatus(record), connected: false });
+  }
+
+  async captureMicroProfiler(target?: string, request: Record<string, unknown> = {}, instance_id?: string) {
+    const outputPath = request.output_path;
+    const summaryOutputPath = request.summary_output_path;
+    if (outputPath !== undefined && typeof outputPath !== 'string') throw new Error('output_path must be a string when provided');
+    if (summaryOutputPath !== undefined && typeof summaryOutputPath !== 'string') throw new Error('summary_output_path must be a string when provided');
+
+    const data = { ...request };
+    delete data.output_path;
+    delete data.summary_output_path;
+    delete data.baseline_path;
+    delete data.baseline;
+    delete data.baseline_label;
+    delete data.current_label;
+    delete data.max_comparison_rows;
+    delete data.include_comparison_index;
+    if (outputPath) data.__mcp_include_raw_buffer = true;
+    if (summaryOutputPath || request.include_comparison_index === true) data.__mcp_include_comparison_index = true;
+
+    const response = await this._callSingle('/api/capture-micro-profiler', data, target ?? 'server', instance_id);
+    const body: unknown = response !== null && typeof response === 'object' && !Array.isArray(response)
+      ? { ...response, target: target ?? 'server' }
+      : response;
+
+    if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+      const mutable = body as Record<string, unknown>;
+      const rawSnapshotBase64 = mutable.raw_snapshot_base64;
+      if (typeof rawSnapshotBase64 === 'string') {
+        if (typeof outputPath === 'string' && outputPath !== '') {
+          const resolvedOutputPath = path.resolve(outputPath);
+          fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+          fs.writeFileSync(resolvedOutputPath, Buffer.from(rawSnapshotBase64, 'base64'));
+          mutable.output_path = resolvedOutputPath;
+        }
+        delete mutable.raw_snapshot_base64;
+      }
+      if (typeof summaryOutputPath === 'string' && summaryOutputPath !== '') {
+        const resolvedSummaryPath = path.resolve(summaryOutputPath);
+        fs.mkdirSync(path.dirname(resolvedSummaryPath), { recursive: true });
+        fs.writeFileSync(resolvedSummaryPath, JSON.stringify(mutable, null, 2), 'utf8');
+        mutable.summary_output_path = resolvedSummaryPath;
+      }
+      const baselineCapture = loadMicroProfilerBaseline(request.baseline, request.baseline_path);
+      if (baselineCapture) {
+        mutable.baseline_comparison = compareMicroProfilerCaptures(mutable, baselineCapture, {
+          baselineLabel: typeof request.baseline_label === 'string' ? request.baseline_label : undefined,
+          currentLabel: typeof request.current_label === 'string' ? request.current_label : undefined,
+          maxRows: typeof request.max_comparison_rows === 'number' ? request.max_comparison_rows : undefined,
+        });
+      }
+      if (request.include_comparison_index !== true) delete mutable.comparison_index;
+    }
+
+    return wrapToolJsonText(body);
+  }
+
+  async captureScreenshot(instance_id?: string, format?: string, quality?: number, cameraPosition?: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }) { return this.runtimeTools.captureScreenshot(instance_id, format, quality, cameraPosition, lookAt); }
 }

@@ -1,4 +1,4 @@
-export { RobloxStudioMCPServer } from './server.js';
+export { BloxForgeServer, BloxForgeServer as RobloxStudioMCPServer } from './server.js';
 export type { ServerConfig } from './server.js';
 export { createHttpServer } from './http-server.js';
 export { BridgeService } from './bridge-service.js';

@@ -1,6 +1,6 @@
 {
-  "name": "@princeofscale/robloxstudio-mcp-core",
-  "version": "2.20.1",
+  "name": "@princeofscale/bloxforge-core",
+  "version": "2.20.2",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

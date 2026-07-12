@@ -35,6 +35,20 @@ describe('safety wiring on destructive tools', () => {
     const result = await tools.executeLuau('workspace:ClearAllChildren()', undefined, undefined, {});
     const text = firstText(result);
     expect(text).toMatch(/confirm/i);
+    expect(text).toMatch(/matched pattern/i);
+    expect(text).toContain('/ClearAllChildren\\s*\\(/');
+  });
+
+  it('summarizes local tool calls without recording payloads', async () => {
+    tools.getSessionRecorder().recordToolCall({ toolName: 'delete_object', durationMs: 12, ok: false, errorCode: 'CONFIRMATION_REQUIRED' });
+    const result = await tools.getSessionSummary();
+    const payload = JSON.parse(firstText(result));
+    expect(payload).toMatchObject({
+      totalCalls: 1,
+      failures: 1,
+      recent: [expect.objectContaining({ toolName: 'delete_object', errorCode: 'CONFIRMATION_REQUIRED' })],
+    });
+    expect(JSON.stringify(payload)).not.toContain('ServerScriptService');
   });
 
   it('exposes recorded operations through getOperationHistory', async () => {

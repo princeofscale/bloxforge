@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to Roblox Studio MCP! Every contribution — code, docs, bug reports, feature ideas, or just using the project — helps make it better for everyone.
+Thanks for your interest in contributing to BloxForge! Every contribution — code, docs, bug reports, feature ideas, or just using the project — helps make it better for everyone.
 
 ## Where to start
 
@@ -52,4 +52,4 @@ npm run typecheck && npm test
 
 ## Asking questions
 
-Open a [discussion](https://github.com/princeofscale/robloxstudio-mcp/discussions) for questions, workflow ideas, or help getting started.
+Open a [discussion](https://github.com/princeofscale/bloxforge/discussions) for questions, workflow ideas, or help getting started.

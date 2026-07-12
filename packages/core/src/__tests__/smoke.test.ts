@@ -1,5 +1,5 @@
 import { BridgeService } from '../bridge-service.js';
-import { createHttpServer } from '../http-server.js';
+import { createHttpServer, TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import request from 'supertest';
 import * as fs from 'fs';
@@ -57,6 +57,14 @@ describe('Smoke', () => {
     }
   });
 
+  test('script edit handlers preserve literal backslash escapes in script source', () => {
+    const cwd = process.cwd();
+    const repoRoot = fs.existsSync(path.join(cwd, 'studio-plugin')) ? cwd : path.resolve(cwd, '../..');
+    const source = fs.readFileSync(path.join(repoRoot, 'studio-plugin/src/modules/handlers/ScriptHandlers.ts'), 'utf8');
+    expect(source).not.toContain('gsub("\\\\n", "\\n")');
+    expect(source).toContain('function normalizeEscapes(s: string): string');
+  });
+
   test('BridgeService instantiable', () => {
     const bridge = new BridgeService();
     expect(bridge).toBeDefined();
@@ -70,7 +78,7 @@ describe('Smoke', () => {
 
     const response = await request(app).get('/health').expect(200);
     expect(response.body.status).toBe('ok');
-    expect(response.body.service).toBe('robloxstudio-mcp');
+    expect(response.body.service).toBe('bloxforge');
   });
 
   test('clearAllPendingRequests rejects all pending', async () => {
@@ -167,7 +175,7 @@ describe('Smoke', () => {
     bridge.registerInstance({
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
-      role: 'client',
+      role: 'client-1',
       placeId: 0,
       placeName: 'TestPlace',
       dataModelName: 'Game',
@@ -245,7 +253,7 @@ describe('Smoke', () => {
     bridge.registerInstance({
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
-      role: 'client',
+      role: 'client-1',
       placeId: 0,
       placeName: 'TestPlace',
       dataModelName: 'TestPlace',
@@ -353,6 +361,90 @@ describe('Smoke', () => {
     expect(body.roles).toEqual(['edit']);
   });
 
+  test('stop_playtest is a no-op when no playtest is active', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+
+    const result = await tools.stopPlaytest();
+
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      success: true,
+      alreadyStopped: true,
+      runtimeStopped: true,
+      roles: ['edit'],
+    });
+    expect(bridge.getPendingRequestCount()).toBe(0);
+  });
+
+  test('simulate_keyboard_input forwards holdDuration alias through the tool handler', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'client-1',
+      instanceId: 'place:test',
+      role: 'client',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'TestPlace',
+      isRunning: true,
+    });
+
+    const resultPromise = TOOL_HANDLERS.simulate_keyboard_input(tools, {
+      keyCode: 'E',
+      action: 'tap',
+      holdDuration: 1.2,
+      target: 'client-1',
+    });
+
+    const pending = bridge.getPendingRequest('place:test', 'client-1');
+    expect(pending?.request).toMatchObject({
+      endpoint: '/api/simulate-keyboard-input',
+      data: { keyCode: 'E', action: 'tap', holdDuration: 1.2 },
+    });
+    bridge.resolveRequest(pending!.requestId, { success: true, keyCode: 'E', duration: 1.2 });
+
+    const result = await resultPromise;
+    expect(JSON.parse(result.content[0].text)).toMatchObject({ success: true, duration: 1.2 });
+  });
+
+  test('capture_screenshot reports logical viewport conversion when physical pixels differ', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+
+    const resultPromise = tools.captureScreenshot(
+      undefined,
+      'png',
+      undefined,
+      { x: 1, y: 2, z: 3 },
+      { x: 0, y: 0, z: 0 },
+    );
+    const pending = bridge.getPendingRequest('place:test', 'edit');
+    expect(pending?.request.endpoint).toBe('/api/capture-screenshot');
+    expect(pending?.request.data).toEqual({
+      cameraPosition: { x: 1, y: 2, z: 3 },
+      lookAt: { x: 0, y: 0, z: 0 },
+    });
+    bridge.resolveRequest(pending!.requestId, {
+      success: true,
+      width: 150,
+      height: 100,
+      viewportW: 100,
+      viewportH: 80,
+      data: Buffer.alloc(150 * 100 * 4).toString('base64'),
+    });
+
+    const result = await resultPromise;
+    expect(result.content[0].type).toBe('text');
+    expect(result.content[0].text).toContain('Screenshot 150x100px');
+    expect(result.content[0].text).toContain('logical viewport 100x80');
+    expect(result.content[0].text).toContain('simulate_mouse_input');
+    expect(result.content[0].text).toContain('x = imageX / 1.5000');
+    expect(result.content[0].text).toContain('y = imageY / 1.2500');
+  });
+
   test('stop_playtest reports stuck teardown when runtime peers do not disconnect', async () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
@@ -401,6 +493,89 @@ describe('Smoke', () => {
     expect(body.possibleCause).toContain('BindToClose');
     expect(body.possibleCause).toContain('No runtime hard-stop or synthetic keyboard fallback');
     expect(body.fallbacks).toBeUndefined();
+  });
+
+  test('stop_playtest treats EndTest already-called acknowledgement as teardown in progress', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'server-1',
+      instanceId: 'place:test',
+      role: 'server',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'TestPlace',
+      isRunning: true,
+    });
+    (tools as any).runtimeTools._waitForRuntimeRoles = async () => ({
+      ok: true,
+      roles: ['edit'],
+      timedOut: false,
+    });
+
+    const resultPromise = tools.stopPlaytest();
+    const pending = bridge.getPendingRequest('place:test', 'edit');
+    expect(pending).toBeTruthy();
+    bridge.resolveRequest(pending!.requestId, {
+      success: true,
+      alreadyEnded: true,
+      message: 'StudioTestService:EndTest was already issued; teardown is in progress.',
+    });
+
+    const result = await resultPromise;
+    const body = JSON.parse(result.content[0].text);
+    expect(body).toMatchObject({
+      success: true,
+      alreadyEnded: true,
+      runtimeStopped: true,
+      timedOut: false,
+      roles: ['edit'],
+    });
+  });
+
+  test('multiplayer_test_end treats EndTest already-called as already ended', async () => {
+    const bridge = new BridgeService();
+    const tools = new RobloxStudioTools(bridge);
+    bridge.registerInstance(READY);
+    bridge.registerInstance({
+      pluginSessionId: 'server-1',
+      instanceId: 'place:test',
+      role: 'server',
+      placeId: 0,
+      placeName: 'TestPlace',
+      dataModelName: 'TestPlace',
+      isRunning: true,
+    });
+    (tools as any).runtimeTools._waitForMultiplayerEditDone = async () => true;
+    (tools as any).runtimeTools._waitForRuntimeRoles = async () => ({
+      ok: true,
+      roles: ['edit'],
+      timedOut: false,
+    });
+    (tools as any).runtimeTools._buildMultiplayerState = async () => ({
+      instanceId: 'place:test',
+      phase: 'idle',
+    });
+
+    const resultPromise = tools.multiplayerTestEnd(undefined, 5);
+    const pending = bridge.getPendingRequest('place:test', 'server');
+    expect(pending).toBeTruthy();
+    bridge.resolveRequest(pending!.requestId, {
+      error: 'EndTest can only be called once',
+    });
+
+    const result = await resultPromise;
+    const body = JSON.parse(result.content[0].text);
+    expect(body).toMatchObject({
+      success: true,
+      alreadyEnded: true,
+      ended: true,
+      editDone: true,
+      timedOut: false,
+      roles: ['edit'],
+      state: { instanceId: 'place:test', phase: 'idle' },
+    });
   });
 
   test('stop_playtest reports edit request failure when runtime peers remain', async () => {

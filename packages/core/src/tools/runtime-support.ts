@@ -6,6 +6,8 @@ export type RawImageCaptureResponse = {
   error?: string;
   width?: number;
   height?: number;
+  viewportW?: number;
+  viewportH?: number;
   data?: string;
   instancePath?: string;
   instanceName?: string;
@@ -20,6 +22,8 @@ export type EncodedViewportCapture = {
   success: true;
   width: number;
   height: number;
+  viewportW?: number;
+  viewportH?: number;
   format: 'jpeg' | 'png';
   quality?: number;
   note: string;

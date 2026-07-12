@@ -20,6 +20,7 @@ import SceneAnalysisHandlers from "./handlers/SceneAnalysisHandlers";
 import EvalRuntimeHandlers from "./handlers/EvalRuntimeHandlers";
 import BreakpointHandlers from "./handlers/BreakpointHandlers";
 import ScriptProfilerHandlers from "./handlers/ScriptProfilerHandlers";
+import MicroProfilerHandlers from "./handlers/MicroProfilerHandlers";
 import JobHandlers from "./handlers/JobHandlers";
 import ClientBroker from "./ClientBroker";
 import ServerUrlSettings from "./ServerUrlSettings";
@@ -178,6 +179,7 @@ const routeMap: Record<string, Handler> = {
 	"/api/get-runtime-logs": LogHandlers.getRuntimeLogs,
 	"/api/breakpoints": BreakpointHandlers.breakpoints,
 	"/api/capture-script-profiler": ScriptProfilerHandlers.captureScriptProfiler,
+	"/api/capture-micro-profiler": MicroProfilerHandlers.captureMicroProfiler,
 
 	"/api/export-rbxm": SerializationHandlers.exportRbxm,
 	"/api/import-rbxm": SerializationHandlers.importRbxm,
@@ -271,6 +273,7 @@ function sendReady(conn: Connection): void {
 					isRunning: RunService.IsRunning(),
 					pluginVersion: State.CURRENT_VERSION,
 					pluginVariant: State.PLUGIN_VARIANT,
+					protocolVersion: State.PROTOCOL_VERSION,
 					pluginReady: true,
 					timestamp: tick(),
 				}),
@@ -281,7 +284,7 @@ function sendReady(conn: Connection): void {
 		const readyLogKey = `${conn.serverUrl}|${instanceId}|${readyRole}`;
 		if (!readyOk) {
 			readyFailureLogKeys.add(readyLogKey);
-			warn(`[robloxstudio-mcp] /ready failed for ${instanceId}/${readyRole}: ${HttpDiagnostics.formatRequestFailure(readyUrl, readyOk, readyResult)}`);
+			warn(`[BloxForge] /ready failed for ${instanceId}/${readyRole}: ${HttpDiagnostics.formatRequestFailure(readyUrl, readyOk, readyResult)}`);
 			return;
 		}
 		if (!readyResult.Success) {
@@ -298,10 +301,10 @@ function sendReady(conn: Connection): void {
 					ui.detailStatusLabel.Text = reason;
 					ui.detailStatusLabel.TextColor3 = Color3.fromRGB(239, 68, 68);
 				}
-				warn(`[robloxstudio-mcp] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
+				warn(`[BloxForge] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
 				return;
 			}
-			warn(`[robloxstudio-mcp] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
+			warn(`[BloxForge] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
 			return;
 		}
 		const [parseOk, readyData] = pcall(
@@ -317,9 +320,53 @@ function sendReady(conn: Connection): void {
 		const connectedRole = assignedRole ?? detectRole();
 		if (readyFailureLogKeys.has(readyLogKey)) {
 			readyFailureLogKeys.delete(readyLogKey);
-			print(`[robloxstudio-mcp] /ready connected for ${instanceId}/${connectedRole} via ${conn.serverUrl}`);
+			print(`[BloxForge] /ready connected for ${instanceId}/${connectedRole} via ${conn.serverUrl}`);
 		}
 	});
+}
+
+function streamUrl(serverUrl: string): string {
+	const [websocketUrl] = string.gsub(serverUrl, "^http", "ws");
+	return `${websocketUrl}/stream?pluginSessionId=${pluginSessionId}`;
+}
+
+function sendStreamResponse(conn: Connection, requestId: string, response: unknown) {
+	if (!conn.streamOpen || !conn.streamClient) return;
+	pcall(() => conn.streamClient!.Send(HttpService.JSONEncode({ type: "response", requestId, response })));
+}
+
+function startRequestStream(conn: Connection) {
+	if (!conn.isActive || conn.streamClient) return;
+	const [ok, stream] = pcall(() => HttpService.CreateWebStreamClient(
+		Enum.WebStreamClientType.WebSocket,
+		{ Url: streamUrl(conn.serverUrl), Method: "GET", Headers: { "Content-Type": "application/json" } },
+	));
+	if (!ok || !stream) return;
+
+	conn.streamClient = stream;
+	stream.Opened.Connect(() => {
+		if (conn.streamClient !== stream) return;
+		conn.streamOpen = true;
+		conn.consecutiveFailures = 0;
+		conn.currentRetryDelay = 0.5;
+	});
+	stream.MessageReceived.Connect((message) => {
+		if (conn.streamClient !== stream) return;
+		const [parsed, frame] = pcall(() => HttpService.JSONDecode(message) as { type?: string; requestId?: string; request?: RequestPayload });
+		if (!parsed || frame.type !== "request" || !frame.requestId || !frame.request) return;
+		task.spawn(() => {
+			const [handled, response] = pcall(() => processRequest(frame.request!));
+			sendStreamResponse(conn, frame.requestId!, handled ? response : { error: tostring(response) });
+		});
+	});
+	const close = () => {
+		if (conn.streamClient !== stream) return;
+		conn.streamClient = undefined;
+		conn.streamOpen = false;
+		conn.nextStreamRetryAt = tick() + 5;
+	};
+	stream.Closed.Connect(close);
+	stream.Error.Connect(close);
 }
 
 function pollForRequests(connIndex: number) {
@@ -344,6 +391,13 @@ function pollForRequests(connIndex: number) {
 	if (connIndex === State.getActiveTabIndex()) UI.updateToolbarIcon();
 
 	if (success && (result.Success || result.StatusCode === 503)) {
+		// Recovery acceleration: detect the failing->ok transition. A transient
+		// throttling gap (Studio backgrounded/minimized throttles
+		// HttpService.RequestAsync) can make the server reap us as stale, so on
+		// the first successful poll after failures we re-fire /ready immediately
+		// to restore routing instead of waiting for knownInstance=false on a
+		// later poll. Throttled by lastReadyPostAt inside sendReady.
+		const wasFailing = conn.consecutiveFailures > 0;
 		conn.consecutiveFailures = 0;
 		conn.currentRetryDelay = 0.5;
 		conn.lastSuccessfulConnection = tick();
@@ -358,7 +412,7 @@ function pollForRequests(connIndex: number) {
 			const warningKey = `${State.CURRENT_VERSION}:${serverVersion}`;
 			if (lastVersionMismatchWarningKey !== warningKey) {
 				lastVersionMismatchWarningKey = warningKey;
-				warn(`[robloxstudio-mcp] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @princeofscale/robloxstudio-mcp@latest --auto-install-plugin and restart Studio.`);
+				warn(`[BloxForge] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @princeofscale/bloxforge@latest --auto-install-plugin and restart Studio.`);
 			}
 			UI.showBanner("version-mismatch", `Plugin v${State.CURRENT_VERSION} / MCP v${serverVersion} mismatch`);
 		} else if (hasVersionMismatch) {
@@ -367,12 +421,15 @@ function pollForRequests(connIndex: number) {
 		}
 
 		// Server tells us when its in-memory instances map doesn't have us
-		// (e.g. after an MCP process restart). Re-issue /ready immediately so
-		// target=server/client-N start routing again. The throttle inside
-		// sendReady() prevents duplicate registrations while the server
-		// catches up.
-		if (data.knownInstance === false) {
-			sendReady(conn);
+		// (e.g. after an MCP process restart, or after it reaped us during a
+		// throttling gap). Re-issue /ready immediately so target=server/client-N
+		// start routing again. The throttle inside sendReady() prevents
+		// duplicate registrations while the server catches up. We also re-fire
+		// on the failing->ok transition (wasFailing) even when knownInstance is
+		// already true, because the server may still be mid-reap during the
+		// poll that returns to health.
+		if (data.knownInstance === false || wasFailing) {
+			task.spawn(() => sendReady(conn));
 		}
 
 		if (connIndex === State.getActiveTabIndex()) {
@@ -435,7 +492,6 @@ function pollForRequests(connIndex: number) {
 				conn.maxRetryDelay,
 			);
 		}
-
 
 		if (connIndex === State.getActiveTabIndex()) {
 			const el = ui;
@@ -534,10 +590,20 @@ function activatePlugin(connIndex?: number) {
 				cachedPlaceNamePlaceId = undefined;
 				sendReady(conn);
 			}
-			const currentInterval = conn.consecutiveFailures > 5 ? conn.currentRetryDelay : conn.pollInterval;
-			if (now - conn.lastPoll > currentInterval) {
-				conn.lastPoll = now;
-				pollForRequests(idx);
+			if (!conn.streamClient && now >= conn.nextStreamRetryAt) {
+				conn.nextStreamRetryAt = now + 5;
+				startRequestStream(conn);
+			}
+			if (conn.streamOpen && conn.streamClient && now - conn.lastStreamHeartbeat > 15) {
+				conn.lastStreamHeartbeat = now;
+				pcall(() => conn.streamClient!.Send(HttpService.JSONEncode({ type: "heartbeat" })));
+			}
+			if (!conn.streamOpen) {
+				const currentInterval = conn.consecutiveFailures > 5 ? conn.currentRetryDelay : conn.pollInterval;
+				if (now - conn.lastPoll > currentInterval) {
+					conn.lastPoll = now;
+					pollForRequests(idx);
+				}
 			}
 		});
 	}
@@ -580,6 +646,11 @@ function deactivatePlugin(connIndex?: number) {
 		conn.heartbeatConnection.Disconnect();
 		conn.heartbeatConnection = undefined;
 	}
+	if (conn.streamClient) {
+		conn.streamClient.Close();
+		conn.streamClient = undefined;
+	}
+	conn.streamOpen = false;
 
 	conn.consecutiveFailures = 0;
 	conn.currentRetryDelay = 0.5;
@@ -597,7 +668,7 @@ function checkForUpdates() {
 	task.spawn(() => {
 		const [success, result] = pcall(() => {
 			return HttpService.RequestAsync({
-				Url: "https://registry.npmjs.org/@princeofscale/robloxstudio-mcp/latest",
+				Url: "https://registry.npmjs.org/@princeofscale/bloxforge/latest",
 				Method: "GET",
 				Headers: { Accept: "application/json" },
 			});
@@ -609,7 +680,7 @@ function checkForUpdates() {
 				const latestVersion = data.version;
 				if (Utils.compareVersions(State.CURRENT_VERSION, latestVersion) < 0) {
 					if (!hasVersionMismatch) {
-						UI.showBanner("update", `v${latestVersion} available - github.com/princeofscale/robloxstudio-mcp`);
+						UI.showBanner("update", `v${latestVersion} available - github.com/princeofscale/bloxforge`);
 					}
 				}
 			}

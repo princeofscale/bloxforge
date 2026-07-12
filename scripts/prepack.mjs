@@ -11,18 +11,22 @@ import { fileURLToPath } from 'url';
 
 const packageDir = process.cwd();
 const rootDir = join(packageDir, '..', '..');
-const source = join(rootDir, 'studio-plugin');
-const dest = join(packageDir, 'studio-plugin');
+const copies = [
+  ['studio-plugin', 'studio-plugin'],
+  ['packages/core/assets', 'assets'],
+];
 
-if (!existsSync(source)) {
-  console.error('studio-plugin/ not found at project root, skipping copy');
-  process.exit(0);
+for (const [sourceRel, destRel] of copies) {
+  const source = join(rootDir, sourceRel);
+  const dest = join(packageDir, destRel);
+  if (!existsSync(source)) {
+    console.error(`${sourceRel}/ not found at project root, skipping copy`);
+    continue;
+  }
+  if (existsSync(dest)) {
+    console.log(`${destRel}/ already exists in package, skipping copy`);
+    continue;
+  }
+  console.log(`Copying ${sourceRel}/ into ${packageDir}/${destRel}`);
+  cpSync(source, dest, { recursive: true });
 }
-
-if (existsSync(dest)) {
-  console.log('studio-plugin/ already exists in package, skipping copy');
-  process.exit(0);
-}
-
-console.log(`Copying studio-plugin/ into ${packageDir}`);
-cpSync(source, dest, { recursive: true });

@@ -2,6 +2,7 @@ import * as RenderMonitor from "../RenderMonitor";
 
 const CaptureService = game.GetService("CaptureService");
 const AssetService = game.GetService("AssetService");
+const Workspace = game.GetService("Workspace");
 
 const MAX_TILE_SIZE = 1024;
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -78,7 +79,17 @@ function readPixelsTiled(img: EditableImage, w: number, h: number): buffer {
 // pixels back is blocked, but capturing is not). The returned rbxtemp:// id is
 // a process-scoped handle: it can be dereferenced from a DIFFERENT, more
 // privileged DM (the edit DM) — see captureRead.
-function doCaptureScreenshot(): { contentId: string } | { error: string } {
+function readLogicalViewport(): { viewportW?: number; viewportH?: number } {
+	const camera = Workspace.CurrentCamera;
+	if (camera === undefined) return {};
+	const size = camera.ViewportSize;
+	return {
+		viewportW: math.floor(size.X),
+		viewportH: math.floor(size.Y),
+	};
+}
+
+function doCaptureScreenshot(): { contentId: string; viewportW?: number; viewportH?: number } | { error: string } {
 	// Fast-fail with a clear reason if the window isn't rendering — otherwise
 	// CaptureScreenshot's callback never fires and we'd block for the full 10s.
 	const notRendering = RenderMonitor.notRenderingReason();
@@ -100,7 +111,7 @@ function doCaptureScreenshot(): { contentId: string } | { error: string } {
 		task.wait(0.1);
 	}
 
-	return { contentId };
+	return { contentId, ...readLogicalViewport() };
 }
 
 // Promotes a CaptureScreenshot content id into an EditableImage and reads its
@@ -108,7 +119,7 @@ function doCaptureScreenshot(): { contentId: string } | { error: string } {
 // the privilege to create an EditableImage from a temporary texture id (errors
 // "cannot currently create editable image from temporary texture id"), while
 // the edit DM can — even for an id captured in the play client DM.
-function readContentToBase64(contentId: string): unknown {
+function readContentToBase64(contentId: string, viewport?: { viewportW?: number; viewportH?: number }): unknown {
 	const [editableOk, editableResult] = pcall(() => {
 		return AssetService.CreateEditableImageAsync(Content.fromUri(contentId));
 	});
@@ -136,18 +147,37 @@ function readContentToBase64(contentId: string): unknown {
 
 	const base64Data = encodeBase64(pixelBuffer as buffer);
 
-	return { success: true, width: w, height: h, data: base64Data };
+	return { success: true, width: w, height: h, viewportW: viewport?.viewportW, viewportH: viewport?.viewportH, data: base64Data };
 }
 
 // Edit-mode single shot: capture and read back in the same (edit) context.
-function captureScreenshotData(): unknown {
-	const cap = doCaptureScreenshot();
+function captureScreenshotData(requestData: Record<string, unknown> = {}): unknown {
+	const position = requestData.cameraPosition as { x: number; y: number; z: number } | undefined;
+	const lookAt = requestData.lookAt as { x: number; y: number; z: number } | undefined;
+	const camera = Workspace.CurrentCamera;
+	if ((position === undefined) !== (lookAt === undefined)) return { error: "cameraPosition and lookAt must be provided together" };
+	const priorType = camera?.CameraType;
+	const priorCFrame = camera?.CFrame;
+	if (camera && position && lookAt) {
+		camera.CameraType = Enum.CameraType.Scriptable;
+		camera.CFrame = CFrame.lookAt(new Vector3(position.x, position.y, position.z), new Vector3(lookAt.x, lookAt.y, lookAt.z));
+		task.wait();
+	}
+	let cap: ReturnType<typeof doCaptureScreenshot>;
+	try {
+		cap = doCaptureScreenshot();
+	} finally {
+		if (camera && priorType !== undefined && priorCFrame !== undefined) {
+			camera.CFrame = priorCFrame;
+			camera.CameraType = priorType;
+		}
+	}
 	if ("error" in cap) return cap;
-	return readContentToBase64(cap.contentId);
+	return readContentToBase64(cap.contentId, cap);
 }
 
-function captureScreenshot(): unknown {
-	return captureScreenshotData();
+function captureScreenshot(requestData: Record<string, unknown>): unknown {
+	return captureScreenshotData(requestData);
 }
 
 // Play-mode step 1 (run on the CLIENT): capture only, return the temp id.
@@ -159,7 +189,10 @@ function captureBegin(): unknown {
 function captureRead(requestData: Record<string, unknown>): unknown {
 	const contentId = requestData.contentId as string | undefined;
 	if (!contentId) return { error: "contentId is required" };
-	return readContentToBase64(contentId);
+	return readContentToBase64(contentId, {
+		viewportW: requestData.viewportW as number | undefined,
+		viewportH: requestData.viewportH as number | undefined,
+	});
 }
 
 export = {

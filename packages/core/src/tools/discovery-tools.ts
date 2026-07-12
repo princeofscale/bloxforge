@@ -42,7 +42,7 @@ export class DiscoveryTools {
           count: matches.length,
           matches,
           recommendedToolsets,
-          client_hint: 'If a tool you need is not in your current tool list, call load_toolset with the recommended domain(s) first.',
+          client_hint: 'Lazy-loading is the default path. If a needed tool is not currently advertised, call load_toolset with the recommended domain(s); set ROBLOX_MCP_LAZY_TOOLS=0 only for full upfront schemas.',
         }),
       }] as ToolContent[],
     };

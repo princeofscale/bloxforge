@@ -2,7 +2,7 @@
 
 ## What this project is
 
-Roblox Studio MCP is a local development tool. It runs entirely on your machine and communicates with Roblox Studio over a localhost HTTP bridge. No cloud service, no telemetry, no external network calls for core functionality.
+BloxForge is a local development tool. It runs entirely on your machine and communicates with Roblox Studio over a localhost HTTP bridge. No cloud service, no telemetry, no external network calls for core functionality.
 
 ## What this means
 
@@ -15,7 +15,7 @@ Roblox Studio MCP is a local development tool. It runs entirely on your machine 
 
 If you find a security issue, please **do not open a public issue**. Instead, report it privately to the maintainer through GitHub's security advisory system:
 
-https://github.com/princeofscale/robloxstudio-mcp/security/advisories/new
+https://github.com/princeofscale/bloxforge/security/advisories/new
 
 ## Best practices
 

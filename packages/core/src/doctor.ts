@@ -36,7 +36,7 @@ export function formatDoctorReport(checks: DoctorCheck[]): string {
     : worst === 'warn'
       ? 'Some checks need attention (warnings).'
       : 'Problems found — see failures above.';
-  return ['robloxstudio-mcp doctor', ...lines, '', summary].join('\n');
+  return ['bloxforge doctor', ...lines, '', summary].join('\n');
 }
 
 export interface DoctorOptions {
@@ -73,11 +73,50 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
   try {
     const res = await doFetch(`http://localhost:${port}/health`);
     if (res.ok) {
-      const health = await res.json() as { pluginConnected?: boolean; instanceCount?: number; version?: string };
+      const health = await res.json() as {
+        pluginConnected?: boolean;
+        instanceCount?: number;
+        version?: string;
+        serverVersion?: string;
+        lazyTools?: boolean;
+        activeToolCount?: number;
+        loadedToolsets?: string[];
+        protocolVersion?: number;
+        versionMismatch?: boolean;
+        protocolMismatch?: boolean;
+        instances?: Array<{
+          pluginVersion?: string;
+          pluginVariant?: string;
+          pluginProtocolVersion?: number;
+          serverProtocolVersion?: number;
+          versionMismatch?: boolean;
+          protocolMismatch?: boolean;
+        }>;
+      };
       checks.push({ name: 'Local bridge running', status: 'ok', detail: `responding on port ${port}` });
       checks.push(health.pluginConnected
         ? { name: 'Studio reachable', status: 'ok', detail: `${health.instanceCount ?? 0} place(s) connected` }
         : { name: 'Studio reachable', status: 'warn', detail: 'bridge up but no Studio plugin connected. Open Studio and enable Allow HTTP Requests.' });
+      checks.push({
+        name: 'Lazy tool loading',
+        status: health.lazyTools === false ? 'warn' : 'ok',
+        detail: health.lazyTools === false
+          ? 'disabled via ROBLOX_MCP_LAZY_TOOLS opt-out; all schemas are advertised upfront'
+          : `default path active (${health.activeToolCount ?? 0} active tools; loaded ${health.loadedToolsets?.join(', ') || 'core'})`,
+      });
+      const first = health.instances?.[0];
+      if (first) {
+        checks.push({
+          name: 'Studio plugin version',
+          status: health.versionMismatch || first.versionMismatch ? 'warn' : 'ok',
+          detail: `plugin v${first.pluginVersion ?? 'unknown'} (${first.pluginVariant ?? 'unknown'}), server v${health.serverVersion ?? health.version ?? options.version ?? 'unknown'}`,
+        });
+        checks.push({
+          name: 'Protocol version',
+          status: health.protocolMismatch || first.protocolMismatch ? 'warn' : 'ok',
+          detail: `plugin protocol ${first.pluginProtocolVersion ?? 'unknown'}, server protocol ${first.serverProtocolVersion ?? health.protocolVersion ?? 'unknown'}`,
+        });
+      }
     } else {
       checks.push({ name: 'Local bridge running', status: 'fail', detail: `port ${port} responded ${res.status}` });
     }

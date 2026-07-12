@@ -109,6 +109,8 @@ export interface Assessment {
   reasons: string[];
   /** Non-fatal advisories worth showing the user. */
   warnings: string[];
+  /** Exact configured dangerous patterns matched by Luau source scanning. */
+  matchedPatterns?: string[];
 }
 
 export interface OperationRecord {
@@ -149,6 +151,7 @@ export class SafetyManager {
   assess(input: AssessmentInput): Assessment {
     const reasons: string[] = [];
     const warnings: string[] = [];
+    const matchedPatterns: string[] = [];
     let requiresConfirmation = false;
     let blocked = false;
 
@@ -186,6 +189,7 @@ export class SafetyManager {
       const hits = this.config.dangerousLuauPatterns.filter((re) => re.test(input.code as string));
       if (hits.length > 0) {
         requiresConfirmation = true;
+        matchedPatterns.push(...hits.map((re) => re.toString()));
         warnings.push(`Luau contains ${hits.length} potentially destructive call(s); review before running.`);
         reasons.push('Luau matches a dangerous-operation pattern.');
       }
@@ -205,7 +209,7 @@ export class SafetyManager {
 
     const dryRun = input.dryRun === true;
     if (dryRun) {
-      return { allowed: true, requiresConfirmation, blocked, dryRun: true, reasons, warnings };
+      return { allowed: true, requiresConfirmation, blocked, dryRun: true, reasons, warnings, matchedPatterns };
     }
 
     let allowed = !blocked;
@@ -213,7 +217,7 @@ export class SafetyManager {
       allowed = false;
     }
 
-    return { allowed, requiresConfirmation, blocked, dryRun: false, reasons, warnings };
+    return { allowed, requiresConfirmation, blocked, dryRun: false, reasons, warnings, matchedPatterns };
   }
 
   isProtectedPath(path: string): boolean {

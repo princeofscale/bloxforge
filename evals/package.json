@@ -1,9 +1,9 @@
 {
-  "name": "robloxstudio-mcp-evals",
+  "name": "bloxforge-evals",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Eval harness for the RobloxStudio MCP server (not published).",
+  "description": "Eval harness for the BloxForge server (not published).",
   "scripts": {
     "selfcheck": "tsx selfcheck.ts",
     "run": "tsx run.ts",

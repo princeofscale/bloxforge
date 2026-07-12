@@ -22,9 +22,9 @@ const VARIANTS = {
   main: {
     scriptName: 'MCPPlugin',
     outputName: 'MCPPlugin.rbxmx',
-    toolbarName: 'MCP Integration',
-    buttonTitle: 'MCP Server',
-    buttonTooltip: 'Connect to MCP Server for AI Integration',
+    toolbarName: 'BloxForge',
+    buttonTitle: 'BloxForge',
+    buttonTooltip: 'Connect BloxForge to your AI agent',
     buttonIconDisconnected: '75876056391496',  // red
     buttonIconConnecting: '71302583919560',    // yellow
     buttonIconConnected: '130958234173611',    // green
@@ -32,9 +32,9 @@ const VARIANTS = {
   inspector: {
     scriptName: 'MCPInspectorPlugin',
     outputName: 'MCPInspectorPlugin.rbxmx',
-    toolbarName: 'MCP Inspector',
-    buttonTitle: 'MCP Inspector',
-    buttonTooltip: 'Connect to MCP Inspector (read-only) for AI Integration',
+    toolbarName: 'BloxForge Inspector',
+    buttonTitle: 'BloxForge Inspector',
+    buttonTooltip: 'Connect BloxForge Inspector (read-only) to your AI agent',
     buttonIconDisconnected: '125921838360800', // TODO: replace with white-variant asset ID
     buttonIconConnecting: '125921838360800',   // TODO: replace with yellow-variant asset ID
     buttonIconConnected: '125921838360800',    // TODO: replace with green-variant asset ID

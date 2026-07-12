@@ -3,6 +3,8 @@ import { createHttpServer } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { BridgeService } from '../bridge-service.js';
 import { Application } from 'express';
+import WebSocket from 'ws';
+import { listenWithRetry } from '../http-server.js';
 
 const READY_BODY = {
   pluginSessionId: 'session-1',
@@ -34,7 +36,7 @@ describe('HTTP Server', () => {
       const response = await request(app).get('/health').expect(200);
       expect(response.body).toMatchObject({
         status: 'ok',
-        service: 'robloxstudio-mcp',
+        service: 'bloxforge',
         pluginConnected: false,
         mcpServerActive: false,
       });
@@ -44,7 +46,7 @@ describe('HTTP Server', () => {
   describe('Dashboard', () => {
     test('serves the dashboard HTML page', async () => {
       const response = await request(app).get('/dashboard').expect(200);
-      expect(response.text).toContain('robloxstudio-mcp dashboard');
+      expect(response.text).toContain('BloxForge dashboard');
       expect(response.headers['content-type']).toMatch(/html/);
     });
 
@@ -69,36 +71,63 @@ describe('HTTP Server', () => {
         tools,
         bridge,
         undefined,
-        { name: 'robloxstudio-mcp', version: '2.0.0', tools: [] },
+        { name: 'bloxforge', version: '2.0.0', tools: [] },
       );
       try {
         await request(versionedApp).post('/ready').send({
           ...READY_BODY,
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
+          protocolVersion: 0,
         }).expect(200);
         await request(versionedApp).post('/ready').send({
           ...READY_BODY,
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
+          protocolVersion: 0,
         }).expect(200);
 
         const health = await request(versionedApp).get('/health').expect(200);
         expect(health.body).toMatchObject({
           serverVersion: '2.0.0',
           versionMismatch: true,
+          protocolVersion: 1,
+          protocolMismatch: true,
         });
         expect(health.body.instances[0]).toMatchObject({
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
+          pluginProtocolVersion: 0,
+          serverProtocolVersion: 1,
           serverVersion: '2.0.0',
           versionMismatch: true,
+          protocolMismatch: true,
         });
         expect(errorSpy).toHaveBeenCalledTimes(1);
         expect(errorSpy.mock.calls[0][0]).toContain('[version-mismatch]');
       } finally {
         errorSpy.mockRestore();
       }
+    });
+
+    test('health exposes lazy and session recorder state', async () => {
+      const versionedApp = createHttpServer(
+        tools,
+        bridge,
+        undefined,
+        { name: 'bloxforge', version: '2.0.0', tools: [] },
+      );
+      const health = await request(versionedApp).get('/health').expect(200);
+      expect(health.body).toMatchObject({
+        lazyTools: true,
+        activeToolCount: expect.any(Number),
+        loadedToolsets: expect.any(Array),
+        session: {
+          totalCalls: 0,
+          failures: 0,
+          recent: [],
+        },
+      });
     });
 
     test('rejects /ready without required fields', async () => {
@@ -143,6 +172,11 @@ describe('HTTP Server', () => {
       const response = await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
       expect(response.body).toEqual({ success: true });
       expect(app.isPluginConnected()).toBe(false);
+      const health = await request(app).get('/health').expect(200);
+      expect(health.body.recentDisconnects[0]).toMatchObject({
+        pluginSessionId: 'session-1',
+        reason: 'plugin_request',
+      });
     });
 
     test('disconnect rejects pending requests targeting that tuple', async () => {
@@ -161,6 +195,42 @@ describe('HTTP Server', () => {
       expect(app.isPluginConnected()).toBe(true);
       bridge.unregisterInstance('stale-1');
       expect(app.isPluginConnected()).toBe(false);
+    });
+  });
+
+  describe('WebSocket bridge stream', () => {
+    test('pushes a queued request and resolves its same-stream response', async () => {
+      expect(bridge.registerInstance({
+        pluginSessionId: 'stream-1',
+        instanceId: 'place:stream',
+        role: 'edit',
+      }).ok).toBe(true);
+      const { server } = await listenWithRetry(app, '127.0.0.1', 0, 1);
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('expected TCP server address');
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/stream?pluginSessionId=stream-1`);
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          socket.once('open', resolve);
+          socket.once('error', reject);
+        });
+        const response = new Promise<any>((resolve, reject) => {
+          socket.once('message', (raw) => {
+            const frame = JSON.parse(raw.toString());
+            socket.send(JSON.stringify({ type: 'response', requestId: frame.requestId, response: { ok: true } }));
+            resolve(frame);
+          });
+          socket.once('error', reject);
+        });
+
+        const pending = bridge.sendRequest('/api/test', { source: 'stream' }, 'place:stream', 'edit');
+        await expect(response).resolves.toMatchObject({ type: 'request', request: { endpoint: '/api/test' } });
+        await expect(pending).resolves.toEqual({ ok: true });
+      } finally {
+        socket.close();
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
     });
   });
 

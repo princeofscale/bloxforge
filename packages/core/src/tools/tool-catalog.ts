@@ -33,6 +33,8 @@ export const TOOL_DOMAINS: ToolDomain[] = [
 export const CORE_TOOLS: ReadonlySet<string> = new Set([
   'tool_catalog_search',
   'load_toolset',
+  'get_roblox_docs',
+  'get_session_summary',
   'get_connected_instances',
   'get_scene_summary',
   'execute_luau',
@@ -43,6 +45,7 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
 
 // Exact-name overrides for tools whose domain isn't obvious from a prefix.
 const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
+  get_roblox_docs: 'core',
   // safety / history
   get_operation_history: 'safety',
   list_script_backups: 'safety',
@@ -73,7 +76,11 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   eval_server_runtime: 'runtime',
   eval_client_runtime: 'runtime',
   capture_device_matrix: 'runtime',
+  solo_playtest: 'runtime',
+  multiplayer_playtest: 'runtime',
   capture_script_profiler: 'runtime',
+  capture_micro_profiler: 'runtime',
+  manage_instance: 'runtime',
   breakpoints: 'runtime',
   execute_luau_async: 'runtime',
   get_job_status: 'runtime',
@@ -101,6 +108,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   list_recipes: 'build',
   apply_recipe: 'build',
   generate_model_native: 'assets',
+  generate_model: 'assets',
   asset_source_search: 'assets',
   import_external_asset: 'assets',
   get_asset_provenance: 'assets',
@@ -147,7 +155,13 @@ export interface CatalogEntry {
   /** One-line "when to use", derived from the tool description. */
   whenToUse: string;
   requiredArgs: string[];
+  deprecated?: boolean;
+  replacement?: string;
 }
+
+const DEPRECATED_TOOL_REPLACEMENTS: Record<string, string> = {
+  get_descendants: 'get_world_snapshot + scene_search/get_node_batch',
+};
 
 /** First sentence of a description, trimmed to keep the catalog token-lean. */
 function firstSentence(desc: string, max = 120): string {
@@ -167,6 +181,9 @@ export function buildCatalog(defs: ToolDefinition[]): CatalogEntry[] {
     requiredArgs: Array.isArray((d.inputSchema as any)?.required)
       ? ((d.inputSchema as any).required as string[])
       : [],
+    ...(DEPRECATED_TOOL_REPLACEMENTS[d.name]
+      ? { deprecated: true, replacement: DEPRECATED_TOOL_REPLACEMENTS[d.name] }
+      : {}),
   }));
 }
 

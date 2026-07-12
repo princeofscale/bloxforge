@@ -5,6 +5,30 @@ import type { ToolDefinition } from '../definitions.js';
 // find the right tool for a task without paying for every tool's full schema.
 export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
+    name: 'get_roblox_docs',
+    category: 'read',
+    description: 'Fetch official Roblox engine API documentation as markdown from create.roblox.com. Call this before writing or editing code that uses an engine class, enum, datatype, or Luau library you are not fully certain about (for example ProximityPrompt, Enum.KeyCode, CFrame, TweenService). Results are cached; very large pages are truncated with a section index, and the section parameter reads one section in full.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Exact PascalCase name of the class, enum, datatype, or library, e.g. "ProximityPrompt", "KeyCode", "CFrame", "table".',
+        },
+        doc_type: {
+          type: 'string',
+          enum: ['classes', 'enums', 'datatypes', 'libraries', 'globals'],
+          description: 'Documentation category. Defaults to classes.',
+        },
+        section: {
+          type: 'string',
+          description: 'Optional ##-level section to return instead of the whole page, e.g. "Description", "Properties", "Methods", "Events", "Code Samples".',
+        },
+      },
+      required: ['name'],
+    },
+  },
+  {
     name: 'tool_catalog_search',
     category: 'read',
     description:
@@ -34,9 +58,18 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'get_session_summary',
+    category: 'read',
+    description: 'Summarize this MCP server session without exposing tool payloads: total tool calls, failures, average duration, per-tool counts, and recent tool names/outcomes. Use when the bridge feels flaky or after a dogfood run to identify timeouts/errors.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
     name: 'load_toolset',
     category: 'read',
-    description: 'Load one or more tool domains so their tools become available. Use after tool_catalog_search points you at a domain you do not have loaded yet. Pass domain names like "scene", "ui", "assets". When lazy tool loading is enabled (ROBLOX_MCP_LAZY_TOOLS), this expands the advertised tool list and notifies the client; otherwise it just reports which tools the domains contain. Core tools are always available.',
+    description: 'Load one or more tool domains. This expands the advertised MCP tool list and sends tools/list_changed. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. Use --profile core|builder|tester|full to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every schema upfront.',
     inputSchema: {
       type: 'object',
       properties: {

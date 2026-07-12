@@ -51,10 +51,12 @@ export function parseLogErrors(entries: LogEntry[]): DiagnosticsResult {
 
 export function formatDiagnostics(result: DiagnosticsResult): string {
   const { errors, warnings } = result;
+  const scopeNote =
+    'Note: diagnose_scripts reads the current Studio output log only. ModuleScript compile/load errors appear after the module is required; restart the playtest before trusting a clean result.';
   if (errors.length === 0 && warnings.length === 0) {
-    return 'No errors or warnings in the captured output. Looks clean.';
+    return `No errors or warnings in the captured output. Looks clean.\n\n${scopeNote}`;
   }
-  const lines: string[] = [`Found ${errors.length} error(s) and ${warnings.length} warning(s).`];
+  const lines: string[] = [`Found ${errors.length} error(s) and ${warnings.length} warning(s).`, scopeNote];
 
   if (errors.length > 0) {
     lines.push('', 'Errors:');

@@ -63,3 +63,6 @@ jobs:
       - name: Compile plugin (TypeScript → Luau)
         working-directory: studio-plugin
         run: npm run build
+
+      - name: Smoke-check compiled plugin output
+        run: npm run test:plugin:smoke

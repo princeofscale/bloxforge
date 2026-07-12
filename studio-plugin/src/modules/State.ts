@@ -2,6 +2,7 @@ import { Connection } from "../types";
 
 const CURRENT_VERSION = "__VERSION__";
 const PLUGIN_VARIANT = "__PLUGIN_VARIANT__";
+const PROTOCOL_VERSION = 1;
 const MAX_CONNECTIONS = 5;
 const BASE_PORT = 58741;
 let activeTabIndex = 0;
@@ -23,6 +24,9 @@ function createConnection(port: number): Connection {
 		lastMcpOk: false,
 		mcpWaitStartTime: undefined,
 		isPolling: false,
+		streamOpen: false,
+		lastStreamHeartbeat: 0,
+		nextStreamRetryAt: 0,
 		heartbeatConnection: undefined,
 	};
 }
@@ -83,6 +87,7 @@ function getConnections(): Connection[] {
 export = {
 	CURRENT_VERSION,
 	PLUGIN_VARIANT,
+	PROTOCOL_VERSION,
 	MAX_CONNECTIONS,
 	BASE_PORT,
 	connections,

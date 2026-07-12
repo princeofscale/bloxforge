@@ -117,6 +117,32 @@ describe('BridgeService', () => {
       const second = bridge.getPendingRequest('place:1', 'edit');
       expect(second!.request.data.order).toBe(2);
     });
+
+    test('notifies a connected plugin as soon as a request is queued', async () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const notify = jest.fn();
+      bridge.setRequestNotifier(notify);
+
+      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+
+      expect(notify).toHaveBeenCalledWith('p1');
+      const delivered = bridge.getPendingRequestForSession('p1');
+      expect(delivered).toMatchObject({ request: { endpoint: '/api/test' } });
+      bridge.resolveRequest(delivered!.requestId, { ok: true });
+      await expect(pending).resolves.toEqual({ ok: true });
+    });
+
+    test('releases an undelivered pushed request for polling fallback', async () => {
+      register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
+      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const delivered = bridge.getPendingRequestForSession('p1');
+
+      bridge.releasePendingRequest(delivered!.requestId);
+
+      expect(bridge.getPendingRequest('place:1', 'edit')?.requestId).toBe(delivered!.requestId);
+      bridge.resolveRequest(delivered!.requestId, { ok: true });
+      await expect(pending).resolves.toEqual({ ok: true });
+    });
   });
 
   describe('registerInstance', () => {
@@ -194,8 +220,11 @@ describe('BridgeService', () => {
           isRunning: false,
           pluginVersion: '2.16.1',
           pluginVariant: 'main',
+          pluginProtocolVersion: 1,
           serverVersion: '2.16.1',
+          serverProtocolVersion: 1,
           versionMismatch: false,
+          protocolMismatch: false,
           lastActivity: Date.now(),
           connectedAt: Date.now(),
         },
@@ -479,6 +508,51 @@ describe('BridgeService', () => {
       // Clean up the edit request to avoid hanging promise.
       bridge.resolveRequest(stillPending!.requestId, {});
       await editReq;
+    });
+
+    describe('cleanupStaleInstances (TTL-based reaping)', () => {
+      test('keeps instances below the TTL', () => {
+        bridge.staleInstanceMs = 10000; // 10s
+        register(bridge, { pluginSessionId: 'fresh', instanceId: 'place:1', role: 'edit' });
+        jest.advanceTimersByTime(5000); // 5s < 10s
+        bridge.cleanupStaleInstances();
+        expect(bridge.getInstances()).toHaveLength(1);
+      });
+
+      test('reaps instances past the TTL', () => {
+        bridge.staleInstanceMs = 10000; // 10s
+        register(bridge, { pluginSessionId: 'stale', instanceId: 'place:1', role: 'edit' });
+        jest.advanceTimersByTime(15000); // 15s > 10s
+        bridge.cleanupStaleInstances();
+        expect(bridge.getInstances()).toHaveLength(0);
+        expect(bridge.getRecentDisconnects()[0]).toMatchObject({
+          pluginSessionId: 'stale',
+          reason: 'stale_timeout',
+        });
+      });
+
+      test('activity refresh (poll) resets the TTL clock', () => {
+        bridge.staleInstanceMs = 10000; // 10s
+        register(bridge, { pluginSessionId: 'refreshed', instanceId: 'place:1', role: 'edit' });
+        jest.advanceTimersByTime(7000); // 7s
+        bridge.updateInstanceActivity('refreshed'); // poll refreshes lastActivity
+        jest.advanceTimersByTime(7000); // 14s since register, but 7s since activity
+        bridge.cleanupStaleInstances();
+        expect(bridge.getInstances()).toHaveLength(1);
+      });
+
+      test('reaping a stale instance rejects its pending requests as disconnected', async () => {
+        bridge.staleInstanceMs = 10000; // 10s
+        register(bridge, { pluginSessionId: 'gone', instanceId: 'place:1', role: 'edit' });
+        const req = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+        jest.advanceTimersByTime(15000); // 15s > 10s
+        bridge.cleanupStaleInstances();
+        await expect(req).rejects.toThrow(/disconnected/);
+      });
+
+      test('default TTL is 90s (tolerates Studio throttling gaps)', () => {
+        expect(bridge.staleInstanceMs).toBeGreaterThanOrEqual(90000);
+      });
     });
   });
 });
