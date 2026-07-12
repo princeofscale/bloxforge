@@ -25,9 +25,9 @@ const SYMBOL: Record<DoctorStatus, string> = { ok: '✓', warn: '!', fail: '✗'
 export function checkNodeVersion(version: string): DoctorCheck {
   const major = parseInt(version.replace(/^v/, '').split('.')[0] ?? '0', 10);
   if (Number.isNaN(major) || major < 18) {
-    return { 
-      name: 'Node version', 
-      status: 'fail', 
+    return {
+      name: 'Node version',
+      status: 'fail',
       detail: `${version} — Node 18+ is required.`,
       actionable: {
         fix: 'Upgrade Node.js to version 18 or newer.',
@@ -86,9 +86,9 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
     const found = variants.filter((v) => fs.existsSync(path.join(folder, v)));
     checks.push(found.length > 0
       ? { name: 'Studio plugin installed', status: 'ok', detail: `${found.join(', ')} in ${folder}` }
-      : { 
-          name: 'Studio plugin installed', 
-          status: 'warn', 
+      : {
+          name: 'Studio plugin installed',
+          status: 'warn',
           detail: `none found in ${folder}. Run with --install-plugin.`,
           actionable: {
             fix: 'Run "npx @princeofscale/bloxforge --install-plugin" to install the plugin to your local Roblox directory.',
@@ -96,9 +96,9 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
           }
         });
   } catch (error) {
-    checks.push({ 
-      name: 'Studio plugin installed', 
-      status: 'warn', 
+    checks.push({
+      name: 'Studio plugin installed',
+      status: 'warn',
       detail: `could not resolve plugins folder: ${error instanceof Error ? error.message : String(error)}`,
       actionable: {
         fix: 'Ensure your Roblox Studio installation is valid and accessible.',
@@ -136,9 +136,9 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
       checks.push({ name: 'Local bridge running', status: 'ok', detail: `responding on port ${port}` });
       checks.push(health.pluginConnected
         ? { name: 'Studio reachable', status: 'ok', detail: `${health.instanceCount ?? 0} place(s) connected` }
-        : { 
-            name: 'Studio reachable', 
-            status: 'warn', 
+        : {
+            name: 'Studio reachable',
+            status: 'warn',
             detail: 'bridge up but no Studio plugin connected.',
             actionable: {
               fix: 'Open Roblox Studio, open your place, and ensure "Allow HTTP Requests" is enabled in Game Settings -> Security. Play or Run the game.',
@@ -174,9 +174,9 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
         });
       }
     } else {
-      checks.push({ 
-        name: 'Local bridge running', 
-        status: 'fail', 
+      checks.push({
+        name: 'Local bridge running',
+        status: 'fail',
         detail: `port ${port} responded ${res.status}`,
         actionable: {
           fix: `Another application might be interfering on port ${port}, or the server is in an error state.`,
@@ -185,9 +185,9 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
       });
     }
   } catch {
-    checks.push({ 
-      name: 'Local bridge running', 
-      status: 'warn', 
+    checks.push({
+      name: 'Local bridge running',
+      status: 'warn',
       detail: `nothing responding on port ${port}. The bridge only runs while the MCP server is started.`,
       actionable: {
         fix: 'Start the BloxForge server in another terminal (e.g., via "npx @princeofscale/bloxforge") before running diagnostics.',
