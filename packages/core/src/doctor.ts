@@ -14,6 +14,10 @@ export interface DoctorCheck {
   name: string;
   status: DoctorStatus;
   detail: string;
+  actionable?: {
+    fix: string;
+    verify?: string;
+  };
 }
 
 const SYMBOL: Record<DoctorStatus, string> = { ok: '✓', warn: '!', fail: '✗' };
@@ -21,13 +25,31 @@ const SYMBOL: Record<DoctorStatus, string> = { ok: '✓', warn: '!', fail: '✗'
 export function checkNodeVersion(version: string): DoctorCheck {
   const major = parseInt(version.replace(/^v/, '').split('.')[0] ?? '0', 10);
   if (Number.isNaN(major) || major < 18) {
-    return { name: 'Node version', status: 'fail', detail: `${version} — Node 18+ is required.` };
+    return { 
+      name: 'Node version', 
+      status: 'fail', 
+      detail: `${version} — Node 18+ is required.`,
+      actionable: {
+        fix: 'Upgrade Node.js to version 18 or newer.',
+        verify: 'Run "node -v" to verify your version, then run "npx @princeofscale/bloxforge verify".'
+      }
+    };
   }
   return { name: 'Node version', status: 'ok', detail: version };
 }
 
 export function formatDoctorReport(checks: DoctorCheck[]): string {
-  const lines = checks.map((c) => `  ${SYMBOL[c.status]} ${c.name}: ${c.detail}`);
+  const lines: string[] = [];
+  for (const c of checks) {
+    lines.push(`  ${SYMBOL[c.status]} ${c.name}: ${c.detail}`);
+    if (c.status !== 'ok' && c.actionable) {
+      lines.push(`      Fix: ${c.actionable.fix}`);
+      if (c.actionable.verify) {
+        lines.push(`      Verify: ${c.actionable.verify}`);
+      }
+    }
+  }
+
   const worst: DoctorStatus = checks.some((c) => c.status === 'fail')
     ? 'fail'
     : checks.some((c) => c.status === 'warn')
@@ -38,7 +60,7 @@ export function formatDoctorReport(checks: DoctorCheck[]): string {
     : worst === 'warn'
       ? 'Some checks need attention (warnings).'
       : 'Problems found — see failures above.';
-  return ['bloxforge doctor', ...lines, '', summary].join('\n');
+  return ['bloxforge doctor / verify', ...lines, '', summary].join('\n');
 }
 
 export interface DoctorOptions {
@@ -64,9 +86,25 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
     const found = variants.filter((v) => fs.existsSync(path.join(folder, v)));
     checks.push(found.length > 0
       ? { name: 'Studio plugin installed', status: 'ok', detail: `${found.join(', ')} in ${folder}` }
-      : { name: 'Studio plugin installed', status: 'warn', detail: `none found in ${folder}. Run with --install-plugin.` });
+      : { 
+          name: 'Studio plugin installed', 
+          status: 'warn', 
+          detail: `none found in ${folder}. Run with --install-plugin.`,
+          actionable: {
+            fix: 'Run "npx @princeofscale/bloxforge --install-plugin" to install the plugin to your local Roblox directory.',
+            verify: 'Run "npx @princeofscale/bloxforge verify" again to confirm installation.'
+          }
+        });
   } catch (error) {
-    checks.push({ name: 'Studio plugin installed', status: 'warn', detail: `could not resolve plugins folder: ${error instanceof Error ? error.message : String(error)}` });
+    checks.push({ 
+      name: 'Studio plugin installed', 
+      status: 'warn', 
+      detail: `could not resolve plugins folder: ${error instanceof Error ? error.message : String(error)}`,
+      actionable: {
+        fix: 'Ensure your Roblox Studio installation is valid and accessible.',
+        verify: 'Check if Roblox Studio opens correctly, then try again.'
+      }
+    });
   }
 
   // Local bridge running + Studio reachable via /health.
@@ -98,7 +136,15 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
       checks.push({ name: 'Local bridge running', status: 'ok', detail: `responding on port ${port}` });
       checks.push(health.pluginConnected
         ? { name: 'Studio reachable', status: 'ok', detail: `${health.instanceCount ?? 0} place(s) connected` }
-        : { name: 'Studio reachable', status: 'warn', detail: 'bridge up but no Studio plugin connected. Open Studio and enable Allow HTTP Requests.' });
+        : { 
+            name: 'Studio reachable', 
+            status: 'warn', 
+            detail: 'bridge up but no Studio plugin connected.',
+            actionable: {
+              fix: 'Open Roblox Studio, open your place, and ensure "Allow HTTP Requests" is enabled in Game Settings -> Security. Play or Run the game.',
+              verify: 'Ensure the BloxForge plugin shows "Connected" in Studio, then run verify again.'
+            }
+          });
       checks.push({
         name: 'Lazy tool loading',
         status: health.lazyTools === false ? 'warn' : 'ok',
@@ -112,18 +158,42 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
           name: 'Studio plugin version',
           status: health.versionMismatch || first.versionMismatch ? 'warn' : 'ok',
           detail: `plugin v${first.pluginVersion ?? 'unknown'} (${first.pluginVariant ?? 'unknown'}), server v${health.serverVersion ?? health.version ?? options.version ?? 'unknown'}`,
+          actionable: (health.versionMismatch || first.versionMismatch) ? {
+            fix: 'Run "npx @princeofscale/bloxforge --install-plugin" to synchronize the plugin version with your local server.',
+            verify: 'Restart the Roblox Studio session and check the plugin version.'
+          } : undefined
         });
         checks.push({
           name: 'Protocol version',
           status: health.protocolMismatch || first.protocolMismatch ? 'warn' : 'ok',
           detail: `plugin protocol ${first.pluginProtocolVersion ?? 'unknown'}, server protocol ${first.serverProtocolVersion ?? health.protocolVersion ?? 'unknown'}`,
+          actionable: (health.protocolMismatch || first.protocolMismatch) ? {
+            fix: 'Your server and plugin are using incompatible communication protocols. Please update both to the latest versions.',
+            verify: 'Run "npx @princeofscale/bloxforge verify" after updating.'
+          } : undefined
         });
       }
     } else {
-      checks.push({ name: 'Local bridge running', status: 'fail', detail: `port ${port} responded ${res.status}` });
+      checks.push({ 
+        name: 'Local bridge running', 
+        status: 'fail', 
+        detail: `port ${port} responded ${res.status}`,
+        actionable: {
+          fix: `Another application might be interfering on port ${port}, or the server is in an error state.`,
+          verify: `Try running the server on a different port using --port <number>.`
+        }
+      });
     }
   } catch {
-    checks.push({ name: 'Local bridge running', status: 'warn', detail: `nothing responding on port ${port}. The bridge only runs while the MCP server is started by your client.` });
+    checks.push({ 
+      name: 'Local bridge running', 
+      status: 'warn', 
+      detail: `nothing responding on port ${port}. The bridge only runs while the MCP server is started.`,
+      actionable: {
+        fix: 'Start the BloxForge server in another terminal (e.g., via "npx @princeofscale/bloxforge") before running diagnostics.',
+        verify: 'Keep the server running, then in a new terminal run "npx @princeofscale/bloxforge verify".'
+      }
+    });
   }
 
   return checks;

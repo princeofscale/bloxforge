@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { defaultManagedInstanceRegistryDir } from '../managed-instance-registry.js';
 import { AssetTools } from '../tools/asset-tools.js';

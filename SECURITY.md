@@ -17,10 +17,24 @@ If you find a security issue, please **do not open a public issue**. Instead, re
 
 https://github.com/princeofscale/bloxforge/security/advisories/new
 
+## Tool Profiles
+
+BloxForge supports **Tool Profiles** to restrict what the AI agent can do. By default, the `core` profile provides a balance of read and safe write operations.
+
+To restrict capabilities further, use the `--profile` flag when starting the server:
+- `--profile core`: Standard permissions (read, write, execute scripts).
+- `--profile inspector`: Read-only permissions. The agent can only read properties, search scripts, and list instances. Write/Execute capabilities are disabled.
+- `--profile builder`: Allows building operations but restricts arbitrary script execution.
+- `--profile tester`: Allows runtime environment interactions, script execution, and scene reads, but disables pure asset building.
+- `--profile full`: Loads all available tool domains.
+
+Using restrictive profiles minimizes the risk of accidental destructive actions or unwanted code execution.
+
 ## Best practices
 
-1. Use the inspector edition (`-inspector`) for browsing — it has no write capability.
-2. Dry-run before confirming mutations.
+1. Use `--profile inspector` for browsing or debugging — it has no write capability.
+2. Dry-run before confirming mutations when possible.
 3. Keep Roblox Studio and this project updated.
 4. Only connect to places you own.
 5. Review what the AI proposes before confirming destructive steps.
+6. Commit your Roblox Studio place to version control or save backups frequently.

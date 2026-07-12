@@ -61,10 +61,10 @@ body:
         - label: I don't know
 
   - type: textarea
-    id: doctor-output
+    id: diagnostic-report
     attributes:
-      label: Doctor output
-      description: Run `npx -y @princeofscale/bloxforge@latest --doctor` and paste the output
+      label: Diagnostic report
+      description: Run `npx -y @princeofscale/bloxforge@latest report` and paste the ENTIRE output here. This is a local, anonymized diagnostic report that contains no source code, prompts, or secrets.
       render: text
 
   - type: textarea
