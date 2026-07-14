@@ -12,7 +12,10 @@ jest.mock('fs', () => {
     mkdirSync: jest.fn(),
     accessSync: jest.fn(),
     statSync: jest.fn().mockImplementation((p: string) => ({
-      isDirectory: () => p.includes('.bloxforge') || p.includes('.robloxstudio-mcp') || p.includes('custom/library'),
+      isDirectory: () => {
+        const normalized = p.replace(/\\/g, '/');
+        return normalized.includes('.bloxforge') || normalized.includes('.robloxstudio-mcp') || normalized.includes('custom/library');
+      },
     })),
   };
 });
@@ -74,7 +77,7 @@ describe('Legacy migration', () => {
     });
 
     it.each([
-      ['win32', '/local/appdata'],
+      ['win32', 'C:\\local\\appdata'],
       ['darwin', undefined],
     ] as const)('uses the BloxForge path on fresh %s installations', (platform, localAppData) => {
       setPlatform(platform);
@@ -90,7 +93,7 @@ describe('Legacy migration', () => {
     });
 
     it.each([
-      ['win32', '/local/appdata'],
+      ['win32', 'C:\\local\\appdata'],
       ['darwin', undefined],
     ] as const)('finds the legacy registry on %s', (platform, localAppData) => {
       setPlatform(platform);
