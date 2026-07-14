@@ -315,6 +315,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   let mcpServerStartTime = 0;
   const proxyInstances = new Set<string>();
   const warnedVersionMismatches = new Set<string>();
+  const warnedProtocolMismatches = new Set<string>();
 
   const setMCPServerActive = (active: boolean) => {
     mcpServerActive = active;
@@ -468,6 +469,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         `does not match MCP server v${registered.serverVersion} for ${registered.instanceId}/${registered.role}`,
       );
     }
+    if (registered?.protocolMismatch && !warnedProtocolMismatches.has(pluginSessionId)) {
+      warnedProtocolMismatches.add(pluginSessionId);
+      console.error(
+        `[protocol-mismatch] Studio plugin protocol v${registered.pluginProtocolVersion} ` +
+        `does not match MCP server protocol v${registered.serverProtocolVersion} for ${registered.instanceId}/${registered.role}. ` +
+        `Run --auto-install-plugin to update the plugin.`,
+      );
+    }
 
     res.json({
       success: true,
@@ -477,6 +486,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       serverProtocolVersion: MCP_PROTOCOL_VERSION,
       versionMismatch: registered?.versionMismatch ?? false,
       protocolMismatch: registered?.protocolMismatch ?? false,
+      capabilities: ['core', 'scene', 'mutation', 'scripts', 'runtime', 'assets', 'ui', 'environment', 'terrain', 'build', 'media', 'sync', 'safety'],
     });
   });
 
@@ -486,6 +496,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
     if (pluginSessionId) {
       bridge.unregisterInstance(pluginSessionId, 'plugin_request');
+      warnedVersionMismatches.delete(pluginSessionId);
+      warnedProtocolMismatches.delete(pluginSessionId);
     }
     res.json({ success: true });
   });

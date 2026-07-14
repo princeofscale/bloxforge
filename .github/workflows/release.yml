@@ -58,6 +58,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ASSETS="studio-plugin/MCPPlugin.rbxmx studio-plugin/MCPInspectorPlugin.rbxmx"
+          PRERELEASE_FLAG=""
+          case "$GITHUB_REF_NAME" in *-*) PRERELEASE_FLAG="--prerelease" ;; esac
           gh release create "$GITHUB_REF_NAME" $ASSETS \
-            --title "$GITHUB_REF_NAME" --generate-notes \
+            --title "$GITHUB_REF_NAME" --generate-notes $PRERELEASE_FLAG \
           || gh release upload "$GITHUB_REF_NAME" $ASSETS --clobber

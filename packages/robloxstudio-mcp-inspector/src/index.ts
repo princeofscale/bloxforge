@@ -1,7 +1,16 @@
 import { BloxForgeServer, getReadOnlyTools } from '@princeofscale/bloxforge-core';
 import { createRequire } from 'module';
 
-if (process.argv.includes('--install-plugin')) {
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log(`BloxForge Inspector MCP Server
+
+Usage: npx @princeofscale/bloxforge-inspector [options]
+
+Options:
+  --install-plugin       Install the read-only Studio plugin
+  --auto-install-plugin  Install the plugin without prompting
+  --help, -h             Show this help message`);
+} else if (process.argv.includes('--install-plugin')) {
   const { installPlugin } = await import('./install-plugin.js');
   await installPlugin().catch((err) => {
     console.error(err instanceof Error ? err.message : String(err));

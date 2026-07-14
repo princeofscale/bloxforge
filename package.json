@@ -1,6 +1,10 @@
 {
   "name": "@princeofscale/bloxforge-monorepo",
   "version": "2.20.2",
+  "author": {
+    "name": "princeofscale",
+    "url": "https://github.com/princeofscale"
+  },
   "private": true,
   "type": "module",
   "workspaces": [
@@ -8,7 +12,7 @@
   ],
   "scripts": {
     "build": "npm run build -w packages/core && npm run build -w packages/robloxstudio-mcp && npm run build -w packages/robloxstudio-mcp-inspector",
-    "compile:plugin": "npm --prefix studio-plugin run build",
+    "compile:plugin": "npm --prefix studio-plugin ci && npm --prefix studio-plugin run build",
     "build:plugin": "npm run compile:plugin && node scripts/build-plugin.mjs",
     "build:plugin:inspector": "npm run compile:plugin && node scripts/build-plugin.mjs --variant inspector",
     "build:plugins": "npm run compile:plugin && node scripts/build-plugin.mjs && node scripts/build-plugin.mjs --variant inspector",
@@ -27,7 +31,11 @@
     "test:coverage": "npm run test:coverage -w packages/core",
     "publish:all": "node scripts/publish.mjs",
     "test:plugin:smoke": "node tests/plugin-compiled-smoke.mjs",
-    "test:plugin:runtime": "if command -v lune >/dev/null 2>&1; then lune tests/plugin-runtime-smoke.luau; else echo 'SKIP: install Lune to run tests/plugin-runtime-smoke.luau'; fi"
+    "test:plugin:runtime": "lune run tests/plugin-runtime-smoke.luau",
+    "docs:generate": "node scripts/generate-tool-docs.mjs",
+    "docs:check": "node scripts/generate-tool-docs.mjs --check",
+    "verify-package": "node scripts/verify-package.mjs",
+    "release:check": "npm run lint && npm run typecheck && npm test && npm run build:all && npm run docs:check && npm run test:plugin:smoke && npm run test:plugin:runtime && npm run verify-package"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.62.1",

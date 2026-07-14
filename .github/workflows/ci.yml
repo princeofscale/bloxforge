@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20]
+        node: [18, 20, 22]
     steps:
       - uses: actions/checkout@v7
 
@@ -42,6 +42,17 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Generated docs are current
+        run: npm run docs:check
+
+      - name: Pack dry-run (verify tarball contents)
+        run: |
+          npm pack --dry-run -w packages/robloxstudio-mcp
+          npm pack --dry-run -w packages/robloxstudio-mcp-inspector
+
+      - name: Doctor check (no Studio)
+        run: node packages/robloxstudio-mcp/dist/index.js verify
 
   plugin:
     name: Studio plugin (roblox-ts compile)

@@ -7,255 +7,143 @@
   <h1 align="center">BloxForge</h1>
   <p align="center">
     <strong>Open-source AI agent toolkit for Roblox Studio.</strong><br />
-    Build, inspect, test, and automate Roblox games with AI.<br />
-    <em>Claude Code · Codex · Cursor · Gemini · Any MCP-compatible AI client</em>
+    Build, inspect, test, and automate Roblox games locally with AI.<br />
+    <em>Roblox Studio MCP · Claude Code · Codex · Cursor · Gemini · Any MCP-compatible AI client</em>
   </p>
 
   [![CI](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml/badge.svg)](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml)
   [![NPM Version](https://img.shields.io/npm/v/@princeofscale/bloxforge)](https://www.npmjs.com/package/@princeofscale/bloxforge)
-  [![npm downloads](https://img.shields.io/npm/dm/@princeofscale/bloxforge)](https://www.npmjs.com/package/@princeofscale/bloxforge)
   [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-  [![Node Version](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](package.json)
-
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/banner.svg">
-    <source media="(prefers-color-scheme: light)" srcset="assets/banner.svg">
-    <img src="assets/banner.svg" width="100%" alt="BloxForge banner" />
-  </picture>
 </div>
 
 ---
 
-Connect Claude, Codex, Cursor, or Gemini to Roblox Studio and let the agent build,
-edit, test, and debug your game directly. BloxForge is a local, open-source agent
-runtime with safe editing, game scaffolding, asset workflows, and automated playtesting.
+**BloxForge** connects AI agents to Roblox Studio locally. It empowers creators and developers to build games, refactor code, run playtests, and diagnose runtime errors directly from AI clients.
 
-> 🏆 **Free · MIT · Self-hosted · No account required for core features**
+### For whom is it intended?
+- **Roblox Developers** who want to accelerate scaffolding, UI creation, and bulk changes.
+- **AI Tool Users** wanting a local-first, private-by-default, and free-to-use bridge to Roblox Studio.
+
+### What can you do with it?
+- **Scene Inspection**: Query instances, properties, and tree structures in a token-efficient manner.
+- **Luau Scripting & Edits**: Read, write, and patch scripts safely with automatic backups.
+- **Live Playtests & Assertions**: Run playtests, monitor runtime output, simulate input, and run gameplay assertions.
+- **Scaffolding & Templates**: Scaffold levels, build environment layouts, and generate basic gameplay loops.
+
+### Why trust BloxForge?
+- **Local-first, private by default**: No cloud accounts or telemetry. Data never leaves your machine.
+- **Safety controls**: Confirms destructive actions, supports dry-runs, keeps automatic backups, and enforces resource limits.
+- **MIT Licensed**: Completely free and open-source, with no hidden pro tiers.
+
+---
+
+## See it in action
+*(Demo video / GIF placeholder)*
 
 ---
 
 ## Quick start
 
-```bash
-# 1. Enable Allow HTTP Requests in Game Settings → Security
-# 2. Connect your AI client (one command):
+### 1. Enable Allow HTTP Requests
+In Roblox Studio, go to **Game Settings** → **Security** and enable **Allow HTTP Requests**.
 
+### 2. Connect your AI client
+Run one of the following commands depending on your AI client:
+
+```bash
 # Claude Code
 claude mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 
 # Codex CLI
 codex mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 
-# Cursor — add to .cursor/mcp.json
 # Gemini CLI
 gemini mcp add bloxforge npx --trust -- -y @princeofscale/bloxforge@latest --auto-install-plugin
+
+# Cursor
+# Add to your .cursor/mcp.json:
+# "bloxforge": {
+#   "command": "npx",
+#   "args": ["-y", "@princeofscale/bloxforge@latest", "--auto-install-plugin"]
+# }
 ```
 
-> Fully close and reopen **Roblox Studio** after the plugin is first installed or updated.
+> **Note**: Fully close and reopen **Roblox Studio** after the plugin is first installed or updated.
 
-**Run diagnostics to confirm:**
+### 3. Verify connection
+Run the diagnostics check to confirm your environment is ready:
 ```bash
-npx -y @princeofscale/bloxforge@latest --doctor
+npx -y @princeofscale/bloxforge@latest verify
 ```
-
-Preload only the tools needed for the job with `--profile core|builder|tester|full`.
-`core` remains the token-lean default; the read-only package uses the inspector tool set.
-
-### 🎮 Try these prompts
-
-| Category | Example prompt |
-|---|---|
-| **Inspect** | _"What's the structure of this game?"_ |
-| **Scaffold** | _"Create an obby game with 6 checkpoints and a timer HUD."_ |
-| **Debug** | _"Find all script errors and explain them."_ |
-| **Build UI** | _"Create a mobile-friendly shop UI with a close button."_ |
-| **Edit** | _"Bulk rename all parts named 'Part' to 'Terrain_Block'."_ |
-| **Assets** | _"Search the marketplace for a low-poly tree, check if it's safe to insert, and add it."_ |
-| **Environment** | _"Set horror lighting and add a day/night cycle script."_ |
-| **Debug live** | _"Start a playtest, sample player positions, run gameplay assertions."_ |
-
-> Full documentation, [known limitations](docs/known-limitations.md), and a
-> [troubleshooting guide](docs/troubleshooting.md) live in [docs/](docs/README.md).
 
 ---
 
-## How it works
+## Core workflows
 
-```
-Your AI Client (Claude Code / Codex / Cursor / Gemini)
-        │
-        ▼  MCP (stdio)
-BloxForge Server (Node/TypeScript)
-        │
-        ▼  local HTTP bridge (long-poll, never leaves your machine)
-Roblox Studio Plugin
-        │
-        ▼
-Your open place: Workspace · ServerScriptService · ReplicatedStorage · StarterGui · Lighting · Terrain …
-```
+Here is a common scenario to try:
+> Build a six-stage obby, add checkpoints and a timer, run a playtest, and fix runtime errors.
 
-**Local-first, private by default.** The bridge runs on `localhost` only — no data leaves your machine. No cloud dependency, no account needed for core functionality.
+- **Understand an existing game**: Inspect hierarchies, search objects, and read current scripts.
+- **Build a feature**: Create layouts, write Luau scripts, and apply environment modifications.
+- **Test it in play mode**: Start/stop playtests, capture logs, and run assertions.
+- **Review, apply, and revert**: Preview changes with dry-runs and restore previous states using backups.
 
 ---
 
-## What BloxForge can do
+## Configurable tool profiles
 
-### 🔍 Scene inspection
-`get_scene_summary` · `get_node_batch` · `get_changes_since` · `scene_search` · `get_descendants` · `get_file_tree` · properties · attributes · tags · memory/analysis breakdowns
-→ Token-efficient: cheap overview first, then drill down. No full DataModel dump needed.
+You can preload specific subsets of tools with `--profile <name>` (or by setting `BLOXFORGE_TOOL_PROFILE`):
 
-### 📝 Script & Luau
-`get_script_source` · `set_script_source` · `edit_script_lines` · `grep_scripts` · `find_and_replace` · `diagnose_scripts` (errors → script:line) · `execute_luau` · async Luau jobs
-→ Full read/write/patch over any Script, LocalScript, or ModuleScript.
-`get_roblox_docs` fetches official engine reference markdown (also available as `robloxdocs://...` MCP resources) before agents touch uncertain APIs.
-
-### ✏️ Bulk editing
-`apply_mutation_plan` (transactional batch: set property, attribute, tag — one call, rollback included) · `mass_set_property` · `smart_duplicate` · `mass_create_objects` · dry-run on every mutation.
-
-### 🖥️ UI builder
-`ui_create_screen_gui` · `ui_create_frame` · `ui_create_text_label/button` · `ui_create_image_label/button` · `ui_apply_layout` · `ui_make_mobile_friendly`
-→ Generate UI entirely from agent prompts.
-
-### 🌍 Terrain & environment
-**Terrain:** baseplate · island · mountains · water · paint material · clear region (volume-limited, gated).
-**Environment:** 8 lighting presets (sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic) · atmosphere · sky · day/night cycle script.
-
-### 🏗 Game templates
-`template_create_obby_game` · `template_create_simulator_game` · `template_create_tycoon_game` · `template_create_round_game`
-→ One prompt → lobby + arena + leaderstats + round loop.
-
-### 🏪 Marketplace & assets
-**No key needed:** `marketplace_search` · `marketplace_search_and_insert` · `insert_asset` · `preview_asset` · `asset_preflight_insert` (authoritative LoadAssetAsync check).
-**With Open Cloud key:** `search_assets` · `get_asset_details` · `upload_asset` · `.rbxm` import/export · build library CRUD.
-
-### 🎮 Live debugging
-`start_playtest`/`stop_playtest` · `multiplayer_test_start`/`add/leave/end` · `get_runtime_logs` · `capture_screenshot` · `playtest_sample_state` · `run_gameplay_assertions` · `simulate_mouse/keyboard_input` · `character_navigation`.
-
-### 🛡 Safety layer
-- ⚠️ **Confirmation gating** on destructive ops (delete protected services, bulk mutations, terrain clear, dangerous Luau patterns).
-- 💾 **Automatic script backups** before overwrites — restore with `restore_script_backup`.
-- 👁 **Dry-run** every significant mutation with `dryRun: true`.
-- 📋 **Operation history** via `get_operation_history` + undo/redo.
-- 📏 **Hard limits** on objects-per-op, script size, terrain volume.
-
-### 🔧 More tools
-- **AI image generation** (Pollinations text-to-image) — generate textures in-place.
-- **Audio & animation** — create/play sounds, load and play animations on rigs.
-- **Local sync** — pull scripts to `.server.lua`/`.client.lua` files, edit in your IDE, push back with conflict detection.
-- **Diagnostics dashboard** — `/dashboard` on the running server with live Studio status, version, request log.
-- `--doctor` CLI — verify Node, package, plugin, bridge, and Studio connectivity.
+| Profile | Purpose |
+|---|---|
+| `core` | Inspection, scripts, and essential editing; token-lean default |
+| `builder` | UI, terrain, templates, and asset creation |
+| `tester` | Runtime debugging, playtesting, and assertions |
+| `full` | All available tools |
+| `inspector` | Read-only inspection package |
 
 ---
 
-## CLI reference
+## Why BloxForge?
 
-| Flag | Purpose |
-|---|---|
-| `--auto-install-plugin` | Install/refresh the bundled plugin on start. |
-| `--install-plugin` | Install the plugin and exit. |
-| `--port <n>` | Override the bridge port (default 58741). |
-| `--debug` | Verbose logging. |
-| `--doctor` | Run diagnostics and exit. |
-| `--pollinations-key <k>` | Pollinations API key for AI image generation. |
-| `--open-cloud-key <k>` | Roblox Open Cloud key for Creator Store + asset upload. |
+- **MIT Licensed**: Free to use, modify, and distribute.
+- **Configurable Tool Profiles**: Tailor the context window size and token costs.
+- **Self-Hosted & Private**: Runs locally on your machine.
+- **Inspector-Only Variant**: Safe browsing with zero mutation risk.
+- **Safety First**: Dry-runs, backups, undo/redo, and transaction rollbacks.
+- **Evaluation Harness**: Built-in benchmark suite to verify agent behavior.
 
-### Optional keys
+### Differences from Roblox Studio MCP (official)
+Official MCP is designed for basic integration. BloxForge is a comprehensive, production-ready toolkit focusing on:
+- Extensive scaffolding tools (UI, terrain, gameplay templates).
+- Advanced safety gates (backups, dry-runs, and limits).
+- Seamless multiplayer test management and runtime assertions.
+- CC0 asset discovery and local sync.
 
-Everything core works **key-free**. Two optional integrations add more:
+---
 
-| Key | Enables |
-|---|---|
-| `POLLINATIONS_API_KEY` | `image_generate`, `image_generate_and_upload` (text-to-image) and `design_review` (vision UI critique) via Pollinations. Get a server-side `sk_` key from [enter.pollinations.ai](https://enter.pollinations.ai). |
-| `ROBLOX_OPEN_CLOUD_API_KEY` | `search_assets`, `get_asset_details`, `upload_asset`, and external-asset import — Creator Store access and asset publishing. |
+## Getting an Open Cloud API key
 
-#### Getting a Roblox Open Cloud API key
-
-`upload_asset` (and external-asset import) need an Open Cloud key with write scopes:
-
+For asset uploads and Creator Store access, you can optionally configure a Roblox Open Cloud API key (everything else works key-free):
 1. Go to the [Creator Dashboard → Credentials → API Keys](https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab).
-2. **Create API Key**. Add these API systems / scopes:
-   - **Assets** → `asset:read`, `asset:write`
-   - **Asset Permissions** → `asset-permissions:write` (only if you also manage asset sharing)
-3. Under **Security**, add your IP (or `0.0.0.0/0` for any IP — less safe), then **Save & Generate**.
-4. Copy the key **once** and expose it as an env var — never commit it:
-
+2. Create an API Key with **Assets** (`asset:read`, `asset:write`) permissions.
+3. Expose the key:
    ```bash
-   export ROBLOX_OPEN_CLOUD_API_KEY="<your-key>"
-   export POLLINATIONS_API_KEY="<your-sk_-key>"   # optional, for image/design tools
+   export ROBLOX_OPEN_CLOUD_API_KEY="your-api-key"
    ```
-
-> **Keep keys out of the repo and chat.** They grant write access to your account's
-> assets. Treat a key that has been pasted anywhere shared as compromised and
-> **rotate it** (delete + regenerate on the dashboard).
-
----
-
-## Inspector edition (read-only)
-
-[![NPM Version](https://img.shields.io/npm/v/@princeofscale/bloxforge-inspector)](https://www.npmjs.com/package/@princeofscale/bloxforge-inspector)
-
-Same plugin, read-only tools only — no writes, no script edits, no creation. Safe for browsing, code review, and debugging with zero mutation risk.
-
-```bash
-claude mcp add robloxstudio-inspector -- npx -y @princeofscale/bloxforge-inspector@latest --auto-install-plugin
-```
-
----
-
-## Why this vs. WEPPY?
-
-| | This MCP | WEPPY |
-|---|---|---|
-| **Price** | **Free, MIT, self-hosted** | Free tier + paid **Pro** |
-| **Safety layer** | configurable dry-run/confirm/backups/limits | partial |
-| **Game templates** | obby, simulator, tycoon, round — all free | — |
-| **Marketplace search** | free, no key required | — |
-| **Local sync** | free, bidirectional, conflict-aware | Pro-gated |
-| **Operation history** | free, with restore | Pro-gated |
-| `--doctor` diagnostics | ✅ | — |
-| **Read-only edition** | ✅ | — |
-| **License** | MIT — free to use, share, modify | Proprietary |
-
-This project is a **free, open-source alternative** — not a clone, not a bypass. It shares no code with WEPPY and does not attempt to circumvent any closed-source tool. The MIT license means you can use it, share it, modify it, and build on it freely.
-
----
-
-## Building from source
-
-```bash
-npm install && cd studio-plugin && npm install && cd ..
-npm run build                                          # Node packages
-npm run typecheck && npm test                          # 419 unit tests
-cd studio-plugin && npm run build && cd ..             # plugin TS → Luau
-node scripts/build-plugin.mjs                          # → MCPPlugin.rbxmx
-```
+*See [docs/README.md](docs/README.md) for detailed configuration options.*
 
 ---
 
 ## Roadmap
 
-- [ ] **Interactive App UI** for asset review and bulk-change approval (MCP Apps)
-- [ ] **Hybrid semantic scene search** (embeddings + lexical) when scale demands it
-- [ ] **Richer script diagnostics** with AI-suggested fixes
-- [ ] **Safer object diff preview** before mutation
-- [ ] **More game templates** (fighting, platformer, puzzle)
-- [ ] **Documentation website**
-- [ ] **Example games** built entirely by AI agents using this MCP
-- [ ] **Eval benchmark suite** with task success metrics
-- [ ] **Open-source build library** of community-contributed models
-
----
-
-## Contributing
-
-We welcome contributors from every background:
-
-- **Roblox developers** — know what tools would help you most?
-- **MCP / AI agent users** — what workflows feel clunky?
-- **Luau developers** — want to improve generated code quality?
-- **Plugin testers** — help us test against different places and Studio versions?
-
-Open an issue at https://github.com/princeofscale/bloxforge/issues before starting significant work.
+- [x] Agent evaluation harness
+- [ ] Canonical benchmark place
+- [ ] Reproducible public benchmark reports
+- [ ] Cross-model benchmark runs
+- [ ] Interactive approval UI
+- [ ] Rich object diff preview
+- [ ] Example games built and tested with BloxForge
 
 ---
 
@@ -263,26 +151,9 @@ Open an issue at https://github.com/princeofscale/bloxforge/issues before starti
 
 | Symptom | Fix |
 |---|---|
-| Plugin never shows "Connected" | Enable **Allow HTTP Requests** (Game Settings → Security); fully restart Studio after first install. |
-| `--doctor` says nothing on the port | The bridge only runs while your MCP client has started the server. Launch the client, then re-run. |
-| Yellow banner in the plugin | Server/plugin versions differ. Re-run `--auto-install-plugin` and restart Studio. |
-| Tool call hangs | Multiple Studio places connected — pass `instance_id` (see `get_connected_instances`). |
-| Plugin code shows red in IDE | Install plugin deps: `cd studio-plugin && npm install`. It's a separate roblox-ts package. |
-| macOS plugin path | `~/Documents/Roblox/Plugins/` |
-| Windows plugin path | `%USERPROFILE%\Documents\Roblox\Plugins\` |
+| Plugin never shows "Connected" | Enable **Allow HTTP Requests** and fully restart Studio. |
+| verify says nothing on port | Start your MCP client first to spin up the server. |
+| Version mismatch banner | Re-run connection command with `--auto-install-plugin` and restart Studio. |
+| Tool call hangs | Multiple places connected; pass `instance_id` to target a specific window. |
 
----
-
-## License
-
-MIT © princeofscale. BloxForge began as a fork of
-[Chrrxs/robloxstudio-mcp](https://github.com/Chrrxs/robloxstudio-mcp), itself
-derived from [boshyxd/robloxstudio-mcp](https://github.com/boshyxd/robloxstudio-mcp),
-and is now independently maintained with expanded building, testing, safety,
-and asset workflows. Roblox is a trademark of Roblox Corporation; BloxForge is
-not endorsed by or affiliated with Roblox Corporation.
-See [LICENSE](LICENSE) for full text.
-
----
-
-*Looking for an open-source **Roblox Studio MCP server** for **Claude Code**, **Codex**, **Cursor**, or **Gemini**? BloxForge connects AI agents to Studio locally without subscriptions, accounts, or cloud dependencies.*
+For detailed guides, see the [documentation](docs/README.md).

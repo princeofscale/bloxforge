@@ -766,10 +766,16 @@ export class RobloxStudioTools {
   private static findLibraryPath(): string {
     if (RobloxStudioTools._cachedLibraryPath) return RobloxStudioTools._cachedLibraryPath;
 
-    const overridePath = process.env.ROBLOXSTUDIO_MCP_BUILD_LIBRARY || process.env.BUILD_LIBRARY_PATH;
+    const overridePath = process.env.BLOXFORGE_BUILD_LIBRARY || process.env.ROBLOXSTUDIO_MCP_BUILD_LIBRARY || process.env.BUILD_LIBRARY_PATH;
     const cwd = path.resolve(process.cwd());
     const projectRoot = RobloxStudioTools.findProjectRoot(cwd);
-    const homeLibraryPath = path.join(os.homedir(), '.robloxstudio-mcp', 'build-library');
+
+    const newHomeLibraryPath = path.join(os.homedir(), '.bloxforge', 'build-library');
+    const legacyHomeLibraryPath = path.join(os.homedir(), '.robloxstudio-mcp', 'build-library');
+    const homeLibraryPath = fs.existsSync(newHomeLibraryPath) ? newHomeLibraryPath
+      : fs.existsSync(legacyHomeLibraryPath) ? legacyHomeLibraryPath
+      : newHomeLibraryPath;
+
     const projectLibraryPath = projectRoot ? path.join(projectRoot, 'build-library') : null;
     const cwdLibraryPath = path.join(cwd, 'build-library');
 

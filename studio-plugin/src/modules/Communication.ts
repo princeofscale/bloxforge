@@ -54,8 +54,10 @@ function computeInstanceId(): string {
 
 let assignedRole: string | undefined;
 let duplicateInstanceRole = false;
-let hasVersionMismatch = false;
+const versionMismatchConnections = new Set<Connection>();
 let lastVersionMismatchWarningKey: string | undefined;
+const protocolMismatchConnections = new Set<Connection>();
+let lastProtocolMismatchWarningKey: string | undefined;
 let lastReadyInstanceId: string | undefined;
 const readyFailureLogKeys = new Set<string>();
 
@@ -408,16 +410,30 @@ function pollForRequests(connIndex: number) {
 		conn.lastMcpOk = mcpConnected;
 		const serverVersion = data.serverVersion ?? "unknown";
 		if (data.versionMismatch === true) {
-			hasVersionMismatch = true;
+			versionMismatchConnections.add(conn);
 			const warningKey = `${State.CURRENT_VERSION}:${serverVersion}`;
 			if (lastVersionMismatchWarningKey !== warningKey) {
 				lastVersionMismatchWarningKey = warningKey;
 				warn(`[BloxForge] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @princeofscale/bloxforge@latest --auto-install-plugin and restart Studio.`);
 			}
 			UI.showBanner("version-mismatch", `Plugin v${State.CURRENT_VERSION} / MCP v${serverVersion} mismatch`);
-		} else if (hasVersionMismatch) {
-			hasVersionMismatch = false;
-			UI.hideBanner("version-mismatch");
+		} else {
+			versionMismatchConnections.delete(conn);
+			if (versionMismatchConnections.size() === 0) UI.hideBanner("version-mismatch");
+		}
+
+		const serverProtocol = data.serverProtocolVersion ?? 0;
+		if (data.protocolMismatch === true) {
+			protocolMismatchConnections.add(conn);
+			const warningKey = `${State.PROTOCOL_VERSION}:${serverProtocol}`;
+			if (lastProtocolMismatchWarningKey !== warningKey) {
+				lastProtocolMismatchWarningKey = warningKey;
+				warn(`[BloxForge] Protocol mismatch: Studio plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}. Run npx -y @princeofscale/bloxforge@latest --auto-install-plugin and restart Studio.`);
+			}
+			UI.showBanner("protocol-mismatch", `Protocol mismatch: Plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}`);
+		} else {
+			protocolMismatchConnections.delete(conn);
+			if (protocolMismatchConnections.size() === 0) UI.hideBanner("protocol-mismatch");
 		}
 
 		// Server tells us when its in-memory instances map doesn't have us
@@ -629,6 +645,10 @@ function deactivatePlugin(connIndex?: number) {
 
 	conn.isActive = false;
 	conn.lastMcpOk = false;
+	versionMismatchConnections.delete(conn);
+	protocolMismatchConnections.delete(conn);
+	if (versionMismatchConnections.size() === 0) UI.hideBanner("version-mismatch");
+	if (protocolMismatchConnections.size() === 0) UI.hideBanner("protocol-mismatch");
 
 	if (idx === State.getActiveTabIndex()) UI.updateUIState();
 	UI.updateTabDot(idx);
@@ -679,7 +699,7 @@ function checkForUpdates() {
 			if (ok && data?.version) {
 				const latestVersion = data.version;
 				if (Utils.compareVersions(State.CURRENT_VERSION, latestVersion) < 0) {
-					if (!hasVersionMismatch) {
+					if (versionMismatchConnections.size() === 0) {
 						UI.showBanner("update", `v${latestVersion} available - github.com/princeofscale/bloxforge`);
 					}
 				}

@@ -5,15 +5,14 @@ across three layers (per the research review): **bootstrap cost**, **trajectory
 quality**, and **end-to-end task success**. Lets you A/B `upfront` vs `lazy` tool
 loading on a fixed benchmark and gate CI on regressions.
 
-> **What this harness is — and isn't.** The only available model is
-> `deepseek-v4-flash`: a weak, **non-caching** model. So treat it as a **differential
-> regression gate**, not an absolute-quality oracle. It reliably measures *deltas of one
-> model against itself* across a design change — tool-call count, invalid-call rate,
-> `recoveryCostAfterFirstError`, recall — where model strength cancels out. It does **not**
-> give success rates that transfer to a strong model (Claude/Cursor), nor real caching
-> economics (`warmBootstrapTax` only lights up if a caching model is ever wired). For
-> strong-model quality, **dogfood live in Claude Code** — that's the real-model signal a
-> flash eval can't provide. Don't over-read flash's absolute numbers.
+> **What this harness is — and isn't.** Treat eval results as a **differential
+> regression gate**, not an absolute-quality oracle. The harness reliably measures
+> *deltas with the resolved model, provider, and base URL held fixed* across a design
+> change — tool-call count, invalid-call rate, `recoveryCostAfterFirstError`, recall.
+> This reduces model confounding; it does not eliminate sampling noise or provider-side
+> model changes. For strong-model quality, **dogfood live in your MCP client** — that's
+> the real-model signal a flash eval can't provide. Don't over-read absolute numbers
+> from any single model.
 
 ## Pieces
 
@@ -51,7 +50,7 @@ The runner auto-detects the provider from the environment, in priority order:
 cd evals
 npm install
 
-# 1. OpenModel gateway — free `deepseek-v4-flash` (free event until 2026-06-26):
+# 1. OpenModel gateway (if OPENMODEL_API_KEY is set):
 OPENMODEL_API_KEY=om-... npx tsx run.ts                 # A/B upfront vs lazy + gate
 OPENMODEL_API_KEY=om-... npx tsx run.ts --mode=lazy     # single mode
 
@@ -61,9 +60,8 @@ ANTHROPIC_API_KEY=sk-... npx tsx run.ts
 
 Knobs (env):
 
-- `EVAL_MODEL` — override the model id (default `deepseek-v4-flash` for OpenModel,
-  `claude-opus-4-8` for Anthropic). Any Messages-protocol model on the gateway works
-  (e.g. `deepseek-v4-pro`, `claude-opus-4-8`).
+- `EVAL_MODEL` — override the model id. Defaults depend on the detected provider;
+  set explicitly for reproducible comparisons.
 - `OPENMODEL_BASE_URL` / `ANTHROPIC_BASE_URL` — override the API base URL.
 - `EVAL_REQUEST_DELAY_MS` — fixed delay before each model call (default `2000` for
   OpenModel to respect its per-user rate limit, `0` for Anthropic).
@@ -104,6 +102,20 @@ The benchmark cases are place-dependent (they ask about a door system, a finish
 line, damage scripts…). Run them against a reasonably populated place — a game
 template or a real project — not an empty baseplate, or most cases fail for lack of
 content rather than a real tool/recall gap.
+
+## Reproducibility
+
+Eval results depend on many factors. Always record and report:
+
+- **Resolved model, provider, and base URL** printed by the runner (record the actual
+  values after defaults and environment overrides, not only `EVAL_MODEL` or the key used)
+- **BloxForge version** (git commit or package version)
+- **Benchmark commit** (cases may change between versions)
+- **Benchmark place** (results vary by place content)
+- **Number of repeats** (`EVAL_REPEATS`)
+- **Date of run** (model behavior may change over time)
+
+Without these, results are not comparable across runs.
 
 ## Wiring a different model
 

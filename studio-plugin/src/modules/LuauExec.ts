@@ -68,7 +68,6 @@ function computeWrapperLineOffset(): number {
 	const before = string.sub(probe, 1, (start as number) - 1);
 	return countLines(before) - 1;
 }
-const WRAPPER_LINE_OFFSET = computeWrapperLineOffset();
 
 // Count source lines so the wrapper can filter traceback frames that fall
 // outside the user code range (the wrapper's own preamble/postamble lines).
@@ -97,7 +96,7 @@ function renderWrapper(
 	code: string,
 	payloadPattern: string,
 ): string {
-	return `return ((function()
+	return `return (function()
 \tlocal __mcp_traceback
 \tlocal __mcp_remap
 \tlocal __mcp_LINE_OFFSET = ${lineOffset}
@@ -214,7 +213,7 @@ ${code}
 \t__mcp_remap = function(s)
 \t\t-- Two chunk-name formats can reference our payload:
 \t\t--   * "Workspace.__MCPExecLuauPayload:N" — ModuleScript:require fallback path
-\t\t--   * "[string \\"return ((function()...\\"]:N" — loadstring() (default in plugin)
+\t\t--   * "[string \\"return (function()...\\"]:N" — loadstring() (default in plugin)
 \t\t-- Subtract LINE_OFFSET to get the user-relative number, then clamp.
 \t\t-- Clamping matters for unclosed constructs ("local x = (") where the
 \t\t-- parser keeps reading into wrapper postamble and reports a payload
@@ -277,6 +276,10 @@ ${code}
 \treturn { ok = ok, value = errOrValue, output = __mcp_output }
 end)()`;
 }
+
+// roblox-ts emits function declarations as ordered local assignments, so this
+// must run after every helper used by computeWrapperLineOffset is initialized.
+const WRAPPER_LINE_OFFSET = computeWrapperLineOffset();
 
 function buildWrapper(code: string, payloadInstanceName = PAYLOAD_INSTANCE_NAME): string {
 	// The line offset is DERIVED from the rendered template (see

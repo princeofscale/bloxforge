@@ -103,8 +103,8 @@ describe('HTTP Server', () => {
           versionMismatch: true,
           protocolMismatch: true,
         });
-        expect(errorSpy).toHaveBeenCalledTimes(1);
-        expect(errorSpy.mock.calls[0][0]).toContain('[version-mismatch]');
+        expect(errorSpy.mock.calls.some(call => call[0].includes('[version-mismatch]'))).toBe(true);
+        expect(errorSpy.mock.calls.some(call => call[0].includes('[protocol-mismatch]'))).toBe(true);
       } finally {
         errorSpy.mockRestore();
       }
@@ -177,6 +177,32 @@ describe('HTTP Server', () => {
         pluginSessionId: 'session-1',
         reason: 'plugin_request',
       });
+    });
+
+    test('logs mismatch warnings again after a session disconnects and reconnects', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const versionedApp = createHttpServer(
+        tools,
+        bridge,
+        undefined,
+        { name: 'bloxforge', version: '2.0.0', tools: [] },
+      );
+      const mismatchedReady = {
+        ...READY_BODY,
+        pluginVersion: '1.9.0',
+        protocolVersion: 0,
+      };
+
+      try {
+        await request(versionedApp).post('/ready').send(mismatchedReady).expect(200);
+        await request(versionedApp).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
+        await request(versionedApp).post('/ready').send(mismatchedReady).expect(200);
+
+        expect(errorSpy.mock.calls.filter(call => call[0].includes('[version-mismatch]'))).toHaveLength(2);
+        expect(errorSpy.mock.calls.filter(call => call[0].includes('[protocol-mismatch]'))).toHaveLength(2);
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
 
     test('disconnect rejects pending requests targeting that tuple', async () => {

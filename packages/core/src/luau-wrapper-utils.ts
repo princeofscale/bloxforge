@@ -112,7 +112,7 @@ export function renderWrapperForOffsetProbe(
   // Fixed preamble lines (mirroring the Luau template structure).
   // If the plugin template changes, update this array.
   const fixedPreamble = [
-    'return ((function()',
+    'return (function()',
     '\tlocal __mcp_traceback',
     '\tlocal __mcp_remap',
     '\tlocal __mcp_LINE_OFFSET = 0',

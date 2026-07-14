@@ -7,45 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-rc.1] - 2026-07-14
+
+### Added
+- **Package Verification CI**: Added `scripts/verify-package.mjs` to install and smoke-test the packed core, CLI, and inspector workspaces in an isolated temporary project.
+- **Generated Documentation Gate**: Added `docs:check` to CI and release validation so stale generated tool documentation cannot ship.
+
+### Fixed
+- **Plugin Compilation Issue**: Fixed `compile:plugin` failure in clean environments. `studio-plugin/package.json` dependencies (like `rbxtsc`) are now correctly installed via a nested `npm install` before running `rbxtsc`.
+- **Lune Runtime Tests**: Fixed `test:plugin:runtime` by correcting the CLI command to `lune run tests/plugin-runtime-smoke.luau`. The script now also explicitly requires `@lune/process` and its pattern matching expectations have been corrected.
+- **Security Documentation**: Updated `SECURITY.md` to explicitly clarify capabilities, boundaries, and limitations across different tool profiles.
+- **Diagnostic/Telemetry Alignment**: Updated issue templates (`bug_report.yml`) and configuration documentation to correctly refer to "local anonymized diagnostic reports" instead of "telemetry", addressing user concerns about data collection implications.
+- **Help Menus Standardized**: Added comprehensive `--help` flags and instructions to CLI scripts and plugins to ensure standardized discovery of options.
+- **Prerelease Publishing**: Prerelease versions now publish to npm's `next` tag and create a GitHub prerelease instead of replacing the stable `latest` release.
+- **Diagnostics Reliability**: Corrected session failure and per-tool statistics, bounded health probes with a timeout, and reported the actual mismatching Studio instance.
+- **Multi-Instance Plugin State**: Version and protocol mismatch banners now remain visible until the final affected Studio connection disconnects or recovers.
+- **Portable Tool Documentation**: Made documentation generation Windows-safe and corrected schema types, Markdown escaping, and empty parameter tables.
+- **Release Evaluation Harness**: Added fresh-log guidance, semantic fixture targets, and reproducible model/provider metadata.
+- **Plugin Build Dependencies**: Updated vulnerable transitive `ajv`, `fast-uri`, and `picomatch` versions in the Studio plugin lockfile; its npm audit now reports zero vulnerabilities.
+- **Luau Execution**: Fixed plugin startup ordering and an unbalanced execution wrapper that broke `execute_luau`, runtime eval tools, and `scene_search` in the bundled plugin.
+- **Lua Pattern Guidance**: Clarified that `grep_scripts` uses Lua patterns, where `|` is literal rather than regex alternation.
+
+### Changed
+- **Documentation Cleanup**: Removed stale release plans, duplicated host setup pages, demo scaffolding, and verbose workflow examples; retained the concise handbook, architecture, limitations, troubleshooting, and generated tool reference.
+
 ## [2.20.2] - 2026-07-08
 
-- **Renamed the product to BloxForge.** Public npm packages are now
-  `@princeofscale/bloxforge`, `@princeofscale/bloxforge-inspector`, and the
-  internal `@princeofscale/bloxforge-core`; CLI binaries, MCP service names,
-  plugin UI/logging, docs, repository links, and diagnostics use the BloxForge
-  brand. Legacy source-directory and environment-variable names remain accepted
-  for compatibility.
+### Added
+
 - **Tool profiles.** Added `--profile core|builder|tester|full` via
   `BLOXFORGE_TOOL_PROFILE`, preloading task-relevant schemas while keeping the
   token-lean core default. `load_toolset` now explicitly documents that some MCP
   hosts require a client-side schema-selection step after `tools/list_changed`.
-- **Bridge diagnostics.** `/health` and `/status` now retain the ten most recent
-  disconnects with reason (`plugin_request`, `stale_timeout`, or `unknown`), last
-  activity, and disconnect timestamp.
-- **Runtime reliability.** `stop_playtest` is now an idempotent no-op when no
-  runtime peer is active, instead of waiting for a nonexistent play-server.
-  Invalid UTF-8 produced by byte-sliced `execute_luau` output is replaced with a
-  clear marker before JSON serialization, preventing 120-second bridge stalls.
-- **Safe screenshot camera framing.** `capture_screenshot` accepts paired
-  `cameraPosition`/`lookAt` values in Edit mode and always restores the previous
-  CameraType and CFrame after capture.
-- **Dogfood limitations reference.** Documented playtest wall-clock behavior,
-  eval time windows, VM-local `_G`, runtime `GetDebugId` security, shared-log peer
-  attribution, ModuleScript diagnostics/reload behavior, unique edit anchors,
-  screenshot/input scaling, ProximityPrompt triggering, marketplace permissions,
-  audio constraints, and safety confirmation behavior.
-
-- **Bridge: WebSocket request delivery with polling fallback.** Studio plugins
-  now prefer `HttpService:CreateWebStreamClient(WebSocket)` for immediate
-  request delivery and same-stream responses. `/poll` remains the fallback
-  before connection and after a close/error, preserving compatibility with
-  older plugins and denied stream permissions. Failed stream sends release
-  the request back to the normal queue.
 - **Wrapper tests: correct Lua pattern escaping.** Node and Lune smoke tests
   now match Lua/Luau `%w`: underscores are escaped, while letters and digits
   remain literal. Added `npm run test:plugin:runtime` for the Lune smoke test
   when the `lune` executable is installed.
-
 - **Plugin: `fresh_require()` helper for stale `require()` cache.** Added a
   built-in `_G.fresh_require(module)` available inside every
   `execute_luau` / `execute_luau_async` call. After editing a `ModuleScript`'s
@@ -60,13 +57,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a sentinel counts preamble newlines) instead of a hand-maintained
   constant, so reordering the wrapper preamble can never silently desync
   `__mcp_LINE_OFFSET` / `remapPayloadLines` from the real line count.
-- **Bridge: more resilient to Studio throttling.** The server now tolerates up
-  to 90s of plugin silence before reaping an instance (was 30s), absorbing the
-  `HttpService:RequestAsync` throttling gaps Studio imposes when its window is
-  backgrounded/minimized — the most common cause of the bridge "dropping"
-  mid-session. Configurable via `MCP_STALE_INSTANCE_MS`. The plugin also re-fires
-  `/ready` immediately on the failing→ok poll transition, closing the window
-  where a recovered plugin is still anonymous to the server.
 - **CI: plugin compiled-output smoke check.** Added
   `tests/plugin-compiled-smoke.mjs` that asserts key invariants on the
   `rbxtsc`-compiled Luau (dynamic offset, fresh_require presence, renderWrapper
@@ -84,16 +74,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `playtest_sample_state` tool descriptions. Added [docs/README.md](docs/README.md)
   index and [docs/troubleshooting.md](docs/troubleshooting.md) symptom→fix guide.
   Removed the stale "library audio loads in Edit" note from the deleted `bugs.md`.
-
 - **Upstream Chrrxs v2.21.0 parity slice: Studio instance management and MicroProfiler capture.**
   - Added `manage_instance` for launching baseplates/local files, inspecting/closing managed Studio instances, and listing Open Cloud place versions for revision launches.
   - Added `capture_micro_profiler` plus Studio plugin `/api/capture-micro-profiler` routing, `LibMP.lua`, raw snapshot export, summarized JSON export, and baseline comparison deltas for groups/timers/threads/call edges.
   - Added upstream-compatible aliases `solo_playtest`, `multiplayer_playtest`, and `generate_model` over this fork's existing runtime/model-generation architecture.
-
 - **Dependency hygiene.**
   - Folded Dependabot PR #23 into this release: `@typescript-eslint/eslint-plugin` and `@typescript-eslint/parser` now use `^8.62.1`.
   - Ran `npm audit fix` and added an `esbuild` override to `0.28.1`, reducing `npm audit` from 16 reported vulnerabilities to 0 while keeping the build/test suite green.
-
 - **Dogfooded papercut fixes from gas-station tycoon MCP work.**
   - Lazy tool loading remains the **default** MCP path. `ROBLOX_MCP_LAZY_TOOLS=0`
     / `false` / `off` is the escape hatch for hosts that need all schemas upfront,
@@ -132,7 +119,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     failure mode. `multiplayer_test_end` and the cross-DM `stop_playtest` monitor now
     treat that signal as teardown already in progress (`success + alreadyEnded`)
     rather than failing and leaving the session stuck.
-
 - **Upstream Chrrxs v2.21.0 parity slice: official Roblox docs.** Ported the
   isolated `get_roblox_docs` feature from upstream into this fork's split tool
   architecture, including cached markdown fetching, section extraction, a
@@ -140,10 +126,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   additions (`manage_instance`, `capture_micro_profiler`, monolithic playtest API
   renames) were identified but not merged wholesale because they conflict with this
   fork's round-6 toolset/resource/outputSchema architecture and need a separate port.
-
-- Removed stale `bugs.md` and `todo.md`; release history lives in this changelog and
-  regressions are covered by tests.
-
 - **Track A — multi-provider CC0 asset discovery + provenance resource (round-6).**
   `asset_source_search` searches free, license-clean libraries OUTSIDE the Roblox
   marketplace and returns ONE normalized descriptor shape across providers
@@ -159,12 +141,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provenance is now also an **MCP resource**: `roblox://asset/provenance` (all
     records) and `roblox://asset/provenance/{assetId}` (one), backed by the existing
     `get_asset_provenance`.
-
 - **outputSchema sweep — self-driving loop tools.** `run_playtest_episode`,
   `summarize_episode`, and `propose_next_action` now publish strict-ish
   `outputSchema`s (these outputs are owned by the server, so the contract is
   reliable). Each gets a representative sample in the output-schema-contracts test.
-
 - **Track E — self-driving loop polish (round-6).** `propose_next_action` — a
   deterministic next-step picker over the stored playtest episodes, so the
   edit→playtest→observe→fix loop doesn't burn an LLM turn on the obvious move. With
@@ -178,6 +158,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not just the verdict flip. Pure TS over the in-memory store (no plugin, no Studio),
   unit-tested.
 
+### Changed
+
+- **Renamed the product to BloxForge.** Public npm packages are now
+  `@princeofscale/bloxforge`, `@princeofscale/bloxforge-inspector`, and the
+  internal `@princeofscale/bloxforge-core`; CLI binaries, MCP service names,
+  plugin UI/logging, docs, repository links, and diagnostics use the BloxForge
+  brand. Legacy source-directory and environment-variable names remain accepted
+  for compatibility.
+- **Bridge diagnostics.** `/health` and `/status` now retain the ten most recent
+  disconnects with reason (`plugin_request`, `stale_timeout`, or `unknown`), last
+  activity, and disconnect timestamp.
+- **Runtime reliability.** `stop_playtest` is now an idempotent no-op when no
+  runtime peer is active, instead of waiting for a nonexistent play-server.
+  Invalid UTF-8 produced by byte-sliced `execute_luau` output is replaced with a
+  clear marker before JSON serialization, preventing 120-second bridge stalls.
+- **Safe screenshot camera framing.** `capture_screenshot` accepts paired
+  `cameraPosition`/`lookAt` values in Edit mode and always restores the previous
+  CameraType and CFrame after capture.
+- **Dogfood limitations reference.** Documented playtest wall-clock behavior,
+  eval time windows, VM-local `_G`, runtime `GetDebugId` security, shared-log peer
+  attribution, ModuleScript diagnostics/reload behavior, unique edit anchors,
+  screenshot/input scaling, ProximityPrompt triggering, marketplace permissions,
+  audio constraints, and safety confirmation behavior.
+- **Bridge: WebSocket request delivery with polling fallback.** Studio plugins
+  now prefer `HttpService:CreateWebStreamClient(WebSocket)` for immediate
+  request delivery and same-stream responses. `/poll` remains the fallback
+  before connection and after a close/error, preserving compatibility with
+  older plugins and denied stream permissions. Failed stream sends release
+  the request back to the normal queue.
+- **Bridge: more resilient to Studio throttling.** The server now tolerates up
+  to 90s of plugin silence before reaping an instance (was 30s), absorbing the
+  `HttpService:RequestAsync` throttling gaps Studio imposes when its window is
+  backgrounded/minimized — the most common cause of the bridge "dropping"
+  mid-session. Configurable via `MCP_STALE_INSTANCE_MS`. The plugin also re-fires
+  `/ready` immediately on the failing→ok poll transition, closing the window
+  where a recovered plugin is still anonymous to the server.
+
+### Fixed
+
 - **Dependency bumps (dependabot #16–#20) + toolchain fixes.** Accepted all five open
   dependabot PRs and made the tree green again under the majors:
   - `typescript` 5.9 → 6.0, `@typescript-eslint/parser` + `eslint-plugin` 7 → 8,
@@ -190,7 +209,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     jest transform) — the two `v4()` call sites now use Node's built-in
     `crypto.randomUUID()`. Fewer deps, no transform hacks.
 
+### Removed
+
+- Removed stale `bugs.md` and `todo.md`; release history lives in this changelog and
+  regressions are covered by tests.
+
 ## [2.20.1] - 2026-06-23
+
+### Added
 
 - **External asset ingest — Track A first cut (research round-6, Q1).** Bring assets from
   OUTSIDE the Roblox marketplace into a place, with provenance:
@@ -239,6 +265,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deferred until asked. (External multi-provider text-to-3D and `EditableMesh` as a durable
   upload lane were deliberately NOT built — see research round-6: cost/licensing/replication
   make the native path the right first cut.)
+
+### Changed
+
 - Branding: replaced upstream `Chrrxs`/`chrrxs` references with `princeofscale` across the
   studio-plugin (credits label, update banner, install docs) and pointed the installers'
   release-download `REPO` at `princeofscale/bloxforge`. The release workflow now
@@ -247,15 +276,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.20.0] - 2026-06-23
 
-- **Plugin server-URL robustness (ported from upstream 2.17.1 "path resolution").**
-  `ServerUrlSettings` now normalizes the server URL (adds a missing `http://` scheme,
-  trims whitespace/trailing slashes) and remembers the last *successfully connected* URL
-  globally + per-instance (with legacy-key migration), so a fresh/anonymous place
-  reconnects to the right address. URL input is normalized on blur and on connect; the
-  remembered URL is applied at plugin boot before the UI initializes. Also: `set_script_source`
-  now verifies `UpdateSourceAsync` actually changed the source and errors loudly if it
-  silently no-ops. (Did not port the upstream char-navigation removal or unused Luau
-  path-quoting helpers — no consumer in this fork.)
+### Added
+
 - **Track D — runtime episode loop, full.** Playtest episodes are now a first-class,
   addressable, comparable unit: `run_playtest_episode` persists each result in a capped
   in-memory store and returns an `episodeUri`; they're readable as resources
@@ -281,13 +303,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Multi-place routing + conformance (G1):** documented the existing `instance_id` routing
     (required only when >1 place is connected; failures return the instance list) and the full
     capability/host matrix in `docs/host-conformance.md`.
-- **`playtest_sample_state` `world` domain de-noised** — it walked every `ValueBase`
-  under Workspace/ReplicatedStorage/ServerStorage (cap 100), so a spawned player
-  character flooded the result with ~100 rig-internal values (`*.OriginalPosition`,
-  `*.OriginalSize`, `Animate.*` string values) — pure engine noise that also crowded out
-  real game state before the cap. Now skips `ValueBase`s inside a player's character
-  (`Players:GetPlayerFromCharacter` on the nearest Model ancestor). Found via live
-  dogfooding the `run_playtest_episode` flow on a real place.
 - **`run_playtest_episode`** (research round-5, Track D) — one-shot runtime episode that
   starts a playtest, lets it run briefly (`durationS`, default 3s, max 30), gathers the
   evidence an agent needs (runtime error/warning counts + entries, optional gameplay
@@ -320,6 +335,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-error real action), and `recoveryCostAfterFirstError` (tokens burned after the first
   errored call — flags thrashing). The adapter now records the cache read/write token
   split per turn; each mode's summary prints all four; selfcheck covers them (12 graders).
+- Made the `evals/` harness decision-grade: the runner now loads **every** `cases/*.json`
+  bucket (was only `discovery.json` — 3 of 19 cases) and tags each case with its bucket;
+  each mode prints a per-bucket success + mean-recall breakdown. Added a `scene_semantic`
+  bucket (targets described by behaviour, not name) whose recall is the data-gated trigger
+  to revisit embedding-based scene search (Track H).
+- Added eval-run observability: on each server (re)start the harness now **waits for the
+  Studio plugin to (re)connect** (polls `get_connected_instances` up to
+  `EVAL_STUDIO_TIMEOUT_MS`, default 30s) and aborts with an actionable message — fixing a
+  false "no Studio connected" when the plugin hadn't finished re-registering with the new
+  primary server yet. Plus live progress logs (server spawn, advertised tool count, Studio
+  instances seen, per-case `running…`/`PASS|FAIL` with recall/calls/bootstrap, each tool
+  call), and the spawned server's stderr is inherited so its bridge/proxy-mode logs are
+  visible.
+- Added `.superpowers/` to `.gitignore`.
+- Added CHANGELOG reminder to CLAUDE.md.
+- Zeroed eslint warnings: added overrides for test files and client-coupled sources; `no-explicit-any` warnings eliminated.
+
+### Changed
+
+- **`playtest_sample_state` `world` domain de-noised** — it walked every `ValueBase`
+  under Workspace/ReplicatedStorage/ServerStorage (cap 100), so a spawned player
+  character flooded the result with ~100 rig-internal values (`*.OriginalPosition`,
+  `*.OriginalSize`, `Animate.*` string values) — pure engine noise that also crowded out
+  real game state before the cap. Now skips `ValueBase`s inside a player's character
+  (`Players:GetPlayerFromCharacter` on the nearest Model ancestor). Found via live
+  dogfooding the `run_playtest_episode` flow on a real place.
 - **Lazy tool loading is now the default.** `ROBLOX_MCP_LAZY_TOOLS` flipped from
   opt-in to opt-out: unset => lazy; set `0`/`false`/`off` for the old upfront
   behaviour. Based on a decision-grade eval (OpenModel deepseek-v4-flash, median of
@@ -337,11 +378,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stay in the facade (shared with other domains) and the gate + `recordOperation`
   are injected. Facade methods keep identical public signatures; `index.ts` −1685
   lines. All 419 tests green.
-- Made the `evals/` harness decision-grade: the runner now loads **every** `cases/*.json`
-  bucket (was only `discovery.json` — 3 of 19 cases) and tags each case with its bucket;
-  each mode prints a per-bucket success + mean-recall breakdown. Added a `scene_semantic`
-  bucket (targets described by behaviour, not name) whose recall is the data-gated trigger
-  to revisit embedding-based scene search (Track H).
+- Moved `data/logo.png` and `data/banner.png` to `assets/`; updated README references.
+
+### Fixed
+
+- **Plugin server-URL robustness (ported from upstream 2.17.1 "path resolution").**
+  `ServerUrlSettings` now normalizes the server URL (adds a missing `http://` scheme,
+  trims whitespace/trailing slashes) and remembers the last *successfully connected* URL
+  globally + per-instance (with legacy-key migration), so a fresh/anonymous place
+  reconnects to the right address. URL input is normalized on blur and on connect; the
+  remembered URL is applied at plugin boot before the UI initializes. Also: `set_script_source`
+  now verifies `UpdateSourceAsync` actually changed the source and errors loudly if it
+  silently no-ops. (Did not port the upstream char-navigation removal or unused Luau
+  path-quoting helpers — no consumer in this fork.)
 - Made the eval numbers decision-grade after the first full 19-case run exposed three
   issues: (1) **fixed the `bootstrapTax` metric** — its boundary was "first world read",
   so tasks that never do one (marketplace inserts, grep-only scene search) mis-summed the
@@ -350,21 +399,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (2) **`EVAL_MAX_ITERATIONS`** (default raised 14→20) so a weak free model's thrashing
   isn't scored as a false FAIL. (3) **`EVAL_REPEATS`** — run each mode N times and gate on
   the across-repeat **median**, so one noisy draw doesn't decide the outcome.
-- Added eval-run observability: on each server (re)start the harness now **waits for the
-  Studio plugin to (re)connect** (polls `get_connected_instances` up to
-  `EVAL_STUDIO_TIMEOUT_MS`, default 30s) and aborts with an actionable message — fixing a
-  false "no Studio connected" when the plugin hadn't finished re-registering with the new
-  primary server yet. Plus live progress logs (server spawn, advertised tool count, Studio
-  instances seen, per-case `running…`/`PASS|FAIL` with recall/calls/bootstrap, each tool
-  call), and the spawned server's stderr is inherited so its bridge/proxy-mode logs are
-  visible.
+
+### Removed
+
 - Removed stale top-level docs (`SUPPORT.md`, `docs/safety.md`, `docs/roadmap.md`,
   `docs/troubleshooting.md`, `docs/marketing-checklist.md`); untracked the local-only
   `docs/superpowers/` artifact (already gitignored).
-- Moved `data/logo.png` and `data/banner.png` to `assets/`; updated README references.
-- Added `.superpowers/` to `.gitignore`.
-- Added CHANGELOG reminder to CLAUDE.md.
-- Zeroed eslint warnings: added overrides for test files and client-coupled sources; `no-explicit-any` warnings eliminated.
 
 ## [2.19.3] - 2026-06-21
 

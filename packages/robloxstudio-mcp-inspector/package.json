@@ -36,7 +36,10 @@
     "read-only",
     "open-source"
   ],
-  "author": "",
+  "author": {
+    "name": "princeofscale",
+    "url": "https://github.com/princeofscale"
+  },
   "license": "MIT",
   "publishConfig": {
     "access": "public"

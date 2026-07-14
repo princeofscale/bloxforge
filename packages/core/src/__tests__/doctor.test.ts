@@ -1,4 +1,5 @@
-import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, DoctorCheck } from '../doctor.js';
+import * as os from 'os';
+import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, generateDiagnosticReport, DoctorCheck } from '../doctor.js';
 
 describe('checkNodeVersion', () => {
   it('passes for Node 18 and above', () => {
@@ -66,5 +67,66 @@ describe('collectDoctorChecks', () => {
       expect.objectContaining({ name: 'Studio plugin version', status: 'warn', detail: expect.stringContaining('2.20.1') }),
       expect.objectContaining({ name: 'Protocol version', status: 'warn', detail: expect.stringContaining('0') }),
     ]));
+  });
+
+  it('reports details from the instance that actually mismatches', async () => {
+    const checks = await collectDoctorChecks({
+      fetchImpl: async () => ({
+        ok: true,
+        json: async () => ({
+          pluginConnected: true,
+          versionMismatch: true,
+          protocolMismatch: true,
+          instances: [
+            { pluginVersion: '3.0.0', pluginProtocolVersion: 1 },
+            { pluginVersion: '2.20.2', pluginProtocolVersion: 0, versionMismatch: true, protocolMismatch: true },
+          ],
+        }),
+      } as Response),
+    });
+
+    expect(checks).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Studio plugin version', detail: expect.stringContaining('2.20.2') }),
+      expect.objectContaining({ name: 'Protocol version', detail: expect.stringContaining('plugin protocol 0') }),
+    ]));
+  });
+
+  it('passes a bounded abort signal to an injected health fetch', async () => {
+    const fetchImpl = jest.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return { ok: false, status: 503 } as Response;
+    }) as unknown as typeof fetch;
+
+    await collectDoctorChecks({ fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('generateDiagnosticReport', () => {
+  it('includes live session failures and per-tool statistics without exposing the home path', async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      json: async () => ({
+        pluginConnected: false,
+        session: {
+          totalCalls: 3,
+          failures: 1,
+          byTool: [{ toolName: 'execute_luau', calls: 3, failures: 1, averageDurationMs: 12.6 }],
+        },
+      }),
+    } as Response);
+
+    const report = await generateDiagnosticReport({ version: '3.0.0-rc.1', fetchImpl });
+    expect(report).toContain('Failed Calls: 1');
+    expect(report).toContain('execute_luau: 3 calls, 1 failures, avg 13ms');
+    expect(report).not.toContain(os.homedir());
+  });
+
+  it('reports when the server is down', async () => {
+    const report = await generateDiagnosticReport({
+      fetchImpl: async () => { throw new Error('connection refused'); },
+    });
+
+    expect(report).toContain('MCP server is not currently running on this port.');
   });
 });
