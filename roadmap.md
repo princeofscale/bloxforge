@@ -2,25 +2,6 @@
 
 This roadmap tracks work that remains after the protocol v3 reliability changes listed in `CHANGELOG.md`. Completed work belongs in the changelog; this file intentionally contains only unfinished or partially verified milestones.
 
-## P0 — Release validation for protocol v3
-
-- Rebuild both Studio plugins with `rbxtsc`, regenerate the `.rbxmx` artifacts, and run compiled-plugin smoke and runtime tests.
-- Add end-to-end HTTP and WebSocket tests proving that the current epoch, plugin session, delivery attempt, and lease token are accepted while stale responses are rejected.
-- Test journal recovery for queued and in-flight requests, corrupt journals, permission failures, disk-full failures, and primary-server restarts.
-- Run 10,000 real disconnect/reconnect and lost-response scenarios against Studio, with zero duplicate mutations, zero leaked pending requests, and routing recovery under five seconds.
-
-## P0 — Durable reconciliation after restart
-
-- Persist bounded, expiring completion receipts on the plugin side.
-- Reconcile plugin receipts with the server journal after reconnect so a proven completion can replace `outcome_unknown` without replaying a mutation.
-- Add journal compaction, retention limits, migrations, and explicit recovery diagnostics.
-- Fence reconciliation with the current server and plugin epochs.
-
-## P0 — Cooperative cancellation
-
-- Deliver cancellation events to work that has already started, not only queued work.
-- Add cancellation checkpoints to mass builders, terrain operations, import/export, screenshots, and long scene scans.
-- Document that arbitrary synchronous `execute_luau` cannot be safely preempted; steer cancellable jobs toward the asynchronous API.
 
 ## P1 — Concurrency control and atomic mutations
 
@@ -77,8 +58,6 @@ This roadmap tracks work that remains after the protocol v3 reliability changes 
 
 ## Recommended order
 
-1. Finish protocol v3 release validation and durable receipt reconciliation.
-2. Propagate cooperative cancellation through every long-running built-in operation.
-3. Expand optimistic concurrency and rollback beyond mutation plans.
-4. Complete diagnostics, capability approvals, and the cross-platform release matrix.
-5. Harden external tools, then optimize large scenes and polish the approval workflow.
+1. Expand optimistic concurrency and rollback beyond mutation plans.
+2. Complete diagnostics, capability approvals, and the cross-platform release matrix.
+3. Harden external tools, then optimize large scenes and polish the approval workflow.

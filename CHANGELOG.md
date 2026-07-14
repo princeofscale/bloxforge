@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [3.0.0] - 2026-07-14
 
 ### Added
 - Added a maintained `roadmap.md` that separates completed reliability work from the remaining recovery, cancellation, concurrency, observability, security, CI, tooling, and large-scene milestones.
@@ -22,31 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added optional project-quality tools for Rojo-style project detection/build/sourcemap generation, Luau/Selene/StyLua/luau-lsp validation, StyLua preview, sourcemap resolution, framework-neutral Lune test scripts, Wally dependency inspection/install, and a structured quality gate.
 - Added per-plugin session bearer tokens and bumped the bridge protocol to v2; plugin transport endpoints now authenticate after `/ready` bootstrap.
 - Added the official BloxForge Telegram channel to a redesigned README with new SVG banner and logo artwork.
+- **Package Verification CI**: Added `scripts/verify-package.mjs` to install and smoke-test the packed core, CLI, and inspector workspaces in an isolated temporary project.
+- **Generated Documentation Gate**: Added `docs:check` to CI and release validation so stale generated tool documentation cannot ship.
 
 ### Fixed
 - Fixed unacknowledged mutation leases being blocked by their own expired in-flight slot; disconnected started work now reports `outcome_unknown` instead of a retryable disconnect error. Client-broker polling now sends its session bearer token.
 - Fixed proxy-mode heavy endpoint timeouts to use the same timeout floors as the primary bridge.
 - Fixed timed-out delivered commands to report `outcome_unknown` with a request ID instead of silently inviting unsafe mutation retries.
 - Ported the upstream 2.22.2 malformed-log fix: invalid UTF-8 bytes from Studio Output are escaped before JSON serialization, oversized escaped messages are dropped without evicting buffered entries, and plugin response serialization or delivery failures are now observable.
-
-### Changed
-- External quality tools are restricted to `BLOXFORGE_PROJECT_ROOT` (the process working directory by default); Lune scripts and Rojo outputs cannot escape that boundary.
-- Bridge HTTP now binds to `127.0.0.1` by default; non-loopback binding requires explicit `ROBLOX_STUDIO_HOST`/`--host` opt-in and emits a warning. Global permissive CORS was removed.
-- HTTP body parsing now accepts `MCP_HTTP_BODY_LIMIT` instead of hard-coding the 50 MB limit.
-- Shutdown is now idempotent, stops accepting MCP activity, clears pending bridge requests, closes promotion timers and HTTP handles, and then exits.
-- Publishing a GitHub Release now automatically builds and publishes both npm packages, then uploads fresh full and inspector Studio plugin assets.
-- AI-agent guidance now requires every important change and fix to be recorded in the changelog.
-
-### Removed
-- Removed legacy PNG brand assets and the tracked `.superpowers/` artifact; SVG assets are now canonical.
-
-## [3.0.0-rc.1] - 2026-07-14
-
-### Added
-- **Package Verification CI**: Added `scripts/verify-package.mjs` to install and smoke-test the packed core, CLI, and inspector workspaces in an isolated temporary project.
-- **Generated Documentation Gate**: Added `docs:check` to CI and release validation so stale generated tool documentation cannot ship.
-
-### Fixed
 - **Plugin Compilation Issue**: Fixed `compile:plugin` failure in clean environments. `studio-plugin/package.json` dependencies (like `rbxtsc`) are now correctly installed via a nested `npm install` before running `rbxtsc`.
 - **Lune Runtime Tests**: Fixed `test:plugin:runtime` by correcting the CLI command to `lune run tests/plugin-runtime-smoke.luau`. The script now also explicitly requires `@lune/process` and its pattern matching expectations have been corrected.
 - **Security Documentation**: Updated `SECURITY.md` to explicitly clarify capabilities, boundaries, and limitations across different tool profiles.
@@ -62,7 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Lua Pattern Guidance**: Clarified that `grep_scripts` uses Lua patterns, where `|` is literal rather than regex alternation.
 
 ### Changed
+- External quality tools are restricted to `BLOXFORGE_PROJECT_ROOT` (the process working directory by default); Lune scripts and Rojo outputs cannot escape that boundary.
+- Bridge HTTP now binds to `127.0.0.1` by default; non-loopback binding requires explicit `ROBLOX_STUDIO_HOST`/`--host` opt-in and emits a warning. Global permissive CORS was removed.
+- HTTP body parsing now accepts `MCP_HTTP_BODY_LIMIT` instead of hard-coding the 50 MB limit.
+- Shutdown is now idempotent, stops accepting MCP activity, clears pending bridge requests, closes promotion timers and HTTP handles, and then exits.
+- Publishing a GitHub Release now automatically builds and publishes both npm packages, then uploads fresh full and inspector Studio plugin assets.
+- AI-agent guidance now requires every important change and fix to be recorded in the changelog.
 - **Documentation Cleanup**: Removed stale release plans, duplicated host setup pages, demo scaffolding, and verbose workflow examples; retained the concise handbook, architecture, limitations, troubleshooting, and generated tool reference.
+
+### Removed
+- Removed legacy PNG brand assets and the tracked `.superpowers/` artifact; SVG assets are now canonical.
 
 ## [2.20.2] - 2026-07-08
 

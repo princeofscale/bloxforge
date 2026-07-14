@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/bloxforge-inspector",
-  "version": "3.0.0-rc.1",
+  "version": "3.0.0",
   "description": "Read-only MCP server for AI agents to inspect and debug Roblox Studio — safe browsing with zero write risk.",
   "main": "dist/index.js",
   "type": "module",
