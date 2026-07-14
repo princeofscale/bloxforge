@@ -35,6 +35,7 @@ export function buildBaseplateLuau(options: BaseplateOptions): string {
   const mat = material(options.material ?? 'Grass');
   return [
     'local Terrain = workspace.Terrain',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `Terrain:FillBlock(CFrame.new(${vector3(...pos)}), ${vector3(...options.size)}, ${mat})`,
     `return { shape = "baseplate", volume = ${luaNumber(boxVolume(options.size))}, success = true }`,
   ].join('\n');
@@ -52,6 +53,7 @@ export function buildIslandLuau(options: IslandOptions): string {
   const mat = material(options.material ?? 'Sand');
   const lines = [
     'local Terrain = workspace.Terrain',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `Terrain:FillBall(${vector3(...options.center)}, ${luaNumber(options.radius)}, ${mat})`,
   ];
   if (options.waterMaterial || options.waterRadius) {
@@ -88,7 +90,9 @@ export function buildMountainsLuau(options: MountainsOptions): string {
     `local maxHeight = ${luaNumber(options.maxHeight)}`,
     `local seed = ${luaNumber(seed)}`,
     `local baseX, baseY, baseZ = ${luaNumber(cx - ex / 2)}, ${luaNumber(cy)}, ${luaNumber(cz - ez / 2)}`,
-    `for gx = 0, ${luaNumber(ex)}, res do`,
+    `for gx = 0, ${luaNumber(ex)}, res do
+	if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end`,
+    '\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `\tfor gz = 0, ${luaNumber(ez)}, res do`,
     '\t\tlocal wx = baseX + gx',
     '\t\tlocal wz = baseZ + gz',
@@ -110,6 +114,7 @@ export function buildWaterLuau(options: WaterOptions): string {
   const pos = options.position ?? [0, 0, 0];
   return [
     'local Terrain = workspace.Terrain',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `Terrain:FillBlock(CFrame.new(${vector3(...pos)}), ${vector3(...options.size)}, Enum.Material.Water)`,
     `return { shape = "water", volume = ${luaNumber(boxVolume(options.size))}, success = true }`,
   ].join('\n');
@@ -130,6 +135,7 @@ export function buildPaintMaterialLuau(options: PaintMaterialOptions): string {
     : `Terrain:FillRegion(${region}, 4, ${target})`;
   return [
     'local Terrain = workspace.Terrain',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     op,
     'return { shape = "paint", success = true }',
   ].join('\n');
@@ -143,6 +149,7 @@ export interface ClearRegionOptions {
 export function buildClearRegionLuau(options: ClearRegionOptions): string {
   return [
     'local Terrain = workspace.Terrain',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `Terrain:FillRegion(${region3(options.min, options.max)}, 4, Enum.Material.Air)`,
     'return { shape = "clear", success = true }',
   ].join('\n');

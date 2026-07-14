@@ -30,7 +30,15 @@ describe('buildMutationPlanLuau', () => {
     const code = buildMutationPlanLuau(ops, true);
     expect(code).toContain('local dryRun = true');
     expect(code).toContain('r.wouldSet = ser(op.value)');
-    expect(code).toContain('applied = not dryRun');
+    expect(code).toContain('applied = not dryRun and not rolledBack');
+  });
+
+  it('preflights optimistic-lock expectations and rolls back atomic failures', () => {
+    const code = buildMutationPlanLuau([{ ...ops[0], expected: false }], false, true);
+    expect(code).toContain('current ~= op.expected');
+    expect(code).toContain('conflict = true');
+    expect(code).toContain('if atomic and not dryRun and failed > 0 then');
+    expect(code).toContain('rolledBack = rolledBack');
   });
 
   it('is injection-safe by construction: ops come from JSONDecode, used as runtime values', () => {

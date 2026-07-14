@@ -117,7 +117,7 @@ describe('Integration', () => {
       expect(poll.body.request).toBeTruthy();
 
       await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
-      await expect(req1).rejects.toThrow(/disconnected/);
+      await expect(req1).rejects.toMatchObject({ outcome: 'unknown', requestId: poll.body.requestId });
       await expect(req2).rejects.toThrow(/disconnected/);
 
       await request(app).post('/ready').send(READY({ pluginSessionId: 'session-2' })).expect(200);
@@ -144,7 +144,7 @@ describe('Integration', () => {
 
       jest.advanceTimersByTime(31000);
 
-      await expect(promise).rejects.toThrow('Request timeout');
+      await expect(promise).rejects.toMatchObject({ outcome: 'unknown', requestId: expect.any(String) });
       jest.useRealTimers();
     });
   });

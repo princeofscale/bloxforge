@@ -203,7 +203,7 @@ export class MutationTools {
 
   // Transactional batch mutations: apply many small edits in one round-trip with a
   // dry-run diff and a ready-to-run reverse plan in the receipt (stateless rollback).
-  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string) {
+  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string, atomic = true) {
     if (!Array.isArray(operations) || operations.length === 0) {
       throw new Error('operations (a non-empty array) is required for apply_mutation_plan');
     }
@@ -212,7 +212,7 @@ export class MutationTools {
       const gated = this.runtime.safetyGate('bulk_mutate', `apply ${operations.length} mutation(s)`, { count: operations.length }, { confirm });
       if (gated) return gated;
     }
-    const response = await this.runtime.callSingle('/api/execute-luau', { code: buildMutationPlanLuau(operations, !!dryRun) }, 'edit', instance_id);
+    const response = await this.runtime.callSingle('/api/execute-luau', { code: buildMutationPlanLuau(operations, !!dryRun, atomic) }, 'edit', instance_id);
     if (!dryRun) this.runtime.recordOperation('bulk_mutate', `mutation plan: ${operations.length} ops`);
     return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
       applied: !dryRun,

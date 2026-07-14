@@ -354,12 +354,14 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
               property: { type: 'string', description: 'For set_property.' },
               name: { type: 'string', description: 'For set_attribute.' },
               tag: { type: 'string', description: 'For add_tag / remove_tag.' },
-              value: { type: ['boolean', 'number', 'string'], description: 'For set_property / set_attribute (primitive).' }
+              value: { type: ['boolean', 'number', 'string'], description: 'For set_property / set_attribute (primitive).' },
+              expected: { type: ['boolean', 'number', 'string', 'null'], description: 'Optional optimistic-lock value. The whole plan is rejected before writes when the current value differs.' }
             },
             required: ['op', 'target']
           }
         },
         dryRun: { type: 'boolean', description: 'Preview the diff without applying (default false).' },
+        atomic: { type: 'boolean', description: 'Rollback earlier successful operations when a later operation fails (default true).' },
         confirm: { type: 'boolean', description: 'Approve a large plan the safety layer gates.' },
         instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' }
       },

@@ -1,1 +1,91 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" viewBox="0 0 1200 400"><defs><linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%"><stop offset="0%" stop-color="#0b1024"/><stop offset="48%" stop-color="#1a1640"/><stop offset="100%" stop-color="#0a0e20"/></linearGradient><radialGradient id="glowIndigo" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#6366f1" stop-opacity=".55"/><stop offset="100%" stop-color="#6366f1" stop-opacity="0"/></radialGradient><radialGradient id="glowCyan" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#22d3ee" stop-opacity=".4"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/></radialGradient><linearGradient id="cubeTop" x1="0%" x2="100%" y1="0%" y2="100%"><stop offset="0%" stop-color="#a5b4fc"/><stop offset="100%" stop-color="#6366f1"/></linearGradient><linearGradient id="cubeLeft" x1="0%" x2="0%" y1="0%" y2="100%"><stop offset="0%" stop-color="#4f46e5"/><stop offset="100%" stop-color="#3730a3"/></linearGradient><linearGradient id="cubeRight" x1="0%" x2="0%" y1="0%" y2="100%"><stop offset="0%" stop-color="#312e81"/><stop offset="100%" stop-color="#1e1b4b"/></linearGradient><linearGradient id="title" x1="0%" x2="100%" y1="0%" y2="0%"><stop offset="0%" stop-color="#fff"/><stop offset="60%" stop-color="#c7d2fe"/><stop offset="100%" stop-color="#67e8f9"/></linearGradient><linearGradient id="node" x1="0%" x2="100%" y1="0%" y2="100%"><stop offset="0%" stop-color="#67e8f9"/><stop offset="100%" stop-color="#a5b4fc"/></linearGradient><filter id="soft" width="220%" height="220%" x="-60%" y="-60%"><feGaussianBlur result="b" stdDeviation="6"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#fff" opacity=".05"/></pattern></defs><rect width="1200" height="400" fill="url(#bg)"/><rect width="1200" height="400" fill="url(#dots)"/><ellipse cx="180" cy="120" fill="url(#glowIndigo)" rx="420" ry="300"/><ellipse cx="1020" cy="320" fill="url(#glowCyan)" rx="420" ry="300"/><rect width="1200" height="400" fill="none" stroke="#fff" stroke-opacity=".06" stroke-width="2"/><g transform="translate(150,200)"><circle cx="0" cy="0" r="84" fill="url(#glowIndigo)" opacity=".9"/><g filter="url(#soft)"><polygon fill="url(#cubeTop)" points="0 -66 62 -30 0 6 -62 -30"/><polygon fill="url(#cubeLeft)" points="-62 -30 0 6 0 72 -62 36"/><polygon fill="url(#cubeRight)" points="62 -30 0 6 0 72 62 36"/></g><polyline fill="none" stroke="#c7d2fe" stroke-width="1.5" points="-62 -30 0 6 62 -30" opacity=".5"/><line x1="0" x2="0" y1="6" y2="72" stroke="#c7d2fe" stroke-width="1.5" opacity=".35"/><g><line x1="-30" x2="2" y1="-36" y2="-22" stroke="url(#node)" stroke-width="1.6" opacity=".55"/><line x1="2" x2="34" y1="-22" y2="-36" stroke="url(#node)" stroke-width="1.6" opacity=".45"/><line x1="-30" x2="0" y1="-36" y2="-50" stroke="url(#node)" stroke-width="1.6" opacity=".4"/><line x1="34" x2="0" y1="-36" y2="-50" stroke="url(#node)" stroke-width="1.6" opacity=".35"/><circle cx="0" cy="-50" r="4.5" fill="url(#node)"/><circle cx="-30" cy="-36" r="4.5" fill="url(#node)"/><circle cx="34" cy="-36" r="4.5" fill="url(#node)"/><circle cx="2" cy="-22" r="6" fill="#fff"/><circle cx="2" cy="-22" r="11" fill="none" stroke="#67e8f9" stroke-width="1.5" opacity=".6"/></g></g><text x="300" y="172" fill="url(#title)" font-size="52" font-weight="800" letter-spacing="-.5">BloxForge</text><text x="302" y="208" fill="#aab4d4" font-size="19" font-weight="500">Drive Roblox Studio from Claude Code, Codex, Cursor &amp; AI agents</text><g fill="#c7d2fe" font-size="13" font-weight="600"><g transform="translate(300,236)"><rect width="118" height="26" x="0" y="0" fill="#fff" opacity=".06" rx="13"/><rect width="118" height="26" x="0" y="0" fill="none" stroke="#6366f1" stroke-opacity=".5" rx="13"/><text x="59" y="17" text-anchor="middle">132 tools</text></g><g transform="translate(426,236)"><rect width="150" height="26" x="0" y="0" fill="#fff" opacity=".06" rx="13"/><rect width="150" height="26" x="0" y="0" fill="none" stroke="#6366f1" stroke-opacity=".5" rx="13"/><text x="75" y="17" text-anchor="middle">lazy discovery</text></g><g transform="translate(584,236)"><rect width="190" height="26" x="0" y="0" fill="#fff" opacity=".06" rx="13"/><rect width="190" height="26" x="0" y="0" fill="none" stroke="#22d3ee" stroke-opacity=".45" rx="13"/><text x="95" y="17" text-anchor="middle">runtime episodes + resources</text></g></g><g font-size="13" text-anchor="middle" transform="translate(1018,116)"><g filter="url(#soft)"><rect width="172" height="44" x="-86" y="-6" fill="#2a2f52" rx="10"/></g><text x="0" y="21" fill="#c7d2fe" font-weight="600">AI Agent</text><line x1="0" x2="0" y1="44" y2="66" stroke="#818cf8" stroke-width="2.5"/><polygon fill="#818cf8" points="-6 66 6 66 0 74"/><g filter="url(#soft)"><rect width="172" height="44" x="-86" y="74" fill="#4f46e5" rx="10"/></g><text x="0" y="101" fill="#fff" font-weight="700">MCP Server</text><line x1="0" x2="0" y1="124" y2="146" stroke="#22d3ee" stroke-width="2.5"/><polygon fill="#22d3ee" points="-6 146 6 146 0 154"/><g filter="url(#soft)"><rect width="172" height="44" x="-86" y="154" fill="#22d3ee" rx="10"/></g><text x="0" y="181" fill="#08233a" font-weight="700">Roblox Studio</text></g><text x="600" y="372" fill="#8a93b8" font-size="14" font-weight="500" letter-spacing=".3" text-anchor="middle">Free · Open Source · MIT · Local-first · stdio + HTTP</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-labelledby="title description">
+  <title id="title">BloxForge</title>
+  <desc id="description">A local-first MCP toolkit connecting AI agents to Roblox Studio.</desc>
+  <defs>
+    <linearGradient id="background" x1="70" y1="10" x2="1120" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b1228"/>
+      <stop offset=".5" stop-color="#17163c"/>
+      <stop offset="1" stop-color="#071525"/>
+    </linearGradient>
+    <linearGradient id="top" x1="122" y1="124" x2="330" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd"/>
+      <stop offset=".5" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="left" x1="122" y1="184" x2="226" y2="342" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#3730a3"/>
+    </linearGradient>
+    <linearGradient id="right" x1="226" y1="184" x2="330" y2="342" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#312e81"/>
+      <stop offset="1" stop-color="#155e75"/>
+    </linearGradient>
+    <linearGradient id="wordmark" x1="390" y1="130" x2="850" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset=".62" stop-color="#c7d2fe"/>
+      <stop offset="1" stop-color="#67e8f9"/>
+    </linearGradient>
+    <radialGradient id="violetGlow">
+      <stop stop-color="#6366f1" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cyanGlow">
+      <stop stop-color="#22d3ee" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0H0V36" fill="none" stroke="#fff" stroke-opacity=".035"/>
+    </pattern>
+    <filter id="shadow" x="-35%" y="-35%" width="170%" height="190%">
+      <feDropShadow dx="0" dy="15" stdDeviation="14" flood-color="#020617" flood-opacity=".65"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="420" rx="28" fill="url(#background)"/>
+  <rect width="1200" height="420" rx="28" fill="url(#grid)"/>
+  <ellipse cx="220" cy="190" rx="390" ry="320" fill="url(#violetGlow)"/>
+  <ellipse cx="1040" cy="330" rx="420" ry="280" fill="url(#cyanGlow)"/>
+  <rect x="1" y="1" width="1198" height="418" rx="27" fill="none" stroke="#c7d2fe" stroke-opacity=".14" stroke-width="2"/>
+  <g filter="url(#shadow)">
+    <path d="m226 105 116 66-116 67-116-67 116-66Z" fill="url(#top)"/>
+    <path d="m110 171 116 67v133l-116-67V171Z" fill="url(#left)"/>
+    <path d="m342 171-116 67v133l116-67V171Z" fill="url(#right)"/>
+  </g>
+  <path d="m226 238 116-67M226 238l-116-67M226 238v133" fill="none" stroke="#e0e7ff" stroke-opacity=".42" stroke-width="3"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <path d="m183 171 43-25 43 25-43 25-43-25Z" stroke-opacity=".75" stroke-width="4"/>
+    <path d="m183 171 43 25 43-25M226 196v25" stroke-opacity=".45" stroke-width="3"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="183" cy="171" r="6"/>
+    <circle cx="226" cy="146" r="7"/>
+    <circle cx="269" cy="171" r="6"/>
+    <circle cx="226" cy="196" r="9"/>
+  </g>
+  <path d="m335 78 7 18 18 7-18 7-7 18-7-18-18-7 18-7 7-18Z" fill="#67e8f9"/>
+  <text x="405" y="178" fill="url(#wordmark)" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="72" font-weight="800" letter-spacing="-2">BloxForge</text>
+  <text x="410" y="226" fill="#b9c2df" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="23" font-weight="500">Build, inspect and test Roblox experiences with AI agents.</text>
+  <g font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15" font-weight="650">
+    <g transform="translate(410 270)">
+      <rect width="118" height="38" rx="19" fill="#6366f1" fill-opacity=".15" stroke="#818cf8" stroke-opacity=".55"/>
+      <text x="59" y="24" fill="#e0e7ff" text-anchor="middle">LOCAL-FIRST</text>
+    </g>
+    <g transform="translate(542 270)">
+      <rect width="92" height="38" rx="19" fill="#6366f1" fill-opacity=".15" stroke="#818cf8" stroke-opacity=".55"/>
+      <text x="46" y="24" fill="#e0e7ff" text-anchor="middle">MCP</text>
+    </g>
+    <g transform="translate(648 270)">
+      <rect width="154" height="38" rx="19" fill="#22d3ee" fill-opacity=".1" stroke="#22d3ee" stroke-opacity=".5"/>
+      <text x="77" y="24" fill="#cffafe" text-anchor="middle">ROBLOX STUDIO</text>
+    </g>
+  </g>
+  <g transform="translate(410 347)" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="15">
+    <circle cx="7" cy="-5" r="7" fill="#818cf8"/>
+    <path d="M17-5h120" stroke="#818cf8" stroke-width="2" stroke-dasharray="4 7"/>
+    <circle cx="147" cy="-5" r="7" fill="#a5b4fc"/>
+    <path d="M157-5h120" stroke="#67e8f9" stroke-width="2" stroke-dasharray="4 7"/>
+    <circle cx="287" cy="-5" r="7" fill="#22d3ee"/>
+    <text x="0" y="25" fill="#818aa9">AI client</text>
+    <text x="121" y="25" fill="#aeb7d5">BloxForge</text>
+    <text x="254" y="25" fill="#8fe8f6">Studio</text>
+  </g>
+</svg>

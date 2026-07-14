@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added a maintained `roadmap.md` that separates completed reliability work from the remaining recovery, cancellation, concurrency, observability, security, CI, tooling, and large-scene milestones.
+- Added protocol v3 stale-response fencing with a per-process server epoch, plugin session binding, monotonic delivery attempts, and random lease tokens for every acknowledgement/result.
+- Added a mode-0600 persistent bridge journal. Queued commands recover after restart, while previously delivered/started commands recover as `outcome_unknown` and require reconciliation instead of unsafe replay.
+- Added optimistic-lock expectations and best-effort atomic rollback to `apply_mutation_plan`, plus cooperative cancellation checkpoints for async execution.
+- Added `get_transport_diagnostics` with payload-free queue, retry, BUSY, cancellation, unknown-outcome, completion, and latency percentile metrics.
+- Added Windows and macOS Node 20 smoke jobs alongside the existing Linux Node 18/20/22 matrix.
+- Added opt-in capability enforcement for stdio and token-identified HTTP clients (`read.scene`, `write.properties`, `write.instances`, `execute.luau`, `assets.external`, and `playtest.control`).
+- Added request delivery leases, acknowledgement/result state tracking, bounded completed-request deduplication, request status lookup, and safe pre-start cancellation for bridge commands.
+- Added a shared transport policy manifest, per-DataModel read/mutation concurrency limits, bounded pending queues, and structured `BUSY` responses.
+- Added an explicit `test:fault-injection` CI gate covering delivery leases, disconnect recovery, duplicate responses, and timeout outcomes.
+- Added a deterministic 10,000-run effectively-once transport benchmark to CI; it verifies stable request IDs on redelivery, duplicate-result tolerance, completed status retention, and zero leaked pending requests.
+- Added optional project-quality tools for Rojo-style project detection/build/sourcemap generation, Luau/Selene/StyLua/luau-lsp validation, StyLua preview, sourcemap resolution, framework-neutral Lune test scripts, Wally dependency inspection/install, and a structured quality gate.
+- Added per-plugin session bearer tokens and bumped the bridge protocol to v2; plugin transport endpoints now authenticate after `/ready` bootstrap.
+- Added the official BloxForge Telegram channel to a redesigned README with new SVG banner and logo artwork.
+
+### Fixed
+- Fixed unacknowledged mutation leases being blocked by their own expired in-flight slot; disconnected started work now reports `outcome_unknown` instead of a retryable disconnect error. Client-broker polling now sends its session bearer token.
+- Fixed proxy-mode heavy endpoint timeouts to use the same timeout floors as the primary bridge.
+- Fixed timed-out delivered commands to report `outcome_unknown` with a request ID instead of silently inviting unsafe mutation retries.
+- Ported the upstream 2.22.2 malformed-log fix: invalid UTF-8 bytes from Studio Output are escaped before JSON serialization, oversized escaped messages are dropped without evicting buffered entries, and plugin response serialization or delivery failures are now observable.
+
+### Changed
+- External quality tools are restricted to `BLOXFORGE_PROJECT_ROOT` (the process working directory by default); Lune scripts and Rojo outputs cannot escape that boundary.
+- Bridge HTTP now binds to `127.0.0.1` by default; non-loopback binding requires explicit `ROBLOX_STUDIO_HOST`/`--host` opt-in and emits a warning. Global permissive CORS was removed.
+- HTTP body parsing now accepts `MCP_HTTP_BODY_LIMIT` instead of hard-coding the 50 MB limit.
+- Shutdown is now idempotent, stops accepting MCP activity, clears pending bridge requests, closes promotion timers and HTTP handles, and then exits.
+- Publishing a GitHub Release now automatically builds and publishes both npm packages, then uploads fresh full and inspector Studio plugin assets.
+- AI-agent guidance now requires every important change and fix to be recorded in the changelog.
+
+### Removed
+- Removed legacy PNG brand assets and the tracked `.superpowers/` artifact; SVG assets are now canonical.
+
 ## [3.0.0-rc.1] - 2026-07-14
 
 ### Added
@@ -549,7 +582,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v2.19.3...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v2.20.2...HEAD
+[2.20.2]: https://github.com/princeofscale/bloxforge/compare/v2.20.1...v2.20.2
+[2.20.1]: https://github.com/princeofscale/bloxforge/compare/v2.20.0...v2.20.1
+[2.20.0]: https://github.com/princeofscale/bloxforge/compare/v2.19.3...v2.20.0
 [2.19.3]: https://github.com/princeofscale/bloxforge/compare/v2.19.2...v2.19.3
 [2.19.2]: https://github.com/princeofscale/bloxforge/compare/v2.19.1...v2.19.2
 [2.19.1]: https://github.com/princeofscale/bloxforge/compare/v2.19.0...v2.19.1

@@ -1,16 +1,15 @@
-import { BridgeService, PluginInstance } from './bridge-service.js';
+import { BridgeService, PluginInstance, RequestOutcomeUnknownError, RequestStatus, resolveRequestTimeout } from './bridge-service.js';
 import { randomUUID } from 'node:crypto';
 
 export class ProxyBridgeService extends BridgeService {
   private primaryBaseUrl: string;
   readonly proxyInstanceId: string;
-  private proxyRequestTimeout = 30000;
   private cachedInstances: PluginInstance[] = [];
   private refreshTimer?: ReturnType<typeof setInterval>;
   private static REFRESH_INTERVAL_MS = 1000;
 
   constructor(primaryBaseUrl: string) {
-    super();
+    super('');
     this.primaryBaseUrl = primaryBaseUrl;
     this.proxyInstanceId = randomUUID();
     // Mirror the primary's peer list locally so getInstances() / resolveTarget
@@ -58,7 +57,10 @@ export class ProxyBridgeService extends BridgeService {
     targetRole: string,
   ): Promise<any> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.proxyRequestTimeout);
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      resolveRequestTimeout(endpoint, this.requestTimeout),
+    );
 
     try {
       const response = await fetch(`${this.primaryBaseUrl}/proxy`, {
@@ -77,8 +79,15 @@ export class ProxyBridgeService extends BridgeService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Proxy request failed (${response.status}): ${body}`);
+        const body = await response.json().catch(() => undefined) as { error?: string; outcome?: string; requestId?: string } | undefined;
+        if (body?.outcome === 'unknown' && body.requestId) {
+          throw new RequestOutcomeUnknownError(
+            body.requestId,
+            endpoint,
+            resolveRequestTimeout(endpoint, this.requestTimeout),
+          );
+        }
+        throw new Error(`Proxy request failed (${response.status}): ${body?.error ?? 'Unknown error'}`);
       }
 
       const result = await response.json() as { response?: any; error?: string };
@@ -93,6 +102,26 @@ export class ProxyBridgeService extends BridgeService {
       }
       throw err;
     }
+  }
+
+  override async lookupRequestStatus(requestId: string): Promise<(RequestStatus & { requestId: string }) | undefined> {
+    try {
+      const response = await fetch(`${this.primaryBaseUrl}/request/${encodeURIComponent(requestId)}/status`);
+      if (response.status === 404) return undefined;
+      if (!response.ok) throw new Error(`Request status lookup failed (${response.status})`);
+      return response.json() as Promise<RequestStatus & { requestId: string }>;
+    } catch {
+      return undefined;
+    }
+  }
+
+  override async requestCancellation(requestId: string): Promise<boolean> {
+    const response = await fetch(`${this.primaryBaseUrl}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId }),
+    });
+    return response.ok;
   }
 
   override cleanupOldRequests(): void {

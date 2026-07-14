@@ -73,6 +73,7 @@ export function buildScreenGuiLuau(options: ScreenGuiOptions): string {
   const parentPath = options.parentPath ?? 'StarterGui';
   const lines: string[] = [
     `local parent = resolvePath(${luaString(parentPath)}) or game:GetService("StarterGui")`,
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `local obj = Instance.new("ScreenGui")`,
     `obj.Name = ${luaString(options.name)}`,
   ];
@@ -88,6 +89,7 @@ export function buildGuiObjectLuau(className: GuiObjectClass, options: GuiObject
   const lines: string[] = [
     `local parent = resolvePath(${luaString(options.parentPath)})`,
     `if parent == nil then error("Parent not found: " .. ${luaString(options.parentPath)}) end`,
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `local obj = Instance.new(${luaString(className)})`,
   ];
   if (options.name !== undefined) lines.push(`obj.Name = ${luaString(options.name)}`);
@@ -120,6 +122,7 @@ export function buildApplyLayoutLuau(targetPath: string, options: LayoutOptions)
     `local target = resolvePath(${luaString(targetPath)})`,
     `if target == nil then error("Target not found: " .. ${luaString(targetPath)}) end`,
   ];
+  lines.push('if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end');
   if (options.layout === 'grid') {
     lines.push(`local layout = Instance.new("UIGridLayout")`);
     if (options.cellSize) lines.push(`layout.CellSize = ${udim2(...options.cellSize)}`);
@@ -151,6 +154,7 @@ local function ensureScale(gui)
 \t\tscale.Parent = gui
 \tend
 end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local descendants = target:GetDescendants()
 table.insert(descendants, target)
 for _, child in ipairs(descendants) do

@@ -7,6 +7,7 @@
 
 import LuauExec from "../LuauExec";
 import JobRegistry from "../JobRegistry";
+import Communication from "../Communication";
 
 // Install a sanctioned progress/cancel API once. Server-generated long-running
 // Luau (terrain/template/batch builders) can call _G.__mcp.progress(done,total,msg)
@@ -19,7 +20,7 @@ function installMcpGlobal(): void {
 		progress: (done: number, total?: number, message?: string, stage?: string) => {
 			JobRegistry.reportProgress(coroutine.running(), done, total, message, stage);
 		},
-		checkCancelled: () => JobRegistry.isCancelledForThread(coroutine.running()),
+		checkCancelled: () => JobRegistry.isCancelledForThread(coroutine.running()) || Communication.isCancelledForThread(coroutine.running()),
 	};
 }
 installMcpGlobal();

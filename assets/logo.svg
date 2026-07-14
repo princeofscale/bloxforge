@@ -1,1 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><defs><linearGradient id="bg" x1="0%" x2="100%" y1="0%" y2="100%"><stop offset="0%" style="stop-color:#1a1a2e"/><stop offset="100%" style="stop-color:#16213e"/></linearGradient><linearGradient id="block" x1="0%" x2="100%" y1="0%" y2="100%"><stop offset="0%" style="stop-color:#6366f1"/><stop offset="100%" style="stop-color:#4f46e5"/></linearGradient><linearGradient id="spark" x1="0%" x2="100%" y1="0%" y2="100%"><stop offset="0%" style="stop-color:#22d3ee"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient></defs><circle cx="256" cy="256" r="248" fill="url(#bg)" stroke="#2a2a4a" stroke-width="4"/><g transform="translate(256,256) rotate(-15) translate(-256,-256)"><rect width="200" height="200" x="156" y="156" fill="url(#block)" opacity=".9" rx="16"/><rect width="160" height="160" x="176" y="176" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2" rx="10"/><circle cx="200" cy="200" r="8" fill="url(#spark)" opacity=".8"/><circle cx="256" cy="200" r="8" fill="url(#spark)" opacity=".6"/><circle cx="312" cy="200" r="8" fill="url(#spark)" opacity=".4"/><circle cx="200" cy="256" r="8" fill="url(#spark)" opacity=".6"/><circle cx="256" cy="256" r="10" fill="url(#spark)" opacity="1"/><circle cx="312" cy="256" r="8" fill="url(#spark)" opacity=".5"/><circle cx="200" cy="312" r="8" fill="url(#spark)" opacity=".4"/><circle cx="256" cy="312" r="8" fill="url(#spark)" opacity=".6"/><circle cx="312" cy="312" r="8" fill="url(#spark)" opacity=".8"/><line x1="208" x2="248" y1="200" y2="200" stroke="url(#spark)" stroke-width="2" opacity=".5"/><line x1="264" x2="304" y1="200" y2="200" stroke="url(#spark)" stroke-width="2" opacity=".3"/><line x1="200" x2="200" y1="208" y2="248" stroke="url(#spark)" stroke-width="2" opacity=".5"/><line x1="200" x2="200" y1="264" y2="304" stroke="url(#spark)" stroke-width="2" opacity=".3"/><line x1="312" x2="312" y1="208" y2="248" stroke="url(#spark)" stroke-width="2" opacity=".4"/><line x1="312" x2="312" y1="264" y2="304" stroke="url(#spark)" stroke-width="2" opacity=".3"/><line x1="248" x2="208" y1="312" y2="312" stroke="url(#spark)" stroke-width="2" opacity=".3"/><line x1="264" x2="304" y1="312" y2="312" stroke="url(#spark)" stroke-width="2" opacity=".5"/><circle cx="256" cy="256" r="4" fill="#fff" opacity=".9"/></g><circle cx="256" cy="256" r="220" fill="none" stroke="#22d3ee" stroke-dasharray="8 12" stroke-width="1.5" opacity=".15"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">BloxForge logo</title>
+  <defs>
+    <linearGradient id="background" x1="64" y1="40" x2="448" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111936"/>
+      <stop offset=".55" stop-color="#17183f"/>
+      <stop offset="1" stop-color="#091326"/>
+    </linearGradient>
+    <linearGradient id="top" x1="154" y1="139" x2="364" y2="248" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd"/>
+      <stop offset=".48" stop-color="#818cf8"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="left" x1="151" y1="211" x2="259" y2="391" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#3730a3"/>
+    </linearGradient>
+    <linearGradient id="right" x1="259" y1="211" x2="368" y2="391" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#312e81"/>
+      <stop offset="1" stop-color="#164e63"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop stop-color="#67e8f9" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#67e8f9" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#fff" stroke-opacity=".035"/>
+    </pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020617" flood-opacity=".55"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#background)"/>
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#grid)"/>
+  <rect x="9" y="9" width="494" height="494" rx="111" fill="none" stroke="#a5b4fc" stroke-opacity=".2" stroke-width="2"/>
+  <circle cx="330" cy="172" r="170" fill="url(#glow)"/>
+  <g filter="url(#shadow)">
+    <path d="m256 118 118 67-118 68-118-68 118-67Z" fill="url(#top)"/>
+    <path d="m138 185 118 68v137l-118-68V185Z" fill="url(#left)"/>
+    <path d="m374 185-118 68v137l118-68V185Z" fill="url(#right)"/>
+  </g>
+  <path d="m256 253 118-68M256 253 138 185M256 253v137" fill="none" stroke="#e0e7ff" stroke-opacity=".45" stroke-width="3"/>
+  <g fill="none" stroke="#ecfeff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m214 185 42-24 43 24-43 25-42-25Z" stroke-opacity=".75" stroke-width="4"/>
+    <path d="m214 185 42 25 43-25M256 210v26" stroke-opacity=".5" stroke-width="3"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="214" cy="185" r="6"/>
+    <circle cx="256" cy="161" r="7"/>
+    <circle cx="299" cy="185" r="6"/>
+    <circle cx="256" cy="210" r="9"/>
+  </g>
+  <path d="m390 103 8 21 21 8-21 8-8 21-8-21-21-8 21-8 8-21Z" fill="#67e8f9"/>
+  <path d="m119 345 5 13 13 5-13 5-5 13-5-13-13-5 13-5 5-13Z" fill="#a5b4fc" opacity=".9"/>
+</svg>

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { RequestJournal, CompletionReceipt, defaultRequestJournalPath } from './request-journal.js';
 
 export interface PluginInstance {
   // Internal: per-plugin GUID, regenerated on every plugin load.
@@ -35,6 +36,9 @@ interface PendingRequest {
   targetRole: string;
   timestamp: number;
   inFlight: boolean;
+  assignedPluginSessionId?: string;
+  cancellationRequested?: boolean;
+  deliveryAttempt?: number;
   resolve: (value: any) => void;
   reject: (error: any) => void;
   timeoutId: ReturnType<typeof setTimeout>;
@@ -94,6 +98,40 @@ export interface PluginDisconnect {
   lastActivity: number;
 }
 
+export type RequestState = 'queued' | 'delivered' | 'started' | 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'outcome_unknown';
+export interface RequestStatus {
+  state: RequestState;
+  serverEpoch: string;
+  deliveryAttempt: number;
+  leaseToken?: string;
+  updatedAt: number;
+  response?: any;
+  error?: any;
+}
+
+export interface RequestFence {
+  serverEpoch: string;
+  pluginSessionId: string;
+  deliveryAttempt: number;
+  leaseToken: string;
+}
+
+export class RequestOutcomeUnknownError extends Error {
+  outcome = 'unknown';
+  constructor(public requestId: string, endpoint: string, timeout: number) {
+    super(`Request timeout after ${timeout}ms on ${endpoint}. Request ${requestId} outcome unknown. The plugin may still be running heavy code — the work can succeed even though this call gave up.`);
+    this.name = 'RequestOutcomeUnknownError';
+  }
+}
+
+export class BridgeBusyError extends Error {
+  public code = 'BUSY';
+  constructor(public retryAfterMs?: number) {
+    super(retryAfterMs ? `Bridge is busy, retry after ${retryAfterMs}ms` : 'Bridge is busy');
+    this.name = 'BridgeBusyError';
+  }
+}
+
 export interface ResolveTargetInput {
   instance_id?: string;
   target?: string;
@@ -120,7 +158,7 @@ export interface RegisterInstanceInput {
 }
 
 export type RegisterInstanceResult =
-  | { ok: true; assignedRole: string; instanceId: string }
+  | { ok: true; assignedRole: string; instanceId: string; sessionToken: string }
   | { ok: false; error: { code: 'duplicate_instance_role'; message: string; existing: PublicPluginInstance } };
 
 export function toPublic(inst: PluginInstance): PublicPluginInstance {
@@ -143,7 +181,7 @@ export function toPublic(inst: PluginInstance): PublicPluginInstance {
   };
 }
 
-export const MCP_PROTOCOL_VERSION = 1;
+export const MCP_PROTOCOL_VERSION = 3;
 
 // Grace period before a silent plugin (no /poll) is reaped. Polls run every
 // ~0.5s, so 30s was the historical floor, but Roblox Studio throttles
@@ -198,13 +236,101 @@ export class BridgeService {
   // Keyed by pluginSessionId (the per-plugin GUID).
   private instances: Map<string, PluginInstance> = new Map();
   private instanceAliases: Map<string, InstanceAlias> = new Map();
+
   private requestNotifiers = new Set<(pluginSessionId: string) => void>();
   private recentDisconnects: PluginDisconnect[] = [];
-  private requestTimeout = envRequestTimeout();
+  protected requestTimeout = envRequestTimeout();
   // Configurable per-instance so tests can exercise cleanupStaleInstances()
   // with a small TTL without depending on wall-clock env vars. Production
   // callers leave this at the module-level STALE_INSTANCE_MS default.
   staleInstanceMs = STALE_INSTANCE_MS;
+
+  serverEpoch = randomUUID();
+  private journal!: RequestJournal;
+  private requestStatuses = new Map<string, RequestStatus>();
+  private sessionTokens = new Map<string, string>(); // sessionToken -> pluginSessionId
+
+  private transportCounters = {
+    completed: 0,
+    outcomeUnknown: 0,
+    deliveryRetries: 0,
+    cancelled: 0,
+    timeouts: 0,
+  };
+  private transportLatencies: number[] = [];
+
+  constructor(journal?: RequestJournal | string) {
+    if (typeof journal === 'string') {
+      this.journal = new RequestJournal(journal);
+    } else if (journal) {
+      this.journal = journal;
+    } else {
+      const path = defaultRequestJournalPath();
+      if (path) this.journal = new RequestJournal(path);
+    }
+    
+    if (this.journal) {
+      try {
+        const snapshot = this.journal.load();
+        if (snapshot) {
+          const { statuses, pending } = snapshot;
+          for (const s of statuses) {
+            if (s.state === 'delivered' || s.state === 'started') {
+              s.state = 'outcome_unknown';
+              s.updatedAt = Date.now();
+            }
+            this.requestStatuses.set(s.requestId, s);
+          }
+          for (const p of pending) {
+            if (p.state !== 'queued') continue;
+            this.pendingRequests.set(p.id, {
+              id: p.id,
+              endpoint: p.endpoint,
+              data: p.data,
+              targetInstanceId: p.targetInstanceId,
+              targetRole: p.targetRole,
+              timestamp: p.timestamp,
+              inFlight: false,
+              deliveryAttempt: p.deliveryAttempt,
+              resolve: () => {},
+              reject: () => {},
+              timeoutId: setTimeout(() => {}, 0) as any,
+            } as PendingRequest);
+          }
+        }
+      } catch (e) {
+        // Journal might be empty or invalid
+      }
+    }
+  }
+
+  enableJournal() {
+    const path = defaultRequestJournalPath();
+    if (path) this.journal = new RequestJournal(path);
+  }
+
+  private persistJournal() {
+    if (!this.journal) return;
+    this.journal.save(
+      Array.from(this.requestStatuses.entries()).map(([id, s]) => ({ requestId: id, ...s })),
+      Array.from(this.pendingRequests.values()).map(req => ({
+        id: req.id,
+        endpoint: req.endpoint,
+        data: req.data,
+        targetInstanceId: req.targetInstanceId,
+        targetRole: req.targetRole,
+        timestamp: req.timestamp,
+        state: (this.requestStatuses.get(req.id)?.state as Extract<RequestState, 'queued' | 'delivered' | 'started'>) ?? 'queued',
+        deliveryAttempt: req.deliveryAttempt ?? 0,
+      })),
+      []
+    );
+  }
+
+  private updateRequestStatus(requestId: string, status: Partial<typeof this.requestStatuses extends Map<any, infer V> ? V : never>) {
+    const existing = this.requestStatuses.get(requestId) ?? { state: 'queued', serverEpoch: this.serverEpoch, deliveryAttempt: 0, updatedAt: Date.now() };
+    this.requestStatuses.set(requestId, { ...existing, ...status, updatedAt: Date.now() });
+  }
 
   private canonicalInstanceId(instanceId: string, placeId?: number): string {
     return publishedInstanceId(placeId) ?? instanceId;
@@ -349,36 +475,61 @@ export class BridgeService {
       connectedAt: prior?.connectedAt ?? Date.now(),
     });
 
-    return { ok: true, assignedRole, instanceId };
+    const sessionToken = randomUUID();
+    this.sessionTokens.set(sessionToken, pluginSessionId);
+
+    return { ok: true, assignedRole, instanceId, sessionToken };
+  }
+
+  authenticatePlugin(pluginSessionId: string, sessionToken: string): boolean {
+    const expectedId = this.sessionTokens.get(sessionToken);
+    return expectedId === pluginSessionId;
   }
 
   unregisterInstance(pluginSessionId: string, reason: PluginDisconnect['reason'] = 'unknown') {
-    const removed = this.instances.get(pluginSessionId);
-    this.instances.delete(pluginSessionId);
+    const instance = this.instances.get(pluginSessionId);
+    if (!instance) return;
 
-    if (!removed) return;
-    this.recentDisconnects.unshift({
+    this.instances.delete(pluginSessionId);
+    
+    this.recentDisconnects.push({
       pluginSessionId,
-      instanceId: removed.instanceId,
-      role: removed.role,
+      instanceId: instance.instanceId,
+      role: instance.role,
       reason,
       disconnectedAt: Date.now(),
-      lastActivity: removed.lastActivity,
+      lastActivity: instance.lastActivity,
     });
-    this.recentDisconnects.length = Math.min(this.recentDisconnects.length, 10);
+    if (this.recentDisconnects.length > 50) this.recentDisconnects.shift();
 
-    // Reject any pending requests targeted at this (instanceId, role) tuple
-    // if no other plugin handles it.
-    for (const [id, req] of this.pendingRequests.entries()) {
+    for (const [id, request] of this.pendingRequests.entries()) {
       const stillHasHandler = Array.from(this.instances.values()).some(
-        (i) => i.instanceId === req.targetInstanceId && i.role === req.targetRole,
+        (i) => i.instanceId === request.targetInstanceId && i.role === request.targetRole,
       );
+      
+      const status = this.requestStatuses.get(id);
+      const wasAssignedToThis = request.assignedPluginSessionId === pluginSessionId;
+      
       if (!stillHasHandler) {
-        clearTimeout(req.timeoutId);
+        clearTimeout(request.timeoutId);
         this.pendingRequests.delete(id);
-        req.reject(new Error(`Target (${req.targetInstanceId}, ${req.targetRole}) disconnected`));
+        if (status?.state === 'delivered' || status?.state === 'started') {
+          this.updateRequestStatus(id, { state: 'outcome_unknown' });
+          request.reject(new RequestOutcomeUnknownError(id, request.endpoint, this.requestTimeout));
+        } else {
+          this.updateRequestStatus(id, { state: 'failed', error: 'Target disconnected' });
+          request.reject(new Error(`Target (${request.targetInstanceId}, ${request.targetRole}) disconnected`));
+        }
+      } else {
+        if (wasAssignedToThis && (status?.state === 'delivered' || status?.state === 'started')) {
+          clearTimeout(request.timeoutId);
+          this.pendingRequests.delete(id);
+          this.updateRequestStatus(id, { state: 'outcome_unknown' });
+          request.reject(new RequestOutcomeUnknownError(id, request.endpoint, this.requestTimeout));
+        }
       }
     }
+    this.persistJournal();
   }
 
   getInstances(): PluginInstance[] {
@@ -440,6 +591,33 @@ export class BridgeService {
         inst.instanceId = canonicalInstanceId;
       }
     }
+  }
+
+  async lookupRequestStatus(requestId: string): Promise<(RequestStatus & { requestId: string }) | undefined> {
+    const status = this.requestStatuses.get(requestId);
+    if (!status) return undefined;
+    return { requestId, ...status };
+  }
+
+  getRequestStatus(requestId: string): (RequestStatus & { requestId: string }) | undefined {
+    const status = this.requestStatuses.get(requestId);
+    if (!status) return undefined;
+    return { requestId, ...status };
+  }
+
+  getTransportDiagnostics() {
+    return {
+      completed: this.transportCounters.completed,
+      queueDepth: this.pendingRequests.size,
+      deliveryRetries: this.transportCounters.deliveryRetries,
+      timeouts: this.transportCounters.timeouts,
+      outcomeUnknown: this.transportCounters.outcomeUnknown,
+      cancelled: this.transportCounters.cancelled,
+      averageLatencyMs:
+        this.transportLatencies.length > 0
+          ? this.transportLatencies.reduce((a, b) => a + b, 0) / this.transportLatencies.length
+          : 0,
+    };
   }
 
   cleanupStaleInstances() {
@@ -605,9 +783,10 @@ export class BridgeService {
       const timeoutId = setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           this.pendingRequests.delete(requestId);
-          reject(new Error(
-            `Request timeout after ${effectiveTimeout}ms on ${endpoint}. The plugin may still be running heavy code — the work can succeed even though this call gave up. Raise MCP_REQUEST_TIMEOUT_MS for big scripts.`,
-          ));
+          this.updateRequestStatus(requestId, { state: 'outcome_unknown' });
+          this.persistJournal();
+          this.transportCounters.timeouts++;
+          reject(new RequestOutcomeUnknownError(requestId, endpoint, effectiveTimeout));
         }
       }, effectiveTimeout);
 
@@ -625,6 +804,9 @@ export class BridgeService {
       };
 
       this.pendingRequests.set(requestId, request);
+      this.updateRequestStatus(requestId, { state: 'queued' });
+      this.persistJournal();
+      
       for (const instance of this.instances.values()) {
         if (instance.instanceId === targetInstanceId && instance.role === targetRole) {
           for (const notify of this.requestNotifiers) notify(instance.pluginSessionId);
@@ -635,23 +817,47 @@ export class BridgeService {
 
   getPendingRequestForSession(
     pluginSessionId: string,
-  ): { requestId: string; request: { endpoint: string; data: any } } | null {
+  ): ({ requestId: string; request: { endpoint: string; data: any } } & RequestFence) | null {
     const instance = this.instances.get(pluginSessionId);
     if (!instance) return null;
     this.updateInstanceActivity(pluginSessionId);
-    return this.getPendingRequest(instance.instanceId, instance.role);
+    return this.getPendingRequest(instance.instanceId, instance.role, pluginSessionId);
   }
 
   getPendingRequest(
     callerInstanceId: string,
     callerRole: string,
-  ): { requestId: string; request: { endpoint: string; data: any } } | null {
+    pluginSessionId?: string,
+  ): ({ requestId: string; request: { endpoint: string; data: any } } & RequestFence) | null {
+    let inFlightMutations = 0;
+    let inFlightReads = 0;
+    for (const request of this.pendingRequests.values()) {
+      if (request.targetInstanceId !== callerInstanceId) continue;
+      if (request.targetRole !== callerRole) continue;
+
+      const status = this.requestStatuses.get(request.id);
+      if (request.inFlight && status?.state === 'delivered' && Date.now() - status.updatedAt >= 10000) {
+        request.inFlight = false;
+        this.updateRequestStatus(request.id, { state: 'queued' });
+      }
+
+      if (request.inFlight) {
+        if (this.isMutation(request.endpoint)) inFlightMutations++;
+        else inFlightReads++;
+      }
+    }
+
     let oldestRequest: PendingRequest | null = null;
 
     for (const request of this.pendingRequests.values()) {
       if (request.targetInstanceId !== callerInstanceId) continue;
       if (request.targetRole !== callerRole) continue;
       if (request.inFlight) continue;
+      
+      const isMutationReq = this.isMutation(request.endpoint);
+      if (isMutationReq && inFlightMutations >= 1) continue;
+      if (!isMutationReq && inFlightReads >= 4) continue;
+
       if (!oldestRequest || request.timestamp < oldestRequest.timestamp) {
         oldestRequest = request;
       }
@@ -659,8 +865,24 @@ export class BridgeService {
 
     if (oldestRequest) {
       oldestRequest.inFlight = true;
+      oldestRequest.deliveryAttempt = (oldestRequest.deliveryAttempt ?? 0) + 1;
+      oldestRequest.assignedPluginSessionId = pluginSessionId;
+      const leaseToken = randomUUID();
+      
+      this.updateRequestStatus(oldestRequest.id, { 
+        state: 'delivered', 
+        serverEpoch: this.serverEpoch, 
+        deliveryAttempt: oldestRequest.deliveryAttempt,
+        leaseToken
+      });
+      this.persistJournal();
+
       return {
         requestId: oldestRequest.id,
+        serverEpoch: this.serverEpoch,
+        pluginSessionId: pluginSessionId ?? '',
+        deliveryAttempt: oldestRequest.deliveryAttempt,
+        leaseToken,
         request: {
           endpoint: oldestRequest.endpoint,
           data: oldestRequest.data,
@@ -673,7 +895,11 @@ export class BridgeService {
 
   releasePendingRequest(requestId: string) {
     const request = this.pendingRequests.get(requestId);
-    if (request) request.inFlight = false;
+    if (request) {
+      request.inFlight = false;
+      this.updateRequestStatus(requestId, { state: 'queued' });
+      this.persistJournal();
+    }
   }
 
   releasePendingRequestsForSession(pluginSessionId: string) {
@@ -682,26 +908,88 @@ export class BridgeService {
     for (const request of this.pendingRequests.values()) {
       if (request.targetInstanceId === instance.instanceId && request.targetRole === instance.role) {
         request.inFlight = false;
+        request.assignedPluginSessionId = undefined;
+        this.updateRequestStatus(request.id, { state: 'queued' });
       }
     }
+    this.persistJournal();
+  }
+
+  reconcilePluginReceipts(pluginSessionId: string, serverEpoch: string, receipts: CompletionReceipt[]): number {
+    if (serverEpoch !== this.serverEpoch) return 0;
+    
+    const instance = this.instances.get(pluginSessionId);
+    if (!instance) return 0;
+
+    let reconciled = 0;
+    for (const receipt of receipts) {
+      const status = this.requestStatuses.get(receipt.requestId);
+      if (status && status.state === 'outcome_unknown') {
+        status.state = 'completed';
+        status.updatedAt = receipt.completedAt || Date.now();
+        status.response = { reconciled: true, digest: receipt.responseDigest };
+        reconciled++;
+      }
+    }
+    
+    if (reconciled > 0) {
+      this.persistJournal();
+    }
+    return reconciled;
+  }
+
+  acknowledgeRequest(requestId: string): boolean {
+    const status = this.requestStatuses.get(requestId);
+    if (!status) return false;
+    this.updateRequestStatus(requestId, { state: 'started' });
+    this.persistJournal();
+    return true;
   }
 
   resolveRequest(requestId: string, response: any) {
     const request = this.pendingRequests.get(requestId);
+    this.updateRequestStatus(requestId, { state: 'completed', response, error: undefined });
+    this.transportCounters.completed++;
     if (request) {
       clearTimeout(request.timeoutId);
       this.pendingRequests.delete(requestId);
       request.resolve(response);
     }
+    this.persistJournal();
   }
 
   rejectRequest(requestId: string, error: any) {
     const request = this.pendingRequests.get(requestId);
+    this.updateRequestStatus(requestId, { state: 'failed', error });
     if (request) {
       clearTimeout(request.timeoutId);
       this.pendingRequests.delete(requestId);
       request.reject(error);
     }
+    this.persistJournal();
+  }
+
+  resolveFencedRequest(requestId: string, response: any, fence: RequestFence): boolean {
+    const status = this.requestStatuses.get(requestId);
+    const pending = this.pendingRequests.get(requestId);
+    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.state === 'completed' || status.state === 'failed' || pending?.assignedPluginSessionId !== fence.pluginSessionId) return false;
+    this.resolveRequest(requestId, response);
+    return true;
+  }
+
+  rejectFencedRequest(requestId: string, error: any, fence: RequestFence): boolean {
+    const status = this.requestStatuses.get(requestId);
+    const pending = this.pendingRequests.get(requestId);
+    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.state === 'completed' || status.state === 'failed' || pending?.assignedPluginSessionId !== fence.pluginSessionId) return false;
+    this.rejectRequest(requestId, error);
+    return true;
+  }
+
+  acknowledgeFencedRequest(requestId: string, fence: RequestFence): boolean {
+    const status = this.requestStatuses.get(requestId);
+    const pending = this.pendingRequests.get(requestId);
+    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.state === 'completed' || status.state === 'failed' || pending?.assignedPluginSessionId !== fence.pluginSessionId) return false;
+    return this.acknowledgeRequest(requestId);
   }
 
   cleanupOldRequests() {
@@ -721,5 +1009,62 @@ export class BridgeService {
       request.reject(new Error('Connection closed'));
     }
     this.pendingRequests.clear();
+  }
+
+  cancelRequest(requestId: string): boolean {
+    const request = this.pendingRequests.get(requestId);
+    if (!request) return false;
+    
+    const status = this.requestStatuses.get(requestId);
+    if (status?.state === 'started') {
+      return false;
+    }
+
+    clearTimeout(request.timeoutId);
+    this.pendingRequests.delete(requestId);
+    this.updateRequestStatus(requestId, { state: 'cancelled', error: 'Request cancelled before execution' });
+    this.transportCounters.cancelled++;
+    request.reject(new Error(`Request ${requestId} cancelled`));
+    this.persistJournal();
+    return true;
+  }
+
+  getCancellationEvents(pluginSessionId: string): string[] {
+    const instance = this.instances.get(pluginSessionId);
+    if (!instance) return [];
+    
+    const events: string[] = [];
+    for (const request of this.pendingRequests.values()) {
+      if (request.targetInstanceId === instance.instanceId &&
+          request.targetRole === instance.role &&
+          this.requestStatuses.get(request.id)?.state === 'started' &&
+          request.cancellationRequested) {
+        events.push(request.id);
+      }
+    }
+    return events;
+  }
+
+  async requestCancellation(requestId: string): Promise<boolean> {
+    const request = this.pendingRequests.get(requestId);
+    if (!request) return false;
+    
+    const status = this.requestStatuses.get(requestId);
+    if (status?.state === 'started') {
+      request.cancellationRequested = true;
+      return true;
+    }
+    return this.cancelRequest(requestId);
+  }
+
+  private isMutation(endpoint: string): boolean {
+    return (
+      !endpoint.startsWith('/api/read') &&
+      !endpoint.startsWith('/api/get') &&
+      !endpoint.startsWith('/api/search') &&
+      endpoint !== '/api/evaluate' &&
+      endpoint !== '/api/execute-script' &&
+      endpoint !== '/api/run-code'
+    );
   }
 }

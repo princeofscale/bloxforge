@@ -48,6 +48,7 @@ import { StudioInstanceManager } from '../studio-instance-manager.js';
 import { RobloxCookieClient } from '../roblox-cookie-client.js';
 import { DOC_CATEGORIES, getRobloxDoc, isDocCategory } from '../roblox-docs.js';
 import { SessionRecorder } from '../session-recorder.js';
+import { QualityTools } from '../quality-tools.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -274,6 +275,7 @@ export class RobloxStudioTools {
   private runtimeTools: RuntimeTools;
   private episodes: EpisodeStore;
   private sessionRecorder: SessionRecorder;
+  private qualityTools: QualityTools;
   /** Provenance for externally-imported assets (Track A) — source/license/hash/assetId. */
   private provenance = new Map<string, ProvenanceRecord>();
 
@@ -331,6 +333,7 @@ export class RobloxStudioTools {
     });
     this.episodes = new EpisodeStore();
     this.sessionRecorder = new SessionRecorder();
+    this.qualityTools = new QualityTools();
     this.runtimeTools = new RuntimeTools({
       bridge: this.bridge,
       client: this.client,
@@ -349,6 +352,33 @@ export class RobloxStudioTools {
   async getSessionSummary() {
     return wrapToolJsonText(this.sessionRecorder.summarize());
   }
+
+  async getRequestStatus(requestId: string) {
+    if (!requestId) throw new Error('requestId is required for get_request_status');
+    const status = await this.bridge.lookupRequestStatus(requestId);
+    return wrapToolJsonText(status ?? { error: 'request_not_found', requestId });
+  }
+
+  async getTransportDiagnostics() {
+    return wrapToolJsonText(this.bridge.getTransportDiagnostics());
+  }
+
+  async cancelRequest(requestId: string) {
+    if (!requestId) throw new Error('requestId is required for cancel_request');
+    return wrapToolJsonText({ requestId, cancelled: await this.bridge.requestCancellation(requestId) });
+  }
+
+  async detectRobloxProject(root?: string) { return wrapToolJsonText(this.qualityTools.detectRobloxProject(root)); }
+  async validateScriptSource(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.validateScriptSource(source, fileName)); }
+  async formatScriptPreview(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.formatScriptPreview(source, fileName)); }
+  async resolveInstanceSourceFile(instancePath: string, root?: string) { return wrapToolJsonText(this.qualityTools.resolveInstanceSourceFile(instancePath, root)); }
+  async runProjectTests(root?: string, script?: string) { return wrapToolJsonText(this.qualityTools.runProjectTests(root, script)); }
+  async getDependencyGraph(root?: string) { return wrapToolJsonText(this.qualityTools.getDependencyGraph(root)); }
+  async installWallyPackages(root?: string, confirm?: boolean) { return wrapToolJsonText(this.qualityTools.installWallyPackages(root, confirm)); }
+  async runQualityGate(root?: string) { return wrapToolJsonText(this.qualityTools.runQualityGate(root)); }
+  async validateWithLuauLsp(root?: string, files?: string[]) { return wrapToolJsonText(this.qualityTools.validateWithLuauLsp(root, files)); }
+  async generateRojoSourcemap(root?: string, output?: string) { return wrapToolJsonText(this.qualityTools.generateRojoSourcemap(root, output)); }
+  async buildRojoProject(root?: string, output?: string) { return wrapToolJsonText(this.qualityTools.buildRojoProject(root, output)); }
 
   async getRobloxDocs(name: string, docType?: string, section?: string) {
     if (!name || typeof name !== 'string') {
@@ -2010,7 +2040,7 @@ export class RobloxStudioTools {
 
   async getSceneSummary(instancePath?: string, topN?: number, instance_id?: string) { return this.sceneReadTools.getSceneSummary(instancePath, topN, instance_id); }
 
-  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string) { return this.mutationTools.applyMutationPlan(operations, dryRun, confirm, instance_id); }
+  async applyMutationPlan(operations: MutationOp[], dryRun?: boolean, confirm?: boolean, instance_id?: string, atomic?: boolean) { return this.mutationTools.applyMutationPlan(operations, dryRun, confirm, instance_id, atomic); }
 
   // Recipes: proven idempotent build macros. list is pure; apply runs the recipe's
   // Luau (creates/replaces named instances).

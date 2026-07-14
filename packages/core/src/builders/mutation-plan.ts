@@ -19,9 +19,10 @@ export interface MutationOp {
   name?: string;
   tag?: string;
   value?: boolean | number | string;
+  expected?: boolean | number | string | null;
 }
 
-export function buildMutationPlanLuau(operations: MutationOp[], dryRun: boolean): string {
+export function buildMutationPlanLuau(operations: MutationOp[], dryRun: boolean, atomic = true): string {
   // Operations travel as a JSON literal decoded inside Luau (HttpService:JSONDecode),
   // so user strings never interpolate into code — injection-safe.
   const opsJson = JSON.stringify(JSON.stringify(operations));
@@ -30,6 +31,7 @@ local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService")
 local ops = HttpService:JSONDecode(${opsJson})
 local dryRun = ${luaBool(dryRun)}
+local atomic = ${luaBool(atomic)}
 
 local function ser(v)
 \tlocal t = typeof(v)
@@ -40,8 +42,26 @@ end
 local results = {}
 local rollback = {}
 local succeeded, failed = 0, 0
+local conflicts = {}
+
+for index, op in ipairs(ops) do
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { applied = false, cancelled = true } end
+\tif op.expected ~= nil then
+\t\tlocal inst = resolvePath(op.target)
+\t\tlocal current
+\t\tif inst and op.op == "set_property" then current = ser(inst[op.property])
+\t\telseif inst and op.op == "set_attribute" then current = ser(inst:GetAttribute(op.name))
+\t\telseif inst and (op.op == "add_tag" or op.op == "remove_tag") then current = CollectionService:HasTag(inst, op.tag) end
+\t\tif current ~= op.expected then table.insert(conflicts, { index = index, target = op.target, expected = op.expected, actual = current }) end
+\tend
+end
+
+if #conflicts > 0 then
+\treturn { applied = false, conflict = true, conflicts = conflicts, results = {}, rollback = {}, summary = { total = #ops, succeeded = 0, failed = 0 } }
+end
 
 for _, op in ipairs(ops) do
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { applied = false, cancelled = true, rollback = rollback } end
 \tlocal r = { op = op.op, target = op.target }
 \tlocal inst = resolvePath(op.target)
 \tif not inst then
@@ -98,9 +118,26 @@ for _, op in ipairs(ops) do
 \ttable.insert(results, r)
 end
 
+local rolledBack = false
+if atomic and not dryRun and failed > 0 then
+\trolledBack = true
+\tfor i = #rollback, 1, -1 do
+\t\tlocal op = rollback[i]
+\t\tlocal inst = resolvePath(op.target)
+\t\tif inst then pcall(function()
+\t\t\tif op.op == "set_property" then inst[op.property] = op.value
+\t\t\telseif op.op == "set_attribute" then inst:SetAttribute(op.name, op.value)
+\t\t\telseif op.op == "add_tag" then CollectionService:AddTag(inst, op.tag)
+\t\t\telseif op.op == "remove_tag" then CollectionService:RemoveTag(inst, op.tag) end
+\t\tend) end
+\tend
+end
+
 return {
-\tapplied = not dryRun,
+\tapplied = not dryRun and not rolledBack,
 \tdryRun = dryRun,
+\tatomic = atomic,
+\trolledBack = rolledBack,
 \tresults = results,
 \trollback = rollback,
 \tsummary = { total = #ops, succeeded = succeeded, failed = failed },

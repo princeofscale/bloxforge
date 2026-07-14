@@ -39,6 +39,7 @@ local parent = resolvePath(${luaString(parent)})
 if not parent then return { error = "Parent not found: " .. ${luaString(parent)} } end
 local existing = parent:FindFirstChild(${luaString(name)})
 if existing then existing:Destroy() end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local door = Instance.new("Part")
 door.Name = ${luaString(name)}
 door.Size = Vector3.new(8, 10, 1)
@@ -77,6 +78,7 @@ local group = SoundService:FindFirstChild(groupName)
 if not group then group = Instance.new("SoundGroup") group.Name = groupName group.Parent = SoundService end
 local existing = SoundService:FindFirstChild(${luaString(name)})
 if existing then existing:Destroy() end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local sound = Instance.new("Sound")
 sound.Name = ${luaString(name)}
 sound.SoundId = ${luaString(soundId)}
@@ -99,6 +101,7 @@ local parent = resolvePath(${luaString(parent)})
 if not parent then return { error = "Parent not found: " .. ${luaString(parent)} } end
 local existing = parent:FindFirstChild(${luaString(name)})
 if existing then existing:Destroy() end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local brick = Instance.new("Part")
 brick.Name = ${luaString(name)}
 brick.Size = Vector3.new(8, 1, 8)

@@ -9,6 +9,10 @@ const argFlagValue = (flag: string): string | undefined => {
 // --port / --debug are honored by setting env the core server reads.
 const portArg = argFlagValue('--port');
 if (portArg) process.env.ROBLOX_STUDIO_PORT = portArg;
+const hostArg = argFlagValue('--host');
+if (hostArg) process.env.ROBLOX_STUDIO_HOST = hostArg;
+const sessionTokenArg = argFlagValue('--session-token');
+if (sessionTokenArg) process.env.BLOXFORGE_SESSION_TOKEN = sessionTokenArg;
 if (process.argv.includes('--debug')) process.env.ROBLOX_STUDIO_DEBUG = '1';
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -20,6 +24,8 @@ Usage:
 
 Options:
   --port <port>                 Port to run the HTTP bridge on (default: 58741)
+  --host <host>                 Bind host (default: 127.0.0.1; non-loopback is unsafe)
+  --session-token <token>       Require bearer auth for /proxy and /mcp HTTP clients
   --debug                       Enable debug logging (stack traces, verbose output)
   --open-cloud-key <key>        Roblox Open Cloud API Key (for some advanced tools)
   --pollinations-key <key>      Pollinations API Key (for image-generation tools)

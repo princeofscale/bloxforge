@@ -25,6 +25,8 @@
     "lint": "eslint packages/*/src/**/*.ts",
     "typecheck": "tsc --noEmit -p packages/core/tsconfig.json",
     "test": "npm test -w packages/core",
+    "test:fault-injection": "npm test -w packages/core -- --runInBand --runTestsByPath src/__tests__/bridge-service.test.ts",
+    "test:fault-injection:10k": "npm run build -w packages/core && node scripts/fault-injection-benchmark.mjs",
     "test:e2e:auto-install": "node tests/auto-install-plugin-e2e.mjs",
     "test:studio:tools": "node tests/studio-tooling-smoke.mjs",
     "test:watch": "npm run test:watch -w packages/core",

@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 158
+## Total Tools: 172
 
 ### `get_file_tree` (Read-only)
 
@@ -285,6 +285,7 @@ Apply many small edits in ONE round-trip as a transaction: set_property (primiti
 |---|---|---|---|
 | `operations` | `array` | Yes | Ordered list of operations. |
 | `dryRun` | `boolean` | No | Preview the diff without applying (default false). |
+| `atomic` | `boolean` | No | Rollback earlier successful operations when a later operation fails (default true). |
 | `confirm` | `boolean` | No | Approve a large plan the safety layer gates. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -2430,6 +2431,176 @@ Find the right tool for a task without loading every tool schema. Returns a comp
 ### `get_session_summary` (Read-only)
 
 Summarize this MCP server session without exposing tool payloads: total tool calls, failures, average duration, per-tool counts, and recent tool names/outcomes. Use when the bridge feels flaky or after a dogfood run to identify timeouts/errors.
+
+---
+
+### `get_request_status` (Read-only)
+
+Look up a bridge request after a timeout. Use the requestId from an outcome_unknown error before deciding whether a mutation is safe to retry.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `requestId` | `string` | Yes | Bridge request id from an outcome_unknown error. |
+
+---
+
+### `get_transport_diagnostics` (Read-only)
+
+Return payload-free local transport metrics: queue depth, retries, BUSY/outcome_unknown/cancel/completion counts, server epoch, and latency p50/p95/p99.
+
+---
+
+### `cancel_request` (Write)
+
+Cancel a queued bridge request before the plugin acknowledges execution. Returns false once execution has started; this never claims to stop an already-running mutation.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `requestId` | `string` | Yes | Bridge request id to cancel. |
+
+---
+
+### `detect_roblox_project` (Read-only)
+
+Detect Rojo, Wally, Rokit, Selene, StyLua, and sourcemap files and report which optional quality tools are installed.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Project directory (defaults to the server working directory). |
+
+---
+
+### `validate_script_source` (Read-only)
+
+Run available luau-analyze, Selene, and StyLua checks on source without writing it to the Roblox DataModel. Missing binaries are reported explicitly.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | `string` | Yes |  |
+| `fileName` | `string` | No |  |
+
+---
+
+### `format_script_preview` (Read-only)
+
+Return a StyLua formatting preview through stdin; user source is never formatted or written implicitly.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `source` | `string` | Yes |  |
+| `fileName` | `string` | No |  |
+
+---
+
+### `resolve_instance_source_file` (Read-only)
+
+Resolve an Instance path through a Rojo-style sourcemap.json when one is present.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `instancePath` | `string` | Yes |  |
+| `root` | `string` | No |  |
+
+---
+
+### `run_project_tests` (Write)
+
+Run an explicitly selected Lune project test script; no test script is guessed.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+| `script` | `string` | Yes |  |
+
+---
+
+### `get_dependency_graph` (Read-only)
+
+Read Wally manifest/lockfile metadata into a compact dependency list without installing packages.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+
+---
+
+### `install_wally_packages` (Write)
+
+Run wally install in the detected project only after explicit confirm=true.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+| `confirm` | `boolean` | Yes |  |
+
+---
+
+### `run_quality_gate` (Read-only)
+
+Run available Rojo sourcemap, Selene, StyLua, and luau-lsp project checks and return structured per-tool results.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+
+---
+
+### `validate_with_luau_lsp` (Read-only)
+
+Run luau-lsp analyze against selected files, automatically using the detected Rojo sourcemap when present.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+| `files` | `array` | No |  |
+
+---
+
+### `generate_rojo_sourcemap` (Write)
+
+Generate a Rojo sourcemap from the detected project file into an explicit output path.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+| `output` | `string` | No |  |
+
+---
+
+### `build_rojo_project` (Write)
+
+Build the detected Rojo project to an explicit RBXL/RBXM output path.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No |  |
+| `output` | `string` | Yes |  |
 
 ---
 

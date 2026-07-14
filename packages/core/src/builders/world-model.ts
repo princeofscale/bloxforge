@@ -83,6 +83,8 @@ local soundCount, soundPlaying, soundLooped = 0, 0, 0
 local scriptCount, localScriptCount, moduleCount = 0, 0, 0
 local taggedCount = 0
 for _, d in ipairs(root:GetDescendants()) do
+		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \ttotal = total + 1
 \tbyClass[d.ClassName] = (byClass[d.ClassName] or 0) + 1
 \tif d:IsA("Sound") then

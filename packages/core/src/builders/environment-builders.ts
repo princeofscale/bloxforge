@@ -75,7 +75,10 @@ function clampClock(hour: number): number {
 }
 
 export function buildSetTimeOfDayLuau(time: number | string): string {
-  const lines = ['local Lighting = game:GetService("Lighting")'];
+  const lines = [
+    'local Lighting = game:GetService("Lighting")',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
+  ];
   if (typeof time === 'number') {
     lines.push(`Lighting.ClockTime = ${luaNumber(clampClock(time))}`);
   } else {
@@ -125,6 +128,7 @@ export function buildLightingPresetLuau(preset: string, withPostFx = false): str
   }
   const lines: string[] = [
     'local Lighting = game:GetService("Lighting")',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `Lighting.ClockTime = ${luaNumber(config.clockTime)}`,
     `Lighting.Ambient = ${color3FromRGB(...config.ambient)}`,
     `Lighting.OutdoorAmbient = ${color3FromRGB(...config.outdoorAmbient)}`,
@@ -141,7 +145,10 @@ export function buildLightingPresetLuau(preset: string, withPostFx = false): str
 }
 
 export function buildAtmosphereLuau(options: AtmospherePreset): string {
-  const lines = ['local Lighting = game:GetService("Lighting")'];
+  const lines = [
+    'local Lighting = game:GetService("Lighting")',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
+  ];
   lines.push(...atmosphereLines('Lighting', options));
   lines.push('return { success = true }');
   return lines.join('\n');
@@ -158,6 +165,7 @@ export interface SkyOptions {
 export function buildSkyLuau(options: SkyOptions): string {
   const lines = [
     'local Lighting = game:GetService("Lighting")',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     'local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky")',
   ];
   if (options.sunTextureId !== undefined) lines.push(`sky.SunTextureId = ${luaString(options.sunTextureId)}`);
@@ -196,6 +204,7 @@ RunService.Heartbeat:Connect(function(dt)
 end)`;
   const lines = [
     'local ServerScriptService = game:GetService("ServerScriptService")',
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `local existing = ServerScriptService:FindFirstChild(${luaString(scriptName)})`,
     'if existing then existing:Destroy() end',
     'local script = Instance.new("Script")',

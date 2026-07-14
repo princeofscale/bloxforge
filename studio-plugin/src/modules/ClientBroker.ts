@@ -75,6 +75,7 @@ const BROKER_OWNER_ATTRIBUTE = "__MCPBrokerOwner";
 interface ProxyEntry {
 	pluginSessionId: string;
 	role: string;
+	sessionToken: string;
 }
 
 interface BrokerEnvelope {
@@ -111,10 +112,14 @@ const CLIENT_BROKER_ALLOWED_ENDPOINTS = new Set<string>([
 
 interface ReadyResponseBody {
 	assignedRole?: string;
+	sessionToken?: string;
 }
 
 interface PollResponseBody {
 	requestId?: string;
+	serverEpoch?: string;
+	deliveryAttempt?: number;
+	leaseToken?: string;
 	request?: {
 		endpoint: string;
 		data?: Record<string, unknown>;
@@ -125,17 +130,42 @@ interface PollResponseBody {
 	knownInstance?: boolean;
 }
 
+interface DeliveryFence {
+	serverEpoch: string;
+	deliveryAttempt: number;
+	leaseToken: string;
+}
+
 // Throttle re-ready calls per proxyId so a brief window of unknownInstance
 // polls doesn't cause a re-register stampede.
 const lastReadyByProxy = new Map<string, number>();
+const completedProxyRequests = new Map<string, { response: unknown }>();
+const completedProxyRequestOrder: string[] = [];
+const COMPLETED_PROXY_REQUEST_LIMIT = 500;
 
-function reRegisterProxy(proxyId: string, role: string): void {
+function rememberCompletedProxyRequest(requestId: string, response: unknown): void {
+	completedProxyRequests.set(requestId, { response });
+	completedProxyRequestOrder.push(requestId);
+	if (completedProxyRequestOrder.size() > COMPLETED_PROXY_REQUEST_LIMIT) {
+		completedProxyRequests.delete(completedProxyRequestOrder.shift()!);
+	}
+}
+
+function sendProxyResponse(requestId: string, response: unknown, proxy: ProxyEntry, fence: DeliveryFence): void {
+	const [ok, result] = postJson("/response", { requestId, pluginSessionId: proxy.pluginSessionId, response, ...fence }, proxy.sessionToken);
+	if (!ok || !result || !result.Success) {
+		warn(`[BloxForge] proxy response delivery failed: ${formatPostJsonFailure("/response", ok, result)}`);
+	}
+}
+
+function reRegisterProxy(proxy: ProxyEntry, role: string): void {
+	const proxyId = proxy.pluginSessionId;
 	const now = tick();
 	const last = lastReadyByProxy.get(proxyId) ?? 0;
 	if (now - last < 2) return;
 	lastReadyByProxy.set(proxyId, now);
-	pcall(() =>
-		postJson("/ready", {
+	pcall(() => {
+		const [ok, result] = postJson("/ready", {
 			pluginSessionId: proxyId,
 			instanceId: computeInstanceId(),
 			role,
@@ -146,8 +176,12 @@ function reRegisterProxy(proxyId: string, role: string): void {
 			pluginVersion: State.CURRENT_VERSION,
 			pluginVariant: State.PLUGIN_VARIANT,
 			protocolVersion: State.PROTOCOL_VERSION,
-		}),
-	);
+		});
+		if (ok && result && result.Success) {
+			const body = HttpService.JSONDecode(result.Body) as ReadyResponseBody;
+			if (body.sessionToken !== undefined) proxy.sessionToken = body.sessionToken;
+		}
+	});
 }
 
 function forkRole(): "edit" | "server" | "client" {
@@ -156,12 +190,14 @@ function forkRole(): "edit" | "server" | "client" {
 	return "client";
 }
 
-function postJson(endpoint: string, body: Record<string, unknown>) {
+function postJson(endpoint: string, body: Record<string, unknown>, sessionToken?: string) {
+	const headers: Record<string, string> = { "Content-Type": "application/json" };
+	if (sessionToken !== undefined && sessionToken !== "") headers.Authorization = `Bearer ${sessionToken}`;
 	return pcall(() =>
 		HttpService.RequestAsync({
 			Url: `${mcpUrl}${endpoint}`,
 			Method: "POST",
-			Headers: { "Content-Type": "application/json" },
+			Headers: headers,
 			Body: HttpService.JSONEncode(body),
 		}),
 	);
@@ -312,7 +348,7 @@ function unregisterProxy(player: Player, entry?: ProxyEntry): void {
 	if (!proxy) return;
 	proxyByPlayer.delete(player);
 	proxyRegisterFailuresByPlayer.delete(player);
-	postJson("/disconnect", { pluginSessionId: proxy.pluginSessionId });
+	postJson("/disconnect", { pluginSessionId: proxy.pluginSessionId }, proxy.sessionToken);
 }
 
 function disconnectAllProxies(): void {
@@ -323,7 +359,8 @@ function disconnectAllProxies(): void {
 	proxyRegisterFailuresByPlayer.clear();
 }
 
-function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
+function pollProxy(proxy: ProxyEntry, player: Player, rf: RemoteFunction) {
+	const proxyId = proxy.pluginSessionId;
 	while (player.Parent !== undefined && proxyByPlayer.has(player)) {
 		if (!RunService.IsRunning()) {
 			unregisterProxy(player);
@@ -333,18 +370,32 @@ function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
 			HttpService.RequestAsync({
 				Url: `${mcpUrl}/poll?pluginSessionId=${proxyId}`,
 				Method: "GET",
-				Headers: { "Content-Type": "application/json" },
+				Headers: proxy.sessionToken !== ""
+					? { "Content-Type": "application/json", Authorization: `Bearer ${proxy.sessionToken}` }
+					: { "Content-Type": "application/json" },
 			}),
 		);
+		if (ok && res && res.StatusCode === 401) {
+			reRegisterProxy(proxy, "client");
+		}
 		if (ok && res && (res.Success || res.StatusCode === 503)) {
 			const [okJson, body] = pcall(() => HttpService.JSONDecode(res.Body) as PollResponseBody);
 			if (okJson && body) {
 				// Server lost our proxy registration (process restart, etc.) -
 				// re-register so the next poll cycle starts routing again.
 				if (body.knownInstance === false) {
-					reRegisterProxy(proxyId, "client");
+					reRegisterProxy(proxy, "client");
 				}
 				if (body.request && body.requestId !== undefined) {
+					if (!body.serverEpoch || body.deliveryAttempt === undefined || !body.leaseToken) continue;
+					const fence = { serverEpoch: body.serverEpoch, deliveryAttempt: body.deliveryAttempt, leaseToken: body.leaseToken };
+					const cached = completedProxyRequests.get(body.requestId);
+					if (cached !== undefined) {
+						sendProxyResponse(body.requestId, cached.response, proxy, fence);
+						task.wait(0.5);
+						continue;
+					}
+					postJson("/ack", { requestId: body.requestId, pluginSessionId: proxyId, ...fence }, proxy.sessionToken);
 					const request = body.request;
 					let response: unknown;
 					if (CLIENT_BROKER_ALLOWED_ENDPOINTS.has(request.endpoint)) {
@@ -366,7 +417,8 @@ function pollProxy(proxyId: string, player: Player, rf: RemoteFunction) {
 								`Allowed: ${allowed.join(", ")}.`,
 						};
 					}
-					postJson("/response", { requestId: body.requestId, response });
+					rememberCompletedProxyRequest(body.requestId, response);
+					sendProxyResponse(body.requestId, response, proxy, fence);
 				}
 			}
 		}
@@ -396,12 +448,13 @@ function registerProxy(player: Player, rf: RemoteFunction) {
 	}
 	const body = HttpService.JSONDecode(res.Body) as ReadyResponseBody;
 	const assigned = body.assignedRole ?? "client";
-	proxyByPlayer.set(player, { pluginSessionId: proxyId, role: assigned });
+	const entry = { pluginSessionId: proxyId, role: assigned, sessionToken: body.sessionToken ?? "" };
+	proxyByPlayer.set(player, entry);
 	if (proxyRegisterFailuresByPlayer.has(player)) {
 		proxyRegisterFailuresByPlayer.delete(player);
 		print(`[BloxForge] proxy registered for ${player.Name} as ${assigned} via ${mcpUrl}`);
 	}
-	task.spawn(pollProxy, proxyId, player, rf);
+	task.spawn(pollProxy, entry, player, rf);
 }
 
 // (Removed: startEditProxyLoop. The play-server DM no longer registers an

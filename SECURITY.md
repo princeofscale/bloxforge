@@ -6,7 +6,9 @@ BloxForge is a local development tool. It runs entirely on your machine and comm
 
 ## What this means
 
-- The MCP server and Studio plugin communicate over `localhost:58741`. Do not expose this port to the network.
+- The MCP server binds to `127.0.0.1` by default. Do not expose this port to the network; use an explicit host opt-in only when you understand the risk.
+- Bridge callbacks use per-plugin bearer session tokens issued by `/ready`. `/ready` is the unauthenticated bootstrap endpoint; `/poll`, `/response`, `/ack`, `/stream`, and `/disconnect` require the issued token. Set `BLOXFORGE_SESSION_TOKEN` (or pass `--session-token`) to protect the MCP/proxy HTTP endpoints as well.
+- CORS is not enabled on the bridge. If you deliberately bind beyond loopback, put an authenticated reverse proxy in front of it and restrict origins and the body limit (`MCP_HTTP_BODY_LIMIT`).
 - The AI agent operates Roblox Studio with the permissions of the Studio plugin — same as any plugin from the Toolbox.
 - `execute_luau` runs arbitrary Luau code in the plugin context. Only use this on places you own.
 - The safety layer (dry-run, confirmation gating, backups, limits) is a defense-in-depth measure, not a guarantee.

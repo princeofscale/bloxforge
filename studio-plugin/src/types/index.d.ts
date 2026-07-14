@@ -3,6 +3,7 @@
 export interface Connection {
 	port: number;
 	serverUrl: string;
+	sessionToken?: string;
 	isActive: boolean;
 	pollInterval: number;
 	lastPoll: number;
@@ -43,10 +44,14 @@ export interface PollResponse {
 	protocolMismatch?: boolean;
 	request?: RequestPayload;
 	requestId?: string;
+	serverEpoch?: string;
+	deliveryAttempt?: number;
+	leaseToken?: string;
 	// Server signals knownInstance=false when its in-memory instances map
 	// doesn't contain our pluginSessionId (typically after an MCP process
 	// restart). The plugin re-issues /ready when it sees this.
 	knownInstance?: boolean;
+	cancellations?: string[];
 }
 
 export interface Job {
@@ -74,6 +79,8 @@ export interface ReadyResponse {
 	serverProtocolVersion?: number;
 	versionMismatch?: boolean;
 	protocolMismatch?: boolean;
+	sessionToken?: string;
+	serverEpoch?: string;
 	error?: string;
 	message?: string;
 }

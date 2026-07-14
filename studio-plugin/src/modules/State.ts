@@ -2,7 +2,7 @@ import { Connection } from "../types";
 
 const CURRENT_VERSION = "__VERSION__";
 const PLUGIN_VARIANT = "__PLUGIN_VARIANT__";
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 3;
 const MAX_CONNECTIONS = 5;
 const BASE_PORT = 58741;
 let activeTabIndex = 0;

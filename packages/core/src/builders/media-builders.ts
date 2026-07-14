@@ -31,6 +31,7 @@ export function buildCreateSoundLuau(options: CreateSoundOptions): string {
   const lines = [
     `local parent = resolvePath(${luaString(options.parentPath)})`,
     `if parent == nil then error("Parent not found: " .. ${luaString(options.parentPath)}) end`,
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `local sound = Instance.new("Sound")`,
     `sound.SoundId = ${luaString(assetUri(options.soundId))}`,
   ];
@@ -51,6 +52,7 @@ export interface PlaySoundOptions {
 export function buildPlaySoundLuau(options: PlaySoundOptions): string {
   const body = `local sound = resolvePath(${luaString(options.path)})
 if sound == nil or not sound:IsA("Sound") then error("Sound not found: " .. ${luaString(options.path)}) end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 sound:Play()
 return { path = sound:GetFullName(), playing = true, success = true }`;
   return wrap(body);
@@ -66,6 +68,7 @@ export function buildCreateAnimationLuau(options: CreateAnimationOptions): strin
   const lines = [
     `local parent = resolvePath(${luaString(options.parentPath)})`,
     `if parent == nil then error("Parent not found: " .. ${luaString(options.parentPath)}) end`,
+    'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `local anim = Instance.new("Animation")`,
     `anim.AnimationId = ${luaString(assetUri(options.animationId))}`,
     `anim.Name = ${luaString(options.name ?? 'Animation')}`,
@@ -93,6 +96,7 @@ if animator == nil then
 \tanimator = Instance.new("Animator")
 \tanimator.Parent = controller
 end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local anim = Instance.new("Animation")
 anim.AnimationId = ${luaString(assetUri(options.animationId))}
 local track = animator:LoadAnimation(anim)
@@ -114,6 +118,7 @@ export function buildApplyTextureLuau(options: ApplyTextureOptions): string {
   if (options.property) {
     const body = `local target = resolvePath(${luaString(options.targetPath)})
 if target == nil then error("Target not found: " .. ${luaString(options.targetPath)}) end
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 target.${options.property.replace(/[^A-Za-z0-9]/g, '')} = ${uri}
 return { path = target:GetFullName(), property = ${luaString(options.property)}, success = true }`;
     return wrap(body);
@@ -122,6 +127,7 @@ return { path = target:GetFullName(), property = ${luaString(options.property)},
   const body = `local target = resolvePath(${luaString(options.targetPath)})
 if target == nil then error("Target not found: " .. ${luaString(options.targetPath)}) end
 local uri = ${uri}
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local prop
 if target:IsA("ImageLabel") or target:IsA("ImageButton") then
 \tprop = "Image"
@@ -183,6 +189,7 @@ local parent = resolvePath(${luaString(parentPath)})
 if parent == nil then error("Parent not found: " .. ${luaString(parentPath)}) end
 local inputs = { ${inputs.join(', ')} }
 local schema = ${schemaLua}
+if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local model, meta = GenerationService:GenerateModelAsync(inputs, schema)
 if model == nil then error("GenerateModelAsync returned no model") end
 local desiredName = ${nameLua}

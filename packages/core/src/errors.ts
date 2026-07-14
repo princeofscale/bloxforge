@@ -4,6 +4,8 @@
 // without parsing English. Patterns are matched against the raw error message.
 
 export type ErrorCode =
+  | 'OUTCOME_UNKNOWN'
+  | 'BUSY'
   | 'TIMEOUT'
   | 'AUTH'
   | 'NOT_FOUND'
@@ -20,6 +22,8 @@ export type ErrorCode =
 
 const PATTERNS: Array<[RegExp, ErrorCode]> = [
   // Order matters: more specific first.
+  [/outcome\s+is\s+unknown|outcome_unknown/i, 'OUTCOME_UNKNOWN'],
+  [/bridge queue is busy|\bbusy\b/i, 'BUSY'],
   [/\b429\b|rate.?limit/i, 'RATE_LIMITED'],
   [/confirm(ation)?\s+required|requires?\s+confirm|pass\s+confirm/i, 'CONFIRMATION_REQUIRED'],
   [/multiple\s+(places|instances)|ambiguous\s+target|which\s+instance|specify\s+instance_id/i, 'AMBIGUOUS_TARGET'],
@@ -36,6 +40,7 @@ const PATTERNS: Array<[RegExp, ErrorCode]> = [
 // Codes worth retrying as-is (transient/transport) vs. ones that need the agent
 // to change something (auth, bad argument, confirmation).
 const RETRYABLE: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'BUSY',
   'TIMEOUT',
   'RATE_LIMITED',
   'PLUGIN_DISCONNECTED',
@@ -47,6 +52,8 @@ export function isRetryable(code: ErrorCode): boolean {
 
 // Suggested next move per code, so an agent can branch without parsing prose.
 const RECOVERY: Partial<Record<ErrorCode, string>> = {
+  BUSY: 'wait for retryAfterMs, then retry the request',
+  OUTCOME_UNKNOWN: 'call get_request_status with details.requestId before deciding whether to retry',
   TIMEOUT: 'retry; for heavy code prefer execute_luau_async',
   RATE_LIMITED: 'back off and retry shortly',
   PLUGIN_DISCONNECTED: 'check the Studio plugin is connected, then retry',
@@ -69,7 +76,16 @@ const RECOVERY: Partial<Record<ErrorCode, string>> = {
  */
 export function toolErrorResult(error: unknown, stage?: string): { content: Array<{ type: 'text'; text: string }>; isError: true } {
   const message = error instanceof Error ? error.message : String(error);
-  const env = errorEnvelope(message, stage ? { stage } : {});
+  const unknownOutcome = error as { requestId?: unknown; outcome?: unknown };
+  const busy = error as { code?: unknown; retryAfterMs?: unknown };
+  const env = errorEnvelope(message, {
+    ...(stage ? { stage } : {}),
+    ...(unknownOutcome?.outcome === 'unknown' && typeof unknownOutcome.requestId === 'string'
+      ? { code: 'OUTCOME_UNKNOWN' as const, details: { requestId: unknownOutcome.requestId, outcome: 'unknown' } }
+      : typeof busy.retryAfterMs === 'number'
+        ? { code: 'BUSY' as const, details: { retryAfterMs: busy.retryAfterMs } }
+      : {}),
+  });
   return { content: [{ type: 'text', text: JSON.stringify(env) }], isError: true };
 }
 

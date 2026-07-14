@@ -6,6 +6,8 @@ export { BloxForgeServer as RobloxStudioMCPServer } from './server.js';
 export type { ServerConfig } from './server.js';
 export { createHttpServer } from './http-server.js';
 export { BridgeService } from './bridge-service.js';
+export { PROTOCOL_MANIFEST, protocolPolicy } from './protocol-manifest.js';
+export { QualityTools } from './quality-tools.js';
 export { RobloxStudioTools } from './tools/index.js';
 export { StudioHttpClient } from './tools/studio-client.js';
 export {

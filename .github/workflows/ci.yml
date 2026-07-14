@@ -40,6 +40,13 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Bridge fault-injection regression matrix
+        run: npm run test:fault-injection
+
+      - name: 10k effectively-once transport benchmark
+        if: matrix.node == 20
+        run: npm run test:fault-injection:10k
+
       - name: Build
         run: npm run build
 
@@ -77,3 +84,21 @@ jobs:
 
       - name: Smoke-check compiled plugin output
         run: npm run test:plugin:smoke
+
+  cross-platform:
+    name: Cross-platform smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test -- --runInBand
+      - run: npm run build

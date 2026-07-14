@@ -1,6 +1,24 @@
 import { classifyError, typedError, responseErrorCode, isRetryable, errorEnvelope, toolErrorResult, ErrorCode } from '../errors.js';
+import { RequestOutcomeUnknownError } from '../bridge-service.js';
+import { BridgeBusyError } from '../bridge-service.js';
 
 describe('toolErrorResult', () => {
+  it('marks outcome_unknown non-retryable and preserves the request id', () => {
+    const res = toolErrorResult(new RequestOutcomeUnknownError('req-1', '/api/delete-object', 30000));
+    const env = JSON.parse(res.content[0].text);
+    expect(env.error).toMatchObject({
+      code: 'OUTCOME_UNKNOWN',
+      retryable: false,
+      details: { requestId: 'req-1', outcome: 'unknown' },
+    });
+  });
+
+  it('returns retryAfterMs for backpressure errors', () => {
+    const res = toolErrorResult(new BridgeBusyError(250));
+    const env = JSON.parse(res.content[0].text);
+    expect(env.error).toMatchObject({ code: 'BUSY', retryable: true, details: { retryAfterMs: 250 } });
+  });
+
   it('wraps a thrown error into an MCP error result carrying the envelope', () => {
     const res = toolErrorResult(new Error('Studio plugin connection timeout'), 'execute_luau');
     expect(res.isError).toBe(true);

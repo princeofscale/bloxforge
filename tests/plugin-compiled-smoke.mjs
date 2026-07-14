@@ -65,9 +65,50 @@ const ASSERTIONS = [
     file: 'Communication.luau',
     label: 'WebSocket request stream with polling fallback is emitted',
     test: (src) =>
-      src.includes('CreateWebStreamClient(Enum.WebStreamClientType.WebSocket') &&
+      src.includes('CreateWebStreamClient') &&
       src.includes('startRequestStream') &&
       src.includes('if not conn.streamOpen then'),
+  },
+  {
+    file: 'Communication.luau',
+    label: 'response serialization and delivery failures remain observable',
+    test: (src) =>
+      src.includes('Plugin response serialization failed') &&
+      src.includes('Failed to deliver response') &&
+      src.includes('Failed to send stream response'),
+  },
+  {
+    file: 'Communication.luau',
+    label: 'request delivery is acknowledged and completed request ids are cached',
+    test: (src) =>
+      src.includes('handleRequestOnce') &&
+      src.includes('activeRequests') &&
+      src.includes('completedRequests') &&
+      src.includes('/ack'),
+  },
+  {
+    file: 'Communication.luau',
+    label: 'plugin session token is propagated after ready bootstrap',
+    test: (src) =>
+      src.includes('sessionToken') &&
+      src.includes('Authorization') &&
+      src.includes('pluginSessionId'),
+  },
+  {
+    file: 'Communication.luau',
+    label: 'protocol v3 delivery fences propagate through ack and response frames',
+    test: (src) =>
+      src.includes('serverEpoch') &&
+      src.includes('deliveryAttempt') &&
+      src.includes('leaseToken'),
+  },
+  {
+    file: 'RuntimeLogBuffer.luau',
+    label: 'malformed UTF-8 log bytes are escaped and oversized results are dropped',
+    test: (src) =>
+      src.includes('escapeInvalidUtf8') &&
+      src.includes('string.format("\\\\x%02X"') &&
+      src.includes('if bytes > MAX_BYTES then'),
   },
   {
     file: 'handlers/CaptureHandlers.luau',

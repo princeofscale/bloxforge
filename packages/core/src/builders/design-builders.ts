@@ -116,6 +116,7 @@ local function ensureCorner(o)
 \tend
 end
 for _, o in ipairs(root:GetDescendants()) do
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tif o:IsA("GuiButton") then
 \t\to.BackgroundColor3 = PRIMARY
 \t\to.BorderSizePixel = 0
@@ -217,6 +218,7 @@ end
 local function lintRoot(root)
 \tlocal interactives = {}
 \tfor _, o in ipairs(root:GetDescendants()) do
+\t\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \t\tif o:IsA("GuiObject") then
 \t\t\tif (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) and not o.TextScaled and o.TextSize < MIN_TEXT_SIZE then
 \t\t\t\tadd("tiny_text", "warn", o, string.format("TextSize %d < %d; hard to read — raise it or use TextScaled + UITextSizeConstraint", o.TextSize, MIN_TEXT_SIZE))

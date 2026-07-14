@@ -53,6 +53,18 @@ scripts (mass builds, big scene scans) legitimately exceed the default timeout.
   (`/api/execute-luau`, `/api/generate-build`, `/api/import-scene`) already have
   a 120s floor.
 
+If the error envelope has `code: "OUTCOME_UNKNOWN"`, do not immediately retry
+the mutation. Use `get_request_status` with `details.requestId`; a late Studio
+result may have completed the original operation. Automatic retry is reserved
+for safe read-only operations.
+
+### Quality tools show unavailable
+
+`detect_roblox_project` reports optional binaries without installing them.
+Install and pin Rojo/Selene/StyLua/Luau tooling with your project’s preferred
+tool manager, then rerun `run_quality_gate`. `install_wally_packages` requires
+`confirm: true` and only runs in the detected project root.
+
 ---
 
 ## Scripts & Luau
@@ -106,6 +118,22 @@ status before you commit to an insert.
 ---
 
 ## Still stuck
+
+Bridge recovery is journaled to `~/.bloxforge/bridge-journal.json` with
+owner-only permissions. Set `BLOXFORGE_JOURNAL_PATH` to relocate it or `off`
+to disable persistence. After restart, queued work can resume; delivered or
+started work becomes `outcome_unknown` and must be checked with
+`get_request_status` before retrying.
+
+Set `BLOXFORGE_STDIO_CAPABILITIES` to a comma-separated capability allowlist.
+HTTP clients can use `BLOXFORGE_CLIENT_CAPABILITIES_JSON`, a JSON object that
+maps bearer tokens to capability arrays. External quality commands are
+confined to `BLOXFORGE_PROJECT_ROOT` (the launch directory by default).
+
+For HTTP MCP/proxy clients, set `BLOXFORGE_SESSION_TOKEN` (or pass
+`--session-token`) and send `Authorization: Bearer <token>`. Studio plugin
+sessions receive their own token from `/ready`; that token is required for
+poll, response, ack, disconnect, and WebSocket traffic.
 
 - [Architecture](./architecture.md) — how the bridge routes requests.
 - [Known limitations](./known-limitations.md) — engine constraints.

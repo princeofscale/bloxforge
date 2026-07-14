@@ -116,6 +116,8 @@ spawn.Anchored = true
 
 local checkpoints = ensure(course, "Checkpoints", "Folder")
 for i = 0, NUM_CHECKPOINTS do
+		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tlocal cp = makePart(checkpoints, "Checkpoint" .. i, Vector3.new(10, 1, 10), Vector3.new(i * 40, 5, 0), Color3.fromRGB(80, 200, 120), true)
 \tcp:SetAttribute("Stage", i)
 \tif i > 0 then
@@ -365,6 +367,8 @@ local arena = ensure(Workspace, "Arena", "Model")
 makePart(arena, "ArenaFloor", Vector3.new(120, 1, 120), Vector3.new(300, 5, 0), Color3.fromRGB(110, 110, 120), true)
 local teleports = ensure(arena, "TeleportPoints", "Folder")
 for i = 1, NUM_TELEPORTS do
+		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tlocal angle = (i / NUM_TELEPORTS) * math.pi * 2
 \tlocal tp = makePart(teleports, "Teleport" .. i, Vector3.new(6, 1, 6), Vector3.new(300 + math.cos(angle) * 40, 6, math.sin(angle) * 40), Color3.fromRGB(120, 120, 255), true)
 \ttp.Transparency = 0.5

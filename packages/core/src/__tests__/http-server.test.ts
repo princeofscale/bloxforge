@@ -91,14 +91,14 @@ describe('HTTP Server', () => {
         expect(health.body).toMatchObject({
           serverVersion: '2.0.0',
           versionMismatch: true,
-          protocolVersion: 1,
+          protocolVersion: 3,
           protocolMismatch: true,
         });
         expect(health.body.instances[0]).toMatchObject({
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
           pluginProtocolVersion: 0,
-          serverProtocolVersion: 1,
+          serverProtocolVersion: 3,
           serverVersion: '2.0.0',
           versionMismatch: true,
           protocolMismatch: true,
@@ -244,6 +244,7 @@ describe('HTTP Server', () => {
         const response = new Promise<any>((resolve, reject) => {
           socket.once('message', (raw) => {
             const frame = JSON.parse(raw.toString());
+            socket.send(JSON.stringify({ type: 'ack', requestId: frame.requestId }));
             socket.send(JSON.stringify({ type: 'response', requestId: frame.requestId, response: { ok: true } }));
             resolve(frame);
           });
@@ -305,6 +306,24 @@ describe('HTTP Server', () => {
   });
 
   describe('Response Handling', () => {
+    test('acknowledges delivery and exposes request status', async () => {
+      const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
+      requestPromise.catch(() => {});
+      const pending = bridge.getPendingRequest('place:test', 'edit')!;
+
+      await request(app).post('/ack').send({ requestId: pending.requestId }).expect(200);
+      const status = await request(app).get(`/request/${pending.requestId}/status`).expect(200);
+
+      expect(status.body).toMatchObject({ requestId: pending.requestId, state: 'started' });
+      bridge.resolveRequest(pending.requestId, { ok: true });
+      await expect(requestPromise).resolves.toEqual({ ok: true });
+    });
+
+    test('rejects ack and status lookup for unknown request ids', async () => {
+      await request(app).post('/ack').send({ requestId: 'missing' }).expect(404);
+      await request(app).get('/request/missing/status').expect(404);
+    });
+
     test('handles successful response', async () => {
       const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
       const pending = bridge.getPendingRequest('place:test', 'edit');
@@ -315,6 +334,11 @@ describe('HTTP Server', () => {
       expect(response.body).toEqual({ success: true });
       const result = await requestPromise;
       expect(result).toEqual({ result: 'success' });
+      await request(app)
+        .post('/response')
+        .send({ requestId: pending!.requestId, response: { result: 'duplicate' } })
+        .expect(200);
+      expect(bridge.getRequestStatus(pending!.requestId)).toMatchObject({ response: { result: 'duplicate' } });
     });
 
     test('handles error response', async () => {

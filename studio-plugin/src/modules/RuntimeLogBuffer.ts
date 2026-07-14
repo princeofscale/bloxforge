@@ -46,6 +46,30 @@ function nowSec(): number {
 	return DateTime.now().UnixTimestampMillis / 1000;
 }
 
+// Studio can expose binary-bearing Output messages that JSONEncode rejects.
+// Preserve valid UTF-8 and make only malformed bytes visible and JSON-safe.
+function escapeInvalidUtf8(message: string): string {
+	const [valid] = utf8.len(message);
+	if (typeIs(valid, "number")) return message;
+
+	const parts: string[] = [];
+	let cursor = 1;
+	while (cursor <= message.size()) {
+		const [suffixValid, invalidPosition] = utf8.len(message, cursor);
+		if (typeIs(suffixValid, "number")) {
+			parts.push(string.sub(message, cursor));
+			break;
+		}
+		if (!typeIs(invalidPosition, "number")) break;
+		if (invalidPosition > cursor) parts.push(string.sub(message, cursor, invalidPosition - 1));
+
+		const [invalidByte] = string.byte(message, invalidPosition);
+		parts.push(string.format("\\x%02X", invalidByte));
+		cursor = invalidPosition + 1;
+	}
+	return parts.join("");
+}
+
 function dropOldestUntilFits(incomingBytes: number): void {
 	while (
 		entries.size() > 0 &&
@@ -58,9 +82,14 @@ function dropOldestUntilFits(incomingBytes: number): void {
 }
 
 function pushEntry(message: string, level: LogLevel, ts: number): void {
-	const bytes = message.size();
+	const safeMessage = escapeInvalidUtf8(message);
+	const bytes = safeMessage.size();
+	if (bytes > MAX_BYTES) {
+		totalDropped += 1;
+		return;
+	}
 	dropOldestUntilFits(bytes);
-	entries.push({ seq: nextSeq, ts, level, message });
+	entries.push({ seq: nextSeq, ts, level, message: safeMessage });
 	nextSeq += 1;
 	totalBytes += bytes;
 }

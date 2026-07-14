@@ -28,7 +28,7 @@ Do not commit generated build output, package tarballs, installed Studio plugins
 5. Keep the plugin load order deterministic. Plugin changes must be validated against compiled Luau, not only TypeScript source.
 6. Keep secrets out of source, logs, fixtures, changelogs, commits, and command output. Never print npm or GitHub tokens.
 7. Prefer small, direct changes using existing utilities and dependencies. Do not add abstractions or packages without a concrete need.
-8. Use Conventional Commits and explain user-visible changes in `CHANGELOG.md`.
+8. Use Conventional Commits. Every important change or fix—behavioral, user-visible, operational, security, compatibility, or release-related—must be recorded under `CHANGELOG.md`'s `[Unreleased]` section before it is committed.
 9. Do not edit generated tool-reference content by hand; regenerate it with the repository scripts.
 10. Do not use destructive Git operations or rewrite shared history unless the user explicitly requests it.
 
@@ -47,8 +47,8 @@ npm run lint
 npm run typecheck
 npm test -- --runInBand
 npm run build:all
-npm run plugin:smoke
-npm run plugin:runtime-smoke
+npm run test:plugin:smoke
+npm run test:plugin:runtime
 npm run docs:check
 npm run verify-package
 npm run release:check
@@ -65,6 +65,6 @@ Keep `README.md`, `docs/architecture.md`, `docs/known-limitations.md`, `docs/too
 1. Set the same version in the root package, every published workspace, and `package-lock.json`.
 2. Move completed entries into the matching `CHANGELOG.md` release section.
 3. Run `npm run release:check` and confirm the working tree contains only intended release changes.
-4. Create and push `v<version>` only after the release commit is on the default branch.
-5. The tag workflow publishes npm packages and creates the GitHub release. Prereleases such as `-rc.1` use the npm `next` dist-tag and a GitHub prerelease.
+4. Create and push `v<version>` only after the release commit is on the default branch, then publish the GitHub Release for that tag.
+5. Publishing the GitHub Release triggers both npm package publishes and uploads the full and inspector Studio plugin assets. Prereleases such as `-rc.1` use the npm `next` dist-tag and a GitHub prerelease.
 6. Verify the npm package versions, dist-tags, GitHub release assets, and workflow status before declaring the release complete.

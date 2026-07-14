@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -16,13 +15,14 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RobloxStudioTools } from './tools/index.js';
-import { BridgeService, MCP_PROTOCOL_VERSION, RoutingFailure, toPublic } from './bridge-service.js';
+import { BridgeService, MCP_PROTOCOL_VERSION, RequestOutcomeUnknownError, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { ToolRegistry } from './tools/tool-pipeline.js';
 import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
+import { parseClientCapabilities, requiredCapability } from './capability-policy.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 import { CORE_TOOLS } from './tools/tool-catalog.js';
@@ -38,6 +38,20 @@ export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_roblox_docs: (tools, body) => tools.getRobloxDocs(body.name, body.doc_type, body.section),
   get_session_summary: (tools) => tools.getSessionSummary(),
+  get_request_status: (tools, body) => tools.getRequestStatus(body.requestId),
+  get_transport_diagnostics: (tools) => tools.getTransportDiagnostics(),
+  cancel_request: (tools, body) => tools.cancelRequest(body.requestId),
+  detect_roblox_project: (tools, body) => tools.detectRobloxProject(body.root),
+  validate_script_source: (tools, body) => tools.validateScriptSource(body.source, body.fileName),
+  format_script_preview: (tools, body) => tools.formatScriptPreview(body.source, body.fileName),
+  resolve_instance_source_file: (tools, body) => tools.resolveInstanceSourceFile(body.instancePath, body.root),
+  run_project_tests: (tools, body) => tools.runProjectTests(body.root, body.script),
+  get_dependency_graph: (tools, body) => tools.getDependencyGraph(body.root),
+  install_wally_packages: (tools, body) => tools.installWallyPackages(body.root, body.confirm),
+  run_quality_gate: (tools, body) => tools.runQualityGate(body.root),
+  validate_with_luau_lsp: (tools, body) => tools.validateWithLuauLsp(body.root, body.files),
+  generate_rojo_sourcemap: (tools, body) => tools.generateRojoSourcemap(body.root, body.output),
+  build_rojo_project: (tools, body) => tools.buildRojoProject(body.root, body.output),
   tool_catalog_search: (tools, body) => tools.toolCatalogSearch(body),
   load_toolset: (tools, body) => tools.loadToolset(body),
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
@@ -45,7 +59,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_changes_since: (tools, body) => tools.getChangesSince(body.snapshotId, body.path, body.instance_id),
   scene_search: (tools, body) => tools.sceneSearch(body.query, body.path, body.limit, body.instance_id),
   playtest_sample_state: (tools, body) => tools.playtestSampleState(body.domains, body.target, body.instance_id),
-  apply_mutation_plan: (tools, body) => tools.applyMutationPlan(body.operations, body.dryRun, body.confirm, body.instance_id),
+  apply_mutation_plan: (tools, body) => tools.applyMutationPlan(body.operations, body.dryRun, body.confirm, body.instance_id, body.atomic),
   list_recipes: (tools) => tools.listRecipes(),
   apply_recipe: (tools, body) => tools.applyRecipe(body.recipe, body.params, body.instance_id),
   run_gameplay_assertions: (tools, body) => tools.runGameplayAssertions(body.assertions, body.target, body.instance_id),
@@ -310,6 +324,24 @@ setInterval(refresh, 3000);
 
 export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig, registry?: ToolRegistry) {
   const app = express();
+  const requirePluginAuth = process.env.NODE_ENV !== 'test';
+  const bearerToken = (req: express.Request): string | undefined => {
+    const value = req.header('authorization');
+    return value?.startsWith('Bearer ') ? value.slice(7) : undefined;
+  };
+  const pluginAuthorized = (req: express.Request, pluginSessionId: string | undefined): boolean =>
+    !requirePluginAuth || (!!pluginSessionId && bridge.authenticatePlugin(pluginSessionId, bearerToken(req) ?? ''));
+  const serverSessionToken = process.env.BLOXFORGE_SESSION_TOKEN?.trim();
+  const clientCapabilities = parseClientCapabilities(process.env.BLOXFORGE_CLIENT_CAPABILITIES_JSON);
+  app.use((req, res, next) => {
+    const protectedServerRoute = req.path === '/proxy' || req.path === '/mcp' || req.path.startsWith('/mcp/');
+    const token = bearerToken(req);
+    if (protectedServerRoute && (serverSessionToken || clientCapabilities.size > 0) && token !== serverSessionToken && !clientCapabilities.has(token ?? '')) {
+      res.status(401).json({ error: 'invalid_session_token' });
+      return;
+    }
+    next();
+  });
   let mcpServerActive = false;
   let lastMCPActivity = 0;
   let mcpServerStartTime = 0;
@@ -351,9 +383,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     ? [process.env.BLOXFORGE_TOOL_PROFILE?.trim().toLowerCase() || 'core']
     : ['all'];
 
-  app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
-  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+  const bodyLimit = process.env.MCP_HTTP_BODY_LIMIT?.trim() || '50mb';
+  app.use(express.json({ limit: bodyLimit }));
+  app.use(express.urlencoded({ limit: bodyLimit, extended: true }));
 
 
   app.get('/health', (req, res) => {
@@ -482,6 +514,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       success: true,
       assignedRole: result.assignedRole,
       instanceId: result.instanceId,
+      sessionToken: result.sessionToken,
+      serverEpoch: bridge.serverEpoch,
       serverVersion: serverConfig?.version,
       serverProtocolVersion: MCP_PROTOCOL_VERSION,
       versionMismatch: registered?.versionMismatch ?? false,
@@ -494,6 +528,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   app.post('/disconnect', (req, res) => {
     const { pluginSessionId } = req.body;
 
+    if (!pluginAuthorized(req, pluginSessionId)) {
+      res.status(401).json({ success: false, error: 'invalid_session_token' });
+      return;
+    }
     if (pluginSessionId) {
       bridge.unregisterInstance(pluginSessionId, 'plugin_request');
       warnedVersionMismatches.delete(pluginSessionId);
@@ -512,6 +550,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       instances: publicInstances,
       serverVersion: serverConfig?.version,
       protocolVersion: MCP_PROTOCOL_VERSION,
+      serverEpoch: bridge.serverEpoch,
       versionMismatch: publicInstances.some((inst) => inst.versionMismatch),
       protocolMismatch: publicInstances.some((inst) => inst.protocolMismatch),
       lazyTools: isLazyTools(),
@@ -580,6 +619,11 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   app.get('/poll', (req, res) => {
     const pluginSessionId = req.query.pluginSessionId as string | undefined;
 
+    if (!pluginAuthorized(req, pluginSessionId)) {
+      res.status(401).json({ error: 'invalid_session_token', knownInstance: false, request: null });
+      return;
+    }
+
     if (pluginSessionId) {
       bridge.updateInstanceActivity(pluginSessionId);
     }
@@ -628,14 +672,17 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     // restarted (its in-memory instances map is empty) and the plugin
     // should re-issue /ready. Without this, polls succeed (HTTP 200) but
     // the server treats the plugin as anonymous and routes nothing to it.
-    const pendingRequest = knownInstance && callerInstanceId && callerRole
-      ? bridge.getPendingRequest(callerInstanceId, callerRole)
+    const pendingRequest = knownInstance && pluginSessionId
+      ? bridge.getPendingRequestForSession(pluginSessionId)
       : null;
 
     if (pendingRequest) {
       res.json({
         request: pendingRequest.request,
         requestId: pendingRequest.requestId,
+        serverEpoch: pendingRequest.serverEpoch,
+        deliveryAttempt: pendingRequest.deliveryAttempt,
+        leaseToken: pendingRequest.leaseToken,
         mcpConnected: true,
         pluginConnected: true,
         knownInstance,
@@ -646,7 +693,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         protocolVersion: callerPluginProtocolVersion,
         versionMismatch,
         protocolMismatch,
-        proxyInstanceCount: proxyInstances.size
+        proxyInstanceCount: proxyInstances.size,
+        cancellations: pluginSessionId ? bridge.getCancellationEvents(pluginSessionId) : []
       });
     } else {
       res.json({
@@ -661,19 +709,95 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         protocolVersion: callerPluginProtocolVersion,
         versionMismatch,
         protocolMismatch,
-        proxyInstanceCount: proxyInstances.size
+        proxyInstanceCount: proxyInstances.size,
+        cancellations: pluginSessionId ? bridge.getCancellationEvents(pluginSessionId) : []
       });
     }
   });
 
+  app.post('/reconcile', (req, res) => {
+    const pluginSessionId = typeof req.body?.pluginSessionId === 'string' ? req.body.pluginSessionId : undefined;
+    const serverEpoch = typeof req.body?.serverEpoch === 'string' ? req.body.serverEpoch : undefined;
+    const receipts = Array.isArray(req.body?.receipts) ? req.body.receipts : undefined;
+    
+    if (!pluginAuthorized(req, pluginSessionId)) {
+      res.status(401).json({ error: 'invalid_session_token' });
+      return;
+    }
+    
+    if (!pluginSessionId || !serverEpoch || !receipts) {
+      res.status(400).json({ error: 'missing_reconcile_fields' });
+      return;
+    }
+
+    const reconciled = bridge.reconcilePluginReceipts(pluginSessionId, serverEpoch, receipts);
+    res.json({ success: true, reconciled });
+  });
+
+  app.post('/ack', (req, res) => {
+    const requestId = typeof req.body?.requestId === 'string' ? req.body.requestId : '';
+    const pluginSessionId = typeof req.body?.pluginSessionId === 'string' ? req.body.pluginSessionId : undefined;
+    if (!pluginAuthorized(req, pluginSessionId)) {
+      res.status(401).json({ error: 'invalid_session_token', requestId });
+      return;
+    }
+    const fence = {
+      serverEpoch: req.body?.serverEpoch,
+      pluginSessionId: pluginSessionId ?? '',
+      deliveryAttempt: req.body?.deliveryAttempt,
+      leaseToken: req.body?.leaseToken,
+    };
+    const requiresFence = !!pluginSessionId && (bridge.getInstanceBySessionId(pluginSessionId)?.pluginProtocolVersion ?? 0) >= 3;
+    if (!requestId || !bridge.getRequestStatus(requestId)) {
+      res.status(404).json({ error: 'not_found', requestId });
+      return;
+    }
+    const acknowledged = requiresFence
+      ? bridge.acknowledgeFencedRequest(requestId, fence)
+      : bridge.acknowledgeRequest(requestId);
+    if (!acknowledged) {
+      res.status(409).json({ error: 'stale_or_unknown_delivery', requestId });
+      return;
+    }
+    res.json({ success: true, requestId });
+  });
+
+  app.post('/cancel', (req, res) => {
+    const requestId = typeof req.body?.requestId === 'string' ? req.body.requestId : '';
+    if (!requestId || !bridge.cancelRequest(requestId)) {
+      res.status(409).json({ success: false, error: 'request_not_cancellable', requestId });
+      return;
+    }
+    res.json({ success: true, requestId, state: 'cancelled' });
+  });
+
+  app.get('/request/:requestId/status', (req, res) => {
+    const status = bridge.getRequestStatus(req.params.requestId);
+    if (!status) {
+      res.status(404).json({ error: 'request_not_found', requestId: req.params.requestId });
+      return;
+    }
+    res.json(status);
+  });
 
   app.post('/response', (req, res) => {
-    const { requestId, response, error } = req.body;
+    const { requestId, response, error, pluginSessionId, serverEpoch, deliveryAttempt, leaseToken } = req.body;
 
-    if (error) {
-      bridge.rejectRequest(requestId, error);
-    } else {
-      bridge.resolveRequest(requestId, response);
+    if (!pluginAuthorized(req, pluginSessionId)) {
+      res.status(401).json({ success: false, error: 'invalid_session_token', requestId });
+      return;
+    }
+
+    const fence = { serverEpoch, pluginSessionId, deliveryAttempt, leaseToken };
+    const requiresFence = (bridge.getInstanceBySessionId(pluginSessionId)?.pluginProtocolVersion ?? 0) >= 3;
+    const accepted = requiresFence
+      ? (error
+        ? bridge.rejectFencedRequest(requestId, error, fence)
+        : bridge.resolveFencedRequest(requestId, response, fence))
+      : (error ? (bridge.rejectRequest(requestId, error), true) : (bridge.resolveRequest(requestId, response), true));
+    if (!accepted) {
+      res.status(409).json({ success: false, error: 'stale_or_unknown_delivery', requestId });
+      return;
     }
 
     res.json({ success: true });
@@ -696,7 +820,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       const response = await bridge.sendRequest(endpoint, data, targetInstanceId, targetRole);
       res.json({ response });
     } catch (err: any) {
-      res.status(500).json({ error: err.message || 'Proxy request failed' });
+      res.status(500).json({
+        error: err.message || 'Proxy request failed',
+        ...(err instanceof RequestOutcomeUnknownError
+          ? { outcome: err.outcome, requestId: err.requestId }
+          : {}),
+      });
     }
   });
 
@@ -743,6 +872,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
           if (allowedTools && !allowedTools.has(name)) {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+          }
+          const definition = legacyFilteredTools.find((tool) => tool.name === name);
+          const capabilities = clientCapabilities.get(bearerToken(req) ?? '');
+          const capability = definition ? requiredCapability(name, definition.category) : undefined;
+          if (capability && capabilities && !capabilities.has(capability)) {
+            throw new McpError(ErrorCode.InvalidRequest, `Capability required: ${capability}`);
           }
 
           try {
@@ -940,6 +1075,7 @@ function bindPort(app: express.Express, host: string, port: number): Promise<htt
 }
 
 function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
+  const requirePluginAuth = process.env.NODE_ENV !== 'test';
   const streams = new Map<string, WebSocket>();
   const wss = new WebSocketServer({ noServer: true });
 
@@ -958,7 +1094,9 @@ function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (url.pathname !== '/stream') return;
     const pluginSessionId = url.searchParams.get('pluginSessionId');
-    if (!pluginSessionId || !bridge.getInstanceBySessionId(pluginSessionId)) {
+    const sessionToken = url.searchParams.get('sessionToken') ?? undefined;
+    if (!pluginSessionId || !bridge.getInstanceBySessionId(pluginSessionId) ||
+      (requirePluginAuth && !bridge.authenticatePlugin(pluginSessionId, sessionToken ?? ''))) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       return;
@@ -975,8 +1113,24 @@ function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
       bridge.updateInstanceActivity(pluginSessionId);
       try {
         const message = JSON.parse(raw.toString());
-        if (message.type !== 'response' || typeof message.requestId !== 'string') return;
-        if (message.error) bridge.rejectRequest(message.requestId, message.error);
+        if (typeof message.requestId !== 'string') return;
+        const fence = {
+          serverEpoch: message.serverEpoch,
+          pluginSessionId,
+          deliveryAttempt: message.deliveryAttempt,
+          leaseToken: message.leaseToken,
+        };
+        const requiresFence = (bridge.getInstanceBySessionId(pluginSessionId)?.pluginProtocolVersion ?? 0) >= 3;
+        if (message.type === 'ack') {
+          if (requiresFence) bridge.acknowledgeFencedRequest(message.requestId, fence);
+          else bridge.acknowledgeRequest(message.requestId);
+          return;
+        }
+        if (message.type !== 'response') return;
+        if (requiresFence) {
+          if (message.error) bridge.rejectFencedRequest(message.requestId, message.error, fence);
+          else bridge.resolveFencedRequest(message.requestId, message.response, fence);
+        } else if (message.error) bridge.rejectRequest(message.requestId, message.error);
         else bridge.resolveRequest(message.requestId, message.response);
       } catch {
         // Ignore malformed stream frames; the HTTP fallback remains available.

@@ -1,22 +1,23 @@
 name: Release
 
-# Publish both packages to npm when a version tag (v1.2.3) is pushed.
-# The tag drives the version — no need to bump package.json by hand:
-#   git tag v2.17.0 && git push origin v2.17.0
-# Requires repo secret NPM_TOKEN (an npm Automation token — bypasses 2FA).
+# Publishing a GitHub Release publishes both npm packages and attaches the
+# freshly-built Studio plugins to that release. Requires a granular NPM_TOKEN
+# with write access to both @princeofscale packages.
 
 on:
-  push:
-    tags: ['v*.*.*']
+  release:
+    types: [published]
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # create the GitHub release + upload plugin assets
+      contents: write # upload plugin assets to the published release
       id-token: write # enables npm provenance
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Node 20
         uses: actions/setup-node@v6
@@ -39,10 +40,16 @@ jobs:
           npm test
 
       - name: Set version from tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(\.(0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::Release tag must be a v-prefixed SemVer (for example, v3.0.0 or v3.0.0-rc.1)."
+            exit 1
+          fi
+          VERSION="${RELEASE_TAG#v}"
           echo "Releasing v$VERSION"
-          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.version='${VERSION}';fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          RELEASE_VERSION="$VERSION" node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.version=process.env.RELEASE_VERSION;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
 
       - name: Build and publish
         run: node scripts/publish.mjs
@@ -50,16 +57,12 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
 
-      # publish.mjs runs build:all → build:plugins, so both .rbxmx exist here.
-      # The bundled plugin inside the npm package is the primary install path;
-      # these release assets back the `--dev`/fallback download in install-plugin.ts.
-      - name: Create GitHub release + attach plugin assets
+      - name: Attach plugin assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          ASSETS="studio-plugin/MCPPlugin.rbxmx studio-plugin/MCPInspectorPlugin.rbxmx"
-          PRERELEASE_FLAG=""
-          case "$GITHUB_REF_NAME" in *-*) PRERELEASE_FLAG="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" $ASSETS \
-            --title "$GITHUB_REF_NAME" --generate-notes $PRERELEASE_FLAG \
-          || gh release upload "$GITHUB_REF_NAME" $ASSETS --clobber
+          gh release upload "$RELEASE_TAG" \
+            studio-plugin/MCPPlugin.rbxmx \
+            studio-plugin/MCPInspectorPlugin.rbxmx \
+            --clobber

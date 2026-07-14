@@ -76,6 +76,8 @@ local fp = {}
 local count = 0
 local truncated = false
 for _, d in ipairs(root:GetDescendants()) do
+		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tif count >= ${safeMax} then truncated = true break end
 \tlocal id = nid(d)
 \tfp[id] = {

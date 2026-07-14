@@ -98,6 +98,20 @@ function detectRole(): string {
 
 const initialRole = detectRole();
 
+const activeRequests = new Set<string>();
+const completedRequests = new Map<string, { response: unknown }>();
+const completedRequestOrder: string[] = [];
+const COMPLETED_REQUEST_LIMIT = 500;
+
+const syncThreadRequests = new Map<thread, string>();
+const cancelledSyncRequests = new Set<string>();
+
+function isCancelledForThread(co: thread): boolean {
+	const reqId = syncThreadRequests.get(co);
+	if (reqId === undefined) return false;
+	return cancelledSyncRequests.has(reqId);
+}
+
 type Handler = (data: Record<string, unknown>) => unknown;
 
 const routeMap: Record<string, Handler> = {
@@ -202,14 +216,92 @@ function processRequest(request: RequestPayload): unknown {
 	}
 }
 
-function sendResponse(conn: Connection, requestId: string, responseData: unknown) {
-	pcall(() => {
-		HttpService.RequestAsync({
+function sendResponse(conn: Connection, requestId: string, responseData: unknown, serverEpoch?: string, deliveryAttempt?: number, leaseToken?: string) {
+	const body: Record<string, unknown> = { requestId, response: responseData };
+	if (serverEpoch !== undefined) body.serverEpoch = serverEpoch;
+	if (deliveryAttempt !== undefined) body.deliveryAttempt = deliveryAttempt;
+	if (leaseToken !== undefined) body.leaseToken = leaseToken;
+
+	const [ok, result] = pcall(() => {
+		return HttpService.RequestAsync({
 			Url: `${conn.serverUrl}/response`,
 			Method: "POST",
-			Headers: { "Content-Type": "application/json" },
-			Body: HttpService.JSONEncode({ requestId, response: responseData }),
+			Headers: { 
+				"Content-Type": "application/json",
+				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
+			},
+			Body: HttpService.JSONEncode(body),
 		});
+	});
+
+	if (!ok) {
+		warn(`[BloxForge] Plugin response serialization failed for ${requestId}: ${tostring(result)}`);
+	} else if (!result.Success) {
+		warn(`[BloxForge] Failed to deliver response for ${requestId}: HTTP ${result.StatusCode}`);
+	}
+}
+
+function handleRequestOnce(
+	conn: Connection,
+	requestId: string,
+	request: RequestPayload,
+	serverEpoch?: string,
+	deliveryAttempt?: number,
+	leaseToken?: string
+) {
+	// If we've already completed this request, just re-deliver the cached response
+	const completed = completedRequests.get(requestId);
+	if (completed) {
+		sendResponse(conn, requestId, completed.response, serverEpoch, deliveryAttempt, leaseToken);
+		return;
+	}
+
+	// If it's actively being processed, do nothing. The running thread will deliver
+	// the response when it finishes.
+	if (activeRequests.has(requestId)) return;
+
+	// Acknowledge the fenced request so the server knows we've started work.
+	// This prevents the lease from expiring while we're executing long-running operations.
+	if (serverEpoch !== undefined && deliveryAttempt !== undefined && leaseToken !== undefined) {
+		task.spawn(() => {
+			pcall(() => {
+				HttpService.RequestAsync({
+					Url: `${conn.serverUrl}/ack`,
+					Method: "POST",
+					Headers: { 
+						"Content-Type": "application/json",
+						...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
+					},
+					Body: HttpService.JSONEncode({
+						pluginSessionId,
+						requestId,
+						serverEpoch,
+						deliveryAttempt,
+						leaseToken
+					}),
+				});
+			});
+		});
+	}
+
+	activeRequests.add(requestId);
+	task.spawn(() => {
+		const co = coroutine.running();
+		syncThreadRequests.set(co, requestId);
+		const [ok, result] = pcall(() => processRequest(request));
+		syncThreadRequests.delete(co);
+		
+		const response = ok ? result : { error: tostring(result) };
+		activeRequests.delete(requestId);
+		
+		if (completedRequestOrder.size() >= COMPLETED_REQUEST_LIMIT) {
+			const oldest = completedRequestOrder.remove(0);
+			if (oldest !== undefined) completedRequests.delete(oldest);
+		}
+		completedRequests.set(requestId, { response });
+		completedRequestOrder.push(requestId);
+		
+		sendResponse(conn, requestId, response, serverEpoch, deliveryAttempt, leaseToken);
 	});
 }
 
@@ -312,12 +404,34 @@ function sendReady(conn: Connection): void {
 		const [parseOk, readyData] = pcall(
 			() => HttpService.JSONDecode(readyResult.Body) as ReadyResponse,
 		);
+		if (parseOk && readyData.sessionToken) {
+			conn.sessionToken = readyData.sessionToken;
+		}
 		if (parseOk && readyData.assignedRole) {
 			assignedRole = readyData.assignedRole;
 		}
 		lastReadyInstanceId = parseOk && typeIs(readyData.instanceId, "string") && readyData.instanceId !== ""
 			? readyData.instanceId
 			: instanceId;
+			
+		if (parseOk && readyData.serverEpoch && completedRequests.size() > 0) {
+			const receipts: { requestId: string; completedAt: number }[] = [];
+			for (const [id, _] of completedRequests) {
+				receipts.push({ requestId: id, completedAt: tick() * 1000 });
+			}
+			task.spawn(() => {
+				pcall(() => HttpService.RequestAsync({
+					Url: `${conn.serverUrl}/reconcile`,
+					Method: "POST",
+					Headers: { "Content-Type": "application/json" },
+					Body: HttpService.JSONEncode({
+						pluginSessionId,
+						serverEpoch: readyData.serverEpoch,
+						receipts,
+					}),
+				}));
+			});
+		}
 		ServerUrlSettings.rememberServerUrl(conn.serverUrl);
 		const connectedRole = assignedRole ?? detectRole();
 		if (readyFailureLogKeys.has(readyLogKey)) {
@@ -332,16 +446,30 @@ function streamUrl(serverUrl: string): string {
 	return `${websocketUrl}/stream?pluginSessionId=${pluginSessionId}`;
 }
 
-function sendStreamResponse(conn: Connection, requestId: string, response: unknown) {
+function sendStreamResponse(conn: Connection, requestId: string, response: unknown, serverEpoch?: string, deliveryAttempt?: number, leaseToken?: string) {
 	if (!conn.streamOpen || !conn.streamClient) return;
-	pcall(() => conn.streamClient!.Send(HttpService.JSONEncode({ type: "response", requestId, response })));
+	
+	const body: Record<string, unknown> = { type: "response", requestId, response };
+	if (serverEpoch !== undefined) body.serverEpoch = serverEpoch;
+	if (deliveryAttempt !== undefined) body.deliveryAttempt = deliveryAttempt;
+	if (leaseToken !== undefined) body.leaseToken = leaseToken;
+	
+	const [ok, result] = pcall(() => conn.streamClient!.Send(HttpService.JSONEncode(body)));
+	if (!ok) warn(`[BloxForge] Failed to send stream response for ${requestId}: ${tostring(result)}`);
 }
 
 function startRequestStream(conn: Connection) {
 	if (!conn.isActive || conn.streamClient) return;
 	const [ok, stream] = pcall(() => HttpService.CreateWebStreamClient(
 		Enum.WebStreamClientType.WebSocket,
-		{ Url: streamUrl(conn.serverUrl), Method: "GET", Headers: { "Content-Type": "application/json" } },
+		{ 
+			Url: streamUrl(conn.serverUrl), 
+			Method: "GET", 
+			Headers: { 
+				"Content-Type": "application/json",
+				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
+			} 
+		},
 	));
 	if (!ok || !stream) return;
 
@@ -354,12 +482,10 @@ function startRequestStream(conn: Connection) {
 	});
 	stream.MessageReceived.Connect((message) => {
 		if (conn.streamClient !== stream) return;
-		const [parsed, frame] = pcall(() => HttpService.JSONDecode(message) as { type?: string; requestId?: string; request?: RequestPayload });
+		const [parsed, frame] = pcall(() => HttpService.JSONDecode(message) as { type?: string; requestId?: string; request?: RequestPayload; serverEpoch?: string; deliveryAttempt?: number; leaseToken?: string });
 		if (!parsed || frame.type !== "request" || !frame.requestId || !frame.request) return;
-		task.spawn(() => {
-			const [handled, response] = pcall(() => processRequest(frame.request!));
-			sendStreamResponse(conn, frame.requestId!, handled ? response : { error: tostring(response) });
-		});
+		
+		handleRequestOnce(conn, frame.requestId!, frame.request!, frame.serverEpoch, frame.deliveryAttempt, frame.leaseToken);
 	});
 	const close = () => {
 		if (conn.streamClient !== stream) return;
@@ -382,7 +508,10 @@ function pollForRequests(connIndex: number) {
 		return HttpService.RequestAsync({
 			Url: `${conn.serverUrl}/poll?pluginSessionId=${pluginSessionId}`,
 			Method: "GET",
-			Headers: { "Content-Type": "application/json" },
+			Headers: { 
+				"Content-Type": "application/json",
+				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
+			},
 		});
 	});
 
@@ -489,15 +618,14 @@ function pollForRequests(connIndex: number) {
 			}
 		}
 
+		if (data.cancellations) {
+			for (const c of data.cancellations) {
+				cancelledSyncRequests.add(c);
+			}
+		}
+
 		if (data.request && mcpConnected) {
-			task.spawn(() => {
-				const [ok, response] = pcall(() => processRequest(data.request!));
-				if (ok) {
-					sendResponse(conn, data.requestId!, response);
-				} else {
-					sendResponse(conn, data.requestId!, { error: tostring(response) });
-				}
-			});
+			handleRequestOnce(conn, data.requestId!, data.request, data.serverEpoch, data.deliveryAttempt, data.leaseToken);
 		}
 	} else if (conn.isActive) {
 		conn.consecutiveFailures++;
@@ -710,6 +838,7 @@ function checkForUpdates() {
 
 export = {
 	getConnectionStatus,
+	isCancelledForThread,
 	activatePlugin,
 	deactivatePlugin,
 	deactivateAll,

@@ -28,6 +28,8 @@ end
 
 local scored = {}
 for _, d in ipairs(root:GetDescendants()) do
+		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
+\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tlocal name = lc(d.Name)
 \tlocal class = lc(d.ClassName)
 \tlocal parentName = d.Parent and lc(d.Parent.Name) or ""

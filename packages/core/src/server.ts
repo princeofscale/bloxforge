@@ -25,11 +25,20 @@ import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
+import { parseCapabilities, requiredCapability, type Capability } from './capability-policy.js';
 
 export interface ServerConfig {
   name: string;
   version: string;
   tools: ToolDefinition[];
+}
+
+export function resolveBridgeHost(host = process.env.ROBLOX_STUDIO_HOST): string {
+  return host?.trim() || '127.0.0.1';
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
 }
 
 export class BloxForgeServer {
@@ -48,9 +57,11 @@ export class BloxForgeServer {
   private lazyTools: boolean;
   private activeToolNames: Set<string>;
   private registry: ToolRegistry;
+  private stdioCapabilities?: Set<Capability>;
 
   constructor(config: ServerConfig) {
     this.config = config;
+    this.stdioCapabilities = parseCapabilities(process.env.BLOXFORGE_STDIO_CAPABILITIES);
     this.allowedToolNames = new Set(config.tools.map(t => t.name));
 
     this.lazyTools = shouldUseLazyToolLoading(process.env.ROBLOX_MCP_LAZY_TOOLS);
@@ -74,7 +85,7 @@ export class BloxForgeServer {
       }
     );
 
-    this.bridge = new BridgeService();
+    this.bridge = new BridgeService('');
     this.tools = new RobloxStudioTools(this.bridge);
 
     // Declarative tool registry — first-wave tools register via defineTool,
@@ -135,6 +146,11 @@ export class BloxForgeServer {
 
       if (!this.allowedToolNames.has(name)) {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+      }
+      const definition = this.config.tools.find((tool) => tool.name === name);
+      const capability = definition ? requiredCapability(name, definition.category) : undefined;
+      if (capability && this.stdioCapabilities && !this.stdioCapabilities.has(capability)) {
+        throw new McpError(ErrorCode.InvalidRequest, `Capability required: ${capability}`);
       }
 
       try {
@@ -227,7 +243,10 @@ export class BloxForgeServer {
 
   async run() {
     const basePort = process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741;
-    const host = process.env.ROBLOX_STUDIO_HOST || '0.0.0.0';
+    const host = resolveBridgeHost();
+    if (!isLoopbackHost(host)) {
+      console.error(`[security] Bridge is listening on ${host}. This explicit non-loopback mode exposes unauthenticated local-control endpoints.`);
+    }
     let bridgeMode: 'primary' | 'proxy' = 'primary';
     let httpHandle: http.Server | undefined;
     let primaryApp: ReturnType<typeof createHttpServer> | undefined;
@@ -245,6 +264,7 @@ export class BloxForgeServer {
       primaryApp = createHttpServer(this.tools, this.bridge, this.allowedToolNames, this.config, this.registry);
       const result = await listenWithRetry(primaryApp, host, basePort, 1);
       httpHandle = result.server;
+      this.bridge.enableJournal();
       boundPort = result.port;
       console.error(`HTTP server listening on ${host}:${boundPort} for Studio plugin (primary mode)`);
       console.error(`Streamable HTTP MCP endpoint: http://localhost:${boundPort}/mcp`);
@@ -270,7 +290,7 @@ export class BloxForgeServer {
       // with no plugin polling it (queue with no consumer → 30s timeout).
       const promotionIntervalMs = parseInt(process.env.ROBLOX_STUDIO_PROXY_PROMOTION_INTERVAL_MS || '5000');
       promotionInterval = setInterval(async () => {
-        const candidateBridge = new BridgeService();
+        const candidateBridge = new BridgeService('');
         const candidateTools = new RobloxStudioTools(candidateBridge);
         const candidateApp = createHttpServer(candidateTools, candidateBridge, this.allowedToolNames, this.config);
         try {
@@ -279,6 +299,7 @@ export class BloxForgeServer {
           // Stop the proxy bridge's background refresh before dropping the reference
           // so its setInterval doesn't keep the object alive past the swap.
           const oldBridge = this.bridge;
+          candidateBridge.enableJournal();
           this.bridge = candidateBridge;
           this.tools = candidateTools;
           if (oldBridge instanceof ProxyBridgeService) {
@@ -353,7 +374,14 @@ export class BloxForgeServer {
       this.bridge.cleanupStaleInstances();
     }, 5000);
 
+    let shuttingDown = false;
+    const closeHttp = (handle: http.Server | undefined) => new Promise<void>((resolve) => {
+      if (!handle) { resolve(); return; }
+      handle.close(() => resolve());
+    });
     const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       console.error('Shutting down MCP server...');
       clearInterval(activityInterval);
       clearInterval(cleanupInterval);
@@ -361,9 +389,11 @@ export class BloxForgeServer {
       if (this.bridge instanceof ProxyBridgeService) {
         this.bridge.stop();
       }
+      if (primaryApp) (primaryApp as any).setMCPServerActive(false);
+      if (legacyApp) (legacyApp as any).setMCPServerActive(false);
+      this.bridge.clearAllPendingRequests();
       await this.server.close().catch(() => {});
-      if (httpHandle) httpHandle.close();
-      if (legacyHandle) legacyHandle.close();
+      await Promise.all([closeHttp(httpHandle), closeHttp(legacyHandle)]);
       process.exit(0);
     };
 
