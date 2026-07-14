@@ -719,12 +719,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     const pluginSessionId = typeof req.body?.pluginSessionId === 'string' ? req.body.pluginSessionId : undefined;
     const serverEpoch = typeof req.body?.serverEpoch === 'string' ? req.body.serverEpoch : undefined;
     const receipts = Array.isArray(req.body?.receipts) ? req.body.receipts : undefined;
-    
+
     if (!pluginAuthorized(req, pluginSessionId)) {
       res.status(401).json({ error: 'invalid_session_token' });
       return;
     }
-    
+
     if (!pluginSessionId || !serverEpoch || !receipts) {
       res.status(400).json({ error: 'missing_reconcile_fields' });
       return;

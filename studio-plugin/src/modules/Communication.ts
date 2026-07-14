@@ -226,7 +226,7 @@ function sendResponse(conn: Connection, requestId: string, responseData: unknown
 		return HttpService.RequestAsync({
 			Url: `${conn.serverUrl}/response`,
 			Method: "POST",
-			Headers: { 
+			Headers: {
 				"Content-Type": "application/json",
 				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
 			},
@@ -268,7 +268,7 @@ function handleRequestOnce(
 				HttpService.RequestAsync({
 					Url: `${conn.serverUrl}/ack`,
 					Method: "POST",
-					Headers: { 
+					Headers: {
 						"Content-Type": "application/json",
 						...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
 					},
@@ -290,17 +290,17 @@ function handleRequestOnce(
 		syncThreadRequests.set(co, requestId);
 		const [ok, result] = pcall(() => processRequest(request));
 		syncThreadRequests.delete(co);
-		
+
 		const response = ok ? result : { error: tostring(result) };
 		activeRequests.delete(requestId);
-		
+
 		if (completedRequestOrder.size() >= COMPLETED_REQUEST_LIMIT) {
 			const oldest = completedRequestOrder.remove(0);
 			if (oldest !== undefined) completedRequests.delete(oldest);
 		}
 		completedRequests.set(requestId, { response });
 		completedRequestOrder.push(requestId);
-		
+
 		sendResponse(conn, requestId, response, serverEpoch, deliveryAttempt, leaseToken);
 	});
 }
@@ -413,7 +413,7 @@ function sendReady(conn: Connection): void {
 		lastReadyInstanceId = parseOk && typeIs(readyData.instanceId, "string") && readyData.instanceId !== ""
 			? readyData.instanceId
 			: instanceId;
-			
+
 		if (parseOk && readyData.serverEpoch && completedRequests.size() > 0) {
 			const receipts: { requestId: string; completedAt: number }[] = [];
 			for (const [id, _] of completedRequests) {
@@ -448,12 +448,12 @@ function streamUrl(serverUrl: string): string {
 
 function sendStreamResponse(conn: Connection, requestId: string, response: unknown, serverEpoch?: string, deliveryAttempt?: number, leaseToken?: string) {
 	if (!conn.streamOpen || !conn.streamClient) return;
-	
+
 	const body: Record<string, unknown> = { type: "response", requestId, response };
 	if (serverEpoch !== undefined) body.serverEpoch = serverEpoch;
 	if (deliveryAttempt !== undefined) body.deliveryAttempt = deliveryAttempt;
 	if (leaseToken !== undefined) body.leaseToken = leaseToken;
-	
+
 	const [ok, result] = pcall(() => conn.streamClient!.Send(HttpService.JSONEncode(body)));
 	if (!ok) warn(`[BloxForge] Failed to send stream response for ${requestId}: ${tostring(result)}`);
 }
@@ -462,13 +462,13 @@ function startRequestStream(conn: Connection) {
 	if (!conn.isActive || conn.streamClient) return;
 	const [ok, stream] = pcall(() => HttpService.CreateWebStreamClient(
 		Enum.WebStreamClientType.WebSocket,
-		{ 
-			Url: streamUrl(conn.serverUrl), 
-			Method: "GET", 
-			Headers: { 
+		{
+			Url: streamUrl(conn.serverUrl),
+			Method: "GET",
+			Headers: {
 				"Content-Type": "application/json",
 				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
-			} 
+			}
 		},
 	));
 	if (!ok || !stream) return;
@@ -484,7 +484,7 @@ function startRequestStream(conn: Connection) {
 		if (conn.streamClient !== stream) return;
 		const [parsed, frame] = pcall(() => HttpService.JSONDecode(message) as { type?: string; requestId?: string; request?: RequestPayload; serverEpoch?: string; deliveryAttempt?: number; leaseToken?: string });
 		if (!parsed || frame.type !== "request" || !frame.requestId || !frame.request) return;
-		
+
 		handleRequestOnce(conn, frame.requestId!, frame.request!, frame.serverEpoch, frame.deliveryAttempt, frame.leaseToken);
 	});
 	const close = () => {
@@ -508,7 +508,7 @@ function pollForRequests(connIndex: number) {
 		return HttpService.RequestAsync({
 			Url: `${conn.serverUrl}/poll?pluginSessionId=${pluginSessionId}`,
 			Method: "GET",
-			Headers: { 
+			Headers: {
 				"Content-Type": "application/json",
 				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
 			},

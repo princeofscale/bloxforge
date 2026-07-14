@@ -20,7 +20,7 @@ describe('Protocol V3 Fencing', () => {
   test('Valid fence accepted', () => {
     const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
-    
+
     const delivered = bridge.getPendingRequestForSession('p1');
     expect(delivered).toBeDefined();
 
@@ -139,10 +139,10 @@ describe('Protocol V3 Fencing', () => {
     const promise = bridge.sendRequest('/api/some-endpoint', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered1 = bridge.getPendingRequestForSession('p1')!;
-    
+
     // Simulate long-poll dropping
     bridge.releasePendingRequestsForSession('p1');
-    
+
     // Simulate new long-poll picking up the work
     const delivered2 = bridge.getPendingRequestForSession('p1');
     expect(delivered2).toBeDefined();

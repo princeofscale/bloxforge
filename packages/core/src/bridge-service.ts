@@ -268,7 +268,7 @@ export class BridgeService {
       const path = defaultRequestJournalPath();
       if (path) this.journal = new RequestJournal(path);
     }
-    
+
     if (this.journal) {
       try {
         const snapshot = this.journal.load();
@@ -491,7 +491,7 @@ export class BridgeService {
     if (!instance) return;
 
     this.instances.delete(pluginSessionId);
-    
+
     this.recentDisconnects.push({
       pluginSessionId,
       instanceId: instance.instanceId,
@@ -506,10 +506,10 @@ export class BridgeService {
       const stillHasHandler = Array.from(this.instances.values()).some(
         (i) => i.instanceId === request.targetInstanceId && i.role === request.targetRole,
       );
-      
+
       const status = this.requestStatuses.get(id);
       const wasAssignedToThis = request.assignedPluginSessionId === pluginSessionId;
-      
+
       if (!stillHasHandler) {
         clearTimeout(request.timeoutId);
         this.pendingRequests.delete(id);
@@ -806,7 +806,7 @@ export class BridgeService {
       this.pendingRequests.set(requestId, request);
       this.updateRequestStatus(requestId, { state: 'queued' });
       this.persistJournal();
-      
+
       for (const instance of this.instances.values()) {
         if (instance.instanceId === targetInstanceId && instance.role === targetRole) {
           for (const notify of this.requestNotifiers) notify(instance.pluginSessionId);
@@ -853,7 +853,7 @@ export class BridgeService {
       if (request.targetInstanceId !== callerInstanceId) continue;
       if (request.targetRole !== callerRole) continue;
       if (request.inFlight) continue;
-      
+
       const isMutationReq = this.isMutation(request.endpoint);
       if (isMutationReq && inFlightMutations >= 1) continue;
       if (!isMutationReq && inFlightReads >= 4) continue;
@@ -868,10 +868,10 @@ export class BridgeService {
       oldestRequest.deliveryAttempt = (oldestRequest.deliveryAttempt ?? 0) + 1;
       oldestRequest.assignedPluginSessionId = pluginSessionId;
       const leaseToken = randomUUID();
-      
-      this.updateRequestStatus(oldestRequest.id, { 
-        state: 'delivered', 
-        serverEpoch: this.serverEpoch, 
+
+      this.updateRequestStatus(oldestRequest.id, {
+        state: 'delivered',
+        serverEpoch: this.serverEpoch,
         deliveryAttempt: oldestRequest.deliveryAttempt,
         leaseToken
       });
@@ -917,7 +917,7 @@ export class BridgeService {
 
   reconcilePluginReceipts(pluginSessionId: string, serverEpoch: string, receipts: CompletionReceipt[]): number {
     if (serverEpoch !== this.serverEpoch) return 0;
-    
+
     const instance = this.instances.get(pluginSessionId);
     if (!instance) return 0;
 
@@ -931,7 +931,7 @@ export class BridgeService {
         reconciled++;
       }
     }
-    
+
     if (reconciled > 0) {
       this.persistJournal();
     }
@@ -1014,7 +1014,7 @@ export class BridgeService {
   cancelRequest(requestId: string): boolean {
     const request = this.pendingRequests.get(requestId);
     if (!request) return false;
-    
+
     const status = this.requestStatuses.get(requestId);
     if (status?.state === 'started') {
       return false;
@@ -1032,7 +1032,7 @@ export class BridgeService {
   getCancellationEvents(pluginSessionId: string): string[] {
     const instance = this.instances.get(pluginSessionId);
     if (!instance) return [];
-    
+
     const events: string[] = [];
     for (const request of this.pendingRequests.values()) {
       if (request.targetInstanceId === instance.instanceId &&
@@ -1048,7 +1048,7 @@ export class BridgeService {
   async requestCancellation(requestId: string): Promise<boolean> {
     const request = this.pendingRequests.get(requestId);
     if (!request) return false;
-    
+
     const status = this.requestStatuses.get(requestId);
     if (status?.state === 'started') {
       request.cancellationRequested = true;

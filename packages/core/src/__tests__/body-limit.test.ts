@@ -28,7 +28,7 @@ describe('HTTP Body Limit', () => {
       dataModelName: 'TestPlace',
       isRunning: false,
     };
-    
+
     await request(app)
       .post('/ready')
       .send(body)
@@ -38,7 +38,7 @@ describe('HTTP Body Limit', () => {
   test('Custom body limit via env var rejects oversized body', async () => {
     process.env.MCP_HTTP_BODY_LIMIT = '1kb';
     const app = createHttpServer(tools, bridge);
-    
+
     // Create a 2KB payload
     const largeString = 'a'.repeat(2048);
     const body = {
@@ -47,7 +47,7 @@ describe('HTTP Body Limit', () => {
       role: 'edit',
       largeData: largeString
     };
-    
+
     await request(app)
       .post('/ready')
       .send(body)
@@ -57,7 +57,7 @@ describe('HTTP Body Limit', () => {
   test('Custom body limit allows requests under limit', async () => {
     process.env.MCP_HTTP_BODY_LIMIT = '5kb';
     const app = createHttpServer(tools, bridge);
-    
+
     // Create a 2KB payload
     const largeString = 'a'.repeat(2048);
     const body = {
@@ -66,7 +66,7 @@ describe('HTTP Body Limit', () => {
       role: 'edit',
       largeData: largeString
     };
-    
+
     await request(app)
       .post('/ready')
       .send(body)

@@ -24,7 +24,7 @@ describe('Authentication E2E', () => {
     // const requirePluginAuth = process.env.NODE_ENV !== 'test';
     // To actually test auth, we must mock process.env.NODE_ENV
     process.env.NODE_ENV = 'production';
-    
+
     bridge = new BridgeService();
     tools = new RobloxStudioTools(bridge);
     app = createHttpServer(tools, bridge);
@@ -69,7 +69,7 @@ describe('Authentication E2E', () => {
       .get('/poll')
       .query({ pluginSessionId: 'session-1' })
       .expect(401);
-      
+
     expect(res.body.error).toBe('invalid_session_token');
   });
 
@@ -83,7 +83,7 @@ describe('Authentication E2E', () => {
       .query({ pluginSessionId: 'session-1' })
       .set('Authorization', `Bearer wrong-token`)
       .expect(401);
-      
+
     expect(res.body.error).toBe('invalid_session_token');
   });
 });
