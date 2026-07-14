@@ -73,7 +73,7 @@ gemini mcp add bloxforge npx --trust -- -y @princeofscale/bloxforge@latest --aut
 ### 3. Verify connection
 Run the diagnostics check to confirm your environment is ready:
 ```bash
-npx -y @princeofscale/bloxforge@latest --doctor
+npx -y @princeofscale/bloxforge@latest verify
 ```
 
 ---
@@ -152,7 +152,7 @@ For asset uploads and Creator Store access, you can optionally configure a Roblo
 | Symptom | Fix |
 |---|---|
 | Plugin never shows "Connected" | Enable **Allow HTTP Requests** and fully restart Studio. |
-| doctor says nothing on port | Start your MCP client first to spin up the server. |
+| verify says nothing on port | Start your MCP client first to spin up the server. |
 | Version mismatch banner | Re-run connection command with `--auto-install-plugin` and restart Studio. |
 | Tool call hangs | Multiple places connected; pass `instance_id` to target a specific window. |
 

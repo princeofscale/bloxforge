@@ -7,9 +7,10 @@ loading on a fixed benchmark and gate CI on regressions.
 
 > **What this harness is — and isn't.** Treat eval results as a **differential
 > regression gate**, not an absolute-quality oracle. The harness reliably measures
-> *deltas of one model against itself* across a design change — tool-call count,
-> invalid-call rate, `recoveryCostAfterFirstError`, recall — where model strength
-> cancels out. For strong-model quality, **dogfood live in your MCP client** — that's
+> *deltas with the resolved model, provider, and base URL held fixed* across a design
+> change — tool-call count, invalid-call rate, `recoveryCostAfterFirstError`, recall.
+> This reduces model confounding; it does not eliminate sampling noise or provider-side
+> model changes. For strong-model quality, **dogfood live in your MCP client** — that's
 > the real-model signal a flash eval can't provide. Don't over-read absolute numbers
 > from any single model.
 
@@ -106,7 +107,8 @@ content rather than a real tool/recall gap.
 
 Eval results depend on many factors. Always record and report:
 
-- **Model and provider** (`EVAL_MODEL`, adapter used)
+- **Resolved model, provider, and base URL** printed by the runner (record the actual
+  values after defaults and environment overrides, not only `EVAL_MODEL` or the key used)
 - **BloxForge version** (git commit or package version)
 - **Benchmark commit** (cases may change between versions)
 - **Benchmark place** (results vary by place content)

@@ -6,10 +6,10 @@ that can't be fixed in code, see [known-limitations.md](./known-limitations.md).
 ## Quick health check
 
 ```bash
-npx -y @princeofscale/bloxforge@latest --doctor
+npx -y @princeofscale/bloxforge@latest verify
 ```
 
-`doctor` reports plugin/server versions, protocol version, schema mode, and
+`verify` reports plugin/server versions, protocol version, schema mode, and
 recent failures. Run it first.
 
 ---
@@ -25,7 +25,7 @@ re-registered yet. The plugin polls the server every ~0.5s and re-fires
 - Bring the Studio window to the foreground — Roblox **throttles
   `HttpService:RequestAsync` when Studio is backgrounded or minimized**, which
   is the most common cause of bridge drops.
-- If it persists, toggle the plugin off/on (toolbar), or run `--doctor`.
+- If it persists, toggle the plugin off/on (toolbar), or run `verify`.
 - As of 2.20.2 the server tolerates up to **90s** of silence before reaping a
   plugin instance (was 30s), which absorbs most throttling gaps. Tune with the
   `MCP_STALE_INSTANCE_MS` environment variable if your workflow needs more.
@@ -40,7 +40,7 @@ npx -y @princeofscale/bloxforge@latest --auto-install-plugin
 ```
 
 Then **completely close and reopen Roblox Studio** (not just reload the plugin).
-The plugin and server exchange protocol versions on connect; `doctor` and
+The plugin and server exchange protocol versions on connect; `verify` and
 `/status` surface the pair so you can see exactly which side is old.
 
 ### "Request timeout after …ms"

@@ -1,92 +1,66 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDir = path.resolve(__dirname, '..');
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
-function run(command, cwd) {
-  console.log(`> [${cwd || '.'}] ${command}`);
+function run(command, args, cwd = rootDir) {
+  console.log(`> [${cwd}] ${command} ${args.join(' ')}`);
   try {
-    return execSync(command, { cwd: cwd || rootDir, stdio: 'pipe', encoding: 'utf-8' });
-  } catch (err) {
-    console.error(`Command failed: ${command}`);
-    console.error(`STDOUT:\n${err.stdout}`);
-    console.error(`STDERR:\n${err.stderr}`);
-    process.exit(1);
+    return execFileSync(command, args, { cwd, stdio: 'pipe', encoding: 'utf8' });
+  } catch (error) {
+    console.error(`Command failed: ${command} ${args.join(' ')}`);
+    console.error(`STDOUT:\n${error.stdout ?? ''}`);
+    console.error(`STDERR:\n${error.stderr ?? ''}`);
+    throw error;
   }
+}
+
+function pack(workspace, destination) {
+  const before = new Set(fs.readdirSync(destination));
+  run(npm, ['pack', workspace, '--pack-destination', destination]);
+  const created = fs.readdirSync(destination)
+    .filter((filename) => filename.endsWith('.tgz') && !before.has(filename));
+  if (created.length !== 1) throw new Error(`Expected one tarball for ${workspace}, found ${created.length}`);
+  return path.join(destination, created[0]);
 }
 
 async function verify() {
   console.log('--- Verifying BloxForge Packages ---');
-
-  // Ensure builds are fresh
-  console.log('\n[1/5] Building packages...');
-  run('npm run build');
+  run(npm, ['run', 'build']);
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-verify-'));
-  console.log(`\n[2/5] Creating temporary workspace at ${tempDir}...`);
+  console.log(`Temporary workspace: ${tempDir}`);
 
   try {
-    // Pack core
-    console.log('\n[3/5] Packing @princeofscale/bloxforge-core...');
-    const corePackOutput = run('npm pack', path.join(rootDir, 'packages', 'core'));
-    const coreTarball = corePackOutput.trim().split('\n').pop();
-    const coreTarballPath = path.join(rootDir, 'packages', 'core', coreTarball);
+    const tarballs = [
+      pack('./packages/core', tempDir),
+      pack('./packages/robloxstudio-mcp', tempDir),
+      pack('./packages/robloxstudio-mcp-inspector', tempDir),
+    ];
 
-    // Pack cli
-    console.log('\n[3/5] Packing @princeofscale/bloxforge...');
-    const cliPackOutput = run('npm pack', path.join(rootDir, 'packages', 'robloxstudio-mcp'));
-    const cliTarball = cliPackOutput.trim().split('\n').pop();
-    const cliTarballPath = path.join(rootDir, 'packages', 'robloxstudio-mcp', cliTarball);
+    run(npm, ['init', '-y'], tempDir);
+    run(npm, ['install', ...tarballs, '--no-save'], tempDir);
 
-    // Initialize temp project
-    run('npm init -y', tempDir);
+    run(process.execPath, [
+      '--input-type=module',
+      '--eval',
+      "import { BloxForgeServer } from '@princeofscale/bloxforge-core'; if (!BloxForgeServer) throw new Error('Core import failed')",
+    ], tempDir);
+    run(npx, ['--no-install', 'bloxforge', '--help'], tempDir);
+    run(npx, ['--no-install', 'bloxforge-inspector', '--help'], tempDir);
 
-    // Install them
-    console.log('\n[4/5] Installing packed tarballs into temporary workspace...');
-    run(`npm install ${coreTarballPath} ${cliTarballPath} --no-save`, tempDir);
-
-    // Verify
-    console.log('\n[5/5] Running smoke tests on installed packages...');
-
-    // 1. Verify Core can be imported
-    const testCoreScript = path.join(tempDir, 'test-core.mjs');
-    fs.writeFileSync(testCoreScript, `
-      import { BloxForgeServer } from '@princeofscale/bloxforge-core';
-      if (!BloxForgeServer) throw new Error("Could not import BloxForgeServer");
-      console.log("Core import OK.");
-    `);
-    run(`node test-core.mjs`, tempDir);
-
-    // 2. Verify CLI executes with --help
-    const testCliScript = path.join(tempDir, 'test-cli.mjs');
-    fs.writeFileSync(testCliScript, `
-      import { execSync } from 'child_process';
-      try {
-        const out = execSync('npx bloxforge --help', { encoding: 'utf8' });
-        if (!out.includes('BloxForge MCP Server')) {
-          throw new Error("CLI output did not contain expected text");
-        }
-        console.log("CLI execution OK.");
-      } catch (err) {
-        console.error("CLI test failed.");
-        process.exit(1);
-      }
-    `);
-    run(`node test-cli.mjs`, tempDir);
-
-    console.log('\n✅ Verification successful! Packages are release-ready.');
+    console.log('Verification successful: packages are installable and both CLIs start.');
   } finally {
-    // Cleanup
-    console.log(`\nCleaning up ${tempDir}...`);
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 }
 
-verify().catch(err => {
-  console.error('\n❌ Verification failed:', err);
-  process.exit(1);
+verify().catch((error) => {
+  console.error('Verification failed:', error instanceof Error ? error.message : error);
+  process.exitCode = 1;
 });

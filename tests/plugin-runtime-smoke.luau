@@ -6,6 +6,7 @@
 -- Requires: lune (https://lune-org.github.io/lune/)
 
 local process = require("@lune/process")
+local fs = require("@lune/fs")
 local test = {}
 
 local passed = 0
@@ -82,6 +83,20 @@ print("remapPayloadLines")
 assert_eq("basic remap", remap("Workspace.__MCPExecLuauPayload:95: err", 10, 90), "user_code:5: err")
 assert_eq("clamp below", remap("Workspace.__MCPExecLuauPayload:50: early", 10, 90), "user_code:1: early")
 assert_eq("clamp above", remap("__MCPExecLuauPayload:200: overflow", 10, 90), "user_code:10 (at end of input): overflow")
+
+-- === multi-connection mismatch banners ===
+local communication = fs.readFile("studio-plugin/src/modules/Communication.ts")
+local function source_has(text)
+	return string.find(communication, text, 1, true) ~= nil
+end
+
+print("multiConnectionMismatchBanners")
+assert_true("version mismatch tracked per connection", source_has("versionMismatchConnections.add(conn)"))
+assert_true("healthy version connection removed", source_has("versionMismatchConnections.delete(conn)"))
+assert_true("version banner hidden only after last mismatch", source_has("versionMismatchConnections.size() === 0) UI.hideBanner(\"version-mismatch\")"))
+assert_true("protocol mismatch tracked per connection", source_has("protocolMismatchConnections.add(conn)"))
+assert_true("healthy protocol connection removed", source_has("protocolMismatchConnections.delete(conn)"))
+assert_true("protocol banner hidden only after last mismatch", source_has("protocolMismatchConnections.size() === 0) UI.hideBanner(\"protocol-mismatch\")"))
 
 -- === Summary ===
 print(string.format("\nplugin-runtime-smoke: %d passed, %d failed", passed, failed))

@@ -69,6 +69,14 @@ export interface DoctorOptions {
   fetchImpl?: typeof fetch;
 }
 
+const HEALTH_TIMEOUT_MS = 3_000;
+
+function fetchHealth(fetchImpl: typeof fetch, port: number): Promise<Response> {
+  return fetchImpl(`http://localhost:${port}/health`, {
+    signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+  });
+}
+
 export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
   checks.push(checkNodeVersion(process.version));
@@ -111,7 +119,7 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
   const port = options.port ?? (process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741);
   const doFetch = options.fetchImpl ?? fetch;
   try {
-    const res = await doFetch(`http://localhost:${port}/health`);
+    const res = await fetchHealth(doFetch, port);
     if (res.ok) {
       const health = await res.json() as {
         pluginConnected?: boolean;
@@ -153,23 +161,27 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
           : `default path active (${health.activeToolCount ?? 0} active tools; loaded ${health.loadedToolsets?.join(', ') || 'core'})`,
       });
       const first = health.instances?.[0];
-      if (first) {
+      const versionInstance = health.instances?.find((instance) => instance.versionMismatch) ?? first;
+      const protocolInstance = health.instances?.find((instance) => instance.protocolMismatch) ?? first;
+      if (versionInstance) {
         checks.push({
           name: 'Studio plugin version',
-          status: health.versionMismatch || first.versionMismatch ? 'warn' : 'ok',
-          detail: `plugin v${first.pluginVersion ?? 'unknown'} (${first.pluginVariant ?? 'unknown'}), server v${health.serverVersion ?? health.version ?? options.version ?? 'unknown'}`,
-          actionable: (health.versionMismatch || first.versionMismatch) ? {
+          status: health.versionMismatch || versionInstance.versionMismatch ? 'warn' : 'ok',
+          detail: `plugin v${versionInstance.pluginVersion ?? 'unknown'} (${versionInstance.pluginVariant ?? 'unknown'}), server v${health.serverVersion ?? health.version ?? options.version ?? 'unknown'}`,
+          actionable: (health.versionMismatch || versionInstance.versionMismatch) ? {
             fix: 'Run "npx @princeofscale/bloxforge --install-plugin" to synchronize the plugin version with your local server.',
-            verify: 'Restart the Roblox Studio session and check the plugin version.'
+            verify: 'Restart Roblox Studio, then run "npx @princeofscale/bloxforge verify" and confirm this check passes.'
           } : undefined
         });
+      }
+      if (protocolInstance) {
         checks.push({
           name: 'Protocol version',
-          status: health.protocolMismatch || first.protocolMismatch ? 'warn' : 'ok',
-          detail: `plugin protocol ${first.pluginProtocolVersion ?? 'unknown'}, server protocol ${first.serverProtocolVersion ?? health.protocolVersion ?? 'unknown'}`,
-          actionable: (health.protocolMismatch || first.protocolMismatch) ? {
+          status: health.protocolMismatch || protocolInstance.protocolMismatch ? 'warn' : 'ok',
+          detail: `plugin protocol ${protocolInstance.pluginProtocolVersion ?? 'unknown'}, server protocol ${protocolInstance.serverProtocolVersion ?? health.protocolVersion ?? 'unknown'}`,
+          actionable: (health.protocolMismatch || protocolInstance.protocolMismatch) ? {
             fix: 'Your server and plugin are using incompatible communication protocols. Please update both to the latest versions.',
-            verify: 'Run "npx @princeofscale/bloxforge verify" after updating.'
+            verify: 'Restart Roblox Studio, then run "npx @princeofscale/bloxforge verify" and confirm both protocol versions match.'
           } : undefined
         });
       }
@@ -179,8 +191,8 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
         status: 'fail',
         detail: `port ${port} responded ${res.status}`,
         actionable: {
-          fix: `Another application might be interfering on port ${port}, or the server is in an error state.`,
-          verify: `Try running the server on a different port using --port <number>.`
+          fix: `Another application might be using port ${port}. Try running the server on a different port using --port <number>.`,
+          verify: 'Run "npx @princeofscale/bloxforge verify --port <number>" on the new port and confirm this check passes.'
         }
       });
     }
@@ -237,7 +249,7 @@ export async function generateDiagnosticReport(options: DoctorOptions = {}): Pro
   const port = options.port ?? (process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741);
   const doFetch = options.fetchImpl ?? fetch;
   try {
-    const res = await doFetch(`http://localhost:${port}/health`);
+    const res = await fetchHealth(doFetch, port);
     if (res.ok) {
       const health = await res.json() as any;
       lines.push('--- Running Server Status ---');
@@ -262,11 +274,10 @@ export async function generateDiagnosticReport(options: DoctorOptions = {}): Pro
       if (health.session) {
         lines.push('--- Session Summary ---');
         lines.push(`Total Calls: ${health.session.totalCalls ?? 0}`);
-        lines.push(`Failed Calls: ${health.session.failedCalls ?? 0}`);
-        if (health.session.perToolStats) {
-          for (const [tool, stats] of Object.entries(health.session.perToolStats)) {
-            const s = stats as any;
-            lines.push(`  - ${tool}: ${s.calls} calls, ${s.failures} failures, avg ${Math.round(s.averageDurationMs ?? 0)}ms`);
+        lines.push(`Failed Calls: ${health.session.failures ?? 0}`);
+        if (health.session.byTool) {
+          for (const stats of health.session.byTool) {
+            lines.push(`  - ${stats.toolName}: ${stats.calls} calls, ${stats.failures} failures, avg ${Math.round(stats.averageDurationMs ?? 0)}ms`);
           }
         }
         lines.push('');

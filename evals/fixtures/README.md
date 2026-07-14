@@ -13,7 +13,7 @@ place by name and path.
 
 ## Required Hierarchy
 
-```
+```text
 game
 ├── Workspace
 │   ├── Map
@@ -39,8 +39,10 @@ game
 ├── ServerScriptService
 │   ├── GameManager (Script — round loop, leaderboard)
 │   ├── DamageHandler (Script — touches DamagePart → reduce health)
+│   ├── SemanticTargets (Script — behavior references for semantic fixtures)
 │   └── BrokenScript (Script — intentional Luau error: undefined variable)
 ├── ReplicatedStorage
+│   ├── FixtureVersion (StringValue, Value="1")
 │   ├── SharedModule (ModuleScript — utility functions)
 │   └── GameConfig (ModuleScript — constants)
 ├── StarterGui
@@ -90,6 +92,21 @@ damagePart.Touched:Connect(function(hit)
 end)
 ```
 
+### SemanticTargets (ServerScriptService.SemanticTargets)
+```lua
+local finishLine = workspace.Map.FinishLine
+local relay = workspace.Map.ObscurelyNamed.Xq7_relay
+
+finishLine.Touched:Connect(function(hit)
+    local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+    if player then
+        finishLine:SetAttribute("LastWinnerUserId", player.UserId)
+    end
+end)
+
+relay:SetAttribute("SystemRole", "RelayNode")
+```
+
 ## Intentional Bugs
 
 | Script | Bug | Purpose |
@@ -105,6 +122,11 @@ end)
 | "the relay node" | `Xq7_relay` | Non-obvious name, needs semantic search |
 | "damage zone" | `DamagePart` | Reasonable name match |
 | "door control" | `DoorSystem` | Structural match |
+
+These fixtures must be behavior-backed, not names alone: `FinishLine` and
+`Xq7_relay` are referenced by `SemanticTargets`, `DamagePart` is
+used by `DamageHandler`, and `DoorSystem` contains its working prompt script. Keep
+those references intact so semantic cases test discovery of real behavior.
 
 ## Reset Procedure
 
@@ -126,4 +148,7 @@ end)
 3. Paste the scripts
 4. Save as `evals/fixtures/benchmark.rbxl`
 5. Add a `StringValue` named `FixtureVersion` to `ReplicatedStorage` with value `1`
-6. Verify by running `diagnose_scripts` — should find exactly 1 error (BrokenScript)
+6. Stop any existing playtest, start a fresh session, and record the `nextSince`
+   value from `get_runtime_logs` before reproducing anything
+7. Run `diagnose_scripts` — it should find exactly 1 error (`BrokenScript`); use
+   `get_runtime_logs since=<nextSince>` for any supporting runtime-log check

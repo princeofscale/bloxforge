@@ -7,11 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [3.0.0-rc.1] - 2026-07-12
+## [3.0.0-rc.1] - 2026-07-14
 
 ### Added
-- **Acceptance Testing Documentation**: Added `docs/release-acceptance-test.md` to define manual verification steps for server and plugin interoperability prior to publication.
-- **Package Verification CI**: Added `scripts/verify-package.mjs` to automate smoke tests on the packed npm workspaces (`npm pack`), ensuring successful `npm install` functionality.
+- **Package Verification CI**: Added `scripts/verify-package.mjs` to install and smoke-test the packed core, CLI, and inspector workspaces in an isolated temporary project.
+- **Generated Documentation Gate**: Added `docs:check` to CI and release validation so stale generated tool documentation cannot ship.
 
 ### Fixed
 - **Plugin Compilation Issue**: Fixed `compile:plugin` failure in clean environments. `studio-plugin/package.json` dependencies (like `rbxtsc`) are now correctly installed via a nested `npm install` before running `rbxtsc`.
@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Security Documentation**: Updated `SECURITY.md` to explicitly clarify capabilities, boundaries, and limitations across different tool profiles.
 - **Diagnostic/Telemetry Alignment**: Updated issue templates (`bug_report.yml`) and configuration documentation to correctly refer to "local anonymized diagnostic reports" instead of "telemetry", addressing user concerns about data collection implications.
 - **Help Menus Standardized**: Added comprehensive `--help` flags and instructions to CLI scripts and plugins to ensure standardized discovery of options.
+- **Prerelease Publishing**: Prerelease versions now publish to npm's `next` tag and create a GitHub prerelease instead of replacing the stable `latest` release.
+- **Diagnostics Reliability**: Corrected session failure and per-tool statistics, bounded health probes with a timeout, and reported the actual mismatching Studio instance.
+- **Multi-Instance Plugin State**: Version and protocol mismatch banners now remain visible until the final affected Studio connection disconnects or recovers.
+- **Portable Tool Documentation**: Made documentation generation Windows-safe and corrected schema types, Markdown escaping, and empty parameter tables.
+- **Release Evaluation Harness**: Added fresh-log guidance, semantic fixture targets, and reproducible model/provider metadata.
+- **Plugin Build Dependencies**: Updated vulnerable transitive `ajv`, `fast-uri`, and `picomatch` versions in the Studio plugin lockfile; its npm audit now reports zero vulnerabilities.
+- **Luau Execution**: Fixed plugin startup ordering and an unbalanced execution wrapper that broke `execute_luau`, runtime eval tools, and `scene_search` in the bundled plugin.
+- **Lua Pattern Guidance**: Clarified that `grep_scripts` uses Lua patterns, where `|` is literal rather than regex alternation.
+
+### Changed
+- **Documentation Cleanup**: Removed stale release plans, duplicated host setup pages, demo scaffolding, and verbose workflow examples; retained the concise handbook, architecture, limitations, troubleshooting, and generated tool reference.
 
 ## [2.20.2] - 2026-07-08
 

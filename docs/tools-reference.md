@@ -153,7 +153,7 @@ Set a property on an instance
 |---|---|---|---|
 | `instancePath` | `string` | Yes | Instance path (dot notation) |
 | `propertyName` | `string` | Yes | Property name |
-| `propertyValue` | `undefined` | Yes | Value to set (string, number, boolean, or object for Vector3/Color3/UDim2) |
+| `propertyValue` | `any` | Yes | Value to set (string, number, boolean, or object for Vector3/Color3/UDim2) |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -168,7 +168,7 @@ Set a property on multiple instances
 |---|---|---|---|
 | `paths` | `array` | Yes | Instance paths |
 | `propertyName` | `string` | Yes | Property name |
-| `propertyValue` | `undefined` | Yes | Value to set (string, number, boolean, or object for Vector3/Color3/UDim2) |
+| `propertyValue` | `any` | Yes | Value to set (string, number, boolean, or object for Vector3/Color3/UDim2) |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -377,7 +377,7 @@ Set an attribute. Supports primitives, Vector3, Color3, UDim2, BrickColor.
 |---|---|---|---|
 | `instancePath` | `string` | Yes | Instance path (dot notation) |
 | `attributeName` | `string` | Yes | Attribute name |
-| `attributeValue` | `undefined` | Yes | Value (string, number, boolean, or object for Vector3/Color3/UDim2) |
+| `attributeValue` | `any` | Yes | Value (string, number, boolean, or object for Vector3/Color3/UDim2) |
 | `valueType` | `string` | No | Type hint if needed |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -529,7 +529,7 @@ Ripgrep-inspired search across all script sources. Supports literal and Lua patt
 |---|---|---|---|
 | `pattern` | `string` | Yes | Search pattern (literal string or Lua pattern) |
 | `caseSensitive` | `boolean` | No | Case-sensitive search (default: false) |
-| `usePattern` | `boolean` | No | Use Lua pattern matching instead of literal (default: false) |
+| `usePattern` | `boolean` | No | Use Lua pattern matching instead of literal (default: false). Lua patterns do not support regex alternation; \| is literal, so run separate searches for alternatives. |
 | `contextLines` | `number` | No | Number of context lines before/after each match (default: 0) |
 | `maxResults` | `number` | No | Max total matches before stopping (default: 100) |
 | `maxResultsPerScript` | `number` | No | Max matches per script (like rg -m) |
@@ -566,8 +566,8 @@ Compatibility wrapper for multiplayer_test_* tools. Supports action="start", "st
 | `action` | `string` | Yes | Lifecycle action. |
 | `numPlayers` | `number` | No | Required for start/add_players. |
 | `target` | `string` | No | Client target for leave_client. |
-| `testArgs` | `undefined` | No | JSON-compatible test args for start. |
-| `value` | `undefined` | No | Value passed to end. |
+| `testArgs` | `any` | No | JSON-compatible test args for start. |
+| `value` | `any` | No | Value passed to end. |
 | `timeout` | `number` | No | Max seconds to wait. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -704,7 +704,7 @@ Start a StudioTestService multiplayer test and wait for the server plus requeste
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `numPlayers` | `number` | Yes | Number of client players to start (1-8). |
-| `testArgs` | `undefined` | No | JSON-compatible table passed to StudioTestService:GetTestArgs() on server and clients. |
+| `testArgs` | `any` | No | JSON-compatible table passed to StudioTestService:GetTestArgs() on server and clients. |
 | `timeout` | `number` | No | Max seconds to wait for server + clients to register (default 30). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -758,7 +758,7 @@ End a running StudioTestService multiplayer test with an optional return value, 
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `value` | `undefined` | No | JSON-compatible value returned to the edit-side ExecuteMultiplayerTestAsync call. |
+| `value` | `any` | No | JSON-compatible value returned to the edit-side ExecuteMultiplayerTestAsync call. |
 | `timeout` | `number` | No | Max seconds to wait for runtime peers to disconnect (default 30). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -825,11 +825,6 @@ Manage Studio debugger breakpoints through ScriptDebuggerService. Use this when 
 ### `get_connected_instances` (Read-only)
 
 List all connected plugin instances with their roles. Use during multi-client playtest to discover server and client instances for targeted commands.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
 
 ---
 
@@ -1142,7 +1137,7 @@ Import a build into Roblox Studio. Accepts either a full build data object OR a 
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `buildData` | `undefined` | Yes | Either a build data object (with palette, parts, etc.) OR a library ID string (e.g. "medieval/church_01") to load from the build library |
+| `buildData` | `any` | Yes | Either a build data object (with palette, parts, etc.) OR a library ID string (e.g. "medieval/church_01") to load from the build library |
 | `targetPath` | `string` | Yes | Parent instance path where the model will be created |
 | `position` | `array` | No | World position offset [X, Y, Z] |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
@@ -1600,11 +1595,6 @@ List recent destructive/bulk operations recorded by the safety layer (deletes, b
 
 List script sources the safety layer backed up before set_script_source overwrote them. Restore any of them with restore_script_backup.
 
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-
 ---
 
 ### `restore_script_backup` (Write)
@@ -1872,7 +1862,7 @@ Set Lighting time. Pass a number (0-24 ClockTime) or an "HH:MM:SS" string.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `time` | `undefined` | Yes | Number 0-24 (ClockTime) or "HH:MM:SS" string. |
+| `time` | `any` | Yes | Number 0-24 (ClockTime) or "HH:MM:SS" string. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -2183,7 +2173,7 @@ Create a Sound under a parent with a SoundId (number or rbxassetid://). Configur
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `parentPath` | `string` | Yes | Where to create the Sound (e.g. "Workspace" or a Part path). |
-| `soundId` | `undefined` | Yes | Audio asset id (number) or full rbxassetid:// URI. |
+| `soundId` | `any` | Yes | Audio asset id (number) or full rbxassetid:// URI. |
 | `name` | `string` | No | Name for the Sound. |
 | `volume` | `number` | No | Volume 0-10 (default Roblox value). |
 | `looped` | `boolean` | No | Loop the sound. |
@@ -2215,7 +2205,7 @@ Create an Animation instance with an AnimationId (number or rbxassetid://) under
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `parentPath` | `string` | Yes | Where to create the Animation. |
-| `animationId` | `undefined` | Yes | Animation asset id (number) or rbxassetid:// URI. |
+| `animationId` | `any` | Yes | Animation asset id (number) or rbxassetid:// URI. |
 | `name` | `string` | No | Name for the Animation (default "Animation"). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -2230,7 +2220,7 @@ Load and play an animation on a rig (finds/creates an Animator under its Humanoi
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `rigPath` | `string` | Yes | Path to the rig model (with a Humanoid or AnimationController). |
-| `animationId` | `undefined` | Yes | Animation asset id (number) or rbxassetid:// URI. |
+| `animationId` | `any` | Yes | Animation asset id (number) or rbxassetid:// URI. |
 | `looped` | `boolean` | No | Loop the track. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -2245,7 +2235,7 @@ Apply an image/texture asset to a target, choosing the right property by class (
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `targetPath` | `string` | Yes | Path to the instance to texture. |
-| `assetId` | `undefined` | Yes | Image asset id (number) or rbxassetid:// URI. |
+| `assetId` | `any` | Yes | Image asset id (number) or rbxassetid:// URI. |
 | `property` | `string` | No | Force a specific property instead of inferring from class. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -2328,11 +2318,6 @@ Compatibility alias for generate_model_native. Generate a 3D model from a text p
 
 Return the UI design system the agent should build against: theme tokens (spacing scale, radius, typography, colors, min text size), canonical component anatomies (button, card, modal, hud_meter, list_row, nav_rail) and concrete design guidance. Read this FIRST before building UI so layouts are consistent instead of ad-hoc, then verify with design_lint and standardize with apply_theme.
 
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-
 ---
 
 ### `apply_theme` (Write)
@@ -2397,11 +2382,6 @@ Capture the Studio output log and return a structured report of errors and warni
 
 List the available recipes — typed, proven, idempotent build macros (e.g. proximity_door, ambient_sound, kill_brick) — with their parameters. Pick one, then run it with apply_recipe instead of hand-writing the Luau.
 
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-
 ---
 
 ### `apply_recipe` (Write)
@@ -2450,11 +2430,6 @@ Find the right tool for a task without loading every tool schema. Returns a comp
 ### `get_session_summary` (Read-only)
 
 Summarize this MCP server session without exposing tool payloads: total tool calls, failures, average duration, per-tool counts, and recent tool names/outcomes. Use when the bridge feels flaky or after a dogfood run to identify timeouts/errors.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
 
 ---
 

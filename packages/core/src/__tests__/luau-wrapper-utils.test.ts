@@ -82,7 +82,7 @@ describe('luau-wrapper-utils', () => {
 
     it('remaps [string "..."]:N', () => {
       const result = remapPayloadLines(
-        '[string "return ((function()..."]:95: some error',
+        '[string "return (function()..."]:95: some error',
         10,
         offset,
       );

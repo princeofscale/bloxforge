@@ -496,6 +496,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
     if (pluginSessionId) {
       bridge.unregisterInstance(pluginSessionId, 'plugin_request');
+      warnedVersionMismatches.delete(pluginSessionId);
+      warnedProtocolMismatches.delete(pluginSessionId);
     }
     res.json({ success: true });
   });

@@ -30,6 +30,17 @@ const ASSERTIONS = [
   },
   {
     file: 'LuauExec.luau',
+    label: 'wrapper helpers initialize before WRAPPER_LINE_OFFSET is computed',
+    test: (src) =>
+      src.indexOf('function renderWrapper') < src.indexOf('WRAPPER_LINE_OFFSET = computeWrapperLineOffset()'),
+  },
+  {
+    file: 'LuauExec.luau',
+    label: 'execute_luau wrapper has balanced IIFE parentheses',
+    test: (src) => src.includes('return `return (function()') && !src.includes('return `return ((function()'),
+  },
+  {
+    file: 'LuauExec.luau',
     label: 'renderWrapper template is present (single source of the wrapper text)',
     test: (src) => src.includes('function renderWrapper'),
   },

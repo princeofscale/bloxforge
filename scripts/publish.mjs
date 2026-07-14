@@ -16,6 +16,7 @@ const run = (cmd) => {
 // Read version from root package.json
 const rootPkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'));
 const version = rootPkg.version;
+const npmTag = version.includes('-') ? 'next' : 'latest';
 
 // Sync version across all packages
 const packageDirs = [
@@ -54,10 +55,10 @@ if (updatedReadme !== readme) {
 console.log('\nBuilding all packages...');
 run('npm run build:all');
 
-console.log('\nPublishing robloxstudio-mcp...');
-run('npm publish -w packages/robloxstudio-mcp');
+console.log(`\nPublishing robloxstudio-mcp with dist-tag ${npmTag}...`);
+run(`npm publish -w packages/robloxstudio-mcp --tag ${npmTag}`);
 
-console.log('\nPublishing robloxstudio-mcp-inspector...');
-run('npm publish -w packages/robloxstudio-mcp-inspector');
+console.log(`\nPublishing robloxstudio-mcp-inspector with dist-tag ${npmTag}...`);
+run(`npm publish -w packages/robloxstudio-mcp-inspector --tag ${npmTag}`);
 
 console.log('\nAll packages published successfully!');

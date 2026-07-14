@@ -1,9 +1,7 @@
 # BloxForge — documentation
 
 This directory is the user-facing handbook for BloxForge. The
-[top-level README](../README.md) covers install and quick start; this directory
-covers how the pieces fit together, host-specific setup, and the edge cases you
-hit once you're building real games.
+[top-level README](../README.md) covers installation and client setup.
 
 > **Start here if something breaks:** [troubleshooting.md](./troubleshooting.md).
 > **Check engine limits first:** [known-limitations.md](./known-limitations.md).
@@ -19,17 +17,7 @@ hit once you're building real games.
   mismatch, timeouts on heavy Luau.
 - [**Architecture**](./architecture.md) — Node MCP server ↔ Studio plugin bridge,
   request lifecycle, the edit/server/client peer model, and lazy tool loading.
-
-## Host setup
-
-BloxForge works with any MCP-compatible client. Host-specific notes:
-
-- [Claude Code](./claude-code.md)
-- [Codex CLI](./codex.md)
-- [Cursor](./cursor.md)
-- [Gemini CLI](./gemini.md)
-- [Host conformance & capability matrix](./host-conformance.md) — which MCP
-  features each host supports, and the lazy-loading / full-schema trade-off.
+- [**Tools reference**](./tools-reference.md) — generated schemas for every MCP tool.
 
 ## Contributing
 

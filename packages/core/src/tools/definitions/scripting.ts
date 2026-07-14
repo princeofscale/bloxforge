@@ -415,7 +415,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         usePattern: {
           type: 'boolean',
-          description: 'Use Lua pattern matching instead of literal (default: false)'
+          description: 'Use Lua pattern matching instead of literal (default: false). Lua patterns do not support regex alternation; | is literal, so run separate searches for alternatives.'
         },
         contextLines: {
           type: 'number',

@@ -19,7 +19,12 @@ jest.mock('fs', () => {
 
 describe('Legacy migration', () => {
   const originalEnv = { ...process.env };
+  const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
   const mockExistsSync = fs.existsSync as jest.Mock;
+
+  const setPlatform = (platform: NodeJS.Platform) => {
+    Object.defineProperty(process, 'platform', { value: platform });
+  };
 
   beforeEach(() => {
     jest.resetModules();
@@ -29,6 +34,7 @@ describe('Legacy migration', () => {
 
   afterAll(() => {
     process.env = originalEnv;
+    if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
   });
 
   describe('defaultManagedInstanceRegistryDir', () => {
@@ -65,6 +71,36 @@ describe('Legacy migration', () => {
       const dir = defaultManagedInstanceRegistryDir();
       expect(dir).toContain('bloxforge');
       expect(dir).not.toContain('robloxstudio-mcp');
+    });
+
+    it.each([
+      ['win32', '/local/appdata'],
+      ['darwin', undefined],
+    ] as const)('uses the BloxForge path on fresh %s installations', (platform, localAppData) => {
+      setPlatform(platform);
+      if (localAppData) process.env.LOCALAPPDATA = localAppData;
+      mockExistsSync.mockReturnValue(false);
+
+      const dir = defaultManagedInstanceRegistryDir();
+
+      expect(dir).toContain('bloxforge');
+      expect(dir).not.toContain('robloxstudio-mcp');
+      if (platform === 'win32') expect(dir).toContain(localAppData);
+      if (platform === 'darwin') expect(dir).toContain(path.join('Library', 'Application Support'));
+    });
+
+    it.each([
+      ['win32', '/local/appdata'],
+      ['darwin', undefined],
+    ] as const)('finds the legacy registry on %s', (platform, localAppData) => {
+      setPlatform(platform);
+      if (localAppData) process.env.LOCALAPPDATA = localAppData;
+      mockExistsSync.mockImplementation((candidate: string) => candidate.includes('robloxstudio-mcp'));
+
+      const dir = defaultManagedInstanceRegistryDir();
+
+      expect(dir).toContain('robloxstudio-mcp');
+      expect(dir).not.toContain('bloxforge');
     });
   });
 

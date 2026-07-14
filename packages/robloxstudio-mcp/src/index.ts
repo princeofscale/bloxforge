@@ -22,6 +22,7 @@ Options:
   --port <port>                 Port to run the HTTP bridge on (default: 58741)
   --debug                       Enable debug logging (stack traces, verbose output)
   --open-cloud-key <key>        Roblox Open Cloud API Key (for some advanced tools)
+  --pollinations-key <key>      Pollinations API Key (for image-generation tools)
   --creator-id <id>             Roblox Creator User ID
   --creator-group-id <id>       Roblox Creator Group ID
   --profile <profile>           Load specific tool profile (e.g., core)
