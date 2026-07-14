@@ -68,4 +68,3 @@ Keep `README.md`, `docs/architecture.md`, `docs/known-limitations.md`, `docs/too
 4. Create and push `v<version>` only after the release commit is on the default branch.
 5. The tag workflow publishes npm packages and creates the GitHub release. Prereleases such as `-rc.1` use the npm `next` dist-tag and a GitHub prerelease.
 6. Verify the npm package versions, dist-tags, GitHub release assets, and workflow status before declaring the release complete.
-
