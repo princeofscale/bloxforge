@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/bloxforge-core",
-  "version": "2.20.2",
+  "version": "3.0.0-rc.1",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/bloxforge",
-  "version": "2.20.2",
+  "version": "3.0.0-rc.1",
   "description": "Open-source AI agent toolkit for building, inspecting, testing, and automating Roblox games in Studio.",
   "main": "dist/index.js",
   "type": "module",
