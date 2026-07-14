@@ -835,6 +835,7 @@ function checkForUpdates() {
 		}
 	});
 }
+JobHandlers.setExternalCancellationChecker(isCancelledForThread);
 
 export = {
 	getConnectionStatus,

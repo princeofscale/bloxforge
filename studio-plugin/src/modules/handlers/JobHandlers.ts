@@ -7,12 +7,13 @@
 
 import LuauExec from "../LuauExec";
 import JobRegistry from "../JobRegistry";
-import Communication from "../Communication";
 
 // Install a sanctioned progress/cancel API once. Server-generated long-running
 // Luau (terrain/template/batch builders) can call _G.__mcp.progress(done,total,msg)
 // and _G.__mcp.checkCancelled() to report progress and bail early. We do NOT
 // auto-inject this into arbitrary user code — it's an opt-in cooperative API.
+let externalIsCancelled: ((co: thread) => boolean) | undefined;
+
 declare const _G: { __mcp?: unknown };
 function installMcpGlobal(): void {
 	if (_G.__mcp !== undefined) return;
@@ -20,10 +21,14 @@ function installMcpGlobal(): void {
 		progress: (done: number, total?: number, message?: string, stage?: string) => {
 			JobRegistry.reportProgress(coroutine.running(), done, total, message, stage);
 		},
-		checkCancelled: () => JobRegistry.isCancelledForThread(coroutine.running()) || Communication.isCancelledForThread(coroutine.running()),
+		checkCancelled: () => JobRegistry.isCancelledForThread(coroutine.running()) || (externalIsCancelled ? externalIsCancelled(coroutine.running()) : false),
 	};
 }
 installMcpGlobal();
+
+function setExternalCancellationChecker(checker: (co: thread) => boolean) {
+	externalIsCancelled = checker;
+}
 
 function executeLuauAsync(requestData: Record<string, unknown>) {
 	const code = requestData.code as string;
@@ -109,4 +114,4 @@ function cancelJob(requestData: Record<string, unknown>) {
 	return { jobId: j.id, status: j.status, note: "Job already finished." };
 }
 
-export = { executeLuauAsync, getJobStatus, getJobResult, cancelJob };
+export = { executeLuauAsync, getJobStatus, getJobResult, cancelJob, setExternalCancellationChecker };
