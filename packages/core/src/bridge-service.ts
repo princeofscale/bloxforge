@@ -261,10 +261,10 @@ export class BridgeService {
 
   constructor(journal?: RequestJournal | string) {
     if (typeof journal === 'string') {
-      this.journal = new RequestJournal(journal);
+      if (journal) this.journal = new RequestJournal(journal);
     } else if (journal) {
       this.journal = journal;
-    } else {
+    } else if (journal === undefined) {
       const path = defaultRequestJournalPath();
       if (path) this.journal = new RequestJournal(path);
     }
