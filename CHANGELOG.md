@@ -58,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and linearly scanning the catalog on every tool-list or tool-call request.
 - Fixed CI package dry-runs building without required plugin artifacts, Windows
   interrupted-download cleanup racing an open file handle, and POSIX-only
-  journal permission assertions running on Windows.
+  journal permission assertions running on Windows; package verification now
+  invokes npm portably without executing Windows command shims directly.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.

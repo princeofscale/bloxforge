@@ -5,8 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const npmCli = process.env.npm_execpath;
 let npmCache;
 
 function run(command, args, cwd = rootDir) {
@@ -26,9 +25,14 @@ function run(command, args, cwd = rootDir) {
   }
 }
 
+function runNpm(args, cwd = rootDir) {
+  if (!npmCli) throw new Error('npm executable path unavailable; run this check with npm run verify-package');
+  return run(process.execPath, [npmCli, ...args], cwd);
+}
+
 function pack(workspace, destination) {
   const before = new Set(fs.readdirSync(destination));
-  run(npm, ['pack', workspace, '--pack-destination', destination]);
+  runNpm(['pack', workspace, '--pack-destination', destination]);
   const created = fs.readdirSync(destination)
     .filter((filename) => filename.endsWith('.tgz') && !before.has(filename));
   if (created.length !== 1) throw new Error(`Expected one tarball for ${workspace}, found ${created.length}`);
@@ -60,7 +64,7 @@ function verifyRuntimeContents(tarball, expectedPlugin, forbiddenPlugin) {
 
 async function verify() {
   console.log('--- Verifying BloxForge Packages ---');
-  run(npm, ['run', 'build']);
+  runNpm(['run', 'build']);
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-verify-'));
   npmCache = path.join(tempDir, 'npm-cache');
@@ -75,16 +79,16 @@ async function verify() {
     verifyRuntimeContents(fullTarball, 'MCPPlugin.rbxmx', 'MCPInspectorPlugin.rbxmx');
     verifyRuntimeContents(inspectorTarball, 'MCPInspectorPlugin.rbxmx', 'MCPPlugin.rbxmx');
 
-    run(npm, ['init', '-y'], tempDir);
-    run(npm, ['install', ...tarballs, '--no-save'], tempDir);
+    runNpm(['init', '-y'], tempDir);
+    runNpm(['install', ...tarballs, '--no-save'], tempDir);
 
     run(process.execPath, [
       '--input-type=module',
       '--eval',
       "import { BloxForgeServer } from '@princeofscale/bloxforge-core'; if (!BloxForgeServer) throw new Error('Core import failed')",
     ], tempDir);
-    run(npx, ['--no-install', 'bloxforge', '--help'], tempDir);
-    run(npx, ['--no-install', 'bloxforge-inspector', '--help'], tempDir);
+    runNpm(['exec', '--no', '--', 'bloxforge', '--help'], tempDir);
+    runNpm(['exec', '--no', '--', 'bloxforge-inspector', '--help'], tempDir);
 
     console.log('Verification successful: packages are installable and both CLIs start.');
   } finally {
