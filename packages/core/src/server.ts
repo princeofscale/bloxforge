@@ -12,6 +12,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import http from 'http';
+import { isIP } from 'node:net';
 import { createHttpServer, listenWithRetry, TOOL_HANDLERS } from './http-server.js';
 import { RobloxStudioTools } from './tools/index.js';
 import { BridgeService, RoutingFailure } from './bridge-service.js';
@@ -46,8 +47,44 @@ export function resolveBridgePort(value = process.env.ROBLOX_STUDIO_PORT): numbe
   return port;
 }
 
-function isLoopbackHost(host: string): boolean {
-  return host === '127.0.0.1' || host === '::1' || host === 'localhost';
+function isValidHostname(host: string): boolean {
+  if (host.length > 253 || !/^[A-Za-z0-9.-]+$/.test(host)) return false;
+  return host.split('.').every((label) =>
+    label.length > 0 &&
+    label.length <= 63 &&
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label));
+}
+
+export function isLoopbackHost(host: string): boolean {
+  const normalized = host.toLowerCase().replace(/\.$/, '');
+  if (normalized === 'localhost' || normalized === 'localhost.localdomain' || normalized === 'ip6-localhost') {
+    return true;
+  }
+  if (isIP(normalized) === 4) {
+    return normalized.startsWith('127.');
+  }
+  if (isIP(normalized) === 6) {
+    return normalized === '::1' ||
+      normalized === '0:0:0:0:0:0:0:1' ||
+      /^::ffff:127\./.test(normalized);
+  }
+  return false;
+}
+
+export function assertSecureBridgeBinding(
+  host: string,
+  sessionToken = process.env.BLOXFORGE_SESSION_TOKEN,
+): void {
+  const normalized = host.replace(/\.$/, '');
+  if (!isIP(normalized) && !isValidHostname(normalized)) {
+    throw new Error(`Invalid Roblox Studio bridge host "${host}". Expected a hostname or IP address without a scheme, path, or brackets.`);
+  }
+  if (!isLoopbackHost(host) && !sessionToken?.trim()) {
+    throw new Error(
+      `Refusing to bind the Roblox Studio bridge to non-loopback host "${host}" without authentication. ` +
+      'Set BLOXFORGE_SESSION_TOKEN (preferred) or pass the compatibility --session-token flag.',
+    );
+  }
 }
 
 function isAddressInUseError(error: unknown): boolean {
@@ -75,12 +112,13 @@ export class BloxForgeServer {
   constructor(config: ServerConfig) {
     this.config = config;
     this.stdioCapabilities = parseCapabilities(process.env.BLOXFORGE_STDIO_CAPABILITIES);
-    this.allowedToolNames = new Set(config.tools.map(t => t.name));
+    const profile = normalizeToolProfile(process.env.BLOXFORGE_TOOL_PROFILE);
+    this.allowedToolNames = new Set(authorizedToolsForProfile(config.tools, profile).map(t => t.name));
 
     this.lazyTools = shouldUseLazyToolLoading(process.env.ROBLOX_MCP_LAZY_TOOLS);
     // Start with the always-on core, optionally preloading a small task profile.
     this.activeToolNames = new Set(CORE_TOOLS);
-    const profileDomains = toolProfileDomains(process.env.BLOXFORGE_TOOL_PROFILE);
+    const profileDomains = toolProfileDomains(profile);
     const catalog = buildCatalog(config.tools);
     for (const name of expandToolsets(catalog, profileDomains)) this.activeToolNames.add(name);
 
@@ -114,9 +152,9 @@ export class BloxForgeServer {
 
   private setupToolHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const visible = this.lazyTools
+      const visible = (this.lazyTools
         ? this.config.tools.filter(t => this.activeToolNames.has(t.name))
-        : this.config.tools;
+        : this.config.tools).filter(t => this.allowedToolNames.has(t.name));
       return {
         tools: visible.map(toolDefinitionToMcpTool),
       };
@@ -257,9 +295,7 @@ export class BloxForgeServer {
   async run() {
     const basePort = resolveBridgePort();
     const host = resolveBridgeHost();
-    if (!isLoopbackHost(host)) {
-      console.error(`[security] Bridge is listening on ${host}. This explicit non-loopback mode exposes unauthenticated local-control endpoints.`);
-    }
+    assertSecureBridgeBinding(host);
     let bridgeMode: 'primary' | 'proxy' = 'primary';
     let httpHandle: http.Server | undefined;
     let primaryApp: ReturnType<typeof createHttpServer> | undefined;
@@ -450,12 +486,36 @@ export function shouldUseLazyToolLoading(value: string | undefined): boolean {
   return !(flag === '0' || flag === 'false' || flag === 'off');
 }
 
+export type ToolProfile = 'core' | 'builder' | 'tester' | 'full' | 'inspector';
+
+export function normalizeToolProfile(value: string | undefined): ToolProfile {
+  const profile = (value ?? 'core').trim().toLowerCase();
+  if (profile === 'core' || profile === 'builder' || profile === 'tester' || profile === 'full' || profile === 'inspector') {
+    return profile;
+  }
+  throw new Error(`Invalid BloxForge tool profile "${value}". Expected core, builder, tester, full, or inspector.`);
+}
+
+export function authorizedToolsForProfile(
+  tools: readonly ToolDefinition[],
+  value: string | undefined,
+): ToolDefinition[] {
+  const profile = normalizeToolProfile(value);
+  if (profile === 'inspector') return tools.filter((tool) => tool.category === 'read');
+  if (profile === 'builder') {
+    return tools.filter((tool) =>
+      !/^execute_luau(?:_async)?$/.test(tool.name) &&
+      !/^eval_.*runtime$/.test(tool.name));
+  }
+  return [...tools];
+}
+
 export function toolProfileDomains(value: string | undefined): string[] {
-  switch ((value ?? 'core').trim().toLowerCase()) {
+  switch (normalizeToolProfile(value)) {
     case 'builder': return ['scene', 'mutation', 'scripts', 'assets', 'ui', 'environment', 'terrain', 'build', 'media', 'safety'];
     case 'tester': return ['scene', 'scripts', 'runtime', 'media', 'safety'];
     case 'full': return ['core', 'scene', 'mutation', 'scripts', 'runtime', 'assets', 'ui', 'environment', 'terrain', 'build', 'media', 'sync', 'safety'];
     case 'inspector': return ['core', 'scene', 'scripts', 'runtime'];
-    default: return [];
+    case 'core': return [];
   }
 }

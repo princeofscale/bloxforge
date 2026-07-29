@@ -61,7 +61,10 @@ The standard MCP transport (stdio) means the server runs as a subprocess of your
 
 ### Local HTTP bridge
 
-Inside the server, a lightweight HTTP long-poll bridge connects to the Studio plugin. This bridge runs on localhost only — no data leaves your machine. The plugin polls the bridge for requests, executes them against the DataModel, and posts results back.
+Inside the server, a lightweight HTTP bridge connects to the Studio plugin.
+It binds to loopback by default. Binding beyond loopback is fail-closed unless
+`BLOXFORGE_SESSION_TOKEN` is configured. The plugin polls the bridge for
+requests, executes them against the DataModel, and posts results back.
 
 ### Plugin as thin executor
 
@@ -106,9 +109,17 @@ restart; delivered or started work is restored as `outcome_unknown` and is
 never replayed automatically.
 
 The `/ready` bootstrap issues a per-plugin bearer token; subsequent plugin
-poll, response, ack, disconnect, and WebSocket traffic must present it. HTTP
-MCP/proxy clients can opt into a server-level token with
-`BLOXFORGE_SESSION_TOKEN`.
+poll, response, ack, reconcile, disconnect, and WebSocket traffic must present
+it. `/proxy`, `/instances`, cancellation, request-status, `/mcp`, and legacy
+`/mcp/*` are server-client routes and require the configured server bearer
+token. Local diagnostics expose only payload-free summaries and become
+authenticated when a server token is configured. Machine-control requests are
+JSON-only and reject browser origins.
+
+Lazy discovery and authorization are separate. `load_toolset` changes the
+advertised schema set only. The inspector profile permits read-category tools;
+the builder profile denies arbitrary Luau/runtime evaluation; capability
+allowlists apply independently to stdio and token-identified HTTP clients.
 
 Optional server-local quality adapters cover Rojo-style project detection,
 builds and sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, Lune test

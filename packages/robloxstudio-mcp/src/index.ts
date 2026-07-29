@@ -5,6 +5,11 @@ const argFlagValue = (flag: string): string | undefined => {
   const idx = process.argv.indexOf(flag);
   return idx !== -1 && idx + 1 < process.argv.length ? process.argv[idx + 1] : undefined;
 };
+const warnSecretFlag = (flag: string, envName: string): void => {
+  if (process.argv.includes(flag)) {
+    console.error(`[security] ${flag} is retained for compatibility but can leak through shell history or process listings. Prefer ${envName}.`);
+  }
+};
 
 // --port / --debug are honored by setting env the core server reads.
 const portArg = argFlagValue('--port');
@@ -12,7 +17,10 @@ if (portArg) process.env.ROBLOX_STUDIO_PORT = portArg;
 const hostArg = argFlagValue('--host');
 if (hostArg) process.env.ROBLOX_STUDIO_HOST = hostArg;
 const sessionTokenArg = argFlagValue('--session-token');
-if (sessionTokenArg) process.env.BLOXFORGE_SESSION_TOKEN = sessionTokenArg;
+if (sessionTokenArg) {
+  warnSecretFlag('--session-token', 'BLOXFORGE_SESSION_TOKEN');
+  process.env.BLOXFORGE_SESSION_TOKEN = sessionTokenArg;
+}
 if (process.argv.includes('--debug')) process.env.ROBLOX_STUDIO_DEBUG = '1';
 
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -24,14 +32,14 @@ Usage:
 
 Options:
   --port <port>                 Port to run the HTTP bridge on (default: 58741)
-  --host <host>                 Bind host (default: 127.0.0.1; non-loopback is unsafe)
-  --session-token <token>       Require bearer auth for /proxy and /mcp HTTP clients
+  --host <host>                 Bind host (default: 127.0.0.1; non-loopback requires auth)
+  --session-token <token>       Compatibility only; prefer BLOXFORGE_SESSION_TOKEN
   --debug                       Enable debug logging (stack traces, verbose output)
-  --open-cloud-key <key>        Roblox Open Cloud API Key (for some advanced tools)
-  --pollinations-key <key>      Pollinations API Key (for image-generation tools)
+  --open-cloud-key <key>        Compatibility only; prefer ROBLOX_OPEN_CLOUD_API_KEY
+  --pollinations-key <key>      Compatibility only; prefer POLLINATIONS_API_KEY
   --creator-id <id>             Roblox Creator User ID
   --creator-group-id <id>       Roblox Creator Group ID
-  --profile <profile>           Load specific tool profile (e.g., core)
+  --profile <profile>           core|builder|tester|full|inspector
   --help, -h                    Show this help message
 
 Commands:
@@ -93,10 +101,16 @@ if (process.argv.includes('--doctor') || process.argv.includes('verify')) {
   const pollinationsKey = flagValue('--pollinations-key');
   const toolProfile = flagValue('--profile');
 
-  if (openCloudKey) process.env.ROBLOX_OPEN_CLOUD_API_KEY = openCloudKey;
+  if (openCloudKey) {
+    warnSecretFlag('--open-cloud-key', 'ROBLOX_OPEN_CLOUD_API_KEY');
+    process.env.ROBLOX_OPEN_CLOUD_API_KEY = openCloudKey;
+  }
   if (creatorId) process.env.ROBLOX_CREATOR_USER_ID = creatorId;
   if (creatorGroupId) process.env.ROBLOX_CREATOR_GROUP_ID = creatorGroupId;
-  if (pollinationsKey) process.env.POLLINATIONS_API_KEY = pollinationsKey;
+  if (pollinationsKey) {
+    warnSecretFlag('--pollinations-key', 'POLLINATIONS_API_KEY');
+    process.env.POLLINATIONS_API_KEY = pollinationsKey;
+  }
   if (toolProfile) process.env.BLOXFORGE_TOOL_PROFILE = toolProfile;
 
   const require = createRequire(import.meta.url);

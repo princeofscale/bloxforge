@@ -50,11 +50,10 @@ describe('HTTP Server', () => {
       expect(response.headers['content-type']).toMatch(/html/);
     });
 
-    test('serves live dashboard data including operation history', async () => {
+    test('serves payload-free live dashboard data', async () => {
       const response = await request(app).get('/dashboard/data').expect(200);
       expect(response.body).toMatchObject({ pluginConnected: false, instanceCount: 0 });
-      expect(typeof response.body.operations).toBe('string');
-      expect(response.body.operations).toMatch(/history/i);
+      expect(response.body).not.toHaveProperty('operations');
     });
   });
 

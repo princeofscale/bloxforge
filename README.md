@@ -139,13 +139,15 @@ Profiles keep tool discovery focused and reduce context use:
 
 | Profile | Best for |
 |---|---|
-| `core` | Everyday inspection, scripts, and essential editing — the default |
-| `builder` | UI, terrain, templates, assets, and scene construction |
+| `core` | Everyday inspection, scripts, and essential editing — the default discovery set |
+| `builder` | UI, terrain, templates, assets, and scene construction; arbitrary Luau execution denied |
 | `tester` | Playtests, runtime debugging, input simulation, and assertions |
 | `full` | Every available BloxForge tool |
-| `inspector` | Read-only workflows through `@princeofscale/bloxforge-inspector` |
+| `inspector` | Read-only authorization; the dedicated `@princeofscale/bloxforge-inspector` also omits write definitions |
 
 Select one with `--profile <name>` or `BLOXFORGE_TOOL_PROFILE`.
+Profiles control authorization where stated; `load_toolset` only expands
+schema visibility and cannot grant a denied tool. Invalid names fail startup.
 
 ## Reliability and safety
 
@@ -156,7 +158,7 @@ BloxForge treats Studio as a recoverable local execution target:
 - explicit `outcome_unknown` handling after interrupted operations;
 - per-DataModel concurrency limits and backpressure;
 - plugin session credentials and capability-scoped MCP clients;
-- localhost-only bridge binding by default;
+- localhost-only bridge binding by default, with authenticated non-loopback opt-in;
 - mutation confirmation, dry-run, backup, and rollback-oriented tools.
 
 See [Architecture](docs/architecture.md) and

@@ -72,4 +72,35 @@ describe('HTTP Body Limit', () => {
       .send(body)
       .expect(200);
   });
+
+  test.each([
+    ['application/x-www-form-urlencoded', 'pluginSessionId=session-1&instanceId=place%3Atest&role=edit'],
+    ['text/plain', JSON.stringify({ pluginSessionId: 'session-1', instanceId: 'place:test', role: 'edit' })],
+  ])('rejects %s machine-control bodies', async (contentType, body) => {
+    const app = createHttpServer(tools, bridge);
+    await request(app)
+      .post('/ready')
+      .set('Content-Type', contentType)
+      .send(body)
+      .expect(415);
+  });
+
+  test('rejects missing content type and malformed JSON', async () => {
+    const app = createHttpServer(tools, bridge);
+    await request(app).post('/ready').send().expect(415);
+    await request(app)
+      .post('/ready')
+      .set('Content-Type', 'application/json')
+      .send('{"pluginSessionId":')
+      .expect(400);
+  });
+
+  test('rejects browser-originated control requests', async () => {
+    const app = createHttpServer(tools, bridge);
+    await request(app)
+      .post('/ready')
+      .set('Origin', 'https://attacker.example')
+      .send({ pluginSessionId: 'session-1', instanceId: 'place:test', role: 'edit' })
+      .expect(403);
+  });
 });

@@ -334,7 +334,17 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   const serverSessionToken = process.env.BLOXFORGE_SESSION_TOKEN?.trim();
   const clientCapabilities = parseClientCapabilities(process.env.BLOXFORGE_CLIENT_CAPABILITIES_JSON);
   app.use((req, res, next) => {
-    const protectedServerRoute = req.path === '/proxy' || req.path === '/mcp' || req.path.startsWith('/mcp/');
+    const protectedServerRoute =
+      req.path === '/health' ||
+      req.path === '/status' ||
+      req.path === '/dashboard' ||
+      req.path === '/dashboard/data' ||
+      req.path === '/instances' ||
+      req.path === '/proxy' ||
+      req.path === '/cancel' ||
+      /^\/request\/[^/]+\/status$/.test(req.path) ||
+      req.path === '/mcp' ||
+      req.path.startsWith('/mcp/');
     const token = bearerToken(req);
     if (protectedServerRoute && (serverSessionToken || clientCapabilities.size > 0) && token !== serverSessionToken && !clientCapabilities.has(token ?? '')) {
       res.status(401).json({ error: 'invalid_session_token' });
@@ -384,8 +394,36 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     : ['all'];
 
   const bodyLimit = process.env.MCP_HTTP_BODY_LIMIT?.trim() || '50mb';
-  app.use(express.json({ limit: bodyLimit }));
-  app.use(express.urlencoded({ limit: bodyLimit, extended: true }));
+  const controlBodyLimit = process.env.MCP_CONTROL_BODY_LIMIT?.trim() ||
+    (process.env.MCP_HTTP_BODY_LIMIT?.trim() ? bodyLimit : '1mb');
+  const machinePostRoute = (path: string): boolean =>
+    path === '/ready' ||
+    path === '/disconnect' ||
+    path === '/reconcile' ||
+    path === '/ack' ||
+    path === '/cancel' ||
+    path === '/response' ||
+    path === '/proxy' ||
+    path === '/mcp' ||
+    path.startsWith('/mcp/');
+  app.use((req, res, next) => {
+    if (req.method !== 'POST' || !machinePostRoute(req.path)) {
+      next();
+      return;
+    }
+    if (req.header('origin')) {
+      res.status(403).json({ error: 'browser_origin_not_allowed' });
+      return;
+    }
+    if (!req.is('application/json')) {
+      res.status(415).json({ error: 'application_json_required' });
+      return;
+    }
+    const limit = req.path === '/response' || req.path === '/mcp' || req.path.startsWith('/mcp/')
+      ? bodyLimit
+      : controlBodyLimit;
+    express.json({ limit })(req, res, next);
+  });
 
 
   app.get('/health', (req, res) => {
@@ -565,18 +603,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   });
 
 
-  // Minimal diagnostics dashboard. /dashboard serves a static page that polls
-  // /dashboard/data for live connection state and recent safety-layer ops.
+  // Minimal diagnostics dashboard. Public localhost diagnostics intentionally
+  // exclude operation payloads and credentials.
   app.get('/dashboard/data', async (_req, res) => {
     const instances = bridge.getInstances().map(toPublic);
-    let operations = 'unavailable';
-    try {
-      const result = await tools.getOperationHistory(25);
-      const node = result.content.find((c) => c.type === 'text') as { text?: string } | undefined;
-      operations = node?.text ?? 'none';
-    } catch {
-      /* getOperationHistory is local and shouldn't throw, but never break the dashboard */
-    }
     res.json({
       serverVersion: serverConfig?.version,
       protocolVersion: MCP_PROTOCOL_VERSION,
@@ -592,7 +622,6 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       mcpServerActive: isMCPServerActive(),
       uptime: mcpServerActive ? Date.now() - mcpServerStartTime : 0,
       pendingRequests: bridge.getPendingRequestCount(),
-      operations,
       generatedAt: new Date().toISOString(),
     });
   });

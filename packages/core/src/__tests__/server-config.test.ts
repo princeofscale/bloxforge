@@ -1,4 +1,5 @@
-import { shouldUseLazyToolLoading, toolProfileDomains } from '../server.js';
+import { authorizedToolsForProfile, shouldUseLazyToolLoading, toolProfileDomains } from '../server.js';
+import type { ToolDefinition } from '../tools/definitions.js';
 
 describe('server config', () => {
   it('defaults lazy tool loading on as the primary discovery path', () => {
@@ -23,5 +24,25 @@ describe('server config', () => {
     expect(toolProfileDomains('tester')).toContain('runtime');
     expect(toolProfileDomains('full')).toContain('sync');
     expect(toolProfileDomains('inspector')).not.toContain('mutation');
+  });
+
+  it('rejects unknown profiles instead of silently falling back', () => {
+    expect(() => toolProfileDomains('typo')).toThrow(/Invalid BloxForge tool profile/);
+  });
+
+  it('enforces inspector and builder authorization independently of discovery', () => {
+    const tools: ToolDefinition[] = [
+      { name: 'get_place_info', description: '', category: 'read', inputSchema: {} },
+      { name: 'set_property', description: '', category: 'write', inputSchema: {} },
+      { name: 'execute_luau', description: '', category: 'write', inputSchema: {} },
+      { name: 'execute_luau_async', description: '', category: 'write', inputSchema: {} },
+      { name: 'eval_server_runtime', description: '', category: 'write', inputSchema: {} },
+    ];
+
+    expect(authorizedToolsForProfile(tools, 'inspector').map((tool) => tool.name))
+      .toEqual(['get_place_info']);
+    expect(authorizedToolsForProfile(tools, 'builder').map((tool) => tool.name))
+      .toEqual(['get_place_info', 'set_property']);
+    expect(authorizedToolsForProfile(tools, 'full')).toEqual(tools);
   });
 });

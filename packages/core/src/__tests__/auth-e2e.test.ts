@@ -90,6 +90,23 @@ describe('Authentication E2E', () => {
     expect(res.body.error).toBe('invalid_session_token');
   });
 
+  test.each([
+    ['/disconnect', { pluginSessionId: 'session-1' }],
+    ['/reconcile', { pluginSessionId: 'session-1', serverEpoch: 'wrong', receipts: [] }],
+    ['/ack', { pluginSessionId: 'session-1', requestId: 'missing' }],
+    ['/response', { pluginSessionId: 'session-1', requestId: 'missing', response: {} }],
+  ])('protects plugin transport route %s', async (path, body) => {
+    const ready = await request(app).post('/ready').send(READY_BODY).expect(200);
+    await request(app).post(path).send(body).expect(401);
+    await request(app)
+      .post(path)
+      .set('Authorization', `Bearer ${ready.body.sessionToken}`)
+      .send(body)
+      .expect((res) => {
+        expect(res.status).not.toBe(401);
+      });
+  });
+
   test('Authenticated disconnect revokes the registration and its token', async () => {
     const readyRes = await request(app).post('/ready').send(READY_BODY).expect(200);
     const token = readyRes.body.sessionToken;
@@ -137,6 +154,25 @@ describe('Authentication E2E', () => {
         socket.once('open', resolve);
         socket.once('error', reject);
       })).resolves.toBeUndefined();
+    } finally {
+      socket.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  test('WebSocket stream rejects a missing Studio token', async () => {
+    await request(app).post('/ready').send(READY_BODY).expect(200);
+    const { server } = await listenWithRetry(app, '127.0.0.1', 0, 1);
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('expected TCP server address');
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/stream?pluginSessionId=session-1`);
+
+    try {
+      await expect(new Promise<number>((resolve, reject) => {
+        socket.once('unexpected-response', (_request, response) => resolve(response.statusCode ?? 0));
+        socket.once('open', () => reject(new Error('unauthenticated socket opened')));
+        socket.once('error', reject);
+      })).resolves.toBe(401);
     } finally {
       socket.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));

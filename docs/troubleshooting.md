@@ -152,10 +152,15 @@ HTTP clients can use `BLOXFORGE_CLIENT_CAPABILITIES_JSON`, a JSON object that
 maps bearer tokens to capability arrays. External quality commands are
 confined to `BLOXFORGE_PROJECT_ROOT` (the launch directory by default).
 
-For HTTP MCP/proxy clients, set `BLOXFORGE_SESSION_TOKEN` (or pass
-`--session-token`) and send `Authorization: Bearer <token>`. Studio plugin
+For HTTP MCP/proxy clients, set `BLOXFORGE_SESSION_TOKEN` and send
+`Authorization: Bearer <token>`. A non-loopback `ROBLOX_STUDIO_HOST` is
+rejected without this token. The compatibility `--session-token` flag still
+works but warns because command-line secrets can appear in shell history and
+process listings. Studio plugin
 sessions receive their own token from `/ready`; that token is required for
-poll, response, ack, disconnect, and WebSocket traffic.
+poll, response, ack, reconcile, disconnect, and WebSocket traffic. Control
+POSTs must use `Content-Type: application/json`; form, text, missing-content-
+type, and browser-origin requests are rejected.
 
 - [Architecture](./architecture.md) — how the bridge routes requests.
 - [Known limitations](./known-limitations.md) — engine constraints.

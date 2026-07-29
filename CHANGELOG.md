@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Refused unauthenticated non-loopback bridge bindings, authenticated internal
+  server-control and diagnostic routes when a server token is configured,
+  rejected non-JSON/browser-origin control requests, and removed operation
+  payloads from public localhost diagnostics.
+- Enforced inspector read-only and builder no-arbitrary-Luau profile policies
+  at dispatch (not only schema discovery), and rejected invalid profile names.
+- Warned when compatibility CLI flags carry secrets and documented the
+  environment-variable migration path.
 - Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
 - Fixed authenticated plugin disconnects so normal Studio/plugin shutdown removes the registration immediately instead of leaving a stale duplicate for up to 90 seconds.
 - Fixed connection indicators retaining stale success state during retries, and made duplicate registrations retry after the previous session disappears.

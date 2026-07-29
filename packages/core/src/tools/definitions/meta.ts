@@ -154,7 +154,7 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'load_toolset',
     category: 'read',
-    description: 'Load one or more tool domains. This expands the advertised MCP tool list and sends tools/list_changed. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. Use --profile core|builder|tester|full to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every schema upfront.',
+    description: 'Load one or more tool domains. This expands the advertised MCP tool list and sends tools/list_changed; it does not grant tools denied by the active profile or capability policy. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. Use --profile core|builder|tester|full|inspector to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every authorized schema upfront.',
     inputSchema: {
       type: 'object',
       properties: {
