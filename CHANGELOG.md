@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed invalid bridge ports and non-`EADDRINUSE` bind errors being misreported as proxy mode, and stopped repeating unchanged connection-state logs every five seconds.
 - Fixed contracted tools retaining the pre-proxy bridge after a second MCP client connected; registry handlers now use call-time dependencies and remain available after proxy-to-primary promotion.
 - Fixed Streamable HTTP lazy discovery hiding every non-contracted tool, and restored the real input schemas for asset preflight and recipe tools.
+- Centralized bridge request-state transitions so queued work times out normally,
+  only delivered/started mutations become `outcome_unknown`, late/duplicate
+  callbacks are inert, and retry/timeout/cancellation/latency counters update once.
+- Made the plugin protocol manifest exhaustive and fail closed for unknown
+  endpoints, replacing duplicated read/mutation and heavy-timeout heuristics.
+- Bounded request-journal status and receipt retention in memory and on disk,
+  preserved active work during compaction, and kept atomic mode-0600 writes.
+- Authenticated every proxy-to-primary control request, preserved a queryable
+  primary request ID across uncertain mutation timeouts, and bounded/stopped
+  proxy instance refreshes with visible stale-cache state.
+- Fixed same-session WebSocket replacement losing leased work, ignored stale
+  socket frames and callbacks, bounded payload/backpressure, and cleaned up
+  stream notifiers, heartbeats, and sockets during shutdown.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.

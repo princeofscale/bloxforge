@@ -97,8 +97,11 @@ Commands carry a stable `requestId`. Delivery uses a 10-second lease: an
 unacknowledged command can be delivered again with the same ID, while the
 plugin acknowledges before running the handler and caches the last 500
 completed results. A repeated ID returns the cached result instead of running
-a mutation twice. A timeout after delivery is reported as `outcome_unknown`;
-callers should use `get_request_status` before retrying. Each target DataModel
+a mutation twice. Requests move through `queued → delivered → started`, then
+one terminal state: `completed`, `failed`, `timed_out`, `cancelled`, or
+`outcome_unknown`. Queued/read timeouts are `timed_out`; only delivered or
+started mutations can become `outcome_unknown`. Callers should use
+`get_request_status` before retrying an unknown mutation. Each target DataModel
 allows one mutation and four concurrent reads; a full queue returns `BUSY`.
 
 Protocol v3 fences every delivery with the current `serverEpoch`, the assigned
@@ -106,7 +109,14 @@ plugin session, a monotonic delivery attempt, and a random lease token. A late
 frame from an old WebSocket or expired lease cannot acknowledge or complete a
 new attempt. A local mode-0600 journal restores queued work after process
 restart; delivered or started work is restored as `outcome_unknown` and is
-never replayed automatically.
+never replayed automatically. Active statuses survive journal compaction;
+terminal statuses and completion receipts are bounded by age and count.
+
+Proxy subprocesses authenticate `/proxy`, `/instances`, status lookup, and
+cancellation with the configured server token. A proxy supplies the primary
+request ID before waiting, so an uncertain transport timeout still returns an
+ID that `get_request_status` can query. Instance refreshes have a timeout,
+cannot overlap, and discard an ancient cache.
 
 The `/ready` bootstrap issues a per-plugin bearer token; subsequent plugin
 poll, response, ack, reconcile, disconnect, and WebSocket traffic must present

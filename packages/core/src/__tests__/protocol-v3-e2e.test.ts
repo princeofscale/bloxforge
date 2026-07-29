@@ -18,7 +18,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Valid fence accepted', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
 
     const delivered = bridge.getPendingRequestForSession('p1');
@@ -39,7 +39,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Stale server epoch rejected', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered = bridge.getPendingRequestForSession('p1')!;
 
@@ -54,7 +54,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Wrong plugin session rejected', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered = bridge.getPendingRequestForSession('p1')!;
 
@@ -69,7 +69,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Mismatched delivery attempt rejected', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered = bridge.getPendingRequestForSession('p1')!;
 
@@ -84,7 +84,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Empty lease token rejected', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered = bridge.getPendingRequestForSession('p1')!;
 
@@ -99,7 +99,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Fenced reject works', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered = bridge.getPendingRequestForSession('p1')!;
 
@@ -114,7 +114,7 @@ describe('Protocol V3 Fencing', () => {
   });
 
   test('Double-resolve with same fence rejected', () => {
-    const promise = bridge.sendRequest('/api/test', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered = bridge.getPendingRequestForSession('p1')!;
 
@@ -136,7 +136,7 @@ describe('Protocol V3 Fencing', () => {
       role: 'edit',
       protocolVersion: 3,
     });
-    const promise = bridge.sendRequest('/api/some-endpoint', { data: true }, 'place:1', 'edit');
+    const promise = bridge.sendRequest('/api/delete-object', { data: true }, 'place:1', 'edit');
     promise.catch(() => {});
     const delivered1 = bridge.getPendingRequestForSession('p1')!;
 

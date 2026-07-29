@@ -823,7 +823,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       ? (error
         ? bridge.rejectFencedRequest(requestId, error, fence)
         : bridge.resolveFencedRequest(requestId, response, fence))
-      : (error ? (bridge.rejectRequest(requestId, error), true) : (bridge.resolveRequest(requestId, response), true));
+      : (error ? bridge.rejectRequest(requestId, error) : bridge.resolveRequest(requestId, response));
     if (!accepted) {
       res.status(409).json({ success: false, error: 'stale_or_unknown_delivery', requestId });
       return;
@@ -834,10 +834,15 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
 
 
   app.post('/proxy', async (req, res) => {
-    const { endpoint, data, targetInstanceId, targetRole, proxyInstanceId } = req.body;
+    const { endpoint, data, targetInstanceId, targetRole, proxyInstanceId, requestId } = req.body;
 
-    if (!endpoint || !targetInstanceId || !targetRole) {
-      res.status(400).json({ error: 'endpoint, targetInstanceId, and targetRole are required' });
+    if (
+      !endpoint ||
+      !targetInstanceId ||
+      !targetRole ||
+      (requestId !== undefined && (typeof requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(requestId)))
+    ) {
+      res.status(400).json({ error: 'endpoint, targetInstanceId, targetRole, and an optional UUID requestId are required' });
       return;
     }
 
@@ -846,7 +851,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     }
 
     try {
-      const response = await bridge.sendRequest(endpoint, data, targetInstanceId, targetRole);
+      const response = await bridge.sendRequest(endpoint, data, targetInstanceId, targetRole, requestId);
       res.json({ response });
     } catch (err: any) {
       res.status(500).json({
@@ -1115,22 +1120,29 @@ function bindPort(app: express.Express, host: string, port: number): Promise<htt
 function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
   const requirePluginAuth = process.env.NODE_ENV !== 'test';
   const streams = new Map<string, WebSocket>();
-  const wss = new WebSocketServer({ noServer: true });
+  const alive = new WeakSet<WebSocket>();
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 50 * 1024 * 1024 });
 
   const deliver = (pluginSessionId: string) => {
     const socket = streams.get(pluginSessionId);
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN || socket.bufferedAmount > 1024 * 1024) return;
     const pending = bridge.getPendingRequestForSession(pluginSessionId);
     if (!pending) return;
     socket.send(JSON.stringify({ type: 'request', ...pending }), (error) => {
-      if (error) bridge.releasePendingRequest(pending.requestId);
+      if (error && streams.get(pluginSessionId) === socket) {
+        bridge.releasePendingRequest(pending.requestId);
+      }
     });
   };
-  bridge.addRequestNotifier(deliver);
+  const removeNotifier = bridge.addRequestNotifier(deliver);
 
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
-    if (url.pathname !== '/stream') return;
+    if (url.pathname !== '/stream') {
+      socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     const pluginSessionId = url.searchParams.get('pluginSessionId');
     const authorization = req.headers.authorization;
     const bearerToken = authorization?.startsWith('Bearer ')
@@ -1149,15 +1161,22 @@ function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
   });
 
   wss.on('connection', (socket: WebSocket, pluginSessionId: string) => {
+    const previous = streams.get(pluginSessionId);
+    if (previous && previous !== socket) {
+      bridge.releasePendingRequestsForSession(pluginSessionId);
+      previous.close(1012, 'Superseded by a newer stream');
+    }
     streams.set(pluginSessionId, socket);
+    alive.add(socket);
     bridge.updateInstanceActivity(pluginSessionId);
     deliver(pluginSessionId);
 
     socket.on('message', (raw) => {
+      if (streams.get(pluginSessionId) !== socket) return;
       bridge.updateInstanceActivity(pluginSessionId);
       try {
         const message = JSON.parse(raw.toString());
-        if (typeof message.requestId !== 'string') return;
+        if (!message || typeof message !== 'object' || typeof message.requestId !== 'string') return;
         const fence = {
           serverEpoch: message.serverEpoch,
           pluginSessionId,
@@ -1180,9 +1199,30 @@ function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
         // Ignore malformed stream frames; the HTTP fallback remains available.
       }
     });
+    socket.on('pong', () => alive.add(socket));
     socket.on('close', () => {
-      if (streams.get(pluginSessionId) === socket) streams.delete(pluginSessionId);
+      if (streams.get(pluginSessionId) !== socket) return;
+      streams.delete(pluginSessionId);
       bridge.releasePendingRequestsForSession(pluginSessionId);
     });
+  });
+
+  const heartbeat = setInterval(() => {
+    for (const socket of wss.clients) {
+      if (!alive.has(socket)) {
+        socket.terminate();
+        continue;
+      }
+      alive.delete(socket);
+      socket.ping();
+    }
+  }, 30000);
+  heartbeat.unref();
+
+  server.once('close', () => {
+    clearInterval(heartbeat);
+    removeNotifier();
+    for (const socket of wss.clients) socket.terminate();
+    wss.close();
   });
 }

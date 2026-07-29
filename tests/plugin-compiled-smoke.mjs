@@ -63,11 +63,12 @@ const ASSERTIONS = [
   },
   {
     file: 'Communication.luau',
-    label: 'WebSocket request stream with polling fallback is emitted',
+    label: 'HTTP polling remains active when the WebSocket stream is open',
     test: (src) =>
       src.includes('CreateWebStreamClient') &&
       src.includes('startRequestStream') &&
-      src.includes('if not conn.streamOpen then'),
+      src.includes('pollForRequests(idx)') &&
+      !src.includes('if not conn.streamOpen then'),
   },
   {
     file: 'Communication.luau',
@@ -75,7 +76,8 @@ const ASSERTIONS = [
     test: (src) =>
       src.includes('Plugin response serialization failed') &&
       src.includes('Failed to deliver response') &&
-      src.includes('Failed to send stream response'),
+      src.includes('Failed to send stream response') &&
+      src.includes('pluginSessionId = pluginSessionId'),
   },
   {
     file: 'Communication.luau',

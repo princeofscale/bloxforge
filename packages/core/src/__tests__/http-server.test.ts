@@ -140,29 +140,15 @@ describe('HTTP Server', () => {
       });
     });
 
-    test('rejects duplicate (instanceId, role) on /ready', async () => {
+    test('replaces a stale edit session on /ready', async () => {
       await request(app).post('/ready').send(READY_BODY).expect(200);
-      const dup = await request(app)
+      const replacement = await request(app)
         .post('/ready')
         .send({ ...READY_BODY, pluginSessionId: 'session-2' })
-        .expect(409);
-      expect(dup.body).toMatchObject({
-        success: false,
-        error: 'duplicate_instance_role',
-        message: 'Another plugin is already registered as (place:test, edit).',
-        request: {
-          instanceId: 'place:test',
-          role: 'edit',
-          placeId: 0,
-          placeName: 'TestPlace',
-          dataModelName: 'TestPlace',
-          isRunning: false,
-        },
-        existing: {
-          instanceId: 'place:test',
-          role: 'edit',
-        },
-      });
+        .expect(200);
+      expect(replacement.body.sessionToken).toEqual(expect.any(String));
+      expect(bridge.getInstances()).toHaveLength(1);
+      expect(bridge.getInstances()[0].pluginSessionId).toBe('session-2');
     });
 
     test('plugin disconnect by pluginSessionId', async () => {
@@ -206,8 +192,8 @@ describe('HTTP Server', () => {
 
     test('disconnect rejects pending requests targeting that tuple', async () => {
       await request(app).post('/ready').send(READY_BODY).expect(200);
-      const p1 = bridge.sendRequest('/api/test1', {}, 'place:test', 'edit');
-      const p2 = bridge.sendRequest('/api/test2', {}, 'place:test', 'edit');
+      const p1 = bridge.sendRequest('/api/file-tree', {}, 'place:test', 'edit');
+      const p2 = bridge.sendRequest('/api/place-info', {}, 'place:test', 'edit');
       p1.catch(() => {});
       p2.catch(() => {});
       expect(bridge.getPendingRequest('place:test', 'edit')).toBeTruthy();
@@ -224,16 +210,21 @@ describe('HTTP Server', () => {
   });
 
   describe('WebSocket bridge stream', () => {
-    test('pushes a queued request and resolves its same-stream response', async () => {
-      expect(bridge.registerInstance({
+    test('accepts the plugin bearer token and resolves a streamed request', async () => {
+      const ready = await request(app).post('/ready').send({
+        ...READY_BODY,
         pluginSessionId: 'stream-1',
         instanceId: 'place:stream',
-        role: 'edit',
-      }).ok).toBe(true);
+      }).expect(200);
+      const originalNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
       const { server } = await listenWithRetry(app, '127.0.0.1', 0, 1);
+      process.env.NODE_ENV = originalNodeEnv;
       const address = server.address();
       if (!address || typeof address === 'string') throw new Error('expected TCP server address');
-      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/stream?pluginSessionId=stream-1`);
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/stream?pluginSessionId=stream-1`, {
+        headers: { Authorization: `Bearer ${ready.body.sessionToken}` },
+      });
 
       try {
         await new Promise<void>((resolve, reject) => {
@@ -250,12 +241,74 @@ describe('HTTP Server', () => {
           socket.once('error', reject);
         });
 
-        const pending = bridge.sendRequest('/api/test', { source: 'stream' }, 'place:stream', 'edit');
-        await expect(response).resolves.toMatchObject({ type: 'request', request: { endpoint: '/api/test' } });
+        const pending = bridge.sendRequest('/api/delete-object', { source: 'stream' }, 'place:stream', 'edit');
+        await expect(response).resolves.toMatchObject({ type: 'request', request: { endpoint: '/api/delete-object' } });
         await expect(pending).resolves.toEqual({ ok: true });
       } finally {
         socket.close();
         await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    });
+
+    test('redelivers work when a same-session socket supersedes the old socket', async () => {
+      await request(app).post('/ready').send({
+        ...READY_BODY,
+        pluginSessionId: 'stream-race',
+        instanceId: 'place:stream-race',
+        protocolVersion: 3,
+      }).expect(200);
+      const { server } = await listenWithRetry(app, '127.0.0.1', 0, 1);
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('expected TCP server address');
+      const url = `ws://127.0.0.1:${address.port}/stream?pluginSessionId=stream-race`;
+      const first = new WebSocket(url);
+      let second: WebSocket | undefined;
+
+      try {
+        await new Promise<void>((resolve, reject) => {
+          first.once('open', resolve);
+          first.once('error', reject);
+        });
+        const firstFramePromise = new Promise<any>((resolve, reject) => {
+          first.once('message', raw => resolve(JSON.parse(raw.toString())));
+          first.once('error', reject);
+        });
+        const pending = bridge.sendRequest('/api/delete-object', {}, 'place:stream-race', 'edit');
+        pending.catch(() => {});
+        const firstFrame = await firstFramePromise;
+        expect(firstFrame.deliveryAttempt).toBe(1);
+
+        second = new WebSocket(url);
+        const secondFramePromise = new Promise<any>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('replacement socket did not receive request')), 2000);
+          second!.once('message', raw => {
+            clearTimeout(timeout);
+            resolve(JSON.parse(raw.toString()));
+          });
+          second!.once('error', reject);
+        });
+        await new Promise<void>((resolve, reject) => {
+          second!.once('open', resolve);
+          second!.once('error', reject);
+        });
+        const secondFrame = await secondFramePromise;
+        expect(secondFrame).toMatchObject({
+          requestId: firstFrame.requestId,
+          deliveryAttempt: 2,
+        });
+        second.send(JSON.stringify({
+          type: 'response',
+          requestId: secondFrame.requestId,
+          serverEpoch: secondFrame.serverEpoch,
+          deliveryAttempt: secondFrame.deliveryAttempt,
+          leaseToken: secondFrame.leaseToken,
+          response: { socket: 'replacement' },
+        }));
+        await expect(pending).resolves.toEqual({ socket: 'replacement' });
+      } finally {
+        first.close();
+        second?.close();
+        await new Promise<void>(resolve => server.close(() => resolve()));
       }
     });
   });
@@ -277,11 +330,11 @@ describe('HTTP Server', () => {
     test('returns pending request when MCP is active and tuple matches', async () => {
       await request(app).post('/ready').send(READY_BODY).expect(200);
       app.setMCPServerActive(true);
-      const pending = bridge.sendRequest('/api/test', { data: 'test' }, 'place:test', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', { data: 'test' }, 'place:test', 'edit');
       pending.catch(() => {});
       const response = await request(app).get('/poll?pluginSessionId=session-1').expect(200);
       expect(response.body).toMatchObject({
-        request: { endpoint: '/api/test', data: { data: 'test' } },
+        request: { endpoint: '/api/delete-object', data: { data: 'test' } },
         mcpConnected: true,
         pluginConnected: true,
         knownInstance: true,
@@ -306,7 +359,7 @@ describe('HTTP Server', () => {
 
   describe('Response Handling', () => {
     test('acknowledges delivery and exposes request status', async () => {
-      const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
+      const requestPromise = bridge.sendRequest('/api/delete-object', {}, 'place:test', 'edit');
       requestPromise.catch(() => {});
       const pending = bridge.getPendingRequest('place:test', 'edit')!;
 
@@ -324,7 +377,7 @@ describe('HTTP Server', () => {
     });
 
     test('handles successful response', async () => {
-      const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
+      const requestPromise = bridge.sendRequest('/api/delete-object', {}, 'place:test', 'edit');
       const pending = bridge.getPendingRequest('place:test', 'edit');
       const response = await request(app)
         .post('/response')
@@ -336,12 +389,12 @@ describe('HTTP Server', () => {
       await request(app)
         .post('/response')
         .send({ requestId: pending!.requestId, response: { result: 'duplicate' } })
-        .expect(200);
-      expect(bridge.getRequestStatus(pending!.requestId)).toMatchObject({ response: { result: 'duplicate' } });
+        .expect(409);
+      expect(bridge.getRequestStatus(pending!.requestId)).toMatchObject({ response: { result: 'success' } });
     });
 
     test('handles error response', async () => {
-      const requestPromise = bridge.sendRequest('/api/test', {}, 'place:test', 'edit');
+      const requestPromise = bridge.sendRequest('/api/delete-object', {}, 'place:test', 'edit');
       requestPromise.catch(() => {});
       const pending = bridge.getPendingRequest('place:test', 'edit');
       await request(app)

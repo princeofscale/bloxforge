@@ -145,7 +145,13 @@ Bridge recovery is journaled to `~/.bloxforge/bridge-journal.json` with
 owner-only permissions. Set `BLOXFORGE_JOURNAL_PATH` to relocate it or `off`
 to disable persistence. After restart, queued work can resume; delivered or
 started work becomes `outcome_unknown` and must be checked with
-`get_request_status` before retrying.
+`get_request_status` before retrying. Queued or read-only work reports a normal
+timeout instead. The journal retains all active work but bounds terminal
+history, so long-running servers do not grow it indefinitely.
+
+Proxy-mode mutation timeouts also return a primary request ID. Query that ID
+with `get_request_status`; do not retry the mutation merely because the proxy
+transport was interrupted.
 
 Set `BLOXFORGE_STDIO_CAPABILITIES` to a comma-separated capability allowlist.
 HTTP clients can use `BLOXFORGE_CLIENT_CAPABILITIES_JSON`, a JSON object that

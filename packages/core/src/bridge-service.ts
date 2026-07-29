@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { RequestJournal, CompletionReceipt, defaultRequestJournalPath } from './request-journal.js';
+import { protocolPolicy } from './protocol-manifest.js';
 
 export interface PluginInstance {
   // Internal: per-plugin GUID, regenerated on every plugin load.
@@ -109,6 +110,14 @@ export interface RequestStatus {
   error?: any;
 }
 
+interface InternalRequestStatus extends RequestStatus {
+  endpoint?: string;
+  targetInstanceId?: string;
+  targetRole?: string;
+  assignedPluginSessionId?: string;
+  createdAt?: number;
+}
+
 export interface RequestFence {
   serverEpoch: string;
   pluginSessionId: string;
@@ -200,11 +209,8 @@ const INSTANCE_ALIAS_TTL_MS = 5 * 60 * 1000;
 // floor via resolveRequestTimeout.
 const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 const HEAVY_REQUEST_TIMEOUT_FLOOR_MS = 120000;
-// Endpoints whose plugin-side work can legitimately take a long time.
-const HEAVY_ENDPOINTS = ['/api/execute-luau', '/api/generate-build', '/api/import-scene'];
-
 export function resolveRequestTimeout(endpoint: string, baseMs: number): number {
-  if (HEAVY_ENDPOINTS.some((e) => endpoint.startsWith(e))) {
+  if (protocolPolicy(endpoint).timeoutClass === 'heavy') {
     return Math.max(baseMs, HEAVY_REQUEST_TIMEOUT_FLOOR_MS);
   }
   return baseMs;
@@ -248,7 +254,7 @@ export class BridgeService {
   serverEpoch = randomUUID();
   private journal!: RequestJournal;
   private journalWriteWarningEmitted = false;
-  private requestStatuses = new Map<string, RequestStatus>();
+  private requestStatuses = new Map<string, InternalRequestStatus>();
   private sessionTokens = new Map<string, string>(); // sessionToken -> pluginSessionId
 
   private transportCounters = {
@@ -259,6 +265,7 @@ export class BridgeService {
     timeouts: 0,
   };
   private transportLatencies: number[] = [];
+  private static readonly MAX_LATENCY_SAMPLES = 1024;
 
   constructor(journal?: RequestJournal | string) {
     if (typeof journal === 'string') {
@@ -280,7 +287,7 @@ export class BridgeService {
               s.state = 'outcome_unknown';
               s.updatedAt = Date.now();
             }
-            this.requestStatuses.set(s.requestId, s);
+            this.requestStatuses.set(s.requestId, s as InternalRequestStatus);
           }
           for (const p of pending) {
             if (p.state !== 'queued') continue;
@@ -310,23 +317,37 @@ export class BridgeService {
     if (path) this.journal = new RequestJournal(path);
   }
 
+  private journalSnapshot() {
+    return RequestJournal.compact({
+      version: 2,
+      savedAt: Date.now(),
+      statuses: Array.from(this.requestStatuses.entries()).map(([requestId, status]) => ({
+        requestId,
+        ...status,
+      })),
+      pending: Array.from(this.pendingRequests.values()).map(request => ({
+        id: request.id,
+        endpoint: request.endpoint,
+        data: request.data,
+        targetInstanceId: request.targetInstanceId,
+        targetRole: request.targetRole,
+        timestamp: request.timestamp,
+        state: (this.requestStatuses.get(request.id)?.state as Extract<RequestState, 'queued' | 'delivered' | 'started'>) ?? 'queued',
+        deliveryAttempt: request.deliveryAttempt ?? 0,
+      })),
+      completionReceipts: [],
+    });
+  }
+
   private persistJournal() {
+    const snapshot = this.journalSnapshot();
+    this.requestStatuses = new Map(snapshot.statuses.map(({ requestId, ...status }) => [
+      requestId,
+      status as InternalRequestStatus,
+    ]));
     if (!this.journal) return;
     try {
-      this.journal.save(
-        Array.from(this.requestStatuses.entries()).map(([id, s]) => ({ requestId: id, ...s })),
-        Array.from(this.pendingRequests.values()).map(req => ({
-          id: req.id,
-          endpoint: req.endpoint,
-          data: req.data,
-          targetInstanceId: req.targetInstanceId,
-          targetRole: req.targetRole,
-          timestamp: req.timestamp,
-          state: (this.requestStatuses.get(req.id)?.state as Extract<RequestState, 'queued' | 'delivered' | 'started'>) ?? 'queued',
-          deliveryAttempt: req.deliveryAttempt ?? 0,
-        })),
-        []
-      );
+      this.journal.save(snapshot.statuses, snapshot.pending, snapshot.completionReceipts);
       this.journalWriteWarningEmitted = false;
     } catch (error) {
       // Persistence is a recovery enhancement, not part of the live bridge
@@ -343,9 +364,76 @@ export class BridgeService {
     }
   }
 
-  private updateRequestStatus(requestId: string, status: Partial<typeof this.requestStatuses extends Map<any, infer V> ? V : never>) {
-    const existing = this.requestStatuses.get(requestId) ?? { state: 'queued', serverEpoch: this.serverEpoch, deliveryAttempt: 0, updatedAt: Date.now() };
-    this.requestStatuses.set(requestId, { ...existing, ...status, updatedAt: Date.now() });
+  private transitionRequestStatus(
+    requestId: string,
+    state: RequestState,
+    status: Partial<InternalRequestStatus> = {},
+    timeout = false,
+  ): boolean {
+    const existing = this.requestStatuses.get(requestId);
+    const previous = existing?.state;
+    const allowed: Record<RequestState, readonly RequestState[]> = {
+      queued: ['delivered', 'failed', 'timed_out', 'cancelled'],
+      delivered: ['queued', 'started', 'completed', 'failed', 'timed_out', 'cancelled', 'outcome_unknown'],
+      started: ['completed', 'failed', 'timed_out', 'outcome_unknown'],
+      completed: [],
+      failed: [],
+      timed_out: [],
+      cancelled: [],
+      outcome_unknown: ['completed', 'failed'],
+    };
+    if (previous && previous !== state && !allowed[previous].includes(state)) return false;
+    if (previous === state && existing) return false;
+
+    const next: InternalRequestStatus = {
+      serverEpoch: this.serverEpoch,
+      deliveryAttempt: 0,
+      ...existing,
+      ...status,
+      state,
+      updatedAt: Date.now(),
+    };
+    this.requestStatuses.set(requestId, next);
+
+    if (timeout) this.transportCounters.timeouts++;
+    if (state === 'outcome_unknown') this.transportCounters.outcomeUnknown++;
+    if (state === 'cancelled') this.transportCounters.cancelled++;
+    if (state === 'completed') {
+      this.transportCounters.completed++;
+      if (next.createdAt !== undefined) {
+        this.transportLatencies.push(Math.max(0, Date.now() - next.createdAt));
+        if (this.transportLatencies.length > BridgeService.MAX_LATENCY_SAMPLES) {
+          this.transportLatencies.splice(0, this.transportLatencies.length - BridgeService.MAX_LATENCY_SAMPLES);
+        }
+      }
+    }
+    return true;
+  }
+
+  private expireRequest(requestId: string): boolean {
+    const request = this.pendingRequests.get(requestId);
+    const status = this.requestStatuses.get(requestId);
+    if (!request || !status) return false;
+
+    clearTimeout(request.timeoutId);
+    this.pendingRequests.delete(requestId);
+    const unknown = (status.state === 'delivered' || status.state === 'started') &&
+      protocolPolicy(request.endpoint).mode === 'mutation';
+    if (unknown) {
+      this.transitionRequestStatus(requestId, 'outcome_unknown', {}, true);
+      request.reject(new RequestOutcomeUnknownError(
+        requestId,
+        request.endpoint,
+        resolveRequestTimeout(request.endpoint, this.requestTimeout),
+      ));
+    } else {
+      this.transitionRequestStatus(requestId, 'timed_out', { error: 'Request timed out' }, true);
+      request.reject(new Error(
+        `Request timeout after ${resolveRequestTimeout(request.endpoint, this.requestTimeout)}ms on ${request.endpoint}`,
+      ));
+    }
+    this.persistJournal();
+    return true;
   }
 
   private canonicalInstanceId(instanceId: string, placeId?: number): string {
@@ -455,13 +543,15 @@ export class BridgeService {
       }
     }
 
-    // Reject duplicate (instanceId, role) tuples. This should not be
-    // reachable through normal Studio + Team Create usage, but defense in
-    // depth: surface it loudly rather than silently misrouting.
+    // A Studio restart creates a fresh edit-plugin session while the old
+    // WebSocket can remain open briefly. The newest edit session owns the
+    // place; client-role duplicates remain rejected.
     const existing = Array.from(this.instances.values()).find(
       (i) => i.instanceId === instanceId && i.role === assignedRole && i.pluginSessionId !== pluginSessionId,
     );
-    if (existing) {
+    if (existing && assignedRole === 'edit') {
+      this.unregisterInstance(existing.pluginSessionId, 'plugin_request');
+    } else if (existing) {
       return {
         ok: false,
         error: {
@@ -541,19 +631,32 @@ export class BridgeService {
       if (!stillHasHandler) {
         clearTimeout(request.timeoutId);
         this.pendingRequests.delete(id);
-        if (status?.state === 'delivered' || status?.state === 'started') {
-          this.updateRequestStatus(id, { state: 'outcome_unknown' });
-          request.reject(new RequestOutcomeUnknownError(id, request.endpoint, this.requestTimeout));
+        if ((status?.state === 'delivered' || status?.state === 'started') && this.isMutation(request.endpoint)) {
+          this.transitionRequestStatus(id, 'outcome_unknown');
+          request.reject(new RequestOutcomeUnknownError(
+            id,
+            request.endpoint,
+            resolveRequestTimeout(request.endpoint, this.requestTimeout),
+          ));
         } else {
-          this.updateRequestStatus(id, { state: 'failed', error: 'Target disconnected' });
+          this.transitionRequestStatus(id, 'failed', { error: 'Target disconnected' });
           request.reject(new Error(`Target (${request.targetInstanceId}, ${request.targetRole}) disconnected`));
         }
       } else {
         if (wasAssignedToThis && (status?.state === 'delivered' || status?.state === 'started')) {
           clearTimeout(request.timeoutId);
           this.pendingRequests.delete(id);
-          this.updateRequestStatus(id, { state: 'outcome_unknown' });
-          request.reject(new RequestOutcomeUnknownError(id, request.endpoint, this.requestTimeout));
+          if (this.isMutation(request.endpoint)) {
+            this.transitionRequestStatus(id, 'outcome_unknown');
+            request.reject(new RequestOutcomeUnknownError(
+              id,
+              request.endpoint,
+              resolveRequestTimeout(request.endpoint, this.requestTimeout),
+            ));
+          } else {
+            this.transitionRequestStatus(id, 'failed', { error: 'Target disconnected' });
+            request.reject(new Error(`Target (${request.targetInstanceId}, ${request.targetRole}) disconnected`));
+          }
         }
       }
     }
@@ -622,18 +725,29 @@ export class BridgeService {
   }
 
   async lookupRequestStatus(requestId: string): Promise<(RequestStatus & { requestId: string }) | undefined> {
-    const status = this.requestStatuses.get(requestId);
-    if (!status) return undefined;
-    return { requestId, ...status };
+    return this.getRequestStatus(requestId);
   }
 
   getRequestStatus(requestId: string): (RequestStatus & { requestId: string }) | undefined {
     const status = this.requestStatuses.get(requestId);
     if (!status) return undefined;
-    return { requestId, ...status };
+    const {
+      endpoint: _endpoint,
+      targetInstanceId: _targetInstanceId,
+      targetRole: _targetRole,
+      assignedPluginSessionId: _assignedPluginSessionId,
+      createdAt: _createdAt,
+      ...publicStatus
+    } = status;
+    return { requestId, ...publicStatus };
   }
 
   getTransportDiagnostics() {
+    const sorted = [...this.transportLatencies].sort((left, right) => left - right);
+    const percentile = (value: number): number => {
+      if (sorted.length === 0) return 0;
+      return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * value) - 1)];
+    };
     return {
       completed: this.transportCounters.completed,
       queueDepth: this.pendingRequests.size,
@@ -645,6 +759,10 @@ export class BridgeService {
         this.transportLatencies.length > 0
           ? this.transportLatencies.reduce((a, b) => a + b, 0) / this.transportLatencies.length
           : 0,
+      latencySampleCount: this.transportLatencies.length,
+      p50LatencyMs: percentile(0.5),
+      p95LatencyMs: percentile(0.95),
+      p99LatencyMs: percentile(0.99),
     };
   }
 
@@ -803,20 +921,13 @@ export class BridgeService {
     data: any,
     targetInstanceId: string,
     targetRole: string,
+    requestId = randomUUID(),
   ): Promise<any> {
-    const requestId = randomUUID();
     const effectiveTimeout = resolveRequestTimeout(endpoint, this.requestTimeout);
 
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        if (this.pendingRequests.has(requestId)) {
-          this.pendingRequests.delete(requestId);
-          this.updateRequestStatus(requestId, { state: 'outcome_unknown' });
-          this.persistJournal();
-          this.transportCounters.timeouts++;
-          reject(new RequestOutcomeUnknownError(requestId, endpoint, effectiveTimeout));
-        }
-      }, effectiveTimeout);
+      const timeoutId = setTimeout(() => this.expireRequest(requestId), effectiveTimeout);
+      const createdAt = Date.now();
 
       const request: PendingRequest = {
         id: requestId,
@@ -824,7 +935,7 @@ export class BridgeService {
         data,
         targetInstanceId,
         targetRole,
-        timestamp: Date.now(),
+        timestamp: createdAt,
         inFlight: false,
         resolve,
         reject,
@@ -832,7 +943,12 @@ export class BridgeService {
       };
 
       this.pendingRequests.set(requestId, request);
-      this.updateRequestStatus(requestId, { state: 'queued' });
+      this.transitionRequestStatus(requestId, 'queued', {
+        endpoint,
+        targetInstanceId,
+        targetRole,
+        createdAt,
+      });
       this.persistJournal();
 
       for (const instance of this.instances.values()) {
@@ -866,7 +982,11 @@ export class BridgeService {
       const status = this.requestStatuses.get(request.id);
       if (request.inFlight && status?.state === 'delivered' && Date.now() - status.updatedAt >= 10000) {
         request.inFlight = false;
-        this.updateRequestStatus(request.id, { state: 'queued' });
+        request.assignedPluginSessionId = undefined;
+        this.transitionRequestStatus(request.id, 'queued', {
+          assignedPluginSessionId: undefined,
+          leaseToken: undefined,
+        });
       }
 
       if (request.inFlight) {
@@ -894,14 +1014,15 @@ export class BridgeService {
     if (oldestRequest) {
       oldestRequest.inFlight = true;
       oldestRequest.deliveryAttempt = (oldestRequest.deliveryAttempt ?? 0) + 1;
+      if (oldestRequest.deliveryAttempt > 1) this.transportCounters.deliveryRetries++;
       oldestRequest.assignedPluginSessionId = pluginSessionId;
       const leaseToken = randomUUID();
 
-      this.updateRequestStatus(oldestRequest.id, {
-        state: 'delivered',
+      this.transitionRequestStatus(oldestRequest.id, 'delivered', {
         serverEpoch: this.serverEpoch,
         deliveryAttempt: oldestRequest.deliveryAttempt,
-        leaseToken
+        leaseToken,
+        assignedPluginSessionId: pluginSessionId,
       });
       this.persistJournal();
 
@@ -925,7 +1046,11 @@ export class BridgeService {
     const request = this.pendingRequests.get(requestId);
     if (request) {
       request.inFlight = false;
-      this.updateRequestStatus(requestId, { state: 'queued' });
+      request.assignedPluginSessionId = undefined;
+      this.transitionRequestStatus(requestId, 'queued', {
+        assignedPluginSessionId: undefined,
+        leaseToken: undefined,
+      });
       this.persistJournal();
     }
   }
@@ -934,10 +1059,13 @@ export class BridgeService {
     const instance = this.instances.get(pluginSessionId);
     if (!instance) return;
     for (const request of this.pendingRequests.values()) {
-      if (request.targetInstanceId === instance.instanceId && request.targetRole === instance.role) {
+      if (request.assignedPluginSessionId === pluginSessionId) {
         request.inFlight = false;
         request.assignedPluginSessionId = undefined;
-        this.updateRequestStatus(request.id, { state: 'queued' });
+        this.transitionRequestStatus(request.id, 'queued', {
+          assignedPluginSessionId: undefined,
+          leaseToken: undefined,
+        });
       }
     }
     this.persistJournal();
@@ -950,12 +1078,33 @@ export class BridgeService {
     if (!instance) return 0;
 
     let reconciled = 0;
+    const now = Date.now();
     for (const receipt of receipts) {
       const status = this.requestStatuses.get(receipt.requestId);
-      if (status && status.state === 'outcome_unknown') {
-        status.state = 'completed';
-        status.updatedAt = receipt.completedAt || Date.now();
-        status.response = { reconciled: true, digest: receipt.responseDigest };
+      const validTimestamp =
+        Number.isFinite(receipt.completedAt) &&
+        receipt.completedAt > 0 &&
+        receipt.completedAt <= now + 5 * 60 * 1000 &&
+        (status?.createdAt === undefined || receipt.completedAt >= status.createdAt - 60 * 1000);
+      const validDigest =
+        receipt.responseDigest === undefined ||
+        /^[A-Za-z0-9_-]{8,128}$/.test(receipt.responseDigest);
+      const validAttempt =
+        receipt.deliveryAttempt === undefined ||
+        receipt.deliveryAttempt === status?.deliveryAttempt;
+      if (
+        status?.state === 'outcome_unknown' &&
+        status.assignedPluginSessionId === pluginSessionId &&
+        status.targetInstanceId === instance.instanceId &&
+        status.targetRole === instance.role &&
+        validTimestamp &&
+        validDigest &&
+        validAttempt &&
+        this.transitionRequestStatus(receipt.requestId, 'completed', {
+          response: { reconciled: true, digest: receipt.responseDigest },
+          error: undefined,
+        })
+      ) {
         reconciled++;
       }
     }
@@ -967,76 +1116,70 @@ export class BridgeService {
   }
 
   acknowledgeRequest(requestId: string): boolean {
-    const status = this.requestStatuses.get(requestId);
-    if (!status) return false;
-    this.updateRequestStatus(requestId, { state: 'started' });
+    if (!this.transitionRequestStatus(requestId, 'started')) return false;
     this.persistJournal();
     return true;
   }
 
-  resolveRequest(requestId: string, response: any) {
+  resolveRequest(requestId: string, response: any): boolean {
     const request = this.pendingRequests.get(requestId);
-    this.updateRequestStatus(requestId, { state: 'completed', response, error: undefined });
-    this.transportCounters.completed++;
+    if (!this.transitionRequestStatus(requestId, 'completed', { response, error: undefined })) return false;
     if (request) {
       clearTimeout(request.timeoutId);
       this.pendingRequests.delete(requestId);
       request.resolve(response);
     }
     this.persistJournal();
+    return true;
   }
 
-  rejectRequest(requestId: string, error: any) {
+  rejectRequest(requestId: string, error: any): boolean {
     const request = this.pendingRequests.get(requestId);
-    this.updateRequestStatus(requestId, { state: 'failed', error });
+    if (!this.transitionRequestStatus(requestId, 'failed', { error })) return false;
     if (request) {
       clearTimeout(request.timeoutId);
       this.pendingRequests.delete(requestId);
       request.reject(error);
     }
     this.persistJournal();
+    return true;
   }
 
   resolveFencedRequest(requestId: string, response: any, fence: RequestFence): boolean {
     const status = this.requestStatuses.get(requestId);
-    const pending = this.pendingRequests.get(requestId);
-    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.state === 'completed' || status.state === 'failed' || pending?.assignedPluginSessionId !== fence.pluginSessionId) return false;
-    this.resolveRequest(requestId, response);
-    return true;
+    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.assignedPluginSessionId !== fence.pluginSessionId) return false;
+    return this.resolveRequest(requestId, response);
   }
 
   rejectFencedRequest(requestId: string, error: any, fence: RequestFence): boolean {
     const status = this.requestStatuses.get(requestId);
-    const pending = this.pendingRequests.get(requestId);
-    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.state === 'completed' || status.state === 'failed' || pending?.assignedPluginSessionId !== fence.pluginSessionId) return false;
-    this.rejectRequest(requestId, error);
-    return true;
+    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.assignedPluginSessionId !== fence.pluginSessionId) return false;
+    return this.rejectRequest(requestId, error);
   }
 
   acknowledgeFencedRequest(requestId: string, fence: RequestFence): boolean {
     const status = this.requestStatuses.get(requestId);
-    const pending = this.pendingRequests.get(requestId);
-    if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.state === 'completed' || status.state === 'failed' || pending?.assignedPluginSessionId !== fence.pluginSessionId) return false;
+    if (!status || status.state !== 'delivered' || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.assignedPluginSessionId !== fence.pluginSessionId) return false;
     return this.acknowledgeRequest(requestId);
   }
 
   cleanupOldRequests() {
     const now = Date.now();
     for (const [id, request] of this.pendingRequests.entries()) {
-      if (now - request.timestamp > resolveRequestTimeout(request.endpoint, this.requestTimeout)) {
-        clearTimeout(request.timeoutId);
-        this.pendingRequests.delete(id);
-        request.reject(new Error('Request timeout'));
+      if (now - request.timestamp >= resolveRequestTimeout(request.endpoint, this.requestTimeout)) {
+        this.expireRequest(id);
       }
     }
   }
 
   clearAllPendingRequests() {
-    for (const [, request] of this.pendingRequests.entries()) {
+    for (const [requestId, request] of this.pendingRequests.entries()) {
       clearTimeout(request.timeoutId);
+      this.transitionRequestStatus(requestId, 'failed', { error: 'Connection closed' });
       request.reject(new Error('Connection closed'));
     }
     this.pendingRequests.clear();
+    this.persistJournal();
   }
 
   cancelRequest(requestId: string): boolean {
@@ -1050,8 +1193,9 @@ export class BridgeService {
 
     clearTimeout(request.timeoutId);
     this.pendingRequests.delete(requestId);
-    this.updateRequestStatus(requestId, { state: 'cancelled', error: 'Request cancelled before execution' });
-    this.transportCounters.cancelled++;
+    if (!this.transitionRequestStatus(requestId, 'cancelled', { error: 'Request cancelled before execution' })) {
+      return false;
+    }
     request.reject(new Error(`Request ${requestId} cancelled`));
     this.persistJournal();
     return true;
@@ -1086,13 +1230,6 @@ export class BridgeService {
   }
 
   private isMutation(endpoint: string): boolean {
-    return (
-      !endpoint.startsWith('/api/read') &&
-      !endpoint.startsWith('/api/get') &&
-      !endpoint.startsWith('/api/search') &&
-      endpoint !== '/api/evaluate' &&
-      endpoint !== '/api/execute-script' &&
-      endpoint !== '/api/run-code'
-    );
+    return protocolPolicy(endpoint).concurrencyCategory === 'mutation';
   }
 }

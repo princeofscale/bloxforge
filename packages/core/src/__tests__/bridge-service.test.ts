@@ -6,7 +6,7 @@ import * as path from 'node:path';
 
 describe('resolveRequestTimeout', () => {
   it('keeps the base timeout for ordinary endpoints', () => {
-    expect(resolveRequestTimeout('/api/get-instance-children', 30000)).toBe(30000);
+    expect(resolveRequestTimeout('/api/instance-children', 30000)).toBe(30000);
   });
 
   it('grants a longer floor to heavy execute-luau requests', () => {
@@ -68,8 +68,17 @@ describe('persistent request journal', () => {
   });
 });
 
-describe('ProxyBridgeService timeout', () => {
-  test('uses the heavy endpoint timeout floor', async () => {
+describe('ProxyBridgeService transport', () => {
+  const originalToken = process.env.BLOXFORGE_SESSION_TOKEN;
+
+  afterEach(() => {
+    if (originalToken === undefined) delete process.env.BLOXFORGE_SESSION_TOKEN;
+    else process.env.BLOXFORGE_SESSION_TOKEN = originalToken;
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  test('preserves a queryable request ID when a mutation proxy transport times out', async () => {
     jest.useFakeTimers();
     const originalFetch = global.fetch;
     global.fetch = jest.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -82,6 +91,7 @@ describe('ProxyBridgeService timeout', () => {
     }) as typeof fetch;
 
     const bridge = new ProxyBridgeService('http://localhost:58741');
+    bridge.stop();
     const pending = bridge.sendRequest('/api/execute-luau', {}, 'place:1', 'edit');
     let settled = false;
     pending.finally(() => { settled = true; }).catch(() => {});
@@ -89,11 +99,12 @@ describe('ProxyBridgeService timeout', () => {
     await jest.advanceTimersByTimeAsync(30000);
     expect(settled).toBe(false);
     await jest.advanceTimersByTimeAsync(90000);
-    await expect(pending).rejects.toThrow('Proxy request timeout');
+    await expect(pending).rejects.toMatchObject({
+      outcome: 'unknown',
+      requestId: expect.any(String),
+    });
 
-    bridge.stop();
     global.fetch = originalFetch;
-    jest.useRealTimers();
   });
 
   test('preserves outcome_unknown details returned by the primary', async () => {
@@ -113,6 +124,68 @@ describe('ProxyBridgeService timeout', () => {
     await expect(bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit')).rejects.toMatchObject({
       requestId: 'primary-request-1',
       outcome: 'unknown',
+    });
+
+    bridge.stop();
+    global.fetch = originalFetch;
+  });
+
+  test('authenticates primary refresh, proxy, status, and cancellation requests', async () => {
+    process.env.BLOXFORGE_SESSION_TOKEN = 'server-secret';
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      requests.push({ url, init });
+      if (url.endsWith('/instances')) {
+        return Promise.resolve(new Response(JSON.stringify({ instances: [] }), { status: 200 }));
+      }
+      if (url.includes('/request/')) {
+        return Promise.resolve(new Response(JSON.stringify({ state: 'queued' }), { status: 200 }));
+      }
+      if (url.endsWith('/cancel')) {
+        return Promise.resolve(new Response('{}', { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ response: { ok: true } }), { status: 200 }));
+    }) as typeof fetch;
+
+    const bridge = new ProxyBridgeService('http://localhost:58741');
+    await bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+    await bridge.lookupRequestStatus('request-1');
+    await bridge.requestCancellation('request-1');
+    await Promise.resolve();
+
+    expect(requests).toHaveLength(4);
+    for (const request of requests) {
+      expect(new Headers(request.init?.headers).get('Authorization')).toBe('Bearer server-secret');
+    }
+
+    const proxyBody = JSON.parse(String(requests.find(({ url }) => url.endsWith('/proxy'))?.init?.body));
+    expect(proxyBody.requestId).toMatch(/^[0-9a-f-]{36}$/);
+
+    bridge.stop();
+    global.fetch = originalFetch;
+  });
+
+  test('prevents overlapping instance refreshes and exposes stale cache state', async () => {
+    jest.useFakeTimers();
+    const originalFetch = global.fetch;
+    let resolveRefresh!: (value: Response) => void;
+    global.fetch = jest.fn(() => new Promise<Response>((resolve) => {
+      resolveRefresh = resolve;
+    })) as typeof fetch;
+
+    const bridge = new ProxyBridgeService('http://localhost:58741');
+    await jest.advanceTimersByTimeAsync(500);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(bridge.getTransportDiagnostics()).toMatchObject({
+      proxyCache: { stale: true, refreshing: true },
+    });
+
+    resolveRefresh(new Response(JSON.stringify({ instances: [] }), { status: 200 }));
+    await jest.advanceTimersByTimeAsync(0);
+    expect(bridge.getTransportDiagnostics()).toMatchObject({
+      proxyCache: { stale: false, refreshing: false },
     });
 
     bridge.stop();
@@ -159,31 +232,31 @@ describe('BridgeService', () => {
   describe('Request management', () => {
     test('queues a request and returns it on matching poll', async () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      bridge.sendRequest('/api/test', { hello: 'world' }, 'place:1', 'edit');
+      bridge.sendRequest('/api/delete-object', { hello: 'world' }, 'place:1', 'edit');
 
       const pending = bridge.getPendingRequest('place:1', 'edit');
       expect(pending).toBeTruthy();
-      expect(pending!.request.endpoint).toBe('/api/test');
+      expect(pending!.request.endpoint).toBe('/api/delete-object');
       expect(pending!.request.data).toEqual({ hello: 'world' });
     });
 
     test('does not return request to non-matching role', async () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
       register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
-      bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
 
       expect(bridge.getPendingRequest('place:1', 'server')).toBeNull();
       expect(bridge.getPendingRequest('place:1', 'edit')).toBeTruthy();
     });
 
     test('does not return request to non-matching instanceId', async () => {
-      bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       expect(bridge.getPendingRequest('place:2', 'edit')).toBeNull();
       expect(bridge.getPendingRequest('place:1', 'edit')).toBeTruthy();
     });
 
     test('does not return the same request twice while response is in flight', async () => {
-      bridge.sendRequest('/api/test', { mutates: true }, 'place:1', 'server');
+      bridge.sendRequest('/api/delete-object', { mutates: true }, 'place:1', 'server');
 
       const first = bridge.getPendingRequest('place:1', 'server');
       expect(first).toBeTruthy();
@@ -203,7 +276,14 @@ describe('BridgeService', () => {
       bridge.cancelRequest((bridge.getPendingRequest('place:1', 'edit') ?? { requestId: '' }).requestId);
       await expect(queuedMutation).rejects.toThrow(/cancelled/);
 
-      const reads = Array.from({ length: 5 }, (_, index) => bridge.sendRequest(`/api/get-${index}`, {}, 'place:1', 'edit'));
+      const readEndpoints = [
+        '/api/file-tree',
+        '/api/place-info',
+        '/api/services',
+        '/api/search-files',
+        '/api/get-selection',
+      ];
+      const reads = readEndpoints.map((endpoint) => bridge.sendRequest(endpoint, {}, 'place:1', 'edit'));
       for (let index = 0; index < 4; index++) expect(bridge.getPendingRequest('place:1', 'edit')).toBeTruthy();
       expect(bridge.getPendingRequest('place:1', 'edit')).toBeNull();
       for (const read of reads) read.catch(() => {});
@@ -211,7 +291,7 @@ describe('BridgeService', () => {
     });
 
     test('resolves request when response received', async () => {
-      const promise = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const promise = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const pending = bridge.getPendingRequest('place:1', 'edit');
       // Use the public API
       bridge.resolveRequest(pending!.requestId, { ok: true });
@@ -221,17 +301,17 @@ describe('BridgeService', () => {
     });
 
     test('times out request after 30s', async () => {
-      const promise = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const promise = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       jest.advanceTimersByTime(31000);
       await expect(promise).rejects.toThrow('Request timeout');
     });
 
     test('FIFO ordering within (instanceId, role)', async () => {
-      bridge.sendRequest('/api/a', { order: 1 }, 'place:1', 'edit');
+      bridge.sendRequest('/api/file-tree', { order: 1 }, 'place:1', 'edit');
       jest.advanceTimersByTime(10);
-      bridge.sendRequest('/api/b', { order: 2 }, 'place:1', 'edit');
+      bridge.sendRequest('/api/place-info', { order: 2 }, 'place:1', 'edit');
       jest.advanceTimersByTime(10);
-      bridge.sendRequest('/api/c', { order: 3 }, 'place:1', 'edit');
+      bridge.sendRequest('/api/services', { order: 3 }, 'place:1', 'edit');
 
       const first = bridge.getPendingRequest('place:1', 'edit');
       expect(first!.request.data.order).toBe(1);
@@ -246,18 +326,18 @@ describe('BridgeService', () => {
       const notify = jest.fn();
       bridge.setRequestNotifier(notify);
 
-      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
 
       expect(notify).toHaveBeenCalledWith('p1');
       const delivered = bridge.getPendingRequestForSession('p1');
-      expect(delivered).toMatchObject({ request: { endpoint: '/api/test' } });
+      expect(delivered).toMatchObject({ request: { endpoint: '/api/delete-object' } });
       bridge.resolveRequest(delivered!.requestId, { ok: true });
       await expect(pending).resolves.toEqual({ ok: true });
     });
 
     test('releases an undelivered pushed request for polling fallback', async () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const delivered = bridge.getPendingRequestForSession('p1');
 
       bridge.releasePendingRequest(delivered!.requestId);
@@ -268,7 +348,7 @@ describe('BridgeService', () => {
     });
 
     test('redelivers the same request id when its delivery lease expires before ack', async () => {
-      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const first = bridge.getPendingRequest('place:1', 'edit');
 
       jest.advanceTimersByTime(10001);
@@ -290,7 +370,7 @@ describe('BridgeService', () => {
     });
 
     test('does not redeliver an acknowledged request', async () => {
-      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const first = bridge.getPendingRequest('place:1', 'edit');
 
       bridge.acknowledgeRequest(first!.requestId);
@@ -316,7 +396,7 @@ describe('BridgeService', () => {
     });
 
     test('reports outcome_unknown with request id on timeout and accepts a late result', async () => {
-      const pending = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const delivered = bridge.getPendingRequest('place:1', 'edit')!;
       bridge.acknowledgeRequest(delivered.requestId);
 
@@ -335,15 +415,120 @@ describe('BridgeService', () => {
       });
     });
 
+    test('distinguishes queued, delivered read, and delivered mutation expiry', async () => {
+      const queued = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      const queuedId = [...(bridge as any).requestStatuses.keys()][0] as string;
+      jest.advanceTimersByTime(30001);
+      await expect(queued).rejects.toThrow('Request timeout');
+      expect(bridge.getRequestStatus(queuedId)?.state).toBe('timed_out');
+
+      const read = bridge.sendRequest('/api/place-info', {}, 'place:1', 'edit');
+      const readDelivery = bridge.getPendingRequest('place:1', 'edit')!;
+      jest.advanceTimersByTime(30001);
+      await expect(read).rejects.toThrow('Request timeout');
+      expect(bridge.getRequestStatus(readDelivery.requestId)?.state).toBe('timed_out');
+
+      const mutation = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      const mutationDelivery = bridge.getPendingRequest('place:1', 'edit')!;
+      jest.advanceTimersByTime(30001);
+      await expect(mutation).rejects.toMatchObject({ outcome: 'unknown' });
+      expect(bridge.getRequestStatus(mutationDelivery.requestId)?.state).toBe('outcome_unknown');
+      expect(bridge.getTransportDiagnostics()).toMatchObject({
+        timeouts: 3,
+        outcomeUnknown: 1,
+      });
+    });
+
+    test('settles expiry once when cleanup races the request timer', async () => {
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      const delivery = bridge.getPendingRequest('place:1', 'edit')!;
+      jest.advanceTimersByTime(30001);
+      bridge.cleanupOldRequests();
+      await expect(pending).rejects.toMatchObject({ requestId: delivery.requestId });
+      expect(bridge.getTransportDiagnostics()).toMatchObject({ timeouts: 1, outcomeUnknown: 1 });
+    });
+
+    test('counts lease redelivery and terminal metrics exactly once', async () => {
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      const first = bridge.getPendingRequest('place:1', 'edit')!;
+      jest.advanceTimersByTime(10001);
+      const second = bridge.getPendingRequest('place:1', 'edit')!;
+      expect(second.requestId).toBe(first.requestId);
+      bridge.resolveRequest(second.requestId, { ok: true });
+      bridge.resolveRequest(second.requestId, { duplicate: true });
+      await expect(pending).resolves.toEqual({ ok: true });
+      expect(bridge.getTransportDiagnostics()).toMatchObject({
+        completed: 1,
+        deliveryRetries: 1,
+        queueDepth: 0,
+      });
+    });
+
+    test('reports bounded p50, p95, and p99 completion latency samples', async () => {
+      for (let index = 0; index < 1100; index++) {
+        const pending = bridge.sendRequest('/api/place-info', {}, 'place:1', 'edit');
+        const delivery = bridge.getPendingRequest('place:1', 'edit')!;
+        jest.advanceTimersByTime(index % 5);
+        bridge.resolveRequest(delivery.requestId, { ok: true });
+        await pending;
+      }
+      expect(bridge.getTransportDiagnostics()).toMatchObject({
+        completed: 1100,
+        latencySampleCount: 1024,
+        p50LatencyMs: expect.any(Number),
+        p95LatencyMs: expect.any(Number),
+        p99LatencyMs: expect.any(Number),
+      });
+    });
+
+    test('reconciles receipts only for the owning plugin and delivery context', async () => {
+      register(bridge, { pluginSessionId: 'owner', instanceId: 'place:1', role: 'edit' });
+      register(bridge, { pluginSessionId: 'attacker', instanceId: 'place:2', role: 'edit' });
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      const delivery = bridge.getPendingRequestForSession('owner')!;
+      jest.advanceTimersByTime(30001);
+      await expect(pending).rejects.toMatchObject({ outcome: 'unknown' });
+
+      const completedAt = Date.now();
+      expect(bridge.reconcilePluginReceipts('attacker', bridge.serverEpoch, [{
+        requestId: delivery.requestId,
+        completedAt,
+        deliveryAttempt: delivery.deliveryAttempt,
+      }])).toBe(0);
+      expect(bridge.reconcilePluginReceipts('owner', bridge.serverEpoch, [{
+        requestId: delivery.requestId,
+        completedAt: Date.now() + 10 * 60 * 1000,
+        deliveryAttempt: delivery.deliveryAttempt,
+      }])).toBe(0);
+      expect(bridge.reconcilePluginReceipts('owner', bridge.serverEpoch, [{
+        requestId: delivery.requestId,
+        completedAt,
+        deliveryAttempt: delivery.deliveryAttempt + 1,
+      }])).toBe(0);
+      expect(bridge.reconcilePluginReceipts('owner', bridge.serverEpoch, [{
+        requestId: delivery.requestId,
+        completedAt,
+        deliveryAttempt: delivery.deliveryAttempt,
+        responseDigest: 'not a valid digest!',
+      }])).toBe(0);
+      expect(bridge.reconcilePluginReceipts('owner', bridge.serverEpoch, [{
+        requestId: delivery.requestId,
+        completedAt,
+        deliveryAttempt: delivery.deliveryAttempt,
+        responseDigest: 'abcdef0123456789',
+      }])).toBe(1);
+      expect(bridge.getRequestStatus(delivery.requestId)?.state).toBe('completed');
+    });
+
     test('cancels queued delivery but refuses to cancel after ack', async () => {
-      const queued = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const queued = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const queuedId = bridge.getRequestStatus('missing')?.requestId;
       expect(queuedId).toBeUndefined();
       const delivered = bridge.getPendingRequest('place:1', 'edit')!;
       expect(bridge.cancelRequest(delivered.requestId)).toBe(true);
       await expect(queued).rejects.toThrow(/cancelled/);
 
-      const started = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const started = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       const startedId = bridge.getPendingRequest('place:1', 'edit')!.requestId;
       bridge.acknowledgeRequest(startedId);
       expect(bridge.cancelRequest(startedId)).toBe(false);
@@ -430,7 +615,7 @@ describe('BridgeService', () => {
 
     test('migrates pending requests when an anon place becomes published', async () => {
       register(bridge, { pluginSessionId: 'edit', instanceId: 'anon:old-file-id', role: 'edit' });
-      const pending = bridge.sendRequest('/api/test', {}, 'anon:old-file-id', 'edit');
+      const pending = bridge.sendRequest('/api/delete-object', {}, 'anon:old-file-id', 'edit');
 
       const r = register(bridge, {
         pluginSessionId: 'edit',
@@ -508,18 +693,16 @@ describe('BridgeService', () => {
       expect(register(bridge, { pluginSessionId: 'd', instanceId: 'place:1', role: 'client' }).assignedRole).toBe('client-2');
     });
 
-    test('rejects duplicate (instanceId, role) tuple', () => {
+    test('replaces a stale edit session for the same instance', () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      const dup = bridge.registerInstance({
+      const replacement = bridge.registerInstance({
         pluginSessionId: 'p2',
         instanceId: 'place:1',
         role: 'edit',
       });
-      expect(dup.ok).toBe(false);
-      if (dup.ok) return;
-      expect(dup.error.code).toBe('duplicate_instance_role');
-      expect(dup.error.existing.instanceId).toBe('place:1');
-      expect(dup.error.existing.role).toBe('edit');
+      expect(replacement.ok).toBe(true);
+      expect(bridge.getInstances()).toHaveLength(1);
+      expect(bridge.getInstances()[0].pluginSessionId).toBe('p2');
     });
 
     test('rejects duplicate explicit client role within the same instance_id', () => {
@@ -705,8 +888,8 @@ describe('BridgeService', () => {
 
   describe('cleanup', () => {
     test('cleanupOldRequests rejects timed-out requests', async () => {
-      const a = bridge.sendRequest('/api/a', {}, 'place:1', 'edit');
-      const b = bridge.sendRequest('/api/b', {}, 'place:1', 'edit');
+      const a = bridge.sendRequest('/api/file-tree', {}, 'place:1', 'edit');
+      const b = bridge.sendRequest('/api/place-info', {}, 'place:1', 'edit');
       jest.advanceTimersByTime(31000);
       bridge.cleanupOldRequests();
       await expect(a).rejects.toThrow('Request timeout');
@@ -714,14 +897,14 @@ describe('BridgeService', () => {
     });
 
     test('clearAllPendingRequests rejects everything', async () => {
-      const a = bridge.sendRequest('/api/a', {}, 'place:1', 'edit');
+      const a = bridge.sendRequest('/api/file-tree', {}, 'place:1', 'edit');
       bridge.clearAllPendingRequests();
       await expect(a).rejects.toThrow('Connection closed');
     });
 
     test('unregisterInstance rejects requests targeting the removed (instanceId, role)', async () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      const req = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+      const req = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
       bridge.unregisterInstance('p1');
       await expect(req).rejects.toThrow(/disconnected/);
     });
@@ -742,8 +925,8 @@ describe('BridgeService', () => {
       // where role differs.
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
       register(bridge, { pluginSessionId: 'p2', instanceId: 'place:1', role: 'server' });
-      const editReq = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
-      const serverReq = bridge.sendRequest('/api/test', {}, 'place:1', 'server');
+      const editReq = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      const serverReq = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'server');
 
       bridge.unregisterInstance('p2'); // remove server plugin
       // edit request should still be pending (edit plugin still here)
@@ -792,7 +975,7 @@ describe('BridgeService', () => {
       test('reaping a stale instance rejects its pending requests as disconnected', async () => {
         bridge.staleInstanceMs = 10000; // 10s
         register(bridge, { pluginSessionId: 'gone', instanceId: 'place:1', role: 'edit' });
-        const req = bridge.sendRequest('/api/test', {}, 'place:1', 'edit');
+        const req = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
         jest.advanceTimersByTime(15000); // 15s > 10s
         bridge.cleanupStaleInstances();
         await expect(req).rejects.toThrow(/disconnected/);

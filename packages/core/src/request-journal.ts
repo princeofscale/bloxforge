@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { RequestState, RequestStatus } from './bridge-service.js';
 
 export interface JournalPendingRequest {
@@ -17,21 +18,31 @@ export interface JournalPendingRequest {
 export interface CompletionReceipt {
   requestId: string;
   completedAt: number;
+  deliveryAttempt?: number;
   /** Opaque short hash of the response so reconciliation can log what was proven. */
   responseDigest?: string;
 }
 
+export type JournalRequestStatus = RequestStatus & {
+  requestId: string;
+  endpoint?: string;
+  targetInstanceId?: string;
+  targetRole?: string;
+  assignedPluginSessionId?: string;
+  createdAt?: number;
+};
+
 interface JournalSnapshotV1 {
   version: 1;
   savedAt: number;
-  statuses: (RequestStatus & { requestId: string })[];
+  statuses: JournalRequestStatus[];
   pending: JournalPendingRequest[];
 }
 
-interface JournalSnapshotV2 {
+export interface JournalSnapshotV2 {
   version: 2;
   savedAt: number;
-  statuses: (RequestStatus & { requestId: string })[];
+  statuses: JournalRequestStatus[];
   pending: JournalPendingRequest[];
   completionReceipts: CompletionReceipt[];
 }
@@ -46,9 +57,6 @@ const MAX_STATUSES = 1000;
 const MAX_RECEIPTS = 200;
 /** Receipt TTL — receipts older than this are discarded. */
 const RECEIPT_TTL_MS = 5 * 60 * 1000; // 5 minutes
-/** Persist calls between automatic compaction runs. */
-const COMPACT_INTERVAL = 50;
-
 export function defaultRequestJournalPath(): string | undefined {
   if (process.env.NODE_ENV === 'test') return undefined;
   const configured = process.env.BLOXFORGE_JOURNAL_PATH?.trim();
@@ -57,8 +65,6 @@ export function defaultRequestJournalPath(): string | undefined {
 }
 
 export class RequestJournal {
-  private persistCount = 0;
-
   constructor(readonly filePath: string) {}
 
   load(): JournalSnapshot | undefined {
@@ -89,43 +95,56 @@ export class RequestJournal {
     }
   }
 
-  save(statuses: (RequestStatus & { requestId: string })[], pending: JournalPendingRequest[], completionReceipts: CompletionReceipt[] = []): void {
+  save(
+    statuses: JournalRequestStatus[],
+    pending: JournalPendingRequest[],
+    completionReceipts: CompletionReceipt[] = [],
+  ): JournalSnapshotV2 {
     const directory = path.dirname(this.filePath);
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const snapshot: JournalSnapshot = {
+    const snapshot = RequestJournal.compact({
       version: 2,
       savedAt: Date.now(),
       statuses,
       pending,
       completionReceipts,
-    };
-    const temporary = `${this.filePath}.${process.pid}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify(snapshot), { mode: 0o600 });
-    fs.renameSync(temporary, this.filePath);
-
-    this.persistCount++;
-    if (this.persistCount >= COMPACT_INTERVAL) {
-      this.persistCount = 0;
-      // Compaction is in-line since the data is already in memory at the caller.
+    });
+    const temporary = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      fs.writeFileSync(temporary, JSON.stringify(snapshot), { mode: 0o600 });
+      fs.renameSync(temporary, this.filePath);
+    } finally {
+      try {
+        fs.unlinkSync(temporary);
+      } catch {
+        // Rename success removes the temporary path; failures are cleaned up.
+      }
     }
+    return snapshot;
   }
 
   /**
    * Compact a snapshot in-place: enforce retention TTL and entry limits.
    * Returns a new compacted snapshot.
    */
-  static compact(snapshot: JournalSnapshot, now = Date.now()): JournalSnapshot {
-    // Prune statuses: keep only those within TTL and cap at MAX_STATUSES
-    let statuses = snapshot.statuses.filter((s) => now - s.updatedAt < DEFAULT_STATUS_TTL_MS);
-    if (statuses.length > MAX_STATUSES) {
-      statuses = statuses.slice(statuses.length - MAX_STATUSES);
-    }
+  static compact(snapshot: JournalSnapshotV2, now = Date.now()): JournalSnapshotV2 {
+    const active = snapshot.statuses.filter((status) =>
+      status.state === 'queued' || status.state === 'delivered' || status.state === 'started');
+    const terminal = snapshot.statuses
+      .filter((status) =>
+        status.state !== 'queued' &&
+        status.state !== 'delivered' &&
+        status.state !== 'started' &&
+        now - status.updatedAt < DEFAULT_STATUS_TTL_MS)
+      .sort((left, right) => left.updatedAt - right.updatedAt)
+      .slice(-MAX_STATUSES);
+    const statuses = [...active, ...terminal];
 
     // Prune completion receipts: TTL + cap
-    let receipts = snapshot.completionReceipts.filter((r) => now - r.completedAt < RECEIPT_TTL_MS);
-    if (receipts.length > MAX_RECEIPTS) {
-      receipts = receipts.slice(receipts.length - MAX_RECEIPTS);
-    }
+    const receipts = snapshot.completionReceipts
+      .filter((receipt) => now - receipt.completedAt < RECEIPT_TTL_MS)
+      .sort((left, right) => left.completedAt - right.completedAt)
+      .slice(-MAX_RECEIPTS);
 
     return {
       ...snapshot,

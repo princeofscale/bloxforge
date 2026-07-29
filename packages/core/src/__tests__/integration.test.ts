@@ -68,11 +68,11 @@ describe('Integration', () => {
       await request(app).post('/ready').send(READY()).expect(200);
       app.setMCPServerActive(true);
 
-      const promise = bridge.sendRequest('/api/test-endpoint', { testData: 'hello', value: 123 }, 'place:test', 'edit');
+      const promise = bridge.sendRequest('/api/delete-object', { testData: 'hello', value: 123 }, 'place:test', 'edit');
 
       const poll = await request(app).get('/poll?pluginSessionId=session-1').expect(200);
       expect(poll.body.request).toMatchObject({
-        endpoint: '/api/test-endpoint',
+        endpoint: '/api/delete-object',
         data: { testData: 'hello', value: 123 },
       });
       const requestId = poll.body.requestId;
@@ -90,7 +90,7 @@ describe('Integration', () => {
       await request(app).post('/ready').send(READY()).expect(200);
       app.setMCPServerActive(true);
 
-      const promise = bridge.sendRequest('/api/failing', {}, 'place:test', 'edit');
+      const promise = bridge.sendRequest('/api/set-property', {}, 'place:test', 'edit');
       promise.catch(() => {});
 
       const poll = await request(app).get('/poll?pluginSessionId=session-1').expect(200);
@@ -108,8 +108,8 @@ describe('Integration', () => {
       await request(app).post('/ready').send(READY()).expect(200);
       app.setMCPServerActive(true);
 
-      const req1 = bridge.sendRequest('/api/test1', {}, 'place:test', 'edit');
-      const req2 = bridge.sendRequest('/api/test2', {}, 'place:test', 'edit');
+      const req1 = bridge.sendRequest('/api/file-tree', {}, 'place:test', 'edit');
+      const req2 = bridge.sendRequest('/api/place-info', {}, 'place:test', 'edit');
       req1.catch(() => {});
       req2.catch(() => {});
 
@@ -117,14 +117,14 @@ describe('Integration', () => {
       expect(poll.body.request).toBeTruthy();
 
       await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
-      await expect(req1).rejects.toMatchObject({ outcome: 'unknown', requestId: poll.body.requestId });
+      await expect(req1).rejects.toThrow(/disconnected/);
       await expect(req2).rejects.toThrow(/disconnected/);
 
       await request(app).post('/ready').send(READY({ pluginSessionId: 'session-2' })).expect(200);
 
-      const newReq = bridge.sendRequest('/api/test3', {}, 'place:test', 'edit');
+      const newReq = bridge.sendRequest('/api/services', {}, 'place:test', 'edit');
       const newPoll = await request(app).get('/poll?pluginSessionId=session-2').expect(200);
-      expect(newPoll.body.request?.endpoint).toBe('/api/test3');
+      expect(newPoll.body.request?.endpoint).toBe('/api/services');
 
       await request(app).post('/response').send({ requestId: newPoll.body.requestId, response: { success: true } }).expect(200);
       const result = await newReq;
@@ -139,7 +139,7 @@ describe('Integration', () => {
       await request(app).post('/ready').send(READY()).expect(200);
       app.setMCPServerActive(true);
 
-      const promise = bridge.sendRequest('/api/slow', {}, 'place:test', 'edit');
+      const promise = bridge.sendRequest('/api/delete-object', {}, 'place:test', 'edit');
       await request(app).get('/poll?pluginSessionId=session-1').expect(200);
 
       jest.advanceTimersByTime(31000);
@@ -155,8 +155,8 @@ describe('Integration', () => {
       await request(app).post('/ready').send(READY({ pluginSessionId: 's-b', instanceId: 'place:B' })).expect(200);
       app.setMCPServerActive(true);
 
-      const reqA = bridge.sendRequest('/api/test', { who: 'A' }, 'place:A', 'edit');
-      const reqB = bridge.sendRequest('/api/test', { who: 'B' }, 'place:B', 'edit');
+      const reqA = bridge.sendRequest('/api/delete-object', { who: 'A' }, 'place:A', 'edit');
+      const reqB = bridge.sendRequest('/api/delete-object', { who: 'B' }, 'place:B', 'edit');
       reqA.catch(() => {});
       reqB.catch(() => {});
 

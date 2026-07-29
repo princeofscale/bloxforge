@@ -156,6 +156,8 @@ BloxForge treats Studio as a recoverable local execution target:
 - request acknowledgements, delivery leases, deduplication, and status lookup;
 - safe retry rules that distinguish reads from mutations;
 - explicit `outcome_unknown` handling after interrupted operations;
+- bounded atomic recovery journals and payload-free p50/p95/p99 diagnostics;
+- authenticated proxy forwarding with queryable primary request IDs;
 - per-DataModel concurrency limits and backpressure;
 - plugin session credentials and capability-scoped MCP clients;
 - localhost-only bridge binding by default, with authenticated non-loopback opt-in;

@@ -1,4 +1,4 @@
-export type ProtocolMode = 'read' | 'mutation' | 'heavy';
+export type ProtocolMode = 'read' | 'mutation';
 export type RetryPolicy = 'safe-read' | 'never';
 
 export interface ProtocolManifestEntry {
@@ -7,50 +7,117 @@ export interface ProtocolManifestEntry {
   timeoutClass: 'normal' | 'heavy';
   retryPolicy: RetryPolicy;
   pluginVariants: readonly ('full' | 'inspector')[];
+  concurrencyCategory: 'read' | 'mutation';
 }
 
-// Prefix entries deliberately cover the transport policy surface, while tool
-// schemas remain in definitions/*. A single policy table avoids primary/proxy
-// and bridge/plugin drift without duplicating every high-level MCP facade.
+const READ_ENDPOINTS = [
+  '/api/file-tree',
+  '/api/search-files',
+  '/api/place-info',
+  '/api/services',
+  '/api/search-objects',
+  '/api/instance-properties',
+  '/api/instance-children',
+  '/api/search-by-property',
+  '/api/class-info',
+  '/api/project-structure',
+  '/api/grep-scripts',
+  '/api/get-descendants',
+  '/api/compare-instances',
+  '/api/mass-get-property',
+  '/api/get-script-source',
+  '/api/get-attributes',
+  '/api/get-tags',
+  '/api/get-tagged',
+  '/api/get-selection',
+  '/api/get-job-status',
+  '/api/get-job-result',
+  '/api/multiplayer-test-state',
+  '/api/export-build',
+  '/api/search-materials',
+  '/api/preview-asset',
+  '/api/capture-screenshot',
+  '/api/capture-begin',
+  '/api/capture-read',
+  '/api/get-runtime-logs',
+  '/api/capture-script-profiler',
+  '/api/capture-micro-profiler',
+  '/api/export-rbxm',
+  '/api/get-memory-breakdown',
+  '/api/get-scene-analysis',
+] as const;
+
+const MUTATION_ENDPOINTS = [
+  '/api/set-property',
+  '/api/set-properties',
+  '/api/mass-set-property',
+  '/api/create-object',
+  '/api/mass-create-objects',
+  '/api/mass-create-objects-with-properties',
+  '/api/delete-object',
+  '/api/smart-duplicate',
+  '/api/mass-duplicate',
+  '/api/clone-object',
+  '/api/set-script-source',
+  '/api/edit-script-lines',
+  '/api/insert-script-lines',
+  '/api/delete-script-lines',
+  '/api/set-attribute',
+  '/api/delete-attribute',
+  '/api/add-tag',
+  '/api/remove-tag',
+  '/api/execute-luau',
+  '/api/execute-luau-async',
+  '/api/cancel-job',
+  '/api/eval-runtime',
+  '/api/undo',
+  '/api/redo',
+  '/api/bulk-set-attributes',
+  '/api/start-playtest',
+  '/api/stop-playtest',
+  '/api/multiplayer-test-start',
+  '/api/multiplayer-test-add-players',
+  '/api/multiplayer-test-leave-client',
+  '/api/multiplayer-test-end',
+  '/api/character-navigation',
+  '/api/import-build',
+  '/api/import-scene',
+  '/api/insert-asset',
+  '/api/simulate-mouse-input',
+  '/api/simulate-keyboard-input',
+  '/api/find-and-replace-in-scripts',
+  '/api/breakpoints',
+  '/api/import-rbxm',
+] as const;
+
+const HEAVY_ENDPOINTS = new Set<string>([
+  '/api/execute-luau',
+  '/api/execute-luau-async',
+  '/api/eval-runtime',
+  '/api/import-build',
+  '/api/import-scene',
+]);
+
+const entry = (endpoint: string, mode: ProtocolMode): ProtocolManifestEntry => ({
+  endpoint,
+  mode,
+  timeoutClass: HEAVY_ENDPOINTS.has(endpoint) ? 'heavy' : 'normal',
+  retryPolicy: mode === 'read' ? 'safe-read' : 'never',
+  pluginVariants: mode === 'read' ? ['full', 'inspector'] : ['full'],
+  concurrencyCategory: mode,
+});
+
 export const PROTOCOL_MANIFEST: readonly ProtocolManifestEntry[] = [
-  { endpoint: '/api/execute-luau', mode: 'heavy', timeoutClass: 'heavy', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/eval-runtime', mode: 'heavy', timeoutClass: 'heavy', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/generate-build', mode: 'heavy', timeoutClass: 'heavy', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/import-scene', mode: 'heavy', timeoutClass: 'heavy', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/mass-get-property', mode: 'read', timeoutClass: 'normal', retryPolicy: 'safe-read', pluginVariants: ['full', 'inspector'] },
-  { endpoint: '/api/edit-script-lines', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/insert-script-lines', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/delete-script-lines', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/find-and-replace-in-scripts', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/add-tag', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/remove-tag', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/delete-attribute', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/bulk-set-attributes', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/insert-asset', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/cancel-job', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/character-navigation', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/set-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/mass-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/create-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/delete-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/import-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/smart-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/clone-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/terrain-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/environment-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/ui_', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/template_', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/sync_', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/start-playtest', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/stop-playtest', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/multiplayer-test', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/simulate-', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/undo', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
-  { endpoint: '/api/redo', mode: 'mutation', timeoutClass: 'normal', retryPolicy: 'never', pluginVariants: ['full'] },
+  ...READ_ENDPOINTS.map((endpoint) => entry(endpoint, 'read')),
+  ...MUTATION_ENDPOINTS.map((endpoint) => entry(endpoint, 'mutation')),
 ];
 
+const POLICY_BY_ENDPOINT = new Map(PROTOCOL_MANIFEST.map((policy) => [policy.endpoint, policy]));
+
 export function protocolPolicy(endpoint: string): ProtocolManifestEntry {
-  return PROTOCOL_MANIFEST.find((entry) => endpoint.startsWith(entry.endpoint)) ?? {
-    endpoint: '*', mode: 'read', timeoutClass: 'normal', retryPolicy: 'safe-read', pluginVariants: ['full', 'inspector'],
-  };
+  const policy = POLICY_BY_ENDPOINT.get(endpoint);
+  if (!policy) {
+    throw new Error(`Unknown plugin endpoint "${endpoint}". Add an explicit protocol policy before dispatch.`);
+  }
+  return policy;
 }

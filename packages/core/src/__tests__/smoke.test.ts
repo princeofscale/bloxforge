@@ -83,8 +83,8 @@ describe('Smoke', () => {
 
   test('clearAllPendingRequests rejects all pending', async () => {
     const bridge = new BridgeService();
-    const p1 = bridge.sendRequest('/test1', {}, 'place:test', 'edit');
-    const p2 = bridge.sendRequest('/test2', {}, 'place:test', 'edit');
+    const p1 = bridge.sendRequest('/api/file-tree', {}, 'place:test', 'edit');
+    const p2 = bridge.sendRequest('/api/place-info', {}, 'place:test', 'edit');
     expect(bridge.getPendingRequest('place:test', 'edit')).toBeTruthy();
     bridge.clearAllPendingRequests();
     expect(bridge.getPendingRequest('place:test', 'edit')).toBeNull();
@@ -98,7 +98,7 @@ describe('Smoke', () => {
     const app = createHttpServer(tools, bridge);
 
     await request(app).post('/ready').send(READY).expect(200);
-    const pending = bridge.sendRequest('/test', {}, 'place:test', 'edit');
+    const pending = bridge.sendRequest('/api/file-tree', {}, 'place:test', 'edit');
     pending.catch(() => {});
     await request(app).post('/disconnect').send({ pluginSessionId: 'session-1' }).expect(200);
     await expect(pending).rejects.toThrow(/disconnected/);

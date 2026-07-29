@@ -98,7 +98,10 @@ function detectRole(): string {
 const initialRole = detectRole();
 
 const activeRequests = new Set<string>();
-const completedRequests = new Map<string, { response: unknown }>();
+const completedRequests = new Map<string, {
+	response: unknown;
+	deliveryAttempt?: number;
+}>();
 const completedRequestOrder: string[] = [];
 const COMPLETED_REQUEST_LIMIT = 500;
 
@@ -216,7 +219,7 @@ function processRequest(request: RequestPayload): unknown {
 }
 
 function sendResponse(conn: Connection, requestId: string, responseData: unknown, serverEpoch?: string, deliveryAttempt?: number, leaseToken?: string) {
-	const body: Record<string, unknown> = { requestId, response: responseData };
+	const body: Record<string, unknown> = { pluginSessionId, requestId, response: responseData };
 	if (serverEpoch !== undefined) body.serverEpoch = serverEpoch;
 	if (deliveryAttempt !== undefined) body.deliveryAttempt = deliveryAttempt;
 	if (leaseToken !== undefined) body.leaseToken = leaseToken;
@@ -297,7 +300,7 @@ function handleRequestOnce(
 			const oldest = completedRequestOrder.remove(0);
 			if (oldest !== undefined) completedRequests.delete(oldest);
 		}
-		completedRequests.set(requestId, { response });
+		completedRequests.set(requestId, { response, deliveryAttempt });
 		completedRequestOrder.push(requestId);
 
 		sendResponse(conn, requestId, response, serverEpoch, deliveryAttempt, leaseToken);
@@ -389,10 +392,10 @@ function sendReady(conn: Connection): void {
 				conn.sessionToken = undefined;
 				const ui = UI.getElements();
 				if (State.getActiveTabIndex() === 0) {
-					ui.statusLabel.Text = "Duplicate instance";
-					ui.statusLabel.TextColor3 = Color3.fromRGB(239, 68, 68);
+					ui.statusLabel.Text = "Reconnecting";
+					ui.statusLabel.TextColor3 = Color3.fromRGB(245, 158, 11);
 					ui.detailStatusLabel.Text = reason;
-					ui.detailStatusLabel.TextColor3 = Color3.fromRGB(239, 68, 68);
+					ui.detailStatusLabel.TextColor3 = Color3.fromRGB(245, 158, 11);
 				}
 				warn(`[BloxForge] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
 				task.delay(conn.currentRetryDelay, () => {
@@ -417,9 +420,13 @@ function sendReady(conn: Connection): void {
 			: instanceId;
 
 		if (parseOk && readyData.serverEpoch && completedRequests.size() > 0) {
-			const receipts: { requestId: string; completedAt: number }[] = [];
-			for (const [id, _] of completedRequests) {
-				receipts.push({ requestId: id, completedAt: tick() * 1000 });
+			const receipts: { requestId: string; completedAt: number; deliveryAttempt?: number }[] = [];
+			for (const [id, completed] of completedRequests) {
+				receipts.push({
+					requestId: id,
+					completedAt: tick() * 1000,
+					deliveryAttempt: completed.deliveryAttempt,
+				});
 			}
 			task.spawn(() => {
 				const headers: Record<string, string> = { ["Content-Type"]: "application/json" };
@@ -445,9 +452,10 @@ function sendReady(conn: Connection): void {
 	});
 }
 
-function streamUrl(serverUrl: string): string {
+function streamUrl(serverUrl: string, sessionToken?: string): string {
 	const [websocketUrl] = string.gsub(serverUrl, "^http", "ws");
-	return `${websocketUrl}/stream?pluginSessionId=${pluginSessionId}`;
+	const token = sessionToken ? `&sessionToken=${HttpService.UrlEncode(sessionToken)}` : "";
+	return `${websocketUrl}/stream?pluginSessionId=${pluginSessionId}${token}`;
 }
 
 function sendStreamResponse(conn: Connection, requestId: string, response: unknown, serverEpoch?: string, deliveryAttempt?: number, leaseToken?: string) {
@@ -467,7 +475,7 @@ function startRequestStream(conn: Connection) {
 	const [ok, stream] = pcall(() => HttpService.CreateWebStreamClient(
 		Enum.WebStreamClientType.WebSocket,
 		{
-			Url: streamUrl(conn.serverUrl),
+			Url: streamUrl(conn.serverUrl, conn.sessionToken),
 			Method: "GET",
 			Headers: {
 				"Content-Type": "application/json",
@@ -752,20 +760,16 @@ function activatePlugin(connIndex?: number) {
 				cachedPlaceNamePlaceId = undefined;
 				sendReady(conn);
 			}
-			if (!conn.streamClient && now >= conn.nextStreamRetryAt) {
-				conn.nextStreamRetryAt = now + 5;
-				startRequestStream(conn);
-			}
+			// WebStreamClient can report open without delivering frames in Studio.
+			// HTTP polling is the established compatibility transport.
 			if (conn.streamOpen && conn.streamClient && now - conn.lastStreamHeartbeat > 15) {
 				conn.lastStreamHeartbeat = now;
 				pcall(() => conn.streamClient!.Send(HttpService.JSONEncode({ type: "heartbeat" })));
 			}
-			if (!conn.streamOpen) {
-				const currentInterval = conn.consecutiveFailures > 5 ? conn.currentRetryDelay : conn.pollInterval;
-				if (now - conn.lastPoll > currentInterval) {
-					conn.lastPoll = now;
-					pollForRequests(idx);
-				}
+			const currentInterval = conn.consecutiveFailures > 5 ? conn.currentRetryDelay : conn.pollInterval;
+			if (now - conn.lastPoll > currentInterval) {
+				conn.lastPoll = now;
+				pollForRequests(idx);
 			}
 		});
 	}
