@@ -53,7 +53,9 @@ describe('RequestJournal durability and bounds', () => {
       requestId: 'active-old',
       state: 'started',
     }));
-    expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+    }
   });
 
   test('prunes expired terminal statuses and bounds completion receipts', () => {

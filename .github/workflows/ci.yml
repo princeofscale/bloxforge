@@ -53,7 +53,9 @@ jobs:
         run: npm run test:fault-injection:10k
 
       - name: Build
-        run: npm run build
+        run: npm run build:all
+        env:
+          MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins
 
       - name: Generated docs are current
         run: npm run docs:check

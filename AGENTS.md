@@ -31,6 +31,7 @@ Do not commit generated build output, package tarballs, installed Studio plugins
 8. Use Conventional Commits. Every important change or fix—behavioral, user-visible, operational, security, compatibility, or release-related—must be recorded under `CHANGELOG.md`'s `[Unreleased]` section before it is committed.
 9. Do not edit generated tool-reference content by hand; regenerate it with the repository scripts.
 10. Do not use destructive Git operations or rewrite shared history unless the user explicitly requests it.
+11. After every commit and push, inspect the GitHub Actions checks for the pushed commit. Do not finish until every required check is green. If any check fails, inspect its logs, fix the root cause, validate locally, commit and push the fix, then repeat until all required checks pass.
 
 ## Local validation
 

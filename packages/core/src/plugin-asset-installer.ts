@@ -11,7 +11,7 @@ import { get } from 'node:https';
 import { basename, dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
+import { finished, pipeline } from 'node:stream/promises';
 import type { IncomingMessage } from 'node:http';
 
 const MAX_PLUGIN_BYTES = 50 * 1024 * 1024;
@@ -164,8 +164,14 @@ export async function downloadPluginAsset(
   }
 
   const temporary = join(dirname(destination), `.${basename(destination)}.${process.pid}.${randomUUID()}.tmp`);
+  const output = createWriteStream(temporary, { flags: 'wx', mode: 0o600 });
   try {
-    await pipeline(response, byteLimiter(MAX_PLUGIN_BYTES), createWriteStream(temporary, { flags: 'wx', mode: 0o600 }));
+    try {
+      await pipeline(response, byteLimiter(MAX_PLUGIN_BYTES), output);
+    } finally {
+      output.destroy();
+      await finished(output).catch(() => undefined);
+    }
     validatePluginAsset(temporary, expected);
     replaceValidatedTemporary(temporary, destination);
   } finally {
