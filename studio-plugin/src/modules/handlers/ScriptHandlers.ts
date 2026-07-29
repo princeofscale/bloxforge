@@ -113,6 +113,85 @@ function getScriptSource(requestData: Record<string, unknown>) {
 	}
 }
 
+function sourceHash(source: string): string {
+	let hash = 5381;
+	for (let i = 1; i <= source.size(); i++) {
+		hash = (hash * 33 + string.byte(source, i)[0]) % 2147483647;
+	}
+	return `djb2:${string.format("%08x", hash)}`;
+}
+
+function instancePathSegments(instance: Instance): string[] {
+	const segments: string[] = [];
+	let current: Instance | undefined = instance;
+	while (current && current !== game) {
+		segments.unshift(current.Name);
+		current = current.Parent;
+	}
+	return segments;
+}
+
+function readManagedScripts(requestData: Record<string, unknown>) {
+	const rootPath = (requestData.rootPath as string | undefined) ?? "game";
+	const limit = math.clamp((requestData.limit as number | undefined) ?? 50, 1, 100);
+	const maxSourceBytes = math.clamp(
+		(requestData.maxSourceBytes as number | undefined) ?? 256 * 1024,
+		0,
+		1024 * 1024,
+	);
+	const continuationToken = requestData.continuationToken as string | undefined;
+	const start = continuationToken !== undefined ? tonumber(continuationToken) : 0;
+	const knownHashes = (requestData.knownHashes as Record<string, string> | undefined) ?? {};
+	if (start === undefined || start < 0 || start % 1 !== 0) {
+		return { error: "continuationToken must be a non-negative integer string" };
+	}
+
+	const root = getInstanceByPath(rootPath);
+	if (!root) return { error: `Instance not found: ${rootPath}` };
+
+	const scripts: Array<{ instance: LuaSourceContainer; path: string }> = [];
+	const candidates = root === game ? game.GetDescendants() : [root, ...root.GetDescendants()];
+	for (const candidate of candidates) {
+		if (candidate.IsA("LuaSourceContainer")) {
+			scripts.push({ instance: candidate, path: getInstancePath(candidate) });
+		}
+	}
+	scripts.sort((a, b) => a.path < b.path);
+
+	const items: Array<Record<string, unknown>> = [];
+	let sourceBytes = 0;
+	let cursor = start;
+	while (cursor < scripts.size() && items.size() < limit) {
+		const entry = scripts[cursor];
+		const source = readScriptSource(entry.instance);
+		const hash = sourceHash(source);
+		const unchanged = knownHashes[entry.path] === hash;
+		const includeSource = !unchanged && sourceBytes + source.size() <= maxSourceBytes;
+		items.push({
+			path: entry.path,
+			pathSegments: instancePathSegments(entry.instance),
+			name: entry.instance.Name,
+			className: entry.instance.ClassName,
+			sourceHash: hash,
+			sourceLength: source.size(),
+			unchanged,
+			sourceOmitted: !includeSource,
+			...(includeSource ? { source } : {}),
+		});
+		if (includeSource) sourceBytes += source.size();
+		cursor++;
+	}
+
+	return {
+		rootPath,
+		items,
+		count: items.size(),
+		total: scripts.size(),
+		sourceBytes,
+		continuationToken: cursor < scripts.size() ? tostring(cursor) : undefined,
+	};
+}
+
 function setScriptSource(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
 	const newSource = requestData.source as string;
@@ -522,6 +601,7 @@ function findAndReplaceInScripts(requestData: Record<string, unknown>) {
 
 export = {
 	getScriptSource,
+	readManagedScripts,
 	setScriptSource,
 	editScriptLines,
 	insertScriptLines,

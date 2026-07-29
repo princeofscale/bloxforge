@@ -26,6 +26,7 @@ const READ_ENDPOINTS = [
   '/api/compare-instances',
   '/api/mass-get-property',
   '/api/get-script-source',
+  '/api/read-managed-scripts',
   '/api/get-attributes',
   '/api/get-tags',
   '/api/get-tagged',

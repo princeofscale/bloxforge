@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added a CI contract that cross-checks canonical definitions, registry entries,
   legacy handlers, schemas, domains, capabilities, and duplicate tool names.
+- Added a paginated, inspector-compatible plugin endpoint for bounded managed
+  script metadata/source reads with continuation tokens, byte limits, and hashes.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
