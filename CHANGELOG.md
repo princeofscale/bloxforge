@@ -7,15 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added a CI contract that cross-checks canonical definitions, registry entries,
+  legacy handlers, schemas, domains, capabilities, and duplicate tool names.
+
+### Changed
+- Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
+- Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
+- Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
+- Reduced published CLI packages to the matching compiled Studio plugin plus required runtime assets; source trees, runtime includes, and the opposite plugin variant are no longer bundled.
+- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the supported Node 20/22 matrix.
+- Assigned distinct red, yellow, and green toolbar icons to both full and inspector plugin connection states.
+- Expanded lint and `tsc --noEmit` gates across both CLIs, core, scripts, tests,
+  evals, and Studio plugin source; added package metadata consistency and
+  cross-platform installer/package smoke checks.
+- Declared the dependency-compatible Node.js 20+ floor in every maintained
+  package, removed the false Node 18 CI claim, and removed direct `cors` and
+  `node-fetch` dependencies after source and packed-bundle verification.
+- Extended the 10,000-request benchmark to assert bounded heap, status history,
+  journal size, latency samples, counters, request IDs, timers, and pending work.
+
 ### Fixed
-- Refused unauthenticated non-loopback bridge bindings, authenticated internal
-  server-control and diagnostic routes when a server token is configured,
-  rejected non-JSON/browser-origin control requests, and removed operation
-  payloads from public localhost diagnostics.
-- Enforced inspector read-only and builder no-arbitrary-Luau profile policies
-  at dispatch (not only schema discovery), and rejected invalid profile names.
-- Warned when compatibility CLI flags carry secrets and documented the
-  environment-variable migration path.
 - Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
 - Fixed authenticated plugin disconnects so normal Studio/plugin shutdown removes the registration immediately instead of leaving a stale duplicate for up to 90 seconds.
 - Fixed connection indicators retaining stale success state during retries, and made duplicate registrations retry after the previous session disappears.
@@ -40,16 +52,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stream notifiers, heartbeats, and sockets during shutdown.
 - Corrected `run_gameplay_assertions` from read to execute-capable authorization
   and denied assertion-bearing runtime tools in the builder and inspector profiles.
-- Confined every QualityTools input/output path through canonical project-root
-  checks, rejected option-shaped and escaping symlink paths, guaranteed temporary
-  cleanup, and returned bounded structured missing-tool/timeout/output-limit errors.
-- Added a CI contract that cross-checks canonical definitions, registry entries,
-  legacy handlers, schemas, domains, capabilities, and duplicate tool names.
-- Made Studio plugin installation atomic and validated release type, variant,
-  version, redirect policy, timeout, and download size before replacing a
-  working plugin or removing the opposite variant.
-- Stopped plugin builds from modifying a user's Studio plugin directory unless
-  `MCP_PLUGINS_DIR` is explicitly set.
 - Isolated package verification from the user's global npm cache so stale
   permissions or cache ownership cannot break packed-artifact validation.
 - Avoided request-journal compaction work when persistence is disabled while
@@ -61,21 +63,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   journal permission assertions running on Windows; package verification now
   invokes npm portably without executing Windows command shims directly.
 
-### Changed
-- Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
-- Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
-- Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
-- Reduced published CLI packages to the matching compiled Studio plugin plus required runtime assets; source trees, runtime includes, and the opposite plugin variant are no longer bundled.
-- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the supported Node 20/22 matrix.
-- Assigned distinct red, yellow, and green toolbar icons to both full and inspector plugin connection states.
-- Expanded lint and `tsc --noEmit` gates across both CLIs, core, scripts, tests,
-  evals, and Studio plugin source; added package metadata consistency and
-  cross-platform installer/package smoke checks.
-- Declared the dependency-compatible Node.js 20+ floor in every maintained
-  package, removed the false Node 18 CI claim, and removed direct `cors` and
-  `node-fetch` dependencies after source and packed-bundle verification.
-- Extended the 10,000-request benchmark to assert bounded heap, status history,
-  journal size, latency samples, counters, request IDs, timers, and pending work.
+### Security
+- Refused unauthenticated non-loopback bridge bindings, authenticated internal
+  server-control and diagnostic routes when a server token is configured,
+  rejected non-JSON/browser-origin control requests, and removed operation
+  payloads from public localhost diagnostics.
+- Enforced inspector read-only and builder no-arbitrary-Luau profile policies
+  at dispatch (not only schema discovery), and rejected invalid profile names.
+- Warned when compatibility CLI flags carry secrets and documented the
+  environment-variable migration path.
+- Confined every QualityTools input/output path through canonical project-root
+  checks, rejected option-shaped and escaping symlink paths, guaranteed temporary
+  cleanup, and returned bounded structured missing-tool/timeout/output-limit errors.
+- Made Studio plugin installation atomic and validated release type, variant,
+  version, redirect policy, timeout, and download size before replacing a
+  working plugin or removing the opposite variant.
+- Stopped plugin builds from modifying a user's Studio plugin directory unless
+  `MCP_PLUGINS_DIR` is explicitly set.
+
+### Deprecated
+- No new deprecations in the previous hardening pass.
 
 ### Removed
 - Removed the standalone roadmap; completed work remains in the changelog and future work is tracked through GitHub issues.
