@@ -54,8 +54,10 @@ describe('Rojo command and process management', () => {
   });
 
   test('starts once, captures bounded readiness logs, and stops gracefully', async () => {
-    const first = await manager.start(projectFile, { port: 34872 });
-    const second = await manager.start(projectFile, { port: 34872 });
+    const [first, second] = await Promise.all([
+      manager.start(projectFile, { port: 34872 }),
+      manager.start(projectFile, { port: 34872 }),
+    ]);
 
     expect(first.status).toBe('running');
     expect(second.pid).toBe(first.pid);
@@ -83,6 +85,7 @@ describe('Rojo command and process management', () => {
       env: { FAKE_ROJO_SILENT: '1' },
       readinessTimeoutMs: 50,
     })).rejects.toThrow(/did not become ready/);
+    expect(manager.status(projectFile)).toBeUndefined();
   });
 
   test('rejects occupied ports before spawning', async () => {

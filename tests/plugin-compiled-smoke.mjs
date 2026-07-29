@@ -122,7 +122,9 @@ const ASSERTIONS = [
     test: (src) =>
       src.includes('continuationToken') &&
       src.includes('sourceHash') &&
-      src.includes('maxSourceBytes'),
+      src.includes('maxSourceBytes') &&
+      src.includes('managedScriptSnapshots') &&
+      src.includes('MAX_MANAGED_SCRIPTS'),
   },
   {
     file: 'RuntimeLogBuffer.luau',

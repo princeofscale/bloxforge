@@ -28,6 +28,9 @@ import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 import { parseCapabilities, requiredCapabilities, type Capability } from './capability-policy.js';
 import { effectsForTool, isInspectorEffect } from './tools/tool-effects.js';
+import { isLoopbackHost } from './network.js';
+
+export { isLoopbackHost } from './network.js';
 
 export interface ServerConfig {
   name: string;
@@ -54,22 +57,6 @@ function isValidHostname(host: string): boolean {
     label.length > 0 &&
     label.length <= 63 &&
     /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label));
-}
-
-export function isLoopbackHost(host: string): boolean {
-  const normalized = host.toLowerCase().replace(/\.$/, '');
-  if (normalized === 'localhost' || normalized === 'localhost.localdomain' || normalized === 'ip6-localhost') {
-    return true;
-  }
-  if (isIP(normalized) === 4) {
-    return normalized.startsWith('127.');
-  }
-  if (isIP(normalized) === 6) {
-    return normalized === '::1' ||
-      normalized === '0:0:0:0:0:0:0:1' ||
-      /^::ffff:127\./.test(normalized);
-  }
-  return false;
 }
 
 export function assertSecureBridgeBinding(

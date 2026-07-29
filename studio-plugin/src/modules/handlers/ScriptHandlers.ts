@@ -2,6 +2,7 @@ import Utils from "../Utils";
 import Recording from "../Recording";
 
 const ScriptEditorService = game.GetService("ScriptEditorService");
+const HttpService = game.GetService("HttpService");
 
 const { getInstancePath, getInstanceByPath, readScriptSource, splitLines, joinLines } = Utils;
 const { beginRecording, finishRecording } = Recording;
@@ -131,6 +132,52 @@ function instancePathSegments(instance: Instance): string[] {
 	return segments;
 }
 
+interface ManagedScriptSnapshot {
+	createdAt: number;
+	rootPath: string;
+	scripts: Array<{ instance: LuaSourceContainer; path: string }>;
+}
+
+const managedScriptSnapshots = new Map<string, ManagedScriptSnapshot>();
+const MANAGED_SNAPSHOT_TTL_SECONDS = 30;
+const MAX_MANAGED_SNAPSHOTS = 4;
+const MAX_MANAGED_SCRIPTS = 10000;
+
+function createManagedScriptSnapshot(rootPath: string, root: Instance): LuaTuple<[string, ManagedScriptSnapshot]> {
+	const now = os.clock();
+	for (const [id, snapshot] of managedScriptSnapshots) {
+		if (now - snapshot.createdAt > MANAGED_SNAPSHOT_TTL_SECONDS) managedScriptSnapshots.delete(id);
+	}
+	while (managedScriptSnapshots.size() >= MAX_MANAGED_SNAPSHOTS) {
+		let oldestId: string | undefined;
+		let oldestAt = math.huge;
+		for (const [id, snapshot] of managedScriptSnapshots) {
+			if (snapshot.createdAt < oldestAt) {
+				oldestId = id;
+				oldestAt = snapshot.createdAt;
+			}
+		}
+		if (oldestId === undefined) break;
+		managedScriptSnapshots.delete(oldestId);
+	}
+
+	const scripts: ManagedScriptSnapshot["scripts"] = [];
+	const candidates = root === game ? game.GetDescendants() : [root, ...root.GetDescendants()];
+	for (const candidate of candidates) {
+		if (candidate.IsA("LuaSourceContainer")) {
+			if (scripts.size() >= MAX_MANAGED_SCRIPTS) {
+				error(`Managed script read exceeds ${MAX_MANAGED_SCRIPTS} items`);
+			}
+			scripts.push({ instance: candidate, path: getInstancePath(candidate) });
+		}
+	}
+	scripts.sort((a, b) => a.path < b.path);
+	const id = HttpService.GenerateGUID(false);
+	const snapshot = { createdAt: now, rootPath, scripts };
+	managedScriptSnapshots.set(id, snapshot);
+	return $tuple(id, snapshot);
+}
+
 function readManagedScripts(requestData: Record<string, unknown>) {
 	const rootPath = (requestData.rootPath as string | undefined) ?? "game";
 	const limit = math.clamp((requestData.limit as number | undefined) ?? 50, 1, 100);
@@ -140,29 +187,32 @@ function readManagedScripts(requestData: Record<string, unknown>) {
 		1024 * 1024,
 	);
 	const continuationToken = requestData.continuationToken as string | undefined;
-	const start = continuationToken !== undefined ? tonumber(continuationToken) : 0;
 	const knownHashes = (requestData.knownHashes as Record<string, string> | undefined) ?? {};
-	if (start === undefined || start < 0 || start % 1 !== 0) {
-		return { error: "continuationToken must be a non-negative integer string" };
-	}
-
 	const root = getInstanceByPath(rootPath);
 	if (!root) return { error: `Instance not found: ${rootPath}` };
 
-	const scripts: Array<{ instance: LuaSourceContainer; path: string }> = [];
-	const candidates = root === game ? game.GetDescendants() : [root, ...root.GetDescendants()];
-	for (const candidate of candidates) {
-		if (candidate.IsA("LuaSourceContainer")) {
-			scripts.push({ instance: candidate, path: getInstancePath(candidate) });
+	let snapshotId: string;
+	let snapshot: ManagedScriptSnapshot;
+	let start = 0;
+	if (continuationToken === undefined) {
+		[snapshotId, snapshot] = createManagedScriptSnapshot(rootPath, root);
+	} else {
+		const parts = continuationToken.split(":");
+		const parsedStart = tonumber(parts[1]);
+		const existing = parts.size() === 2 ? managedScriptSnapshots.get(parts[0]) : undefined;
+		if (parsedStart === undefined || parsedStart < 0 || parsedStart % 1 !== 0 || !existing || existing.rootPath !== rootPath) {
+			return { error: "continuationToken is invalid or expired" };
 		}
+		start = parsedStart;
+		snapshotId = parts[0];
+		snapshot = existing;
 	}
-	scripts.sort((a, b) => a.path < b.path);
 
 	const items: Array<Record<string, unknown>> = [];
 	let sourceBytes = 0;
 	let cursor = start;
-	while (cursor < scripts.size() && items.size() < limit) {
-		const entry = scripts[cursor];
+	while (cursor < snapshot.scripts.size() && items.size() < limit) {
+		const entry = snapshot.scripts[cursor];
 		const source = readScriptSource(entry.instance);
 		const hash = sourceHash(source);
 		const unchanged = knownHashes[entry.path] === hash;
@@ -181,14 +231,16 @@ function readManagedScripts(requestData: Record<string, unknown>) {
 		if (includeSource) sourceBytes += source.size();
 		cursor++;
 	}
+	const nextToken = cursor < snapshot.scripts.size() ? `${snapshotId}:${cursor}` : undefined;
+	if (nextToken === undefined) managedScriptSnapshots.delete(snapshotId);
 
 	return {
 		rootPath,
 		items,
 		count: items.size(),
-		total: scripts.size(),
+		total: snapshot.scripts.size(),
 		sourceBytes,
-		continuationToken: cursor < scripts.size() ? tostring(cursor) : undefined,
+		continuationToken: nextToken,
 	};
 }
 

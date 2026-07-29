@@ -7,7 +7,7 @@ const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
 type Rename = (from: fs.PathLike, to: fs.PathLike) => void;
 type Validate = (content: string, file: string) => void;
 
-function contentHash(content: string): string {
+export function contentHash(content: string): string {
   return `sha256:${createHash('sha256').update(content).digest('hex')}`;
 }
 
@@ -43,7 +43,7 @@ export class RojoSourceEditor {
       fs.writeFileSync(temporary, content, { encoding: 'utf8', mode });
       this.rename(temporary, file);
     } finally {
-      try { fs.unlinkSync(temporary); } catch {}
+      try { fs.unlinkSync(temporary); } catch { /* already renamed or unavailable */ }
     }
   }
 

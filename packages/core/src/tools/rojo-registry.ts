@@ -9,7 +9,7 @@ const PROJECT = {
   projectFile: { type: 'string', description: 'Explicit *.project.json path; required when discovery is ambiguous.' },
 };
 
-const tools = (): RegisteredTool[] => [
+const ROJO_TOOLS: RegisteredTool[] = [
   defineTool({
     name: 'rojo_detect_projects',
     description: 'Discover every nested *.project.json under the allowed project root without guessing among multiple projects.',
@@ -328,8 +328,8 @@ function asTools(runtime: unknown): RobloxStudioTools {
   return runtime as RobloxStudioTools;
 }
 
-export const ROJO_TOOL_DEFINITIONS: ToolDefinition[] = tools().map((tool) => tool.definition);
+export const ROJO_TOOL_DEFINITIONS: ToolDefinition[] = ROJO_TOOLS.map((tool) => tool.definition);
 
 export function registerRojoTools(registry: ToolRegistry): void {
-  registry.register(...tools());
+  registry.register(...ROJO_TOOLS);
 }

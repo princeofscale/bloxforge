@@ -6,7 +6,7 @@
 //   LocalScript  -> *.client.lua
 //   ModuleScript -> *.lua (the official Rojo convention)
 
-import { encodeInstanceName } from '../rojo/source-mapper.js';
+import { classifyRojoSource, encodeInstanceName } from '../rojo/source-mapper.js';
 
 export type ScriptClassName = 'Script' | 'LocalScript' | 'ModuleScript';
 
@@ -15,12 +15,6 @@ const SUFFIX_BY_CLASS: Record<ScriptClassName, string> = {
   LocalScript: '.client.lua',
   ModuleScript: '.lua',
 };
-
-const CLASS_BY_SUFFIX: Array<[string, ScriptClassName]> = [
-  ['.server.lua', 'Script'],
-  ['.client.lua', 'LocalScript'],
-  ['.lua', 'ModuleScript'],
-];
 
 export type ConflictKind = 'none' | 'local' | 'studio' | 'both';
 
@@ -57,12 +51,11 @@ export class SyncManager {
   }
 
   classNameForFile(fileName: string): { baseName: string; className: ScriptClassName } | null {
-    for (const [suffix, className] of CLASS_BY_SUFFIX) {
-      if (fileName.endsWith(suffix)) {
-        return { baseName: fileName.slice(0, -suffix.length), className };
-      }
+    const mapping = classifyRojoSource(fileName);
+    if (!mapping || (mapping.kind !== 'Script' && mapping.kind !== 'LocalScript' && mapping.kind !== 'ModuleScript')) {
+      return null;
     }
-    return null;
+    return { baseName: mapping.instanceName ?? '', className: mapping.kind };
   }
 
   /** "game.ServerScriptService.A.B" + Script -> "ServerScriptService/A/B.server.lua". */

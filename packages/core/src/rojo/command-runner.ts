@@ -22,6 +22,18 @@ export interface RojoVersionResult extends RojoCommandResult {
 }
 
 const MAX_OUTPUT_BYTES = 1024 * 1024;
+type CommandError = Error & { code?: string | number };
+
+function commandErrorMessage(error: CommandError, timeoutMs: number): string {
+  if (error.code === 'ENOENT') {
+    return 'Rojo is not installed. Install stable Rojo with Rokit or Aftman, then retry.';
+  }
+  if (error.code === 'ETIMEDOUT') return `Rojo command timed out after ${timeoutMs}ms`;
+  if (error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+    return `Rojo output exceeded ${MAX_OUTPUT_BYTES} bytes`;
+  }
+  return error.message;
+}
 
 function detectCommand(): RojoCommand {
   const configured = process.env.BLOXFORGE_ROJO_BIN?.trim();
@@ -66,22 +78,17 @@ export class RojoCommandRunner {
             resolve({ available: true, ok: true, stdout: stdout.trim(), stderr: stderr.trim(), exitCode: 0 });
             return;
           }
-          const code = (error as NodeJS.ErrnoException).code;
+          const childError = error as CommandError;
+          const code = childError.code;
           resolve({
             available: code !== 'ENOENT',
             ok: false,
             stdout: String(stdout).slice(0, MAX_OUTPUT_BYTES).trim(),
             stderr: String(stderr).slice(0, MAX_OUTPUT_BYTES).trim(),
-            exitCode: typeof (error as { code?: unknown }).code === 'number'
-              ? (error as unknown as { code: number }).code
+            exitCode: typeof childError.code === 'number'
+              ? childError.code
               : undefined,
-            error: code === 'ENOENT'
-              ? 'Rojo is not installed. Install stable Rojo with Rokit or Aftman, then retry.'
-              : code === 'ETIMEDOUT'
-                ? `Rojo command timed out after ${options.timeoutMs ?? 120000}ms`
-                : code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
-                  ? `Rojo output exceeded ${MAX_OUTPUT_BYTES} bytes`
-                  : error.message,
+            error: commandErrorMessage(childError, options.timeoutMs ?? 120000),
           });
         },
       );

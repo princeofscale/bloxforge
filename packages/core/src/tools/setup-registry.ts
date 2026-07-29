@@ -210,23 +210,6 @@ export function registerContractedTools(
 }
 
 function registerLocalTools(registry: ToolRegistry): void {
-  const definitions = [
-    ...META_TOOL_DEFINITIONS.filter((definition) => [
-      'detect_roblox_project',
-      'validate_script_source',
-      'format_script_preview',
-      'resolve_instance_source_file',
-      'run_project_tests',
-      'get_dependency_graph',
-      'install_wally_packages',
-      'run_quality_gate',
-      'validate_with_luau_lsp',
-      'generate_rojo_sourcemap',
-      'build_rojo_project',
-    ].includes(definition.name)),
-    ...GENERATED_TOOL_DEFINITIONS.filter((definition) =>
-      ['sync_pull', 'sync_status', 'sync_push'].includes(definition.name)),
-  ];
   const handlers: Record<string, (tools: RobloxStudioTools, args: Record<string, any>) => Promise<unknown>> = {
     detect_roblox_project: (tools, args) => tools.detectRobloxProject(args.root),
     validate_script_source: (tools, args) => tools.validateScriptSource(args.source, args.fileName),
@@ -243,6 +226,9 @@ function registerLocalTools(registry: ToolRegistry): void {
     sync_status: (tools, args) => tools.syncStatus(args.syncDir, args.instance_id),
     sync_push: (tools, args) => tools.syncPush(args.syncDir, args.instance_id, { dryRun: args.dryRun, confirm: args.confirm }),
   };
+  const names = new Set(Object.keys(handlers));
+  const definitions = [...META_TOOL_DEFINITIONS, ...GENERATED_TOOL_DEFINITIONS]
+    .filter((definition) => names.has(definition.name));
   registry.register(...definitions.map((definition) => defineTool({
     name: definition.name,
     description: definition.description,

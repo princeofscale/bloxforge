@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SyncManager, type ScriptClassName } from '../sync/sync-manager.js';
 import { resolveProjectPath, resolveProjectRoot } from '../rojo/source-mapper.js';
+import { contentHash } from '../rojo/source-editor.js';
 import type { SafetyOptions, ToolContent } from './runtime-support.js';
 
 type SyncToolRuntime = {
@@ -17,6 +18,8 @@ interface StudioScript {
   source?: string;
   sourceHash: string;
   sourceLength: number;
+  unchanged?: boolean;
+  sourceOmitted?: boolean;
 }
 
 interface SyncStateEntry {
@@ -47,8 +50,10 @@ interface SyncPlan {
   state: SyncState;
 }
 
-function hash(content: string): string {
-  return `sha256:${createHash('sha256').update(content).digest('hex')}`;
+function studioHash(content: string): string {
+  let value = 5381;
+  for (const byte of Buffer.from(content)) value = (value * 33 + byte) % 2147483647;
+  return `djb2:${value.toString(16).padStart(8, '0')}`;
 }
 
 function atomicWriteFile(file: string, content: string): void {
@@ -58,7 +63,7 @@ function atomicWriteFile(file: string, content: string): void {
     fs.writeFileSync(temporary, content, { encoding: 'utf8', mode: 0o600 });
     fs.renameSync(temporary, file);
   } finally {
-    try { fs.unlinkSync(temporary); } catch {}
+    try { fs.unlinkSync(temporary); } catch { /* already renamed or unavailable */ }
   }
 }
 
@@ -78,7 +83,7 @@ export class SyncTools {
     try {
       const parsed = JSON.parse(fs.readFileSync(this._statePath(dir), 'utf8')) as SyncState;
       if (parsed.schemaVersion === 1 && parsed.entries && typeof parsed.entries === 'object') return parsed;
-    } catch {}
+    } catch { /* missing or invalid state starts a fresh baseline */ }
     return {
       schemaVersion: 1,
       projectIdentity: dir,
@@ -95,14 +100,22 @@ export class SyncTools {
     }, null, 2)}\n`);
   }
 
-  private async _readStudioScripts(instance_id?: string): Promise<StudioScript[]> {
+  private async _readStudioScripts(state: SyncState, instance_id?: string): Promise<StudioScript[]> {
     const scripts: StudioScript[] = [];
     let continuationToken: string | undefined;
+    const knownHashes: Record<string, string> = {};
+    let knownHashBytes = 0;
+    for (const entry of Object.values(state.entries)) {
+      knownHashBytes += Buffer.byteLength(entry.studioIdentity) + Buffer.byteLength(entry.studioHash);
+      if (knownHashBytes > 256 * 1024) break;
+      knownHashes[entry.studioIdentity] = entry.studioHash;
+    }
     do {
       const response = await this.runtime.callSingle('/api/read-managed-scripts', {
         rootPath: 'game',
         limit: 100,
         maxSourceBytes: 1024 * 1024,
+        knownHashes,
         ...(continuationToken ? { continuationToken } : {}),
       }, 'edit', instance_id) as { items?: unknown; continuationToken?: unknown; error?: unknown };
       if (typeof response?.error === 'string') throw new Error(response.error);
@@ -156,9 +169,9 @@ export class SyncTools {
   }
 
   private async _plan(dir: string, instance_id?: string): Promise<SyncPlan> {
-    const studioScripts = await this._readStudioScripts(instance_id);
-    const local = this._walkLocalScripts(dir);
     const state = this._readState(dir);
+    const studioScripts = await this._readStudioScripts(state, instance_id);
+    const local = this._walkLocalScripts(dir);
     const scripts = new Map<string, StudioScript>();
     const plan: SyncPlan = {
       added: [],
@@ -181,31 +194,32 @@ export class SyncTools {
       const rel = this.sync.instanceSegmentsToFilePath(segments, script.className);
       if (this.sync.isIgnored(rel)) continue;
       scripts.set(rel, script);
-      if (script.source === undefined) {
+      const baseline = state.entries[rel];
+      if (script.source === undefined && !script.unchanged) {
         plan.tooLarge.push(rel);
         continue;
       }
       const localContent = local.get(rel);
-      const localHash = localContent === undefined ? undefined : hash(localContent);
-      const studioHash = hash(script.source);
-      const baseHash = state.entries[rel]?.contentHash;
-      if (localHash === studioHash) plan.inSync.push(rel);
+      const localHash = localContent === undefined ? undefined : contentHash(localContent);
+      const studioContentHash = script.source === undefined ? baseline?.contentHash : contentHash(script.source);
+      const baseHash = baseline?.contentHash;
+      if (localHash === studioContentHash) plan.inSync.push(rel);
       else if (localHash === undefined) plan.added.push(rel);
       else if (localHash === baseHash) plan.modified.push(rel);
-      else if (studioHash === baseHash) plan.localOnly.push(rel);
+      else if (studioContentHash === baseHash) plan.localOnly.push(rel);
       else plan.conflicts.push(rel);
     }
     for (const [rel, baseline] of Object.entries(state.entries)) {
       if (scripts.has(rel)) continue;
       const localContent = local.get(rel);
-      if (localContent === undefined || hash(localContent) === baseline.contentHash) plan.deletedInStudio.push(rel);
+      if (localContent === undefined || contentHash(localContent) === baseline.contentHash) plan.deletedInStudio.push(rel);
       else plan.conflicts.push(rel);
     }
     for (const from of [...plan.deletedInStudio]) {
       const baseHash = state.entries[from]?.contentHash;
       const to = plan.added.find((candidate) => {
         const source = scripts.get(candidate)?.source;
-        return source !== undefined && hash(source) === baseHash;
+        return source !== undefined && contentHash(source) === baseHash;
       });
       if (!to) continue;
       plan.renamed.push({ from, to });
@@ -259,13 +273,13 @@ export class SyncTools {
       } catch (error) {
         for (const item of rollback.reverse()) {
           if (item.previous === undefined) {
-            try { fs.unlinkSync(item.file); } catch {}
+            try { fs.unlinkSync(item.file); } catch { /* rollback is best effort */ }
           } else {
             atomicWriteFile(item.file, item.previous);
           }
         }
         for (const item of renamedRollback.reverse()) {
-          try { fs.renameSync(item.to, item.from); } catch {}
+          try { fs.renameSync(item.to, item.from); } catch { /* rollback is best effort */ }
         }
         throw error;
       }
@@ -276,7 +290,7 @@ export class SyncTools {
         const content = script?.source ?? plan.local.get(rel);
         if (!script || content === undefined) continue;
         plan.state.entries[rel] = {
-          contentHash: hash(content),
+          contentHash: contentHash(content),
           studioHash: script.sourceHash,
           studioIdentity: script.path,
           lastSuccessfulSyncAt: now,
@@ -376,8 +390,8 @@ export class SyncTools {
       const script = plan.scripts.get(rel)!;
       const content = plan.local.get(rel)!;
       plan.state.entries[rel] = {
-        contentHash: hash(content),
-        studioHash: script.sourceHash,
+        contentHash: contentHash(content),
+        studioHash: studioHash(content),
         studioIdentity: script.path,
         lastSuccessfulSyncAt: now,
       };

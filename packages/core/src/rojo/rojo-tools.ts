@@ -9,7 +9,7 @@ import { resolveInstanceSource, resolveSourceInstance } from './sourcemap.js';
 import { classifyRojoSource, resolveProjectPath } from './source-mapper.js';
 import { QualityTools } from '../quality-tools.js';
 
-export const defaultRojoProcessManager = new RojoProcessManager();
+const defaultRojoProcessManager = new RojoProcessManager();
 
 export class RojoTools {
   private readonly quality = new QualityTools();

@@ -76,6 +76,35 @@ describe('SyncTools safety', () => {
     expect(fs.readFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'utf8')).toBe('print("local")');
   });
 
+  it('uses baseline Studio hashes to avoid retransmitting unchanged source', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    fs.writeFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'print("local")');
+    callSingle.mockImplementation(async (_endpoint, data) => ({
+      items: [{
+        ...studioPage('').items[0],
+        source: undefined,
+        sourceLength: 'print("hello")'.length,
+        sourceHash: 'plugin-hash',
+        unchanged: true,
+        sourceOmitted: true,
+      }],
+      continuationToken: undefined,
+      knownHashes: data.knownHashes,
+    }));
+
+    const payload = textPayload(await tools.syncStatus(dir, 'place-1'));
+    expect(callSingle).toHaveBeenLastCalledWith(
+      '/api/read-managed-scripts',
+      expect.objectContaining({
+        knownHashes: { 'game.ServerScriptService.Main': 'plugin-hash' },
+      }),
+      'edit',
+      'place-1',
+    );
+    expect(payload.localOnlyChanges).toEqual(['ServerScriptService/Main.server.lua']);
+    expect(payload.tooLarge).toEqual([]);
+  });
+
   it('rejects sync directories outside the configured project root', async () => {
     await expect(tools.syncPull(path.join(root, '..', 'escape'), 'place-1', { dryRun: true }))
       .rejects.toThrow(/project root/);

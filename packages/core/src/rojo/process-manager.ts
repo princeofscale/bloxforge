@@ -3,6 +3,7 @@ import * as net from 'node:net';
 import * as path from 'node:path';
 import { RojoCommandRunner, type RojoVersionResult } from './command-runner.js';
 import { resolveProjectPath } from './source-mapper.js';
+import { isLoopbackHost } from '../network.js';
 
 export interface RojoServeStatus {
   projectFile: string;
@@ -29,18 +30,41 @@ async function assertPortAvailable(host: string, port: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const server = net.createServer();
     server.unref();
-    server.once('error', () => reject(new Error(`Rojo serve port ${host}:${port} is already in use`)));
+    server.once('error', (error: NodeJS.ErrnoException) => reject(
+      error.code === 'EADDRINUSE'
+        ? new Error(`Rojo serve port ${host}:${port} is already in use`)
+        : error,
+    ));
     server.listen(port, host, () => server.close(() => resolve()));
   });
 }
 
-function isLoopback(host: string): boolean {
-  const normalized = host.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
-  return normalized === 'localhost' || normalized === '::1' || normalized.startsWith('127.');
+function canonicalProject(projectFile: string): string {
+  return resolveProjectPath(path.dirname(projectFile), path.basename(projectFile));
+}
+
+async function terminateChild(child: ChildProcessWithoutNullStreams, graceMs = 2000): Promise<void> {
+  if (child.exitCode !== null) return;
+  const waitForExit = (timeoutMs: number) => new Promise<boolean>((resolve) => {
+    const onExit = () => {
+      clearTimeout(timeout);
+      resolve(true);
+    };
+    const timeout = setTimeout(() => {
+      child.off('exit', onExit);
+      resolve(false);
+    }, timeoutMs);
+    child.once('exit', onExit);
+  });
+  child.kill('SIGTERM');
+  if (await waitForExit(graceMs)) return;
+  child.kill('SIGKILL');
+  await waitForExit(500);
 }
 
 export class RojoProcessManager {
   private readonly processes = new Map<string, ManagedProcess>();
+  private readonly starts = new Map<string, Promise<RojoServeStatus>>();
   private version?: RojoVersionResult;
 
   constructor(private readonly runner = new RojoCommandRunner()) {}
@@ -59,30 +83,49 @@ export class RojoProcessManager {
       readinessTimeoutMs?: number;
     } = {},
   ): Promise<RojoServeStatus> {
-    const root = path.dirname(projectFile);
-    const canonicalProject = resolveProjectPath(root, path.basename(projectFile));
-    const existing = this.processes.get(canonicalProject);
-    if (existing?.status.status === 'running' || existing?.status.status === 'starting') return { ...existing.status };
-    if (existing) this.processes.delete(canonicalProject);
+    const project = canonicalProject(projectFile);
+    const starting = this.starts.get(project);
+    if (starting) return starting;
+    const promise = this.startOnce(project, options);
+    this.starts.set(project, promise);
+    try {
+      return await promise;
+    } finally {
+      if (this.starts.get(project) === promise) this.starts.delete(project);
+    }
+  }
 
-    const host = options.host ?? '127.0.0.1';
+  private async startOnce(
+    project: string,
+    options: {
+      host?: string;
+      port?: number;
+      env?: NodeJS.ProcessEnv;
+      readinessTimeoutMs?: number;
+    },
+  ): Promise<RojoServeStatus> {
+    const existing = this.processes.get(project);
+    if (existing?.status.status === 'running' || existing?.status.status === 'starting') return { ...existing.status };
+    if (existing) this.processes.delete(project);
+
+    const host = (options.host ?? '127.0.0.1').replace(/^\[|\]$/g, '');
     const port = options.port ?? 34872;
-    if (!isLoopback(host)) throw new Error('Managed Rojo serve must bind to a loopback address');
+    if (!isLoopbackHost(host)) throw new Error('Managed Rojo serve must bind to a loopback address');
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Rojo serve port must be an integer from 1 to 65535');
     await assertPortAvailable(host, port);
 
     const version = await this.getVersion();
     if (!version.available || !version.ok) throw new Error(version.error ?? 'Rojo is unavailable');
     const child = this.runner.spawn(
-      ['serve', canonicalProject, '--address', host, '--port', String(port)],
-      { cwd: path.dirname(canonicalProject), env: options.env },
+      ['serve', project, '--address', host, '--port', String(port)],
+      { cwd: path.dirname(project), env: options.env },
     );
     const managed: ManagedProcess = {
       child,
       logs: [],
       logBytes: 0,
       status: {
-        projectFile: canonicalProject,
+        projectFile: project,
         host,
         port,
         pid: child.pid,
@@ -91,7 +134,7 @@ export class RojoProcessManager {
         status: 'starting',
       },
     };
-    this.processes.set(canonicalProject, managed);
+    this.processes.set(project, managed);
 
     const append = (stream: 'stdout' | 'stderr', chunk: Buffer) => {
       for (const line of chunk.toString('utf8').split(/\r?\n/).filter(Boolean)) {
@@ -110,11 +153,14 @@ export class RojoProcessManager {
       managed.status.exitCode = exitCode;
     });
 
+    const readinessTimeoutMs = options.readinessTimeoutMs ?? 10000;
     await new Promise<void>((resolve, reject) => {
+      let timedOut = false;
       const timeout = setTimeout(() => {
-        child.kill();
-        reject(new Error(`Rojo serve did not become ready within ${options.readinessTimeoutMs ?? 10000}ms`));
-      }, options.readinessTimeoutMs ?? 10000);
+        timedOut = true;
+        void terminateChild(child).then(() =>
+          reject(new Error(`Rojo serve did not become ready within ${readinessTimeoutMs}ms`)));
+      }, readinessTimeoutMs);
       const ready = (chunk: Buffer) => {
         if (!/listening|server started|web interface/i.test(chunk.toString('utf8'))) return;
         clearTimeout(timeout);
@@ -128,51 +174,39 @@ export class RojoProcessManager {
         reject(error);
       });
       child.once('exit', (code) => {
-        if (managed.status.status === 'running') return;
+        if (managed.status.status === 'running' || timedOut) return;
         clearTimeout(timeout);
         reject(new Error(`Rojo serve exited before becoming ready (code ${code ?? 'unknown'})`));
       });
     }).catch((error) => {
-      this.processes.delete(canonicalProject);
+      this.processes.delete(project);
       throw error;
     });
     return { ...managed.status };
   }
 
   status(projectFile: string): RojoServeStatus | undefined {
-    const canonicalProject = resolveProjectPath(path.dirname(projectFile), path.basename(projectFile));
-    const managed = this.processes.get(canonicalProject);
+    const managed = this.processes.get(canonicalProject(projectFile));
     return managed ? { ...managed.status } : undefined;
   }
 
   logs(projectFile: string, limit = 100): { lines: string[]; truncated: boolean } {
-    const canonicalProject = resolveProjectPath(path.dirname(projectFile), path.basename(projectFile));
-    const lines = this.processes.get(canonicalProject)?.logs ?? [];
+    const lines = this.processes.get(canonicalProject(projectFile))?.logs ?? [];
     const bounded = Math.max(1, Math.min(limit, MAX_LOG_LINES));
     return { lines: lines.slice(-bounded), truncated: lines.length > bounded };
   }
 
   async stop(projectFile: string): Promise<RojoServeStatus> {
-    const canonicalProject = resolveProjectPath(path.dirname(projectFile), path.basename(projectFile));
-    const managed = this.processes.get(canonicalProject);
+    const project = canonicalProject(projectFile);
+    const starting = this.starts.get(project);
+    if (starting) await starting.catch(() => {});
+    const managed = this.processes.get(project);
     if (!managed) {
-      return { projectFile: canonicalProject, host: '127.0.0.1', port: 34872, status: 'stopped' };
+      return { projectFile: project, host: '127.0.0.1', port: 34872, status: 'stopped' };
     }
-    if (managed.child.exitCode === null) {
-      managed.child.kill('SIGTERM');
-      await new Promise<void>((resolve) => {
-        const timeout = setTimeout(() => {
-          managed.child.kill('SIGKILL');
-          resolve();
-        }, 2000);
-        managed.child.once('exit', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
-    }
+    await terminateChild(managed.child);
     managed.status.status = 'stopped';
-    this.processes.delete(canonicalProject);
+    this.processes.delete(project);
     return { ...managed.status };
   }
 

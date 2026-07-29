@@ -79,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   invokes npm portably without executing Windows command shims directly.
 - Fixed project detection and Rojo build/sourcemap selection for arbitrary
   `*.project.json` names, with structured ambiguity instead of guessing.
+- Serialized concurrent managed Rojo starts, waited for timed-out children to
+  exit, reused bounded plugin pagination snapshots, and skipped retransmitting
+  unchanged Studio source through baseline hashes.
 
 ### Security
 - Refused unauthenticated non-loopback bridge bindings, authenticated internal
