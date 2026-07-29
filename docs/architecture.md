@@ -132,12 +132,32 @@ authenticated when a server token is configured. Machine-control requests are
 JSON-only and reject browser origins.
 
 Lazy discovery and authorization are separate. `load_toolset` changes the
-advertised schema set only. The inspector profile permits read-category tools;
-the builder profile denies arbitrary Luau/runtime evaluation; capability
-allowlists apply independently to stdio and token-identified HTTP clients.
+advertised schema set only. Authorization uses explicit effects:
+`studio.read`, `studio.write`, `studio.execute`, `local.files.read`,
+`local.files.write`, `local.process.execute`, `network.external`,
+`assets.upload`, and `playtest.control`. The inspector permits only Studio and
+local-file reads; the builder denies arbitrary Luau/runtime evaluation.
+Capability allowlists apply independently to stdio and token-identified HTTP
+clients. The legacy read/write category remains protocol metadata, not the
+permission boundary.
 
-Optional server-local quality adapters cover Rojo-style project detection,
-builds and sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, Lune test
+The Rojo adapter treats local files as the source of truth. Project discovery
+accepts arbitrary nested `*.project.json` files and requires explicit selection
+when ambiguous; the installed Rojo CLI remains authoritative for project-tree
+validation, builds, included projects, sync rules, and sourcemaps. One managed,
+loopback-only `rojo serve` process may run per canonical project. Sourcemap IDs,
+not raw Instance names, provide the preferred file/Instance mapping.
+
+Reverse synchronization is explicit: planning reads bounded, paginated script
+metadata/source through `/api/read-managed-scripts`; applying requires
+confirmation, optimistic baselines, atomic writes, and backups. Hash-only state
+lives under `.bloxforge/`; full source snapshots are not stored in the project
+manifest. Native Rojo `syncback` is feature-detected and guarded by the same
+preview/confirmation contract. Partially managed projects never delete
+Instances outside their Rojo roots.
+
+Optional server-local quality adapters cover project detection, builds and
+sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, Lune test
 scripts, and Wally metadata/install. Missing binaries are reported as
 unavailable, formatting is preview-only, and Wally installation requires
 explicit confirmation. All file arguments resolve through the canonical project

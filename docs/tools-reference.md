@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 172
+## Total Tools: 190
 
 ### `get_file_tree` (Read-only)
 
@@ -2093,22 +2093,24 @@ Scaffold a round-based game: a lobby with spawn, an arena with teleport points, 
 
 ---
 
-### `sync_pull` (Read-only)
+### `sync_pull` (Write)
 
-Pull every Script/LocalScript/ModuleScript from Studio into local files (.server.lua/.client.lua/.module.lua) and write a sync manifest. Does not modify Studio.
+Deprecated compatibility wrapper. Preview Studio-to-files changes safely, then require confirm=true before atomic writes. ModuleScripts use the Rojo .lua convention and state stores hashes, not source.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `syncDir` | `string` | No | Target directory (default ./roblox-src or $ROBLOX_SYNC_DIR). |
+| `dryRun` | `boolean` | No | Preview only. This is the default unless confirm=true. |
+| `confirm` | `boolean` | No | Required before writing local files. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
 
 ### `sync_status` (Read-only)
 
-Compare local files against Studio using the sync manifest. Reports local-only changes, studio-only changes, and conflicts (both sides changed). Read-only.
+Deprecated compatibility wrapper. Compare local files with bounded Studio script pages and hash-only local state.
 
 **Parameters:**
 
@@ -2121,7 +2123,7 @@ Compare local files against Studio using the sync manifest. Reports local-only c
 
 ### `sync_push` (Write)
 
-Push locally-changed scripts back into Studio. Skips files that also changed in Studio (conflicts) instead of overwriting; use dryRun to preview. Resolve conflicts manually or sync_pull to take Studio.
+Deprecated compatibility wrapper. Preview existing-script updates and require confirm=true. Prefer editing local files and using managed rojo serve.
 
 **Parameters:**
 
@@ -2129,7 +2131,7 @@ Push locally-changed scripts back into Studio. Skips files that also changed in 
 |---|---|---|---|
 | `syncDir` | `string` | No | Sync directory (default ./roblox-src or $ROBLOX_SYNC_DIR). |
 | `dryRun` | `boolean` | No | Preview which files would be pushed without writing to Studio. |
-| `confirm` | `boolean` | No | Reserved for future gated pushes. |
+| `confirm` | `boolean` | No | Required before updating Studio scripts. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -2613,5 +2615,266 @@ Load one or more tool domains. This expands the advertised MCP tool list and sen
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `toolsets` | `array` | Yes | Domains to load (e.g. ["ui","assets"]). Accepts "domain.suffix" shorthand too. |
+
+---
+
+### `rojo_detect_projects` (Read-only)
+
+Discover every nested *.project.json under the allowed project root without guessing among multiple projects.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+
+---
+
+### `rojo_get_project_info` (Read-only)
+
+Read the selected Rojo project metadata, including serve settings and managed tree.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+
+---
+
+### `rojo_validate_project` (Read-only)
+
+Validate a selected project by running a bounded Rojo build into an isolated temporary directory.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+
+---
+
+### `rojo_get_version` (Read-only)
+
+Report the installed Rojo command, version, and feature-detected optional commands such as syncback.
+
+---
+
+### `rojo_serve_start` (Write)
+
+Start one managed loopback-only rojo serve process for the selected canonical project.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `host` | `string` | No | Loopback host; defaults to the project setting or 127.0.0.1. |
+| `port` | `number` | No | Serve port; defaults to the project setting or 34872. |
+| `placeId` | `number` | No | Optional place ID checked against servePlaceIds. |
+
+---
+
+### `rojo_serve_status` (Read-only)
+
+Report managed rojo serve status, PID, version, project, host, port, and start time.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+
+---
+
+### `rojo_serve_logs` (Read-only)
+
+Read bounded stdout/stderr lines from a managed rojo serve process.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `limit` | `number` | No | Most recent lines, 1-200. |
+
+---
+
+### `rojo_serve_stop` (Write)
+
+Gracefully stop the managed rojo serve process for the selected project.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+
+---
+
+### `rojo_build_project` (Write)
+
+Build the selected Rojo project to an explicit output path inside the project root.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `output` | `string` | Yes |  |
+
+---
+
+### `rojo_generate_sourcemap` (Write)
+
+Generate a sourcemap for the selected project at a safe explicit local output path.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `output` | `string` | No |  |
+
+---
+
+### `rojo_resolve_instance_source` (Read-only)
+
+Resolve a Studio Instance path to local source paths using a Rojo sourcemap.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `instancePath` | `string` | Yes |  |
+| `sourcemap` | `string` | No | Relative sourcemap path; defaults to sourcemap.json. |
+
+---
+
+### `rojo_resolve_source_instance` (Read-only)
+
+Resolve a local source path to its Studio Instance identity using a Rojo sourcemap.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `sourcePath` | `string` | Yes |  |
+| `sourcemap` | `string` | No | Relative sourcemap path; defaults to sourcemap.json. |
+
+---
+
+### `rojo_read_source` (Read-only)
+
+Read one supported Rojo source file with its SHA-256 optimistic-lock hash.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `sourcePath` | `string` | Yes |  |
+
+---
+
+### `rojo_patch_source` (Write)
+
+Patch one unique text span in a local Rojo source with dry-run, formatted diff, and expected content hash.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `sourcePath` | `string` | Yes |  |
+| `oldText` | `string` | Yes |  |
+| `newText` | `string` | Yes |  |
+| `expectedHash` | `string` | Yes |  |
+| `dryRun` | `boolean` | No |  |
+| `validate` | `boolean` | No | Run available targeted Luau/Selene/StyLua checks before writing. |
+
+---
+
+### `rojo_create_source` (Write)
+
+Create one absent Rojo source atomically, with dry-run and expectedAbsent optimistic locking.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `sourcePath` | `string` | Yes |  |
+| `content` | `string` | Yes |  |
+| `expectedAbsent` | `boolean` | No |  |
+| `dryRun` | `boolean` | No |  |
+| `validate` | `boolean` | No | Run available targeted Luau/Selene/StyLua checks before writing. |
+
+---
+
+### `rojo_delete_source` (Write)
+
+Delete one Rojo source only after dry-run review, expected hash validation, confirmation, and local backup.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `sourcePath` | `string` | Yes |  |
+| `expectedHash` | `string` | Yes |  |
+| `dryRun` | `boolean` | No |  |
+| `confirm` | `boolean` | No |  |
+
+---
+
+### `rojo_syncback_plan` (Read-only)
+
+Preview the safe bounded Studio-to-files subset as added, modified, deleted, unmanaged, and conflicting entries; never writes.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `syncDir` | `string` | No |  |
+| `inputPlaceFile` | `string` | No | Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback dry-run. |
+| `instance_id` | `string` | No | Connected Studio place id when multiple places are open. |
+
+---
+
+### `rojo_syncback_apply` (Write)
+
+Recompute and apply only conflict-free Studio-to-files changes after confirm=true, with backups and atomic writes.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
+| `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
+| `syncDir` | `string` | No |  |
+| `inputPlaceFile` | `string` | No | Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback. |
+| `dryRun` | `boolean` | No |  |
+| `confirm` | `boolean` | Yes |  |
+| `deleteMissing` | `boolean` | No | Delete baseline-managed local files missing in Studio; requires confirm=true and creates backups. |
+| `instance_id` | `string` | No | Connected Studio place id when multiple places are open. |
 
 ---

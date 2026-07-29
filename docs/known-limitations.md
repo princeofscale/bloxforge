@@ -112,6 +112,20 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   `peerAttribution="unavailable_shared_logservice"`; guaranteed peer labels
   require a StudioTestService multiplayer run.
 
+## Rojo and reverse synchronization
+
+- BloxForge does not implement a second continuous two-way sync engine. Local
+  files remain authoritative and `rojo serve` carries them into Studio.
+- Reverse sync is explicit and conflict-aware. Stable Rojo versions without
+  native `syncback` receive only the bounded managed-script subset available
+  through the plugin; models, properties, and arbitrary unmanaged Instances are
+  not blindly dumped to disk.
+- Multi-file native syncback creates a recovery snapshot, but external changes
+  made concurrently after planning can still produce a conflict. Re-run the
+  plan instead of forcing an overwrite.
+- Partially managed projects intentionally leave Studio Instances outside the
+  project tree untouched.
+
 ## Script diagnostics and output
 
 - `diagnose_scripts` reads the current output buffer; a ModuleScript compile

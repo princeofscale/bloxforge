@@ -123,6 +123,36 @@ Start your MCP client, open a place in Studio, and run:
 npx -y @princeofscale/bloxforge@latest verify
 ```
 
+## Recommended Rojo workflow
+
+For file-backed projects, local files are the source of truth and Rojo owns the
+continuous Studio sync:
+
+```text
+Codex / Claude → BloxForge MCP tools → local Luau files → rojo serve → Studio
+                                             ↘ validate / format / test
+```
+
+1. Install stable Rojo through your pinned Rokit or Aftman toolchain.
+2. Open the project locally and set `BLOXFORGE_PROJECT_ROOT` when BloxForge is
+   launched outside that directory.
+3. Use `rojo_detect_projects`, select an explicit project if more than one is
+   found, then run `rojo_validate_project`.
+4. Start loopback-only live sync with `rojo_serve_start`.
+5. Let the agent read and edit local sources with the `rojo_*_source` tools.
+6. Run targeted StyLua, Selene, or Luau checks for affected files.
+7. Use the Studio bridge for inspection, playtests, runtime debugging, UI, and
+   Instances outside the Rojo-managed roots.
+8. Bring Studio changes back only through `rojo_syncback_plan`, review the
+   conflicts, then call `rojo_syncback_apply` with confirmation.
+
+This supports partially managed projects (only selected roots such as scripts
+or packages) and fully managed project trees. BloxForge never treats unmanaged
+Studio Instances as deletion candidates. Stable Rojo 7.7+ native `syncback` is
+feature-detected; older stable versions retain the bounded plugin-based subset.
+BloxForge reports installation guidance when Rojo is absent and never installs
+it silently.
+
 ## Try it
 
 Start with a focused request:
@@ -145,7 +175,7 @@ Profiles keep tool discovery focused and reduce context use:
 | `builder` | UI, terrain, templates, assets, and scene construction; arbitrary Luau execution denied |
 | `tester` | Playtests, runtime debugging, input simulation, and assertions |
 | `full` | Every available BloxForge tool |
-| `inspector` | Read-only authorization; the dedicated `@princeofscale/bloxforge-inspector` also omits write definitions |
+| `inspector` | Studio/local read authorization only; local writes, process execution, network access, and Studio mutation/execute tools are omitted |
 
 Select one with `--profile <name>` or `BLOXFORGE_TOOL_PROFILE`.
 Profiles control authorization where stated; `load_toolset` only expands
