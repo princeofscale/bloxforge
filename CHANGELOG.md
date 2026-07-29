@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working plugin or removing the opposite variant.
 - Stopped plugin builds from modifying a user's Studio plugin directory unless
   `MCP_PLUGINS_DIR` is explicitly set.
+- Avoided request-journal compaction work when persistence is disabled while
+  retaining bounded in-memory terminal status and latency histories.
+- Cached invariant Streamable HTTP tool-definition indexes instead of rebuilding
+  and linearly scanning the catalog on every tool-list or tool-call request.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
@@ -64,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Declared the dependency-compatible Node.js 20+ floor in every maintained
   package, removed the false Node 18 CI claim, and removed direct `cors` and
   `node-fetch` dependencies after source and packed-bundle verification.
+- Extended the 10,000-request benchmark to assert bounded heap, status history,
+  journal size, latency samples, counters, request IDs, timers, and pending work.
 
 ### Removed
 - Removed the standalone roadmap; completed work remains in the changelog and future work is tracked through GitHub issues.

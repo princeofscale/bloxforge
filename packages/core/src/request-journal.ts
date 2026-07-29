@@ -50,9 +50,9 @@ export interface JournalSnapshotV2 {
 type JournalSnapshot = JournalSnapshotV2;
 
 /** Default retention: prune status entries older than this. */
-const DEFAULT_STATUS_TTL_MS = 60 * 60 * 1000; // 1 hour
+export const REQUEST_STATUS_TTL_MS = 60 * 60 * 1000; // 1 hour
 /** Maximum number of statuses kept regardless of TTL. */
-const MAX_STATUSES = 1000;
+export const MAX_TERMINAL_REQUEST_STATUSES = 1000;
 /** Maximum number of completion receipts. */
 const MAX_RECEIPTS = 200;
 /** Receipt TTL — receipts older than this are discarded. */
@@ -135,9 +135,9 @@ export class RequestJournal {
         status.state !== 'queued' &&
         status.state !== 'delivered' &&
         status.state !== 'started' &&
-        now - status.updatedAt < DEFAULT_STATUS_TTL_MS)
+        now - status.updatedAt < REQUEST_STATUS_TTL_MS)
       .sort((left, right) => left.updatedAt - right.updatedAt)
-      .slice(-MAX_STATUSES);
+      .slice(-MAX_TERMINAL_REQUEST_STATUSES);
     const statuses = [...active, ...terminal];
 
     // Prune completion receipts: TTL + cap

@@ -867,6 +867,10 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   // Streamable HTTP MCP transport
   if (serverConfig) {
     const legacyFilteredTools = serverConfig.tools.filter(t => !allowedTools || allowedTools.has(t.name));
+    const legacyDefinitionsByName = new Map(legacyFilteredTools.map(tool => [tool.name, tool]));
+    const contractedDefinitionsByName = new Map(
+      (registry?.definitions ?? []).map(definition => [definition.name, definition]),
+    );
     const isLazyHttp = registry ? registry.lazyMode : isLazyTools();
 
     app.post('/mcp', async (req, res) => {
@@ -894,12 +898,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         server.setRequestHandler(UnsubscribeRequestSchema, async () => ({}));
 
         server.setRequestHandler(ListToolsRequestSchema, async () => {
-          const contractedDefinitions = new Map(
-            (registry?.definitions ?? []).map((definition) => [definition.name, definition]),
-          );
           const candidates = legacyFilteredTools
             .filter((tool) => !isLazyHttp || !registry || registry.activeNames.has(tool.name))
-            .map((tool) => contractedDefinitions.get(tool.name) ?? tool);
+            .map((tool) => contractedDefinitionsByName.get(tool.name) ?? tool);
           return { tools: candidates.map(toolDefinitionToMcpTool) };
         });
 
@@ -910,7 +911,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           if (allowedTools && !allowedTools.has(name)) {
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
           }
-          const definition = legacyFilteredTools.find((tool) => tool.name === name);
+          const definition = legacyDefinitionsByName.get(name);
           const capabilities = clientCapabilities.get(bearerToken(req) ?? '');
           const capability = definition ? requiredCapability(name, definition.category) : undefined;
           if (capability && capabilities && !capabilities.has(capability)) {

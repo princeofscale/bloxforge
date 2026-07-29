@@ -474,6 +474,7 @@ describe('BridgeService', () => {
       }
       expect(bridge.getTransportDiagnostics()).toMatchObject({
         completed: 1100,
+        statusCount: 1000,
         latencySampleCount: 1024,
         p50LatencyMs: expect.any(Number),
         p95LatencyMs: expect.any(Number),

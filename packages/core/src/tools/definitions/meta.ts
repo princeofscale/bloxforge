@@ -81,7 +81,7 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_transport_diagnostics',
     category: 'read',
-    description: 'Return payload-free local transport metrics: queue depth, retries, BUSY/outcome_unknown/cancel/completion counts, server epoch, and latency p50/p95/p99.',
+    description: 'Return payload-free local transport metrics: queue depth, bounded status/sample counts, retries, outcome_unknown/cancel/completion counts, and latency p50/p95/p99.',
     inputSchema: { type: 'object', properties: {} },
   },
   {

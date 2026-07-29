@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { RequestJournal, CompletionReceipt, defaultRequestJournalPath } from './request-journal.js';
+import {
+  RequestJournal,
+  CompletionReceipt,
+  MAX_TERMINAL_REQUEST_STATUSES,
+  REQUEST_STATUS_TTL_MS,
+  defaultRequestJournalPath,
+} from './request-journal.js';
 import { protocolPolicy } from './protocol-manifest.js';
 
 export interface PluginInstance {
@@ -100,6 +106,12 @@ export interface PluginDisconnect {
 }
 
 export type RequestState = 'queued' | 'delivered' | 'started' | 'completed' | 'failed' | 'timed_out' | 'cancelled' | 'outcome_unknown';
+const ACTIVE_REQUEST_STATES = new Set<RequestState>(['queued', 'delivered', 'started']);
+
+function isTerminalRequestState(state: RequestState): boolean {
+  return !ACTIVE_REQUEST_STATES.has(state);
+}
+
 export interface RequestStatus {
   state: RequestState;
   serverEpoch: string;
@@ -255,6 +267,7 @@ export class BridgeService {
   private journal!: RequestJournal;
   private journalWriteWarningEmitted = false;
   private requestStatuses = new Map<string, InternalRequestStatus>();
+  private terminalStatusIds = new Set<string>();
   private sessionTokens = new Map<string, string>(); // sessionToken -> pluginSessionId
 
   private transportCounters = {
@@ -288,6 +301,7 @@ export class BridgeService {
               s.updatedAt = Date.now();
             }
             this.requestStatuses.set(s.requestId, s as InternalRequestStatus);
+            if (isTerminalRequestState(s.state)) this.terminalStatusIds.add(s.requestId);
           }
           for (const p of pending) {
             if (p.state !== 'queued') continue;
@@ -305,6 +319,7 @@ export class BridgeService {
               timeoutId: setTimeout(() => {}, 0) as any,
             } as PendingRequest);
           }
+          this.pruneTerminalStatuses();
         }
       } catch (e) {
         // Journal might be empty or invalid
@@ -340,12 +355,15 @@ export class BridgeService {
   }
 
   private persistJournal() {
+    if (!this.journal) return;
     const snapshot = this.journalSnapshot();
     this.requestStatuses = new Map(snapshot.statuses.map(({ requestId, ...status }) => [
       requestId,
       status as InternalRequestStatus,
     ]));
-    if (!this.journal) return;
+    this.terminalStatusIds = new Set(snapshot.statuses
+      .filter(status => isTerminalRequestState(status.state))
+      .map(status => status.requestId));
     try {
       this.journal.save(snapshot.statuses, snapshot.pending, snapshot.completionReceipts);
       this.journalWriteWarningEmitted = false;
@@ -361,6 +379,21 @@ export class BridgeService {
           }`,
         );
       }
+    }
+  }
+
+  private pruneTerminalStatuses(now = Date.now()) {
+    for (const requestId of this.terminalStatusIds) {
+      const status = this.requestStatuses.get(requestId);
+      if (
+        status &&
+        now - status.updatedAt < REQUEST_STATUS_TTL_MS &&
+        this.terminalStatusIds.size <= MAX_TERMINAL_REQUEST_STATUSES
+      ) {
+        break;
+      }
+      this.terminalStatusIds.delete(requestId);
+      this.requestStatuses.delete(requestId);
     }
   }
 
@@ -394,6 +427,13 @@ export class BridgeService {
       updatedAt: Date.now(),
     };
     this.requestStatuses.set(requestId, next);
+    if (isTerminalRequestState(state)) {
+      this.terminalStatusIds.delete(requestId);
+      this.terminalStatusIds.add(requestId);
+      this.pruneTerminalStatuses(next.updatedAt);
+    } else {
+      this.terminalStatusIds.delete(requestId);
+    }
 
     if (timeout) this.transportCounters.timeouts++;
     if (state === 'outcome_unknown') this.transportCounters.outcomeUnknown++;
@@ -751,6 +791,7 @@ export class BridgeService {
     return {
       completed: this.transportCounters.completed,
       queueDepth: this.pendingRequests.size,
+      statusCount: this.requestStatuses.size,
       deliveryRetries: this.transportCounters.deliveryRetries,
       timeouts: this.transportCounters.timeouts,
       outcomeUnknown: this.transportCounters.outcomeUnknown,

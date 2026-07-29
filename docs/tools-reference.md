@@ -923,7 +923,7 @@ Sample LIVE runtime state during a playtest: players (position/health/team/tool/
 
 ---
 
-### `run_gameplay_assertions` (Read-only)
+### `run_gameplay_assertions` (Write)
 
 Run a list of named boolean assertions against the DataModel and get a structured pass/fail per assertion plus an allPassed summary — the QA primitive to PROVE a fix rather than declare it. Each assertion has a name and a Luau boolean `expr` (e.g. "workspace:FindFirstChild('Boss') ~= nil"). Pair with start_playtest + target="server" to assert live runtime state after reproducing an issue.
 
@@ -2448,7 +2448,7 @@ Look up a bridge request after a timeout. Use the requestId from an outcome_unkn
 
 ### `get_transport_diagnostics` (Read-only)
 
-Return payload-free local transport metrics: queue depth, retries, BUSY/outcome_unknown/cancel/completion counts, server epoch, and latency p50/p95/p99.
+Return payload-free local transport metrics: queue depth, bounded status/sample counts, retries, outcome_unknown/cancel/completion counts, and latency p50/p95/p99.
 
 ---
 
