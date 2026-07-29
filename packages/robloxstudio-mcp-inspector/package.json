@@ -57,7 +57,7 @@
     "cors": "^2.8.5",
     "express": "^4.22.2",
     "node-fetch": "^3.3.2",
-    "ws": "^8.21.0"
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@princeofscale/bloxforge-core": "*"
