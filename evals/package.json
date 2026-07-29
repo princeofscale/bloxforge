@@ -2,6 +2,9 @@
   "name": "bloxforge-evals",
   "version": "0.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "description": "Eval harness for the BloxForge server (not published).",
   "scripts": {
@@ -11,7 +14,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
-    "@modelcontextprotocol/sdk": "^1.27.1"
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

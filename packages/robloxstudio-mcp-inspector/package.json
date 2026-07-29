@@ -4,6 +4,9 @@
   "description": "Read-only MCP server for AI agents to inspect and debug Roblox Studio — safe browsing with zero write risk.",
   "main": "dist/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "bin": {
     "bloxforge-inspector": "dist/index.js"
   },
@@ -54,9 +57,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "cors": "^2.8.5",
     "express": "^4.22.2",
-    "node-fetch": "^3.3.2",
     "ws": "^8.21.1"
   },
   "devDependencies": {

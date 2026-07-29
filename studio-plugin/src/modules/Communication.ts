@@ -452,63 +452,6 @@ function sendReady(conn: Connection): void {
 	});
 }
 
-function streamUrl(serverUrl: string, sessionToken?: string): string {
-	const [websocketUrl] = string.gsub(serverUrl, "^http", "ws");
-	const token = sessionToken ? `&sessionToken=${HttpService.UrlEncode(sessionToken)}` : "";
-	return `${websocketUrl}/stream?pluginSessionId=${pluginSessionId}${token}`;
-}
-
-function sendStreamResponse(conn: Connection, requestId: string, response: unknown, serverEpoch?: string, deliveryAttempt?: number, leaseToken?: string) {
-	if (!conn.streamOpen || !conn.streamClient) return;
-
-	const body: Record<string, unknown> = { type: "response", requestId, response };
-	if (serverEpoch !== undefined) body.serverEpoch = serverEpoch;
-	if (deliveryAttempt !== undefined) body.deliveryAttempt = deliveryAttempt;
-	if (leaseToken !== undefined) body.leaseToken = leaseToken;
-
-	const [ok, result] = pcall(() => conn.streamClient!.Send(HttpService.JSONEncode(body)));
-	if (!ok) warn(`[BloxForge] Failed to send stream response for ${requestId}: ${tostring(result)}`);
-}
-
-function startRequestStream(conn: Connection) {
-	if (!conn.isActive || conn.streamClient) return;
-	const [ok, stream] = pcall(() => HttpService.CreateWebStreamClient(
-		Enum.WebStreamClientType.WebSocket,
-		{
-			Url: streamUrl(conn.serverUrl, conn.sessionToken),
-			Method: "GET",
-			Headers: {
-				"Content-Type": "application/json",
-				...(conn.sessionToken ? { "Authorization": `Bearer ${conn.sessionToken}` } : {})
-			}
-		},
-	));
-	if (!ok || !stream) return;
-
-	conn.streamClient = stream;
-	stream.Opened.Connect(() => {
-		if (conn.streamClient !== stream) return;
-		conn.streamOpen = true;
-		conn.consecutiveFailures = 0;
-		conn.currentRetryDelay = 0.5;
-	});
-	stream.MessageReceived.Connect((message) => {
-		if (conn.streamClient !== stream) return;
-		const [parsed, frame] = pcall(() => HttpService.JSONDecode(message) as { type?: string; requestId?: string; request?: RequestPayload; serverEpoch?: string; deliveryAttempt?: number; leaseToken?: string });
-		if (!parsed || frame.type !== "request" || !frame.requestId || !frame.request) return;
-
-		handleRequestOnce(conn, frame.requestId!, frame.request!, frame.serverEpoch, frame.deliveryAttempt, frame.leaseToken);
-	});
-	const close = () => {
-		if (conn.streamClient !== stream) return;
-		conn.streamClient = undefined;
-		conn.streamOpen = false;
-		conn.nextStreamRetryAt = tick() + 5;
-	};
-	stream.Closed.Connect(close);
-	stream.Error.Connect(close);
-}
-
 function pollForRequests(connIndex: number) {
 	const conn = State.getConnection(connIndex);
 	if (!conn || !conn.isActive) return;

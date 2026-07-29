@@ -43,6 +43,11 @@ Quality-tool file arguments are canonicalized inside `BLOXFORGE_PROJECT_ROOT`;
 escaping symlinks, traversal, absolute paths outside the root, and option-shaped
 file names are rejected before an external command starts.
 
+Plugin downloads require credential-free HTTPS, follow a bounded redirect
+chain, enforce timeout and size limits, and verify the compiled plugin variant
+and version before atomically replacing an installed file. Repository builds
+do not install plugins unless `MCP_PLUGINS_DIR` is explicitly set.
+
 ## Best practices
 
 1. Use `--profile inspector` for browsing or debugging — it has no write capability.

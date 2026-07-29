@@ -31,7 +31,15 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['packages/*/src/**/*.ts'],
+    files: ['scripts/**/*.mjs', 'tests/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      globals: globals.node,
+      sourceType: 'module',
+    },
+  },
+  {
+    files: ['packages/*/src/**/*.ts', 'evals/**/*.ts', 'studio-plugin/src/**/*.ts'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.node,

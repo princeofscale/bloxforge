@@ -45,14 +45,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cleanup, and returned bounded structured missing-tool/timeout/output-limit errors.
 - Added a CI contract that cross-checks canonical definitions, registry entries,
   legacy handlers, schemas, domains, capabilities, and duplicate tool names.
+- Made Studio plugin installation atomic and validated release type, variant,
+  version, redirect policy, timeout, and download size before replacing a
+  working plugin or removing the opposite variant.
+- Stopped plugin builds from modifying a user's Studio plugin directory unless
+  `MCP_PLUGINS_DIR` is explicitly set.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
 - Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
 - Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
 - Reduced published CLI packages to the matching compiled Studio plugin plus required runtime assets; source trees, runtime includes, and the opposite plugin variant are no longer bundled.
-- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the Node 18/20/22 support matrix.
+- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the supported Node 20/22 matrix.
 - Assigned distinct red, yellow, and green toolbar icons to both full and inspector plugin connection states.
+- Expanded lint and `tsc --noEmit` gates across both CLIs, core, scripts, tests,
+  evals, and Studio plugin source; added package metadata consistency and
+  cross-platform installer/package smoke checks.
+- Declared the dependency-compatible Node.js 20+ floor in every maintained
+  package, removed the false Node 18 CI claim, and removed direct `cors` and
+  `node-fetch` dependencies after source and packed-bundle verification.
 
 ### Removed
 - Removed the standalone roadmap; completed work remains in the changelog and future work is tracked through GitHub issues.

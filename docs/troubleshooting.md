@@ -34,6 +34,9 @@ Configure the MCP server itself as `npx -y
 host reports that the server process itself failed, run that exact command in a
 terminal and inspect the first fatal error; an invalid port or non-port bind
 failure is now reported directly instead of being mislabeled as proxy mode.
+The installer downloads to a temporary file, validates its plugin variant and
+version, then replaces the existing plugin atomically; a failed or interrupted
+download leaves the working plugin untouched.
 
 ### "Studio plugin connected, but tool calls fail / hang"
 

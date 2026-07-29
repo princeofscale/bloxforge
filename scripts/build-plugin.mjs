@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
-import { readFileSync, readdirSync, writeFileSync, copyFileSync, existsSync, mkdirSync, statSync, unlinkSync } from 'fs';
+import { readFileSync, readdirSync, writeFileSync, copyFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join, basename } from 'path';
-import { homedir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
@@ -223,49 +222,9 @@ const includeCount = countModules(includeDir);
 const rbxtsCount = countModules(nodeModulesRbxtsDir);
 console.log(`Built studio-plugin/${variant.outputName} (${moduleCount} modules${includeCount > 0 ? `, ${includeCount} runtime includes` : ''}${rbxtsCount > 0 ? `, ${rbxtsCount} @rbxts packages` : ''})`);
 
-function resolveWslWindowsPluginsDir() {
-  // On WSL, walk /mnt/c/Users/*/AppData/Local/Roblox/Plugins and return the
-  // one that already exists. Single-user dev boxes have exactly one; if there
-  // are multiple, the user can set MCP_PLUGINS_DIR explicitly.
-  try {
-    const usersDir = '/mnt/c/Users';
-    if (!existsSync(usersDir)) return undefined;
-    const candidates = readdirSync(usersDir)
-      .map((u) => join(usersDir, u, 'AppData', 'Local', 'Roblox', 'Plugins'))
-      .filter((p) => existsSync(p));
-    if (candidates.length === 1) return candidates[0];
-    if (candidates.length > 1) {
-      console.warn(
-        `[build-plugin] multiple WSL Studio plugin folders found; set MCP_PLUGINS_DIR to disambiguate:\n  ${candidates.join('\n  ')}`,
-      );
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function resolvePluginsDir() {
-  // Explicit override wins. Useful for CI or unconventional Studio installs.
-  if (process.env.MCP_PLUGINS_DIR) return process.env.MCP_PLUGINS_DIR;
-
-  switch (process.platform) {
-    case 'win32':
-      return join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'Roblox', 'Plugins');
-    case 'darwin':
-      return join(homedir(), 'Documents', 'Roblox', 'Plugins');
-    case 'linux': {
-      // WSL hosts Studio on the Windows side; translate the Windows path.
-      const wslDir = resolveWslWindowsPluginsDir();
-      if (wslDir) return wslDir;
-      return undefined;
-    }
-    default:
-      return undefined;
-  }
-}
-
-const pluginsDir = resolvePluginsDir();
+// Builds are side-effect free by default. Installation is explicit through
+// MCP_PLUGINS_DIR so CI and local release builds cannot mutate a user's Studio.
+const pluginsDir = process.env.MCP_PLUGINS_DIR?.trim();
 if (pluginsDir) {
   mkdirSync(pluginsDir, { recursive: true });
   const otherInstallPath = join(pluginsDir, otherVariant.outputName);
@@ -277,8 +236,5 @@ if (pluginsDir) {
   copyFileSync(outputPath, installPath);
   console.log(`Installed to ${installPath}`);
 } else {
-  console.log(
-    `Skipped install: no Studio plugins folder resolvable on ${process.platform}. ` +
-    `Set MCP_PLUGINS_DIR or copy ${variant.outputName} manually.`,
-  );
+  console.log(`Skipped install: set MCP_PLUGINS_DIR to install ${variant.outputName}.`);
 }

@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18, 20, 22]
+        node: [20, 22]
     steps:
       - uses: actions/checkout@v7
 
@@ -30,6 +30,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install maintained nested-project dependencies
+        run: |
+          npm --prefix studio-plugin ci
+          npm --prefix evals ci
 
       - name: Lint
         run: npm run lint
@@ -52,6 +57,9 @@ jobs:
 
       - name: Generated docs are current
         run: npm run docs:check
+
+      - name: Package metadata agrees with documented Node support
+        run: npm run metadata:check
 
       - name: Pack dry-run (verify tarball contents)
         run: |
@@ -79,8 +87,9 @@ jobs:
         run: npm ci
 
       - name: Compile plugin (TypeScript → Luau)
-        working-directory: studio-plugin
-        run: npm run build
+        env:
+          MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins
+        run: npm run build:plugins
 
       - name: Smoke-check compiled plugin output
         run: npm run test:plugin:smoke
@@ -99,6 +108,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm --prefix studio-plugin ci
+      - run: npm --prefix evals ci
       - run: npm run typecheck
       - run: npm test -- --runInBand
-      - run: npm run build
+      - run: npm run build:all
+        env:
+          MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins
+      - run: npm run test:plugin:smoke
+      - run: npm run test:plugin:installer
+      - run: npm run verify-package

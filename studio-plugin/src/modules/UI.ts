@@ -1,7 +1,6 @@
 import { TweenService } from "@rbxts/services";
 import State from "./State";
 import ServerUrlSettings from "./ServerUrlSettings";
-import { Connection } from "../types";
 
 interface UIElements {
 	screenGui: DockWidgetPluginGui;
@@ -28,7 +27,6 @@ interface UIElements {
 }
 
 let elements: UIElements = undefined!;
-let pulseAnimation: Tween | undefined;
 let buttonHover = false;
 
 interface ToolbarIcons {
@@ -148,9 +146,6 @@ function startPulseAnimation() {
 	elements.statusPulse.BackgroundTransparency = 0.7;
 }
 
-let refreshTabBar: () => void;
-let switchToTab: (index: number) => void;
-
 function createTabButton(connIndex: number) {
 	const conn = State.getConnection(connIndex);
 	if (!conn) return;
@@ -223,7 +218,7 @@ function createTabButton(connIndex: number) {
 	tabButtons.set(connIndex, { frame: tabFrame, label, dot, closeBtn });
 }
 
-refreshTabBar = () => {
+const refreshTabBar = () => {
 	tabButtons.forEach((tb) => {
 		if (tb.frame) tb.frame.Destroy();
 	});
@@ -241,7 +236,7 @@ refreshTabBar = () => {
 	});
 };
 
-switchToTab = (index: number) => {
+const switchToTab = (index: number) => {
 	if (index < 0 || index >= State.getConnections().size()) return;
 	State.setActiveTabIndex(index);
 	const conn = State.getActiveConnection();

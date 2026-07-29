@@ -11,7 +11,7 @@
   [![CI](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml/badge.svg)](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml)
   [![npm](https://img.shields.io/npm/v/@princeofscale/bloxforge?label=npm&color=cb3837)](https://www.npmjs.com/package/@princeofscale/bloxforge)
   [![downloads](https://img.shields.io/npm/dm/@princeofscale/bloxforge?label=downloads)](https://www.npmjs.com/package/@princeofscale/bloxforge)
-  [![Node](https://img.shields.io/badge/Node.js-18%20%7C%2020%20%7C%2022-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+  [![Node](https://img.shields.io/badge/Node.js-20%20%7C%2022-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
   [![license](https://img.shields.io/badge/license-MIT-6366f1)](LICENSE)
 
   [Get started](#quick-start) · [Explore tools](docs/tools-reference.md) · [Troubleshoot](docs/troubleshooting.md) · [Telegram](https://telegram.me/ro_bloxforge)
@@ -44,6 +44,8 @@ on your machine.
 | **Protect** | Localhost binding, scoped capabilities, confirmation gates, dry runs, limits, and recovery |
 
 ## Quick start
+
+Requires Node.js 20 or newer.
 
 ### 1. Allow Studio HTTP requests
 
@@ -188,10 +190,15 @@ npm test
 npm run lint
 ```
 
+Plugin builds only write repository artifacts. Set `MCP_PLUGINS_DIR` to an
+explicit temporary directory when testing installation; builds never infer or
+modify your normal Studio plugin directory.
+
 Useful release checks:
 
 ```bash
 npm run test:plugin:smoke
+npm run test:plugin:installer
 npm run docs:check
 npm run verify-package
 ```

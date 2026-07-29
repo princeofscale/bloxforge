@@ -23,6 +23,14 @@ export {
 export type { ToolDefinition, ToolCategory } from './tools/definitions.js';
 export { OpenCloudClient } from './opencloud-client.js';
 export { getPluginsFolder, isWSL, handleVariantConflict } from './install-plugin-helpers.js';
+export {
+  downloadPluginAsset,
+  fetchHttpsJson,
+  installPluginAsset,
+  pluginAssetsMatch,
+  validatePluginAsset,
+} from './plugin-asset-installer.js';
+export type { PluginAssetIdentity } from './plugin-asset-installer.js';
 export { runDoctor, collectDoctorChecks, formatDoctorReport, checkNodeVersion, generateDiagnosticReport } from './doctor.js';
 export type { DoctorCheck, DoctorStatus, DoctorOptions } from './doctor.js';
 export { RobloxCookieClient } from './roblox-cookie-client.js';

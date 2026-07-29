@@ -63,12 +63,11 @@ const ASSERTIONS = [
   },
   {
     file: 'Communication.luau',
-    label: 'HTTP polling remains active when the WebSocket stream is open',
+    label: 'HTTP polling remains the active compatibility transport',
     test: (src) =>
-      src.includes('CreateWebStreamClient') &&
-      src.includes('startRequestStream') &&
       src.includes('pollForRequests(idx)') &&
-      !src.includes('if not conn.streamOpen then'),
+      !src.includes('CreateWebStreamClient') &&
+      !src.includes('startRequestStream'),
   },
   {
     file: 'Communication.luau',
@@ -76,7 +75,6 @@ const ASSERTIONS = [
     test: (src) =>
       src.includes('Plugin response serialization failed') &&
       src.includes('Failed to deliver response') &&
-      src.includes('Failed to send stream response') &&
       src.includes('pluginSessionId = pluginSessionId'),
   },
   {

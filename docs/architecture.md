@@ -68,7 +68,12 @@ requests, executes them against the DataModel, and posts results back.
 
 ### Plugin as thin executor
 
-The Studio plugin is deliberately thin: it receives command + payload, runs it in the plugin context, and returns the result. All orchestration, safety checks, and response formatting happen in the Node server. Install updates with `--install-plugin`, then fully restart Studio so every DataModel loads the same plugin build.
+The Studio plugin is deliberately thin: it receives command + payload, runs it
+in the plugin context, and returns the result. All orchestration, safety checks,
+and response formatting happen in the Node server. `--install-plugin` validates
+the downloaded or bundled variant and version before an atomic replacement;
+ordinary builds never install unless `MCP_PLUGINS_DIR` is explicitly set.
+Fully restart Studio after an update so every DataModel loads the same build.
 
 ### Safety by topology
 

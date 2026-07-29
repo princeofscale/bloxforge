@@ -33,11 +33,16 @@ jobs:
         working-directory: studio-plugin
         run: npm ci
 
+      - name: Install eval dependencies
+        working-directory: evals
+        run: npm ci
+
       - name: Quality gate (lint · typecheck · test)
         run: |
           npm run lint
           npm run typecheck
           npm test
+          npm run metadata:check
 
       - name: Set version from tag
         env:

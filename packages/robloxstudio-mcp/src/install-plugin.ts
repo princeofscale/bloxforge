@@ -1,15 +1,19 @@
-import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { get } from 'https';
-import { IncomingMessage } from 'http';
-import { getPluginsFolder, handleVariantConflict } from '@princeofscale/bloxforge-core';
+import {
+  downloadPluginAsset,
+  fetchHttpsJson,
+  getPluginsFolder,
+  handleVariantConflict,
+  installPluginAsset,
+  validatePluginAsset,
+} from '@princeofscale/bloxforge-core';
 
 const REPO = 'princeofscale/bloxforge';
 const ASSET_NAME = 'MCPPlugin.rbxmx';
 const OTHER_VARIANT = 'MCPInspectorPlugin.rbxmx';
-const TIMEOUT_MS = 30_000;
-const MAX_REDIRECTS = 5;
+const USER_AGENT = 'bloxforge';
 
 interface InstallOptions {
   dev?: boolean;
@@ -18,61 +22,12 @@ interface InstallOptions {
   warn?: (message: string) => void;
 }
 
-function httpsGet(url: string): Promise<IncomingMessage> {
-  return new Promise((resolve, reject) => {
-    const req = get(url, { headers: { 'User-Agent': 'bloxforge' } }, resolve);
-    req.on('error', reject);
-    req.setTimeout(TIMEOUT_MS, () => { req.destroy(new Error(`Request timed out after ${TIMEOUT_MS}ms`)); });
-  });
-}
-
-async function download(url: string, dest: string, redirects = 0): Promise<void> {
-  const res = await httpsGet(url);
-
-  if (res.statusCode === 301 || res.statusCode === 302) {
-    if (redirects >= MAX_REDIRECTS) throw new Error(`Too many redirects (max ${MAX_REDIRECTS})`);
-    const location = res.headers.location;
-    if (!location) throw new Error('Redirect with no location header');
-    return download(location, dest, redirects + 1);
-  }
-
-  if (res.statusCode !== 200) {
-    throw new Error(`Download failed: HTTP ${res.statusCode}`);
-  }
-
-  return new Promise((resolve, reject) => {
-    const file = createWriteStream(dest);
-    const cleanup = (err: Error) => {
-      file.close(() => {
-        try { unlinkSync(dest); } catch { /* already gone */ }
-        reject(err);
-      });
-    };
-    res.pipe(file);
-    file.on('finish', () => { file.close(); resolve(); });
-    file.on('error', cleanup);
-    res.on('error', cleanup);
-  });
-}
-
-async function fetchJson(url: string): Promise<unknown> {
-  const res = await httpsGet(url);
-  if (res.statusCode !== 200) {
-    throw new Error(`GitHub API returned HTTP ${res.statusCode}`);
-  }
-  const chunks: Buffer[] = [];
-  for await (const chunk of res) {
-    chunks.push(chunk as Buffer);
-  }
-  return JSON.parse(Buffer.concat(chunks).toString());
-}
-
 async function findDevRelease(): Promise<{ tag_name: string; assets: { name: string; browser_download_url: string }[] }> {
-  const releases = await fetchJson(`https://api.github.com/repos/${REPO}/releases?per_page=20`) as {
+  const releases = await fetchHttpsJson<{
     tag_name: string;
     prerelease: boolean;
     assets: { name: string; browser_download_url: string }[];
-  }[];
+  }[]>(`https://api.github.com/repos/${REPO}/releases?per_page=20`, USER_AGENT);
   const prerelease = releases.find(
     (r) => r.prerelease && r.assets.some((a) => a.name === ASSET_NAME),
   );
@@ -82,24 +37,12 @@ async function findDevRelease(): Promise<{ tag_name: string; assets: { name: str
   return prerelease;
 }
 
-function prepareInstall({
-  replaceVariant,
-  log,
-  warn,
-}: Required<Pick<InstallOptions, 'replaceVariant' | 'log' | 'warn'>>): string {
+function prepareInstall(): string {
   const pluginsFolder = getPluginsFolder();
 
   if (!existsSync(pluginsFolder)) {
     mkdirSync(pluginsFolder, { recursive: true });
   }
-
-  handleVariantConflict({
-    pluginsFolder,
-    otherAssetName: OTHER_VARIANT,
-    replace: replaceVariant,
-    log,
-    warn,
-  });
 
   return pluginsFolder;
 }
@@ -122,27 +65,26 @@ function packageVersion(): string {
   return pkg.version;
 }
 
-function bundledPluginVersion(source: string): string | null {
-  const match = readFileSync(source, 'utf8').match(/local CURRENT_VERSION = "([^"]+)"/);
-  return match ? match[1] : null;
-}
-
 function assertBundledPluginVersion(source: string): void {
   const expected = packageVersion();
-  const actual = bundledPluginVersion(source);
-  if (actual !== expected) {
+  try {
+    validatePluginAsset(source, { assetName: ASSET_NAME, variant: 'main', version: expected });
+  } catch {
     throw new Error(
-      `Bundled ${ASSET_NAME} version ${actual ?? 'unknown'} does not match package version ${expected}. ` +
+      `Bundled ${ASSET_NAME} does not match package version ${expected}. ` +
       'Run npm run build:plugin before starting with --auto-install-plugin.',
     );
   }
 }
 
-function filesMatch(a: string, b: string): boolean {
-	if (!existsSync(b)) return false;
-	const aBytes = readFileSync(a);
-	const bBytes = readFileSync(b);
-	return aBytes.length === bBytes.length && aBytes.equals(bBytes);
+function resolveVariantConflict(pluginsFolder: string, options: InstallOptions): void {
+  handleVariantConflict({
+    pluginsFolder,
+    otherAssetName: OTHER_VARIANT,
+    replace: options.replaceVariant ?? true,
+    log: options.log ?? console.log,
+    warn: options.warn ?? console.warn,
+  });
 }
 
 export async function installBundledPlugin(options: InstallOptions = {}): Promise<void> {
@@ -155,13 +97,15 @@ export async function installBundledPlugin(options: InstallOptions = {}): Promis
   }
   assertBundledPluginVersion(source);
 
-  const pluginsFolder = prepareInstall({ replaceVariant, log, warn });
+  const pluginsFolder = prepareInstall();
   const dest = join(pluginsFolder, ASSET_NAME);
-
-  if (filesMatch(source, dest)) return;
-
-  copyFileSync(source, dest);
-  log(`Installed ${ASSET_NAME} to ${dest}`);
+  const result = installPluginAsset(source, dest, {
+    assetName: ASSET_NAME,
+    variant: 'main',
+    version: packageVersion(),
+  });
+  resolveVariantConflict(pluginsFolder, { replaceVariant, log, warn });
+  if (result === 'installed') log(`Installed ${ASSET_NAME} to ${dest}`);
 }
 
 export async function installPlugin(options: InstallOptions = {}): Promise<void> {
@@ -169,17 +113,22 @@ export async function installPlugin(options: InstallOptions = {}): Promise<void>
   const replaceVariant = options.replaceVariant ?? true;
   const log = options.log ?? console.log;
   const warn = options.warn ?? console.warn;
-  const pluginsFolder = prepareInstall({ replaceVariant, log, warn });
+  const pluginsFolder = prepareInstall();
   const bundled = bundledAssetPath();
 
   if (bundled) {
     assertBundledPluginVersion(bundled);
     const dest = join(pluginsFolder, ASSET_NAME);
-    if (filesMatch(bundled, dest)) {
+    const result = installPluginAsset(bundled, dest, {
+      assetName: ASSET_NAME,
+      variant: 'main',
+      version: packageVersion(),
+    });
+    resolveVariantConflict(pluginsFolder, { replaceVariant, log, warn });
+    if (result === 'unchanged') {
       log(`${ASSET_NAME} already installed.`);
       return;
     }
-    copyFileSync(bundled, dest);
     log(`Installed bundled ${ASSET_NAME} to ${dest}`);
     return;
   }
@@ -187,10 +136,10 @@ export async function installPlugin(options: InstallOptions = {}): Promise<void>
   log(dev ? 'Fetching latest dev prerelease...' : 'Fetching latest release...');
   const release = dev
     ? await findDevRelease()
-    : await fetchJson(`https://api.github.com/repos/${REPO}/releases/latest`) as {
+    : await fetchHttpsJson<{
         tag_name: string;
         assets: { name: string; browser_download_url: string }[];
-      };
+      }>(`https://api.github.com/repos/${REPO}/releases/latest`, USER_AGENT);
 
   const asset = release.assets?.find((a) => a.name === ASSET_NAME);
   if (!asset) {
@@ -199,6 +148,11 @@ export async function installPlugin(options: InstallOptions = {}): Promise<void>
 
   const dest = join(pluginsFolder, ASSET_NAME);
   log(`Downloading ${ASSET_NAME} from ${release.tag_name}...`);
-  await download(asset.browser_download_url, dest);
+  await downloadPluginAsset(asset.browser_download_url, dest, {
+    assetName: ASSET_NAME,
+    variant: 'main',
+    version: release.tag_name.replace(/^v/, ''),
+  }, USER_AGENT);
+  resolveVariantConflict(pluginsFolder, { replaceVariant, log, warn });
   log(`Installed to ${dest}`);
 }
