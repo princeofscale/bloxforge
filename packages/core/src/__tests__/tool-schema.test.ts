@@ -13,6 +13,10 @@ import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
 import { BridgeService } from '../bridge-service.js';
+import { ToolRegistry } from '../tools/tool-pipeline.js';
+import { registerContractedTools } from '../tools/setup-registry.js';
+import { classifyDomain } from '../tools/tool-catalog.js';
+import { requiredCapability } from '../capability-policy.js';
 
 type JsonSchema = Record<string, unknown>;
 
@@ -43,6 +47,36 @@ function collectArraySchemasMissingItems(schema: unknown, path: string, out: str
 }
 
 describe('Tool schema compatibility', () => {
+  test('definitions, legacy handlers, registry, domains, and capabilities stay consistent', () => {
+    const names = TOOL_DEFINITIONS.map(tool => tool.name);
+    expect(new Set(names).size).toBe(names.length);
+
+    const canonical = new Map(TOOL_DEFINITIONS.map(tool => [tool.name, tool]));
+    const registry = new ToolRegistry();
+    registerContractedTools(registry, new RobloxStudioTools(new BridgeService('')));
+    const registryNames = new Set(registry.definitions.map(tool => tool.name));
+
+    expect(Object.keys(TOOL_HANDLERS).filter(name => !canonical.has(name))).toEqual([]);
+    expect(names.filter(name => !registryNames.has(name) && !TOOL_HANDLERS[name])).toEqual([]);
+
+    for (const definition of registry.definitions) {
+      expect(definition).toEqual(canonical.get(definition.name));
+    }
+
+    const knownCapabilities = new Set([
+      'read.scene',
+      'write.properties',
+      'write.instances',
+      'execute.luau',
+      'assets.external',
+      'playtest.control',
+    ]);
+    for (const definition of TOOL_DEFINITIONS) {
+      expect(classifyDomain(definition.name)).not.toBe('unknown');
+      expect(knownCapabilities).toContain(requiredCapability(definition.name, definition.category));
+    }
+  });
+
   test('domain definition modules compose TOOL_DEFINITIONS in canonical order', () => {
     const grouped = withOutputSchemas([
       ...BROWSING_TOOL_DEFINITIONS,

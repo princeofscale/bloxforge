@@ -505,7 +505,9 @@ export function authorizedToolsForProfile(
   if (profile === 'builder') {
     return tools.filter((tool) =>
       !/^execute_luau(?:_async)?$/.test(tool.name) &&
-      !/^eval_.*runtime$/.test(tool.name));
+      !/^eval_.*runtime$/.test(tool.name) &&
+      tool.name !== 'run_gameplay_assertions' &&
+      tool.name !== 'run_playtest_episode');
   }
   return [...tools];
 }

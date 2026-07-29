@@ -27,7 +27,8 @@ BloxForge separates lazy schema discovery from authorization. Loading a toolset 
 To restrict capabilities further, use the `--profile` flag when starting the server:
 - `--profile core`: Standard permissions; only the initial schema set is small.
 - `--profile inspector`: Read-only permissions. The agent can only read properties, search scripts, and list instances. Write/Execute capabilities are disabled.
-- `--profile builder`: Allows building operations but restricts arbitrary script execution.
+- `--profile builder`: Allows building operations but restricts arbitrary script
+  execution, including assertion expressions and assertion-bearing playtest episodes.
 - `--profile tester`: Allows runtime environment interactions, script execution, and scene reads, but disables pure asset building.
 - `--profile full`: Authorizes and preloads all available tool domains.
 
@@ -37,6 +38,10 @@ Prefer environment variables for secrets. The compatibility flags
 `--session-token`, `--open-cloud-key`, and `--pollinations-key` remain
 available but warn because command-line values may be visible in shell history
 and process listings.
+
+Quality-tool file arguments are canonicalized inside `BLOXFORGE_PROJECT_ROOT`;
+escaping symlinks, traversal, absolute paths outside the root, and option-shaped
+file names are rejected before an external command starts.
 
 ## Best practices
 

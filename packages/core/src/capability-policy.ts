@@ -3,7 +3,7 @@ import type { ToolCategory } from './tools/definitions.js';
 export type Capability = 'read.scene' | 'write.properties' | 'write.instances' | 'execute.luau' | 'assets.external' | 'playtest.control';
 
 const PROPERTY_TOOLS = /^(set_property|set_properties|mass_set_property|set_attribute|bulk_set_attributes|add_tag|remove_tag|delete_attribute)$/;
-const EXECUTE_TOOLS = /^(execute_luau|execute_luau_async|eval_.*runtime|apply_mutation_plan)$/;
+const EXECUTE_TOOLS = /^(execute_luau|execute_luau_async|eval_.*runtime|apply_mutation_plan|run_gameplay_assertions|run_playtest_episode)$/;
 const ASSET_TOOLS = /(asset|wally|publish|import_rbxm|export_rbxm)/;
 const PLAYTEST_TOOLS = /(playtest|multiplayer|simulate_(mouse|keyboard)|character_navigation)/;
 

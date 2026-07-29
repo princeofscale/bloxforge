@@ -6,6 +6,8 @@ describe('capability policy', () => {
     expect(requiredCapability('set_property', 'write')).toBe('write.properties');
     expect(requiredCapability('delete_object', 'write')).toBe('write.instances');
     expect(requiredCapability('execute_luau', 'write')).toBe('execute.luau');
+    expect(requiredCapability('run_gameplay_assertions', 'write')).toBe('execute.luau');
+    expect(requiredCapability('run_playtest_episode', 'write')).toBe('execute.luau');
     expect(requiredCapability('insert_asset', 'write')).toBe('assets.external');
     expect(requiredCapability('start_playtest', 'write')).toBe('playtest.control');
   });

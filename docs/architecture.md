@@ -135,7 +135,9 @@ Optional server-local quality adapters cover Rojo-style project detection,
 builds and sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, Lune test
 scripts, and Wally metadata/install. Missing binaries are reported as
 unavailable, formatting is preview-only, and Wally installation requires
-explicit confirmation. CI runs both the focused transport fault matrix and a
+explicit confirmation. All file arguments resolve through the canonical project
+root, command time/output are bounded, and temporary validation files are always
+removed. CI runs both the focused transport fault matrix and a
 deterministic 10,000-request benchmark that asserts stable redelivery IDs,
 duplicate-result tolerance, and zero pending-request leaks.
 

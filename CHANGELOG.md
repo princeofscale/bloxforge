@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed same-session WebSocket replacement losing leased work, ignored stale
   socket frames and callbacks, bounded payload/backpressure, and cleaned up
   stream notifiers, heartbeats, and sockets during shutdown.
+- Corrected `run_gameplay_assertions` from read to execute-capable authorization
+  and denied assertion-bearing runtime tools in the builder and inspector profiles.
+- Confined every QualityTools input/output path through canonical project-root
+  checks, rejected option-shaped and escaping symlink paths, guaranteed temporary
+  cleanup, and returned bounded structured missing-tool/timeout/output-limit errors.
+- Added a CI contract that cross-checks canonical definitions, registry entries,
+  legacy handlers, schemas, domains, capabilities, and duplicate tool names.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.

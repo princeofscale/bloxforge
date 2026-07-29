@@ -5,6 +5,7 @@ import * as path from 'node:path';
 
 const TOOL_COMMANDS = ['luau-analyze', 'luau-lsp', 'stylua', 'selene', 'rojo', 'rokit', 'wally', 'lune'] as const;
 type QualityCommand = typeof TOOL_COMMANDS[number];
+const MAX_OUTPUT_BYTES = 1024 * 1024;
 
 function within(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
@@ -12,11 +13,37 @@ function within(root: string, candidate: string): boolean {
 }
 
 function allowedProjectRoot(root: string): string {
-  const candidate = path.resolve(root);
+  const candidate = fs.realpathSync(path.resolve(root));
   if (process.env.NODE_ENV === 'test') return candidate;
-  const allowed = path.resolve(process.env.BLOXFORGE_PROJECT_ROOT?.trim() || process.cwd());
+  const allowed = fs.realpathSync(path.resolve(process.env.BLOXFORGE_PROJECT_ROOT?.trim() || process.cwd()));
   if (!within(allowed, candidate)) throw new Error(`Project root must stay within ${allowed}`);
   return candidate;
+}
+
+function safeExistingPath(root: string, requested: string, label: string): { path?: string; error?: string } {
+  if (!requested || requested.startsWith('-')) return { error: `${label} must not be an option` };
+  const resolved = path.resolve(root, requested);
+  if (!within(root, resolved)) return { error: `${label} must stay within project root` };
+  try {
+    const real = fs.realpathSync(resolved);
+    if (!within(fs.realpathSync(root), real)) return { error: `${label} must stay within project root` };
+    return { path: real };
+  } catch {
+    return { error: `${label} does not exist` };
+  }
+}
+
+function safeOutputPath(root: string, requested: string): { path?: string; error?: string } {
+  if (!requested || requested.startsWith('-')) return { error: 'output must not be an option' };
+  const resolved = path.resolve(root, requested);
+  if (!within(root, resolved)) return { error: 'output must stay within project root' };
+  try {
+    const realParent = fs.realpathSync(path.dirname(resolved));
+    if (!within(fs.realpathSync(root), realParent)) return { error: 'output must stay within project root' };
+    return { path: resolved };
+  } catch {
+    return { error: 'output parent directory does not exist' };
+  }
 }
 
 export interface QualityCheck {
@@ -62,7 +89,7 @@ function run(command: QualityCommand, args: string[], options: { cwd?: string; i
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: 120000,
-      maxBuffer: 10 * 1024 * 1024,
+      maxBuffer: MAX_OUTPUT_BYTES,
     });
     return { tool: command, available: true, ok: true, output: output.trim() };
   } catch (error: any) {
@@ -70,8 +97,13 @@ function run(command: QualityCommand, args: string[], options: { cwd?: string; i
       tool: command,
       available: true,
       ok: false,
-      output: [error?.stdout, error?.stderr].filter(Boolean).join('\n').trim(),
-      error: error?.message ?? String(error),
+      output: [error?.stdout, error?.stderr].filter(Boolean).join('\n').slice(0, MAX_OUTPUT_BYTES).trim(),
+      error:
+        error?.code === 'ETIMEDOUT'
+          ? `${command} timed out after 120000ms`
+          : error?.code === 'ENOBUFS'
+            ? `${command} exceeded the ${MAX_OUTPUT_BYTES}-byte output limit`
+            : error?.message ?? String(error),
       exitCode: typeof error?.status === 'number' ? error.status : undefined,
     };
   }
@@ -102,20 +134,28 @@ export class QualityTools {
   validateScriptSource(source: string, fileName = 'script.server.lua'): { checks: QualityCheck[] } {
     if (typeof source !== 'string') throw new Error('source is required');
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-quality-'));
-    const file = path.join(dir, path.basename(fileName));
-    fs.writeFileSync(file, source, 'utf8');
-    const checks = [
-      run('luau-analyze', [file]),
-      run('selene', [file]),
-      run('stylua', ['--check', file]),
-    ];
-    fs.rmSync(dir, { recursive: true, force: true });
-    return { checks };
+    try {
+      const file = path.join(dir, path.basename(fileName));
+      fs.writeFileSync(file, source, 'utf8');
+      return {
+        checks: [
+          run('luau-analyze', [file]),
+          run('selene', [file]),
+          run('stylua', ['--check', file]),
+        ],
+      };
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   }
 
   formatScriptPreview(source: string, fileName = 'script.server.lua'): QualityCheck {
     if (typeof source !== 'string') throw new Error('source is required');
-    return run('stylua', ['--stdin-filepath', fileName], { input: source });
+    const safeName = path.basename(fileName);
+    if (safeName.startsWith('-')) {
+      return { tool: 'stylua', available: hasCommand('stylua'), ok: false, error: 'fileName must not be an option' };
+    }
+    return run('stylua', ['--stdin-filepath', safeName], { input: source });
   }
 
   resolveInstanceSourceFile(instancePath: string, root = process.cwd()): Record<string, unknown> {
@@ -154,14 +194,17 @@ export class QualityTools {
   runProjectTests(root = process.cwd(), script?: string): QualityCheck {
     if (!script) return { tool: 'lune', available: hasCommand('lune'), ok: false, error: 'script is required' };
     const project = this.detectRobloxProject(root);
-    const scriptPath = path.resolve(project.root, script);
-    if (!within(project.root, scriptPath)) return { tool: 'lune', available: hasCommand('lune'), ok: false, error: 'script must stay within project root' };
-    return run('lune', ['run', scriptPath], { cwd: project.root });
+    const checked = safeExistingPath(project.root, script, 'script');
+    if (!checked.path) return { tool: 'lune', available: hasCommand('lune'), ok: false, error: checked.error };
+    return run('lune', ['run', checked.path], { cwd: project.root });
   }
 
   validateWithLuauLsp(root = process.cwd(), files: string[] = ['.']): QualityCheck {
     const project = this.detectRobloxProject(root);
-    const args = ['analyze', ...files];
+    const checked = files.map(file => safeExistingPath(project.root, file, 'file'));
+    const invalid = checked.find(result => !result.path);
+    if (invalid) return { tool: 'luau-lsp', available: hasCommand('luau-lsp'), ok: false, error: invalid.error };
+    const args = ['analyze', ...checked.map(result => result.path!)];
     if (project.files['sourcemap.json']) args.push('--sourcemap', project.files['sourcemap.json']);
     return run('luau-lsp', args, { cwd: project.root });
   }
@@ -170,9 +213,9 @@ export class QualityTools {
     const project = this.detectRobloxProject(root);
     const projectFile = project.files['default.project.json'] ?? project.files['rojo.project.json'];
     if (!projectFile) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'Rojo project file not found' };
-    const outputPath = path.resolve(project.root, output);
-    if (!within(project.root, outputPath)) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'output must stay within project root' };
-    return run('rojo', ['sourcemap', projectFile, '--output', outputPath], { cwd: project.root });
+    const checked = safeOutputPath(project.root, output);
+    if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
+    return run('rojo', ['sourcemap', projectFile, '--output', checked.path], { cwd: project.root });
   }
 
   buildRojoProject(root = process.cwd(), output?: string): QualityCheck {
@@ -180,9 +223,9 @@ export class QualityTools {
     const projectFile = project.files['default.project.json'] ?? project.files['rojo.project.json'];
     if (!projectFile) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'Rojo project file not found' };
     if (!output) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'output is required' };
-    const outputPath = path.resolve(project.root, output);
-    if (!within(project.root, outputPath)) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'output must stay within project root' };
-    return run('rojo', ['build', projectFile, '--output', outputPath], { cwd: project.root });
+    const checked = safeOutputPath(project.root, output);
+    if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
+    return run('rojo', ['build', projectFile, '--output', checked.path], { cwd: project.root });
   }
 
   runQualityGate(root = process.cwd()): { project: RobloxProject; checks: QualityCheck[] } {

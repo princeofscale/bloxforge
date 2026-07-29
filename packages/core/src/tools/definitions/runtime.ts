@@ -717,7 +717,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'run_gameplay_assertions',
-    category: 'read',
+    category: 'write',
     description: 'Run a list of named boolean assertions against the DataModel and get a structured pass/fail per assertion plus an allPassed summary — the QA primitive to PROVE a fix rather than declare it. Each assertion has a name and a Luau boolean `expr` (e.g. "workspace:FindFirstChild(\'Boss\') ~= nil"). Pair with start_playtest + target="server" to assert live runtime state after reproducing an issue.',
     inputSchema: {
       type: 'object',

@@ -37,6 +37,8 @@ describe('server config', () => {
       { name: 'execute_luau', description: '', category: 'write', inputSchema: {} },
       { name: 'execute_luau_async', description: '', category: 'write', inputSchema: {} },
       { name: 'eval_server_runtime', description: '', category: 'write', inputSchema: {} },
+      { name: 'run_gameplay_assertions', description: '', category: 'write', inputSchema: {} },
+      { name: 'run_playtest_episode', description: '', category: 'write', inputSchema: {} },
     ];
 
     expect(authorizedToolsForProfile(tools, 'inspector').map((tool) => tool.name))
