@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working plugin or removing the opposite variant.
 - Stopped plugin builds from modifying a user's Studio plugin directory unless
   `MCP_PLUGINS_DIR` is explicitly set.
+- Isolated package verification from the user's global npm cache so stale
+  permissions or cache ownership cannot break packed-artifact validation.
 - Avoided request-journal compaction work when persistence is disabled while
   retaining bounded in-memory terminal status and latency histories.
 - Cached invariant Streamable HTTP tool-definition indexes instead of rebuilding

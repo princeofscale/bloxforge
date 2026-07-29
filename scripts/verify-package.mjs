@@ -7,11 +7,17 @@ import { fileURLToPath } from 'node:url';
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+let npmCache;
 
 function run(command, args, cwd = rootDir) {
   console.log(`> [${cwd}] ${command} ${args.join(' ')}`);
   try {
-    return execFileSync(command, args, { cwd, stdio: 'pipe', encoding: 'utf8' });
+    return execFileSync(command, args, {
+      cwd,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      env: npmCache ? { ...process.env, NPM_CONFIG_CACHE: npmCache } : process.env,
+    });
   } catch (error) {
     console.error(`Command failed: ${command} ${args.join(' ')}`);
     console.error(`STDOUT:\n${error.stdout ?? ''}`);
@@ -57,6 +63,7 @@ async function verify() {
   run(npm, ['run', 'build']);
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-verify-'));
+  npmCache = path.join(tempDir, 'npm-cache');
   console.log(`Temporary workspace: ${tempDir}`);
 
   try {
