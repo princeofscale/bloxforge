@@ -3,58 +3,96 @@
 </p>
 
 <div align="center">
-  <img src="assets/logo.svg" width="88" alt="BloxForge logo" />
+  <img src="assets/logo.svg" width="92" alt="BloxForge logo" />
   <h1>BloxForge</h1>
-  <p><strong>A local-first MCP toolkit for Roblox Studio.</strong></p>
-  <p>Build, inspect, automate, playtest, and debug Roblox experiences from Claude Code, Codex, Cursor, Gemini, or any MCP-compatible client.</p>
+  <p><strong>Give AI coding agents a safe, local interface to Roblox Studio.</strong></p>
+  <p>Inspect places, edit Luau, build worlds, run playtests, and debug live sessions from any MCP-compatible client.</p>
 
   [![CI](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml/badge.svg)](https://github.com/princeofscale/bloxforge/actions/workflows/ci.yml)
-  [![npm](https://img.shields.io/npm/v/@princeofscale/bloxforge?label=npm)](https://www.npmjs.com/package/@princeofscale/bloxforge)
-  [![npm next](https://img.shields.io/npm/v/@princeofscale/bloxforge/next?label=next)](https://www.npmjs.com/package/@princeofscale/bloxforge?activeTab=versions)
+  [![npm](https://img.shields.io/npm/v/@princeofscale/bloxforge?label=npm&color=cb3837)](https://www.npmjs.com/package/@princeofscale/bloxforge)
+  [![downloads](https://img.shields.io/npm/dm/@princeofscale/bloxforge?label=downloads)](https://www.npmjs.com/package/@princeofscale/bloxforge)
+  [![Node](https://img.shields.io/badge/Node.js-18%20%7C%2020%20%7C%2022-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
   [![license](https://img.shields.io/badge/license-MIT-6366f1)](LICENSE)
-  [![Telegram](https://img.shields.io/badge/Telegram-official%20channel-26A5E4?logo=telegram&logoColor=white)](https://telegram.me/ro_bloxforge)
 
-  [Quick start](#quick-start) · [Tools](docs/tools-reference.md) · [Troubleshooting](docs/troubleshooting.md) · [Official Telegram](https://telegram.me/ro_bloxforge)
+  [Get started](#quick-start) · [Explore tools](docs/tools-reference.md) · [Troubleshoot](docs/troubleshooting.md) · [Telegram](https://telegram.me/ro_bloxforge)
 </div>
 
 ---
 
-## Why BloxForge?
+## Roblox Studio, controlled by your agent
 
-- **Local-first:** the MCP server and Studio bridge run on your machine; no BloxForge cloud account or remote telemetry.
-- **Agent-ready:** inspect scenes, edit Luau, build UI and terrain, run playtests, simulate input, capture logs, and diagnose failures.
-- **Safe by default:** destructive actions use confirmation gates, dry runs, backups, limits, and rollback-friendly workflows.
-- **Flexible:** choose a token-lean tool profile or load the full toolkit when the task needs it.
-- **Open source:** MIT licensed, with no paid tier.
+BloxForge connects an MCP client to a lightweight Studio plugin over localhost:
+
+```text
+Claude Code / Codex / Cursor / Gemini
+                  ↕ MCP
+          BloxForge Node server
+                  ↕ localhost
+          Roblox Studio plugin
+```
+
+No BloxForge cloud account is required. Your place data and bridge traffic stay
+on your machine.
+
+| | What BloxForge provides |
+|---|---|
+| **Build** | Instances, UI, terrain, lighting, templates, reusable models, and generated scenes |
+| **Code** | Read, search, patch, validate, and safely replace Luau source |
+| **Test** | Playtests, simulated input, gameplay assertions, screenshots, and episode comparison |
+| **Debug** | Runtime logs, transport diagnostics, memory data, breakpoints, and profiler captures |
+| **Integrate** | Rojo-aware project tools, imports/exports, asset workflows, and provenance records |
+| **Protect** | Localhost binding, scoped capabilities, confirmation gates, dry runs, limits, and recovery |
 
 ## Quick start
 
-### 1. Enable Studio HTTP requests
+### 1. Allow Studio HTTP requests
 
-In Roblox Studio, open **Game Settings → Security** and enable **Allow HTTP Requests**.
+In Roblox Studio, open **Game Settings → Security** and enable
+**Allow HTTP Requests**.
 
-### 2. Install the Studio plugin once
+### 2. Install the Studio plugin
+
+Run this once, and again whenever you update BloxForge:
 
 ```bash
 npx -y @princeofscale/bloxforge@latest --install-plugin
 ```
 
-Fully close and reopen Roblox Studio after the plugin is installed or updated.
+Fully close and reopen Roblox Studio after installing or updating the plugin.
 
-### 3. Add BloxForge to your AI client
+### 3. Connect your MCP client
+
+<details open>
+<summary><strong>Claude Code</strong></summary>
 
 ```bash
-# Claude Code
 claude mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest
+```
 
-# Codex CLI
+</details>
+
+<details>
+<summary><strong>Codex CLI</strong></summary>
+
+```bash
 codex mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest
+```
 
-# Gemini CLI
+</details>
+
+<details>
+<summary><strong>Gemini CLI</strong></summary>
+
+```bash
 gemini mcp add bloxforge npx --trust -- -y @princeofscale/bloxforge@latest
 ```
 
-Cursor users can add the same command to `.cursor/mcp.json`:
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Add this to `.cursor/mcp.json`:
 
 ```json
 {
@@ -67,56 +105,92 @@ Cursor users can add the same command to `.cursor/mcp.json`:
 }
 ```
 
-Use `@next` instead of `@latest` to test the current release candidate.
+</details>
 
-MCP clients normally start BloxForge before Studio. `Waiting for Studio plugin
-to connect...` means the MCP server is healthy and idle; opening a Studio
-project later should connect automatically.
+Use `@next` instead of `@latest` to test release candidates.
 
-### 4. Verify the connection
+> MCP clients normally start BloxForge before Roblox Studio. The message
+> `Waiting for Studio plugin to connect...` means the server is healthy and
+> idle. Open a Studio project whenever you are ready.
 
-Start the configured MCP client, open Studio, then run:
+### 4. Verify everything
+
+Start your MCP client, open a place in Studio, and run:
 
 ```bash
 npx -y @princeofscale/bloxforge@latest verify
 ```
 
-## What you can automate
+## Try it
 
-| Workflow | Examples |
+Start with a focused request:
+
+> Inspect this place, summarize its architecture, identify runtime risks, and
+> propose a safe implementation plan before changing anything.
+
+Or let the agent execute an end-to-end workflow:
+
+> Build a six-stage obby with checkpoints and a timer, playtest it, inspect the
+> runtime logs, and fix any errors you find.
+
+## Choose the right tool profile
+
+Profiles keep tool discovery focused and reduce context use:
+
+| Profile | Best for |
 |---|---|
-| Inspect | Query the instance tree, properties, scripts, tags, attributes, and dependencies |
-| Build | Create instances, UI, terrain, lighting, templates, and reusable models |
-| Edit Luau | Read, patch, search, validate, and safely replace script source |
-| Test | Start playtests, simulate input, run assertions, and compare episodes |
-| Debug | Capture runtime logs, diagnostics, screenshots, memory, and profiler data |
-| Integrate | Import/export builds, sync local files, upload assets, and record provenance |
-
-A useful first prompt:
-
-> Inspect this place, build a six-stage obby with checkpoints and a timer, run a playtest, then fix any runtime errors.
-
-## Tool profiles
-
-Select a profile with `--profile <name>` or `BLOXFORGE_TOOL_PROFILE`:
-
-| Profile | Purpose |
-|---|---|
-| `core` | Inspection, scripts, and essential editing; token-lean default |
+| `core` | Everyday inspection, scripts, and essential editing — the default |
 | `builder` | UI, terrain, templates, assets, and scene construction |
-| `tester` | Runtime debugging, playtesting, input, and assertions |
-| `full` | Every available tool |
-| `inspector` | Read-only inspection through `@princeofscale/bloxforge-inspector` |
+| `tester` | Playtests, runtime debugging, input simulation, and assertions |
+| `full` | Every available BloxForge tool |
+| `inspector` | Read-only workflows through `@princeofscale/bloxforge-inspector` |
 
-## Optional Open Cloud access
+Select one with `--profile <name>` or `BLOXFORGE_TOOL_PROFILE`.
 
-Most features need no Roblox credentials. Asset uploads and Creator Store access require an optional [Open Cloud API key](https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab) with `asset:read` and `asset:write`:
+## Reliability and safety
+
+BloxForge treats Studio as a recoverable local execution target:
+
+- request acknowledgements, delivery leases, deduplication, and status lookup;
+- safe retry rules that distinguish reads from mutations;
+- explicit `outcome_unknown` handling after interrupted operations;
+- per-DataModel concurrency limits and backpressure;
+- plugin session credentials and capability-scoped MCP clients;
+- localhost-only bridge binding by default;
+- mutation confirmation, dry-run, backup, and rollback-oriented tools.
+
+See [Architecture](docs/architecture.md) and
+[Security policy](SECURITY.md) for the full model.
+
+## Optional Roblox Open Cloud access
+
+Most features need no Roblox credentials. Creator Store access and asset
+uploads can use an optional
+[Open Cloud API key](https://create.roblox.com/dashboard/credentials?activeTab=ApiKeysTab)
+with the required asset scopes:
 
 ```bash
 export ROBLOX_OPEN_CLOUD_API_KEY="your-api-key"
 ```
 
-Never commit this key or place it in MCP configuration shared with others.
+Never commit the key or place it in shared MCP configuration.
+
+## Develop locally
+
+```bash
+npm ci
+npm run build:all
+npm test
+npm run lint
+```
+
+Useful release checks:
+
+```bash
+npm run test:plugin:smoke
+npm run docs:check
+npm run verify-package
+```
 
 ## Documentation
 
@@ -125,12 +199,13 @@ Never commit this key or place it in MCP configuration shared with others.
 - [Known limitations](docs/known-limitations.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Security policy](SECURITY.md)
+- [Changelog](CHANGELOG.md)
 
 ## Community
 
-News, release notes, and project discussion are published in the [official BloxForge Telegram channel](https://telegram.me/ro_bloxforge).
-
-Bug reports and feature requests belong in [GitHub Issues](https://github.com/princeofscale/bloxforge/issues).
+- Releases and project news: [official Telegram channel](https://telegram.me/ro_bloxforge)
+- Bugs and feature requests: [GitHub Issues](https://github.com/princeofscale/bloxforge/issues)
+- Security reports: follow the private process in [SECURITY.md](SECURITY.md)
 
 ## License
 

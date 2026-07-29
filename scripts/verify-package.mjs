@@ -29,6 +29,29 @@ function pack(workspace, destination) {
   return path.join(destination, created[0]);
 }
 
+function verifyRuntimeContents(tarball, expectedPlugin, forbiddenPlugin) {
+  const entries = run('tar', ['-tzf', tarball]).trim().split(/\r?\n/);
+  const required = [
+    `package/studio-plugin/${expectedPlugin}`,
+    'package/assets/Baseplate.rbxl',
+  ];
+  for (const entry of required) {
+    if (!entries.includes(entry)) throw new Error(`${path.basename(tarball)} is missing ${entry}`);
+  }
+
+  const forbidden = [
+    `package/studio-plugin/${forbiddenPlugin}`,
+    'package/studio-plugin/src/',
+    'package/studio-plugin/include/',
+    'package/studio-plugin/node_modules/',
+  ];
+  for (const prefix of forbidden) {
+    if (entries.some((entry) => entry === prefix || entry.startsWith(prefix))) {
+      throw new Error(`${path.basename(tarball)} unexpectedly contains ${prefix}`);
+    }
+  }
+}
+
 async function verify() {
   console.log('--- Verifying BloxForge Packages ---');
   run(npm, ['run', 'build']);
@@ -37,11 +60,13 @@ async function verify() {
   console.log(`Temporary workspace: ${tempDir}`);
 
   try {
-    const tarballs = [
-      pack('./packages/core', tempDir),
-      pack('./packages/robloxstudio-mcp', tempDir),
-      pack('./packages/robloxstudio-mcp-inspector', tempDir),
-    ];
+    const coreTarball = pack('./packages/core', tempDir);
+    const fullTarball = pack('./packages/robloxstudio-mcp', tempDir);
+    const inspectorTarball = pack('./packages/robloxstudio-mcp-inspector', tempDir);
+    const tarballs = [coreTarball, fullTarball, inspectorTarball];
+
+    verifyRuntimeContents(fullTarball, 'MCPPlugin.rbxmx', 'MCPInspectorPlugin.rbxmx');
+    verifyRuntimeContents(inspectorTarball, 'MCPInspectorPlugin.rbxmx', 'MCPPlugin.rbxmx');
 
     run(npm, ['init', '-y'], tempDir);
     run(npm, ['install', ...tarballs, '--no-save'], tempDir);

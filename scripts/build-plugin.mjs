@@ -16,8 +16,7 @@ const includeDir = join(pluginDir, 'include');
 const nodeModulesRbxtsDir = join(pluginDir, 'node_modules', '@rbxts');
 
 // Three icon variants per build, swapped by the plugin at runtime to reflect
-// connection state. Until separate white/yellow/green assets are uploaded, all
-// three slots point at the same legacy ID so behavior is unchanged visually.
+// connection state. Both plugin variants share the same verified status assets.
 const VARIANTS = {
   main: {
     scriptName: 'MCPPlugin',
@@ -35,9 +34,9 @@ const VARIANTS = {
     toolbarName: 'BloxForge Inspector',
     buttonTitle: 'BloxForge Inspector',
     buttonTooltip: 'Connect BloxForge Inspector (read-only) to your AI agent',
-    buttonIconDisconnected: '125921838360800', // TODO: replace with white-variant asset ID
-    buttonIconConnecting: '125921838360800',   // TODO: replace with yellow-variant asset ID
-    buttonIconConnected: '125921838360800',    // TODO: replace with green-variant asset ID
+    buttonIconDisconnected: '75876056391496',  // red
+    buttonIconConnecting: '71302583919560',    // yellow
+    buttonIconConnected: '130958234173611',    // green
   },
 };
 
@@ -47,6 +46,16 @@ const variant = VARIANTS[variantName];
 if (!variant) {
   console.error(`Unknown variant "${variantName}". Available: ${Object.keys(VARIANTS).join(', ')}`);
   process.exit(1);
+}
+for (const [name, config] of Object.entries(VARIANTS)) {
+  const statusIcons = [
+    config.buttonIconDisconnected,
+    config.buttonIconConnecting,
+    config.buttonIconConnected,
+  ];
+  if (new Set(statusIcons).size !== statusIcons.length) {
+    throw new Error(`${name} must define a distinct toolbar icon for every connection state.`);
+  }
 }
 
 const outputPath = join(pluginDir, variant.outputName);

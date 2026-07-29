@@ -1,32 +1,45 @@
 #!/usr/bin/env node
 
 /**
- * Copies studio-plugin/ into the package directory before npm pack/publish.
+ * Stages only the runtime assets required by each published package.
  * Run from a publishable package directory via its "prepack" script.
  */
 
-import { cpSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { cpSync, copyFileSync, existsSync, mkdirSync } from 'fs';
+import { basename, join } from 'path';
 
 const packageDir = process.cwd();
 const rootDir = join(packageDir, '..', '..');
-const copies = [
-  ['studio-plugin', 'studio-plugin'],
-  ['packages/core/assets', 'assets'],
-];
+const pluginAssets = {
+  'robloxstudio-mcp': 'MCPPlugin.rbxmx',
+  'robloxstudio-mcp-inspector': 'MCPInspectorPlugin.rbxmx',
+};
+const pluginAsset = pluginAssets[basename(packageDir)];
 
-for (const [sourceRel, destRel] of copies) {
-  const source = join(rootDir, sourceRel);
-  const dest = join(packageDir, destRel);
-  if (!existsSync(source)) {
-    console.error(`${sourceRel}/ not found at project root, skipping copy`);
-    continue;
-  }
-  if (existsSync(dest)) {
-    console.log(`${destRel}/ already exists in package, skipping copy`);
-    continue;
-  }
-  console.log(`Copying ${sourceRel}/ into ${packageDir}/${destRel}`);
-  cpSync(source, dest, { recursive: true });
+if (!pluginAsset) {
+  throw new Error(`Unsupported publishable package directory: ${packageDir}`);
 }
+
+const pluginSource = join(rootDir, 'studio-plugin', pluginAsset);
+const pluginDestDir = join(packageDir, 'studio-plugin');
+const pluginDest = join(pluginDestDir, pluginAsset);
+if (!existsSync(pluginSource)) {
+  throw new Error(`${pluginAsset} not found. Run npm run build:plugins before packing.`);
+}
+if (existsSync(pluginDestDir)) {
+  throw new Error(`Stale prepack directory exists: ${pluginDestDir}. Run the postpack cleanup and retry.`);
+}
+mkdirSync(pluginDestDir);
+copyFileSync(pluginSource, pluginDest);
+console.log(`Staged studio-plugin/${pluginAsset}`);
+
+const assetsSource = join(rootDir, 'packages', 'core', 'assets');
+const assetsDest = join(packageDir, 'assets');
+if (!existsSync(assetsSource)) {
+  throw new Error(`Runtime assets not found: ${assetsSource}`);
+}
+if (existsSync(assetsDest)) {
+  throw new Error(`Stale prepack directory exists: ${assetsDest}. Run the postpack cleanup and retry.`);
+}
+cpSync(assetsSource, assetsDest, { recursive: true });
+console.log('Staged runtime assets');

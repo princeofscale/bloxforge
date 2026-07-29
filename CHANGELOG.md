@@ -21,6 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
 - Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
+- Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
+- Reduced published CLI packages to the matching compiled Studio plugin plus required runtime assets; source trees, runtime includes, and the opposite plugin variant are no longer bundled.
+- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the Node 18/20/22 support matrix.
+- Assigned distinct red, yellow, and green toolbar icons to both full and inspector plugin connection states.
+
+### Removed
+- Removed the standalone roadmap; completed work remains in the changelog and future work is tracked through GitHub issues.
 
 ## [3.0.0] - 2026-07-14
 
