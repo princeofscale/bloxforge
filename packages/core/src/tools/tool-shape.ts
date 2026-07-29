@@ -1,4 +1,5 @@
 import type { JsonSchema, ToolDefinition } from './definitions.js';
+import { effectsForTool } from './tool-effects.js';
 
 /** MCP tool annotations (hints a host uses to drive approval UX). All optional and
  *  advisory — a host treats them as untrusted unless the server itself is trusted. */
@@ -35,6 +36,8 @@ const DESTRUCTIVE_TOOLS = new Set([
   'import_scene',
   'import_build',
   'import_rbxm',
+  'rojo_delete_source',
+  'rojo_syncback_apply',
 ]);
 
 // Tools that reach an EXTERNAL service (marketplace/Creator Store/asset CDN/image gen)
@@ -56,10 +59,18 @@ const OPEN_WORLD_TOOLS = new Set([
 
 /** Advisory risk hints derived from the tool's category + small explicit sets. */
 export function toolAnnotations(tool: ToolDefinition): McpToolAnnotations {
-  const readOnly = tool.category === 'read';
+  const readOnly = !(tool.effects ?? effectsForTool(tool.name, tool.category)).some((effect) =>
+    effect === 'studio.write' ||
+    effect === 'studio.execute' ||
+    effect === 'local.files.write' ||
+    effect === 'local.process.execute' ||
+    effect === 'assets.upload' ||
+    effect === 'playtest.control');
   const annotations: McpToolAnnotations = { readOnlyHint: readOnly };
   if (!readOnly) annotations.destructiveHint = DESTRUCTIVE_TOOLS.has(tool.name);
-  if (OPEN_WORLD_TOOLS.has(tool.name)) annotations.openWorldHint = true;
+  if (OPEN_WORLD_TOOLS.has(tool.name) || (tool.effects ?? []).includes('network.external')) {
+    annotations.openWorldHint = true;
+  }
   return annotations;
 }
 

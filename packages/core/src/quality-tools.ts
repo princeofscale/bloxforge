@@ -72,12 +72,22 @@ function hasCommand(command: QualityCommand): boolean {
 
 function projectFiles(root: string): Record<string, string> {
   const names = [
-    'default.project.json', 'rojo.json', 'rojo.project.json', 'sourcemap.json',
+    ...fs.readdirSync(root).filter((name) => name.endsWith('.project.json')).sort(),
+    'rojo.json', 'sourcemap.json',
     'selene.toml', 'stylua.toml', 'wally.toml', 'wally.lock', 'rokit.toml', 'aftman.toml',
   ];
   return Object.fromEntries(names
     .map((name) => [name, fs.existsSync(path.join(root, name)) ? path.join(root, name) : undefined] as const)
     .filter((entry): entry is readonly [string, string] => entry[1] !== undefined));
+}
+
+function selectedProjectFile(project: RobloxProject): { path?: string; error?: string } {
+  const candidates = Object.entries(project.files)
+    .filter(([name]) => name.endsWith('.project.json'))
+    .map(([, file]) => file);
+  if (candidates.length === 0) return { error: 'Rojo project file not found' };
+  if (candidates.length > 1) return { error: 'Multiple Rojo project files found; use the rojo_* tools and select projectFile explicitly' };
+  return { path: candidates[0] };
 }
 
 function run(command: QualityCommand, args: string[], options: { cwd?: string; input?: string } = {}): QualityCheck {
@@ -211,21 +221,21 @@ export class QualityTools {
 
   generateRojoSourcemap(root = process.cwd(), output = 'sourcemap.json'): QualityCheck {
     const project = this.detectRobloxProject(root);
-    const projectFile = project.files['default.project.json'] ?? project.files['rojo.project.json'];
-    if (!projectFile) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'Rojo project file not found' };
+    const selected = selectedProjectFile(project);
+    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: selected.error };
     const checked = safeOutputPath(project.root, output);
     if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
-    return run('rojo', ['sourcemap', projectFile, '--output', checked.path], { cwd: project.root });
+    return run('rojo', ['sourcemap', selected.path, '--output', checked.path], { cwd: project.root });
   }
 
   buildRojoProject(root = process.cwd(), output?: string): QualityCheck {
     const project = this.detectRobloxProject(root);
-    const projectFile = project.files['default.project.json'] ?? project.files['rojo.project.json'];
-    if (!projectFile) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'Rojo project file not found' };
+    const selected = selectedProjectFile(project);
+    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: selected.error };
     if (!output) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'output is required' };
     const checked = safeOutputPath(project.root, output);
     if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
-    return run('rojo', ['build', projectFile, '--output', checked.path], { cwd: project.root });
+    return run('rojo', ['build', selected.path, '--output', checked.path], { cwd: project.root });
   }
 
   runQualityGate(root = process.cwd()): { project: RobloxProject; checks: QualityCheck[] } {

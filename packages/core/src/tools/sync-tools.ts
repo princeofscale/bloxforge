@@ -1,7 +1,8 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import { createHash, randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { SyncManager, type ScriptClassName } from '../sync/sync-manager.js';
-import { buildDumpScriptsLuau } from '../sync/sync-luau.js';
+import { resolveProjectPath, resolveProjectRoot } from '../rojo/source-mapper.js';
 import type { SafetyOptions, ToolContent } from './runtime-support.js';
 
 type SyncToolRuntime = {
@@ -9,53 +10,120 @@ type SyncToolRuntime = {
   recordOperation(kind: string, summary: string): void;
 };
 
+interface StudioScript {
+  path: string;
+  pathSegments?: string[];
+  className: ScriptClassName;
+  source?: string;
+  sourceHash: string;
+  sourceLength: number;
+}
+
+interface SyncStateEntry {
+  contentHash: string;
+  studioHash: string;
+  studioIdentity: string;
+  lastSuccessfulSyncAt: string;
+}
+
+interface SyncState {
+  schemaVersion: 1;
+  projectIdentity: string;
+  updatedAt: string;
+  entries: Record<string, SyncStateEntry>;
+}
+
+interface SyncPlan {
+  added: string[];
+  modified: string[];
+  localOnly: string[];
+  conflicts: string[];
+  deletedInStudio: string[];
+  inSync: string[];
+  tooLarge: string[];
+  renamed: Array<{ from: string; to: string }>;
+  scripts: Map<string, StudioScript>;
+  local: Map<string, string>;
+  state: SyncState;
+}
+
+function hash(content: string): string {
+  return `sha256:${createHash('sha256').update(content).digest('hex')}`;
+}
+
+function atomicWriteFile(file: string, content: string): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const temporary = `${file}.bloxforge-${process.pid}-${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, content, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(temporary, file);
+  } finally {
+    try { fs.unlinkSync(temporary); } catch {}
+  }
+}
+
 export class SyncTools {
   constructor(
     private readonly sync: SyncManager,
     private readonly runtime: SyncToolRuntime,
   ) {}
 
-  // === Local sync (Studio <-> files) ===
-  // Scripts mirror to suffixed Lua files (.server/.client/.module.lua) under a
-  // sync directory. A manifest (.robloxsync.json) records the source captured at
-  // the last sync so push/status can do three-way conflict detection rather than
-  // clobbering. SyncManager owns the (tested) path/conflict logic; this layer
-  // owns filesystem and Studio I/O.
-
-  private _syncManifestPath(dir: string): string {
-    return path.join(dir, '.robloxsync.json');
+  private _statePath(dir: string): string {
+    return fs.existsSync(dir)
+      ? resolveProjectPath(dir, '.bloxforge/rojo-state.json', false)
+      : path.join(dir, '.bloxforge', 'rojo-state.json');
   }
 
-  private _readManifest(dir: string): Record<string, string> {
+  private _readState(dir: string): SyncState {
     try {
-      const raw = fs.readFileSync(this._syncManifestPath(dir), 'utf8');
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed.paths === 'object' ? parsed.paths : {};
-    } catch {
-      return {};
-    }
+      const parsed = JSON.parse(fs.readFileSync(this._statePath(dir), 'utf8')) as SyncState;
+      if (parsed.schemaVersion === 1 && parsed.entries && typeof parsed.entries === 'object') return parsed;
+    } catch {}
+    return {
+      schemaVersion: 1,
+      projectIdentity: dir,
+      updatedAt: new Date(0).toISOString(),
+      entries: {},
+    };
   }
 
-  private _writeManifest(dir: string, paths: Record<string, string>): void {
-    const payload = { version: 1, updatedAt: new Date().toISOString(), paths };
-    fs.writeFileSync(this._syncManifestPath(dir), JSON.stringify(payload, null, 2));
+  private _writeState(dir: string, state: SyncState): void {
+    atomicWriteFile(this._statePath(dir), `${JSON.stringify({
+      ...state,
+      projectIdentity: dir,
+      updatedAt: new Date().toISOString(),
+    }, null, 2)}\n`);
   }
 
-  private async _dumpStudioScripts(instance_id?: string): Promise<Array<{ path: string; className: ScriptClassName; source: string }>> {
-    const response = await this.runtime.callSingle('/api/execute-luau', { code: buildDumpScriptsLuau() }, 'edit', instance_id);
-    const rawResponse = response as { returnValue?: unknown };
-    const raw = typeof rawResponse?.returnValue === 'string' ? rawResponse.returnValue : undefined;
-    if (!raw) return [];
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      throw new Error(`Could not parse script dump from Studio: ${raw.slice(0, 200)}`);
-    }
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((e): e is { path: string; className: ScriptClassName; source: string } =>
-      !!e && typeof e.path === 'string' && typeof e.className === 'string' && typeof e.source === 'string'
-      && (e.className === 'Script' || e.className === 'LocalScript' || e.className === 'ModuleScript'));
+  private async _readStudioScripts(instance_id?: string): Promise<StudioScript[]> {
+    const scripts: StudioScript[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const response = await this.runtime.callSingle('/api/read-managed-scripts', {
+        rootPath: 'game',
+        limit: 100,
+        maxSourceBytes: 1024 * 1024,
+        ...(continuationToken ? { continuationToken } : {}),
+      }, 'edit', instance_id) as { items?: unknown; continuationToken?: unknown; error?: unknown };
+      if (typeof response?.error === 'string') throw new Error(response.error);
+      if (!Array.isArray(response?.items)) throw new Error('Invalid managed-script page from Studio');
+      for (const item of response.items) {
+        const script = item as Partial<StudioScript>;
+        if (
+          typeof script.path === 'string' &&
+          typeof script.className === 'string' &&
+          typeof script.sourceHash === 'string' &&
+          typeof script.sourceLength === 'number' &&
+          (script.className === 'Script' || script.className === 'LocalScript' || script.className === 'ModuleScript')
+        ) {
+          scripts.push(script as StudioScript);
+        }
+      }
+      continuationToken = typeof response.continuationToken === 'string'
+        ? response.continuationToken
+        : undefined;
+    } while (continuationToken);
+    return scripts;
   }
 
   private _walkLocalScripts(dir: string): Map<string, string> {
@@ -68,12 +136,12 @@ export class SyncTools {
         return;
       }
       for (const entry of entries) {
+        if (entry.name === '.bloxforge' || entry.isSymbolicLink()) continue;
         const full = path.join(current, entry.name);
         const rel = path.relative(dir, full).split(path.sep).join('/');
-        if (entry.isDirectory()) {
-          walk(full);
-        } else if (this.sync.classNameForFile(entry.name) && !this.sync.isIgnored(rel)) {
-          out.set(rel, fs.readFileSync(full, 'utf8'));
+        if (entry.isDirectory()) walk(full);
+        else if (entry.isFile() && this.sync.classNameForFile(entry.name) && !this.sync.isIgnored(rel)) {
+          out.set(rel, fs.readFileSync(resolveProjectPath(dir, rel), 'utf8'));
         }
       }
     };
@@ -82,98 +150,252 @@ export class SyncTools {
   }
 
   private _resolveSyncDir(syncDir?: string): string {
-    return path.resolve(syncDir ?? process.env.ROBLOX_SYNC_DIR ?? path.join(process.cwd(), 'roblox-src'));
+    const projectRoot = resolveProjectRoot(process.env.BLOXFORGE_PROJECT_ROOT?.trim() || process.cwd());
+    const requested = syncDir ?? process.env.ROBLOX_SYNC_DIR ?? 'roblox-src';
+    return resolveProjectPath(projectRoot, requested, false);
   }
 
-  async syncPull(syncDir?: string, instance_id?: string) {
-    const dir = this._resolveSyncDir(syncDir);
-    const scripts = await this._dumpStudioScripts(instance_id);
-    fs.mkdirSync(dir, { recursive: true });
-    const manifest: Record<string, string> = {};
-    let written = 0;
-    let skipped = 0;
-    for (const script of scripts) {
-      const rel = this.sync.instancePathToFilePath(script.path, script.className);
-      if (this.sync.isIgnored(rel)) { skipped++; continue; }
-      const full = path.join(dir, rel);
-      fs.mkdirSync(path.dirname(full), { recursive: true });
-      fs.writeFileSync(full, script.source);
-      manifest[rel] = script.source;
-      written++;
-    }
-    this._writeManifest(dir, manifest);
-    this.runtime.recordOperation('sync_pull', `pulled ${written} scripts to ${dir}`);
-    return { content: [{ type: 'text', text: JSON.stringify({ pulled: written, skipped, dir }) }] as ToolContent[] };
-  }
-
-  async syncStatus(syncDir?: string, instance_id?: string) {
-    const dir = this._resolveSyncDir(syncDir);
-    const studio = new Map(
-      (await this._dumpStudioScripts(instance_id)).map((s) => [this.sync.instancePathToFilePath(s.path, s.className), s.source] as const),
-    );
+  private async _plan(dir: string, instance_id?: string): Promise<SyncPlan> {
+    const studioScripts = await this._readStudioScripts(instance_id);
     const local = this._walkLocalScripts(dir);
-    const base = this._readManifest(dir);
-    const rels = new Set<string>([...studio.keys(), ...local.keys(), ...Object.keys(base)]);
-    const groups: Record<string, string[]> = { local: [], studio: [], both: [], none: [] };
-    for (const rel of rels) {
+    const state = this._readState(dir);
+    const scripts = new Map<string, StudioScript>();
+    const plan: SyncPlan = {
+      added: [],
+      modified: [],
+      localOnly: [],
+      conflicts: [],
+      deletedInStudio: [],
+      inSync: [],
+      tooLarge: [],
+      renamed: [],
+      scripts,
+      local,
+      state,
+    };
+
+    for (const script of studioScripts) {
+      const segments = script.pathSegments?.length
+        ? script.pathSegments
+        : script.path.split('.').filter((segment) => segment !== 'game');
+      const rel = this.sync.instanceSegmentsToFilePath(segments, script.className);
       if (this.sync.isIgnored(rel)) continue;
-      const kind = this.sync.detectConflict({ local: local.get(rel), base: base[rel], studio: studio.get(rel) });
-      groups[kind].push(rel);
+      scripts.set(rel, script);
+      if (script.source === undefined) {
+        plan.tooLarge.push(rel);
+        continue;
+      }
+      const localContent = local.get(rel);
+      const localHash = localContent === undefined ? undefined : hash(localContent);
+      const studioHash = hash(script.source);
+      const baseHash = state.entries[rel]?.contentHash;
+      if (localHash === studioHash) plan.inSync.push(rel);
+      else if (localHash === undefined) plan.added.push(rel);
+      else if (localHash === baseHash) plan.modified.push(rel);
+      else if (studioHash === baseHash) plan.localOnly.push(rel);
+      else plan.conflicts.push(rel);
     }
+    for (const [rel, baseline] of Object.entries(state.entries)) {
+      if (scripts.has(rel)) continue;
+      const localContent = local.get(rel);
+      if (localContent === undefined || hash(localContent) === baseline.contentHash) plan.deletedInStudio.push(rel);
+      else plan.conflicts.push(rel);
+    }
+    for (const from of [...plan.deletedInStudio]) {
+      const baseHash = state.entries[from]?.contentHash;
+      const to = plan.added.find((candidate) => {
+        const source = scripts.get(candidate)?.source;
+        return source !== undefined && hash(source) === baseHash;
+      });
+      if (!to) continue;
+      plan.renamed.push({ from, to });
+      plan.deletedInStudio.splice(plan.deletedInStudio.indexOf(from), 1);
+      plan.added.splice(plan.added.indexOf(to), 1);
+    }
+    return plan;
+  }
+
+  async syncPull(syncDir?: string, instance_id?: string, options: SafetyOptions & { deleteMissing?: boolean } = {}) {
+    const dir = this._resolveSyncDir(syncDir);
+    const plan = await this._plan(dir, instance_id);
+    const apply = options.confirm === true && options.dryRun !== true;
+    const applied: string[] = [];
+    const deleted: string[] = [];
+
+    if (apply) {
+      fs.mkdirSync(dir, { recursive: true });
+      const backupRoot = path.join(dir, '.bloxforge', 'backups', new Date().toISOString().replace(/[:.]/g, '-'));
+      const rollback: Array<{ file: string; previous?: string }> = [];
+      const renamedRollback: Array<{ from: string; to: string }> = [];
+      try {
+        for (const rename of plan.renamed) {
+          const from = resolveProjectPath(dir, rename.from);
+          const to = resolveProjectPath(dir, rename.to, false);
+          fs.mkdirSync(path.dirname(to), { recursive: true });
+          fs.renameSync(from, to);
+          renamedRollback.push({ from, to });
+          applied.push(rename.to);
+        }
+        for (const rel of [...plan.added, ...plan.modified]) {
+          const script = plan.scripts.get(rel);
+          if (script?.source === undefined) continue;
+          const file = resolveProjectPath(dir, rel, false);
+          const previous = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined;
+          if (previous !== undefined) atomicWriteFile(path.join(backupRoot, rel), previous);
+          rollback.push({ file, previous });
+          atomicWriteFile(file, script.source);
+          applied.push(rel);
+        }
+        if (options.deleteMissing === true) {
+          for (const rel of plan.deletedInStudio) {
+            const file = resolveProjectPath(dir, rel);
+            const previous = fs.readFileSync(file, 'utf8');
+            atomicWriteFile(path.join(backupRoot, rel), previous);
+            rollback.push({ file, previous });
+            fs.unlinkSync(file);
+            deleted.push(rel);
+          }
+        }
+      } catch (error) {
+        for (const item of rollback.reverse()) {
+          if (item.previous === undefined) {
+            try { fs.unlinkSync(item.file); } catch {}
+          } else {
+            atomicWriteFile(item.file, item.previous);
+          }
+        }
+        for (const item of renamedRollback.reverse()) {
+          try { fs.renameSync(item.to, item.from); } catch {}
+        }
+        throw error;
+      }
+
+      const now = new Date().toISOString();
+      for (const rel of [...plan.inSync, ...applied]) {
+        const script = plan.scripts.get(rel);
+        const content = script?.source ?? plan.local.get(rel);
+        if (!script || content === undefined) continue;
+        plan.state.entries[rel] = {
+          contentHash: hash(content),
+          studioHash: script.sourceHash,
+          studioIdentity: script.path,
+          lastSuccessfulSyncAt: now,
+        };
+      }
+      for (const rename of plan.renamed) delete plan.state.entries[rename.from];
+      for (const rel of deleted) delete plan.state.entries[rel];
+      this._writeState(dir, plan.state);
+      this.runtime.recordOperation('sync_pull', `pulled ${applied.length} scripts to ${dir}`);
+    }
+
     return {
       content: [{
         type: 'text',
         text: JSON.stringify({
+          deprecated: true,
+          warning: 'sync_pull is deprecated; use rojo_syncback_plan/apply for explicit Studio-to-files updates.',
           dir,
-          localOnlyChanges: groups.local,
-          studioOnlyChanges: groups.studio,
-          conflicts: groups.both,
-          inSync: groups.none.length,
+          dryRun: !apply,
+          applied,
+          deleted,
+          added: plan.added,
+          modified: plan.modified,
+          localOnly: plan.localOnly,
+          conflicts: plan.conflicts,
+          deletedInStudio: plan.deletedInStudio,
+          renamed: plan.renamed,
+          inSync: plan.inSync.length,
+          tooLarge: plan.tooLarge,
+          confirmationRequired: !apply && (
+            plan.added.length > 0 ||
+            plan.modified.length > 0 ||
+            plan.renamed.length > 0 ||
+            (options.deleteMissing === true && plan.deletedInStudio.length > 0)
+          ),
         }, null, 2),
       }] as ToolContent[],
     };
   }
 
-  async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions) {
+  async syncStatus(syncDir?: string, instance_id?: string) {
     const dir = this._resolveSyncDir(syncDir);
-    const studio = new Map(
-      (await this._dumpStudioScripts(instance_id)).map((s) => [this.sync.instancePathToFilePath(s.path, s.className), { source: s.source, path: s.path }] as const),
-    );
-    const local = this._walkLocalScripts(dir);
-    const base = this._readManifest(dir);
-    const pushed: string[] = [];
-    const conflicts: string[] = [];
-    const wouldPush: string[] = [];
-
-    for (const [rel, content] of local) {
-      if (this.sync.isIgnored(rel)) continue;
-      const studioEntry = studio.get(rel);
-      const kind = this.sync.detectConflict({ local: content, base: base[rel], studio: studioEntry?.source });
-      if (kind === 'none' || kind === 'studio') continue; // nothing local to push, or studio is authoritative
-      if (kind === 'both') { conflicts.push(rel); continue; }
-      // kind === 'local' — safe to push
-      const mapped = this.sync.filePathToInstancePath(rel);
-      if (!mapped) continue;
-      if (options?.dryRun) { wouldPush.push(rel); continue; }
-      await this.runtime.callSingle('/api/set-script-source', { instancePath: mapped.instancePath, source: content }, undefined, instance_id);
-      base[rel] = content;
-      pushed.push(rel);
-    }
-
-    if (!options?.dryRun && pushed.length > 0) {
-      this._writeManifest(dir, base);
-      this.runtime.recordOperation('sync_push', `pushed ${pushed.length} scripts from ${dir}`);
-    }
-
+    const plan = await this._plan(dir, instance_id);
     return {
       content: [{
         type: 'text',
         text: JSON.stringify({
+          deprecated: true,
+          warning: 'sync_status is deprecated; use rojo_syncback_plan.',
           dir,
-          dryRun: options?.dryRun === true,
-          pushed: options?.dryRun ? wouldPush : pushed,
-          conflictsSkipped: conflicts,
-          hint: conflicts.length > 0 ? 'Conflicts changed on both sides; resolve manually then re-run, or sync_pull to take Studio.' : undefined,
+          localOnlyChanges: plan.localOnly,
+          studioOnlyChanges: [...plan.added, ...plan.modified],
+          conflicts: plan.conflicts,
+          deletedInStudio: plan.deletedInStudio,
+          renamed: plan.renamed,
+          inSync: plan.inSync.length,
+          tooLarge: plan.tooLarge,
+        }, null, 2),
+      }] as ToolContent[],
+    };
+  }
+
+  async syncPush(syncDir?: string, instance_id?: string, options: SafetyOptions = {}) {
+    const dir = this._resolveSyncDir(syncDir);
+    const plan = await this._plan(dir, instance_id);
+    const apply = options.confirm === true && options.dryRun !== true;
+    if (!apply) {
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            deprecated: true,
+            warning: 'sync_push is deprecated; edit Rojo-managed local files and let rojo serve update Studio.',
+            dir,
+            dryRun: true,
+            wouldPush: plan.localOnly,
+            conflicts: plan.conflicts,
+            confirmationRequired: plan.localOnly.length > 0,
+          }, null, 2),
+        }] as ToolContent[],
+      };
+    }
+
+    const pushed: string[] = [];
+    for (const rel of plan.localOnly) {
+      const script = plan.scripts.get(rel);
+      const content = plan.local.get(rel);
+      if (!script || content === undefined) continue;
+      await this.runtime.callSingle('/api/set-script-source', {
+        instancePath: script.path,
+        source: content,
+      }, undefined, instance_id);
+      pushed.push(rel);
+    }
+    const now = new Date().toISOString();
+    for (const rel of pushed) {
+      const script = plan.scripts.get(rel)!;
+      const content = plan.local.get(rel)!;
+      plan.state.entries[rel] = {
+        contentHash: hash(content),
+        studioHash: script.sourceHash,
+        studioIdentity: script.path,
+        lastSuccessfulSyncAt: now,
+      };
+    }
+    if (pushed.length > 0) {
+      this._writeState(dir, plan.state);
+      this.runtime.recordOperation('sync_push', `pushed ${pushed.length} scripts from ${dir}`);
+    }
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          deprecated: true,
+          warning: 'sync_push is deprecated; prefer rojo serve.',
+          dir,
+          dryRun: false,
+          pushed,
+          conflicts: plan.conflicts,
         }, null, 2),
       }] as ToolContent[],
     };

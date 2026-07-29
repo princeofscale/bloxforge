@@ -22,7 +22,7 @@ import { ToolRegistry } from './tools/tool-pipeline.js';
 import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
-import { parseClientCapabilities, requiredCapability } from './capability-policy.js';
+import { parseClientCapabilities, requiredCapabilities } from './capability-policy.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 import { CORE_TOOLS } from './tools/tool-catalog.js';
@@ -41,17 +41,6 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_request_status: (tools, body) => tools.getRequestStatus(body.requestId),
   get_transport_diagnostics: (tools) => tools.getTransportDiagnostics(),
   cancel_request: (tools, body) => tools.cancelRequest(body.requestId),
-  detect_roblox_project: (tools, body) => tools.detectRobloxProject(body.root),
-  validate_script_source: (tools, body) => tools.validateScriptSource(body.source, body.fileName),
-  format_script_preview: (tools, body) => tools.formatScriptPreview(body.source, body.fileName),
-  resolve_instance_source_file: (tools, body) => tools.resolveInstanceSourceFile(body.instancePath, body.root),
-  run_project_tests: (tools, body) => tools.runProjectTests(body.root, body.script),
-  get_dependency_graph: (tools, body) => tools.getDependencyGraph(body.root),
-  install_wally_packages: (tools, body) => tools.installWallyPackages(body.root, body.confirm),
-  run_quality_gate: (tools, body) => tools.runQualityGate(body.root),
-  validate_with_luau_lsp: (tools, body) => tools.validateWithLuauLsp(body.root, body.files),
-  generate_rojo_sourcemap: (tools, body) => tools.generateRojoSourcemap(body.root, body.output),
-  build_rojo_project: (tools, body) => tools.buildRojoProject(body.root, body.output),
   tool_catalog_search: (tools, body) => tools.toolCatalogSearch(body),
   load_toolset: (tools, body) => tools.loadToolset(body),
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
@@ -221,11 +210,6 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   template_create_simulator_game: (tools, body) => tools.templateCreateSimulatorGame(body, body.instance_id),
   template_create_tycoon_game: (tools, body) => tools.templateCreateTycoonGame(body, body.instance_id),
   template_create_round_game: (tools, body) => tools.templateCreateRoundGame(body, body.instance_id),
-
-  // Local sync.
-  sync_pull: (tools, body) => tools.syncPull(body.syncDir, body.instance_id),
-  sync_status: (tools, body) => tools.syncStatus(body.syncDir, body.instance_id),
-  sync_push: (tools, body) => tools.syncPush(body.syncDir, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
 
   // Free marketplace (no Open Cloud key).
   marketplace_search: (tools, body) => tools.marketplaceSearch(body.keyword, body.category, body.limit, body.sortType),
@@ -913,9 +897,11 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           }
           const definition = legacyDefinitionsByName.get(name);
           const capabilities = clientCapabilities.get(bearerToken(req) ?? '');
-          const capability = definition ? requiredCapability(name, definition.category) : undefined;
-          if (capability && capabilities && !capabilities.has(capability)) {
-            throw new McpError(ErrorCode.InvalidRequest, `Capability required: ${capability}`);
+          const missingCapability = definition && capabilities
+            ? requiredCapabilities(definition).find((capability) => !capabilities.has(capability))
+            : undefined;
+          if (missingCapability) {
+            throw new McpError(ErrorCode.InvalidRequest, `Capability required: ${missingCapability}`);
           }
 
           try {

@@ -26,7 +26,8 @@ import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
-import { parseCapabilities, requiredCapability, type Capability } from './capability-policy.js';
+import { parseCapabilities, requiredCapabilities, type Capability } from './capability-policy.js';
+import { effectsForTool, isInspectorEffect } from './tools/tool-effects.js';
 
 export interface ServerConfig {
   name: string;
@@ -199,9 +200,11 @@ export class BloxForgeServer {
         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
       }
       const definition = this.config.tools.find((tool) => tool.name === name);
-      const capability = definition ? requiredCapability(name, definition.category) : undefined;
-      if (capability && this.stdioCapabilities && !this.stdioCapabilities.has(capability)) {
-        throw new McpError(ErrorCode.InvalidRequest, `Capability required: ${capability}`);
+      const missingCapability = definition && this.stdioCapabilities
+        ? requiredCapabilities(definition).find((capability) => !this.stdioCapabilities?.has(capability))
+        : undefined;
+      if (missingCapability) {
+        throw new McpError(ErrorCode.InvalidRequest, `Capability required: ${missingCapability}`);
       }
 
       try {
@@ -467,6 +470,7 @@ export class BloxForgeServer {
       if (primaryApp) (primaryApp as any).setMCPServerActive(false);
       if (legacyApp) (legacyApp as any).setMCPServerActive(false);
       this.bridge.clearAllPendingRequests();
+      await this.tools.stopManagedRojoProcesses().catch(() => {});
       await this.server.close().catch(() => {});
       await Promise.all([closeHttp(httpHandle), closeHttp(legacyHandle)]);
       process.exit(0);
@@ -501,13 +505,13 @@ export function authorizedToolsForProfile(
   value: string | undefined,
 ): ToolDefinition[] {
   const profile = normalizeToolProfile(value);
-  if (profile === 'inspector') return tools.filter((tool) => tool.category === 'read');
+  if (profile === 'inspector') {
+    return tools.filter((tool) =>
+      (tool.effects ?? effectsForTool(tool.name, tool.category)).every(isInspectorEffect));
+  }
   if (profile === 'builder') {
     return tools.filter((tool) =>
-      !/^execute_luau(?:_async)?$/.test(tool.name) &&
-      !/^eval_.*runtime$/.test(tool.name) &&
-      tool.name !== 'run_gameplay_assertions' &&
-      tool.name !== 'run_playtest_episode');
+      !(tool.effects ?? effectsForTool(tool.name, tool.category)).includes('studio.execute'));
   }
   return [...tools];
 }

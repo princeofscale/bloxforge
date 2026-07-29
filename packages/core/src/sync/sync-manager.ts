@@ -4,21 +4,22 @@
 // to suffixed Lua files so the class is recoverable from the file name:
 //   Script       -> *.server.lua
 //   LocalScript  -> *.client.lua
-//   ModuleScript -> *.module.lua
+//   ModuleScript -> *.lua (the official Rojo convention)
+
+import { encodeInstanceName } from '../rojo/source-mapper.js';
 
 export type ScriptClassName = 'Script' | 'LocalScript' | 'ModuleScript';
 
 const SUFFIX_BY_CLASS: Record<ScriptClassName, string> = {
   Script: '.server.lua',
   LocalScript: '.client.lua',
-  ModuleScript: '.module.lua',
+  ModuleScript: '.lua',
 };
 
-// Longest suffix first so ".module.lua" is matched before a hypothetical ".lua".
 const CLASS_BY_SUFFIX: Array<[string, ScriptClassName]> = [
   ['.server.lua', 'Script'],
   ['.client.lua', 'LocalScript'],
-  ['.module.lua', 'ModuleScript'],
+  ['.lua', 'ModuleScript'],
 ];
 
 export type ConflictKind = 'none' | 'local' | 'studio' | 'both';
@@ -67,9 +68,14 @@ export class SyncManager {
   /** "game.ServerScriptService.A.B" + Script -> "ServerScriptService/A/B.server.lua". */
   instancePathToFilePath(instancePath: string, className: ScriptClassName): string {
     const segments = instancePath.split('.').filter((s) => s.length > 0 && s !== 'game');
-    if (segments.length === 0) throw new Error(`Invalid instance path: "${instancePath}"`);
-    const leaf = segments.pop() as string;
-    const dirs = segments.join('/');
+    return this.instanceSegmentsToFilePath(segments, className);
+  }
+
+  instanceSegmentsToFilePath(segments: string[], className: ScriptClassName): string {
+    if (segments.length === 0) throw new Error('Invalid empty instance path');
+    const encoded = segments.map(encodeInstanceName);
+    const leaf = encoded.pop() as string;
+    const dirs = encoded.join('/');
     const file = this.fileNameFor(leaf, className);
     return dirs ? `${dirs}/${file}` : file;
   }

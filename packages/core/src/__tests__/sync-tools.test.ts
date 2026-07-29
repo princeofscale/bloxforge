@@ -1,44 +1,119 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { SyncManager } from '../sync/sync-manager.js';
 import { SyncTools } from '../tools/sync-tools.js';
 
-describe('SyncTools', () => {
+const studioPage = (source: string) => ({
+  items: [{
+    path: 'game.ServerScriptService.Main',
+    pathSegments: ['ServerScriptService', 'Main'],
+    className: 'Script',
+    source,
+    sourceHash: 'plugin-hash',
+    sourceLength: source.length,
+  }],
+  continuationToken: undefined,
+});
+
+function textPayload(result: { content: Array<{ type: string; text?: string }> }) {
+  return JSON.parse(result.content[0].text!);
+}
+
+describe('SyncTools safety', () => {
+  let root: string;
   let dir: string;
+  let callSingle: jest.Mock;
+  let tools: SyncTools;
 
   beforeEach(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'roblox-sync-tools-'));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'roblox-sync-tools-'));
+    dir = path.join(root, 'roblox-src');
+    process.env.BLOXFORGE_PROJECT_ROOT = root;
+    callSingle = jest.fn(async () => studioPage('print("hello")'));
+    tools = new SyncTools(new SyncManager(), { callSingle, recordOperation: jest.fn() });
   });
 
   afterEach(() => {
-    fs.rmSync(dir, { recursive: true, force: true });
+    delete process.env.BLOXFORGE_PROJECT_ROOT;
+    fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it('pulls Studio scripts into suffixed local files and writes a manifest', async () => {
-    const callSingle = jest.fn(async () => ({
-      returnValue: JSON.stringify([
-        {
-          path: 'game.ServerScriptService.Main',
-          className: 'Script',
-          source: 'print("hello")',
-        },
-      ]),
-    }));
-    const recordOperation = jest.fn();
-    const tools = new SyncTools(new SyncManager(), { callSingle, recordOperation });
-
-    await tools.syncPull(dir, 'place-1');
+  it('previews pull changes without writing until explicitly confirmed', async () => {
+    const result = await tools.syncPull(dir, 'place-1', { dryRun: true });
+    const payload = textPayload(result);
 
     expect(callSingle).toHaveBeenCalledWith(
-      '/api/execute-luau',
-      expect.objectContaining({ code: expect.stringContaining('GetDescendants') }),
+      '/api/read-managed-scripts',
+      expect.objectContaining({ limit: 100, maxSourceBytes: 1024 * 1024 }),
       'edit',
       'place-1',
     );
+    expect(payload.added).toEqual(['ServerScriptService/Main.server.lua']);
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
+  });
+
+  it('atomically writes confirmed files and stores hashes instead of source snapshots', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+
     expect(fs.readFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'utf8')).toBe('print("hello")');
-    expect(JSON.parse(fs.readFileSync(path.join(dir, '.robloxsync.json'), 'utf8')).paths)
-      .toEqual({ 'ServerScriptService/Main.server.lua': 'print("hello")' });
-    expect(recordOperation).toHaveBeenCalledWith('sync_pull', expect.stringContaining('pulled 1 scripts'));
+    const stateText = fs.readFileSync(path.join(dir, '.bloxforge/rojo-state.json'), 'utf8');
+    const state = JSON.parse(stateText);
+    expect(state.schemaVersion).toBe(1);
+    expect(state.entries['ServerScriptService/Main.server.lua'].contentHash).toMatch(/^sha256:/);
+    expect(stateText).not.toContain('print(\\"hello\\")');
+  });
+
+  it('does not overwrite a locally changed file when Studio also changed', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    fs.writeFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'print("local")');
+    callSingle.mockResolvedValue(studioPage('print("studio")'));
+
+    const result = await tools.syncPull(dir, 'place-1', { confirm: true });
+    const payload = textPayload(result);
+
+    expect(payload.conflicts).toEqual(['ServerScriptService/Main.server.lua']);
+    expect(fs.readFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'utf8')).toBe('print("local")');
+  });
+
+  it('rejects sync directories outside the configured project root', async () => {
+    await expect(tools.syncPull(path.join(root, '..', 'escape'), 'place-1', { dryRun: true }))
+      .rejects.toThrow(/project root/);
+  });
+
+  it('represents renames explicitly and applies them only after confirmation', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    callSingle.mockResolvedValue({
+      ...studioPage('print("hello")'),
+      items: [{
+        ...studioPage('print("hello")').items[0],
+        path: 'game.ServerScriptService.Renamed',
+        pathSegments: ['ServerScriptService', 'Renamed'],
+      }],
+    });
+
+    const preview = textPayload(await tools.syncStatus(dir, 'place-1'));
+    expect(preview.renamed).toEqual([{
+      from: 'ServerScriptService/Main.server.lua',
+      to: 'ServerScriptService/Renamed.server.lua',
+    }]);
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, 'ServerScriptService/Renamed.server.lua'), 'utf8')).toBe('print("hello")');
+  });
+
+  it('requires an explicit deleteMissing choice before deleting a managed local file', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    callSingle.mockResolvedValue({ items: [], continuationToken: undefined });
+
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    const file = path.join(dir, 'ServerScriptService/Main.server.lua');
+    expect(fs.existsSync(file)).toBe(true);
+    const applied = textPayload(await tools.syncPull(dir, 'place-1', {
+      confirm: true,
+      deleteMissing: true,
+    }));
+    expect(applied.deleted).toEqual(['ServerScriptService/Main.server.lua']);
+    expect(fs.existsSync(file)).toBe(false);
   });
 });

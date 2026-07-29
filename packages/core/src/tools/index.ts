@@ -49,6 +49,7 @@ import { RobloxCookieClient } from '../roblox-cookie-client.js';
 import { DOC_CATEGORIES, getRobloxDoc, isDocCategory } from '../roblox-docs.js';
 import { SessionRecorder } from '../session-recorder.js';
 import { QualityTools } from '../quality-tools.js';
+import { RojoTools } from '../rojo/rojo-tools.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -276,6 +277,7 @@ export class RobloxStudioTools {
   private episodes: EpisodeStore;
   private sessionRecorder: SessionRecorder;
   private qualityTools: QualityTools;
+  private rojoTools: RojoTools;
   /** Provenance for externally-imported assets (Track A) — source/license/hash/assetId. */
   private provenance = new Map<string, ProvenanceRecord>();
 
@@ -334,6 +336,7 @@ export class RobloxStudioTools {
     this.episodes = new EpisodeStore();
     this.sessionRecorder = new SessionRecorder();
     this.qualityTools = new QualityTools();
+    this.rojoTools = new RojoTools();
     this.runtimeTools = new RuntimeTools({
       bridge: this.bridge,
       client: this.client,
@@ -379,6 +382,48 @@ export class RobloxStudioTools {
   async validateWithLuauLsp(root?: string, files?: string[]) { return wrapToolJsonText(this.qualityTools.validateWithLuauLsp(root, files)); }
   async generateRojoSourcemap(root?: string, output?: string) { return wrapToolJsonText(this.qualityTools.generateRojoSourcemap(root, output)); }
   async buildRojoProject(root?: string, output?: string) { return wrapToolJsonText(this.qualityTools.buildRojoProject(root, output)); }
+
+  async rojoDetectProjects(root?: string) { return this.rojoTools.detectProjects(root); }
+  async rojoGetProjectInfo(root?: string, projectFile?: string) { return this.rojoTools.getProjectInfo(root, projectFile); }
+  async rojoValidateProject(root?: string, projectFile?: string) { return this.rojoTools.validateProject(root, projectFile); }
+  async rojoGetVersion() { return this.rojoTools.getVersion(); }
+  async rojoServeStart(root?: string, projectFile?: string, host?: string, port?: number, placeId?: number) {
+    return this.rojoTools.serveStart(root, projectFile, host, port, placeId);
+  }
+  async rojoServeStatus(root?: string, projectFile?: string) { return this.rojoTools.serveStatus(root, projectFile); }
+  async rojoServeLogs(root?: string, projectFile?: string, limit?: number) { return this.rojoTools.serveLogs(root, projectFile, limit); }
+  async rojoServeStop(root?: string, projectFile?: string) { return this.rojoTools.serveStop(root, projectFile); }
+  async rojoBuildProject(root?: string, projectFile?: string, output?: string) {
+    return this.rojoTools.buildProject(root, projectFile, output);
+  }
+  async rojoGenerateSourcemap(root?: string, projectFile?: string, output?: string) {
+    return this.rojoTools.generateSourcemap(root, projectFile, output);
+  }
+  async rojoResolveInstanceSource(root: string | undefined, projectFile: string | undefined, instancePath: string, sourcemap?: string) {
+    return this.rojoTools.resolveInstanceSource(root, projectFile, instancePath, sourcemap);
+  }
+  async rojoResolveSourceInstance(root: string | undefined, projectFile: string | undefined, sourcePath: string, sourcemap?: string) {
+    return this.rojoTools.resolveSourceInstance(root, projectFile, sourcePath, sourcemap);
+  }
+  async rojoReadSource(root: string | undefined, projectFile: string | undefined, sourcePath: string) {
+    return this.rojoTools.readSource(root, projectFile, sourcePath);
+  }
+  async rojoPatchSource(root: string | undefined, projectFile: string | undefined, sourcePath: string, options: {
+    oldText: string; newText: string; expectedHash: string; dryRun?: boolean; validate?: boolean;
+  }) {
+    return this.rojoTools.patchSource(root, projectFile, sourcePath, options);
+  }
+  async rojoCreateSource(root: string | undefined, projectFile: string | undefined, sourcePath: string, options: {
+    content: string; expectedAbsent?: boolean; dryRun?: boolean; validate?: boolean;
+  }) {
+    return this.rojoTools.createSource(root, projectFile, sourcePath, options);
+  }
+  async rojoDeleteSource(root: string | undefined, projectFile: string | undefined, sourcePath: string, options: {
+    expectedHash: string; confirm?: boolean; dryRun?: boolean;
+  }) {
+    return this.rojoTools.deleteSource(root, projectFile, sourcePath, options);
+  }
+  async stopManagedRojoProcesses() { await this.rojoTools.stopAll(); }
 
   async getRobloxDocs(name: string, docType?: string, section?: string) {
     if (!name || typeof name !== 'string') {
@@ -492,9 +537,39 @@ export class RobloxStudioTools {
 
   // === Local sync facade ===
 
-  async syncPull(syncDir?: string, instance_id?: string) { return this.syncTools.syncPull(syncDir, instance_id); }
+  async syncPull(syncDir?: string, instance_id?: string, options?: SafetyOptions & { deleteMissing?: boolean }) { return this.syncTools.syncPull(syncDir, instance_id, options); }
   async syncStatus(syncDir?: string, instance_id?: string) { return this.syncTools.syncStatus(syncDir, instance_id); }
   async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions) { return this.syncTools.syncPush(syncDir, instance_id, options); }
+  async rojoSyncbackPlan(
+    syncDir?: string,
+    instance_id?: string,
+    native?: { root?: string; projectFile?: string; inputPlaceFile?: string },
+  ) {
+    if (native?.inputPlaceFile) {
+      return this.rojoTools.nativeSyncbackPlan(native.root, native.projectFile, native.inputPlaceFile);
+    }
+    return this.syncTools.syncStatus(syncDir, instance_id);
+  }
+  async rojoSyncbackApply(
+    syncDir?: string,
+    instance_id?: string,
+    options?: SafetyOptions & {
+      deleteMissing?: boolean;
+      root?: string;
+      projectFile?: string;
+      inputPlaceFile?: string;
+    },
+  ) {
+    if (options?.inputPlaceFile) {
+      return this.rojoTools.nativeSyncbackApply(
+        options.root,
+        options.projectFile,
+        options.inputPlaceFile,
+        options.confirm,
+      );
+    }
+    return this.syncTools.syncPull(syncDir, instance_id, options);
+  }
 
   // Resolve (instance_id, target-role) → concrete (instanceId, role) and
   // dispatch a single request. Throws RoutingFailure if the resolution is

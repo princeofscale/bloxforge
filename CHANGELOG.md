@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   legacy handlers, schemas, domains, capabilities, and duplicate tool names.
 - Added a paginated, inspector-compatible plugin endpoint for bounded managed
   script metadata/source reads with continuation tokens, byte limits, and hashes.
+- Added a local-first Rojo adapter with arbitrary project discovery, JSONC
+  parsing, official file mappings, sourcemap resolution, pinned-version command
+  execution, managed loopback `rojo serve`, safe source editing, and guarded
+  native `syncback` support.
+- Added registry-only `rojo_*` MCP tools for discovery, validation, serve
+  lifecycle, builds, sourcemaps, source mapping/editing, and explicit syncback.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
@@ -28,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `node-fetch` dependencies after source and packed-bundle verification.
 - Extended the 10,000-request benchmark to assert bounded heap, status history,
   journal size, latency samples, counters, request IDs, timers, and pending work.
+- Replaced binary read/write authorization decisions with explicit Studio,
+  local-file, local-process, network, asset-upload, and playtest effects while
+  retaining the legacy category metadata for protocol compatibility.
 
 ### Fixed
 - Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
@@ -64,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interrupted-download cleanup racing an open file handle, and POSIX-only
   journal permission assertions running on Windows; package verification now
   invokes npm portably without executing Windows command shims directly.
+- Fixed project detection and Rojo build/sourcemap selection for arbitrary
+  `*.project.json` names, with structured ambiguity instead of guessing.
 
 ### Security
 - Refused unauthenticated non-loopback bridge bindings, authenticated internal
@@ -82,9 +93,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working plugin or removing the opposite variant.
 - Stopped plugin builds from modifying a user's Studio plugin directory unless
   `MCP_PLUGINS_DIR` is explicitly set.
+- Confined legacy sync and all Rojo paths to the canonical project root,
+  rejected symlink/option/traversal escapes, encoded unsafe Instance names,
+  required preview/confirmation, used backups and atomic writes, and replaced
+  plaintext source manifests with bounded hash-only local state.
 
 ### Deprecated
-- No new deprecations in the previous hardening pass.
+- Deprecated `sync_pull`, `sync_status`, and `sync_push` in favor of the
+  local-files-first Rojo workflow and explicit `rojo_syncback_plan/apply`.
 
 ### Removed
 - Removed the standalone roadmap; completed work remains in the changelog and future work is tracked through GitHub issues.
