@@ -324,7 +324,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   // === Local sync ===
   {
     name: 'sync_pull',
-    category: 'read',
+    category: 'write',
     description: 'Deprecated compatibility wrapper. Preview Studio-to-files changes safely, then require confirm=true before atomic writes. ModuleScripts use the Rojo .lua convention and state stores hashes, not source.',
     inputSchema: {
       type: 'object',
