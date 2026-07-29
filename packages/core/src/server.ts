@@ -37,8 +37,21 @@ export function resolveBridgeHost(host = process.env.ROBLOX_STUDIO_HOST): string
   return host?.trim() || '127.0.0.1';
 }
 
+export function resolveBridgePort(value = process.env.ROBLOX_STUDIO_PORT): number {
+  if (value === undefined || value.trim() === '') return 58741;
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid Roblox Studio bridge port "${value}". Expected an integer from 1 to 65535.`);
+  }
+  return port;
+}
+
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === '::1' || host === 'localhost';
+}
+
+function isAddressInUseError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
 }
 
 export class BloxForgeServer {
@@ -242,7 +255,7 @@ export class BloxForgeServer {
   }
 
   async run() {
-    const basePort = process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741;
+    const basePort = resolveBridgePort();
     const host = resolveBridgeHost();
     if (!isLoopbackHost(host)) {
       console.error(`[security] Bridge is listening on ${host}. This explicit non-loopback mode exposes unauthenticated local-control endpoints.`);
@@ -268,7 +281,8 @@ export class BloxForgeServer {
       boundPort = result.port;
       console.error(`HTTP server listening on ${host}:${boundPort} for Studio plugin (primary mode)`);
       console.error(`Streamable HTTP MCP endpoint: http://localhost:${boundPort}/mcp`);
-    } catch {
+    } catch (error) {
+      if (!isAddressInUseError(error)) throw error;
       // basePort taken — another MCP subprocess owns the plugin connection.
       // Fall back to proxy mode and forward all bridge calls through it.
       bridgeMode = 'proxy';
@@ -292,7 +306,13 @@ export class BloxForgeServer {
       promotionInterval = setInterval(async () => {
         const candidateBridge = new BridgeService('');
         const candidateTools = new RobloxStudioTools(candidateBridge);
-        const candidateApp = createHttpServer(candidateTools, candidateBridge, this.allowedToolNames, this.config);
+        const candidateApp = createHttpServer(
+          candidateTools,
+          candidateBridge,
+          this.allowedToolNames,
+          this.config,
+          this.registry,
+        );
         try {
           const result = await listenWithRetry(candidateApp, host, basePort, 1);
           // Bind succeeded — atomically swap to primary mode (synchronous from here).
@@ -312,8 +332,16 @@ export class BloxForgeServer {
           (primaryApp as any).setMCPServerActive(true);
           console.error(`Promoted from proxy to primary on port ${boundPort}`);
           if (promotionInterval) clearInterval(promotionInterval);
-        } catch {
+        } catch (error) {
           // basePort still taken — discard the candidate, leave proxy bridge live.
+          // Any other bind failure is operational, not evidence that a primary
+          // exists; stop the promotion loop instead of hiding it forever.
+          if (!isAddressInUseError(error)) {
+            console.error(
+              `Proxy promotion stopped: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            if (promotionInterval) clearInterval(promotionInterval);
+          }
         }
       }, promotionIntervalMs);
     }
@@ -348,6 +376,7 @@ export class BloxForgeServer {
       : 'MCP server active in proxy mode - forwarding requests to primary');
 
     console.error('Waiting for Studio plugin to connect...');
+    let lastConnectionState = bridgeMode === 'primary' ? 'waiting-studio' : 'proxy';
 
     const activityInterval = setInterval(() => {
       if (primaryApp) (primaryApp as any).trackMCPActivity();
@@ -357,14 +386,24 @@ export class BloxForgeServer {
         const pluginConnected = (primaryApp as any).isPluginConnected();
         const mcpActive = (primaryApp as any).isMCPServerActive();
 
-        if (pluginConnected && mcpActive) {
-          // All good
-        } else if (pluginConnected && !mcpActive) {
-          console.error('Studio plugin connected, but MCP server inactive');
-        } else if (!pluginConnected && mcpActive) {
-          console.error('MCP server active, waiting for Studio plugin...');
+        const connectionState = pluginConnected && mcpActive
+          ? 'connected'
+          : pluginConnected
+            ? 'studio-only'
+            : mcpActive
+              ? 'waiting-studio'
+              : 'inactive';
+        if (connectionState === lastConnectionState) return;
+        lastConnectionState = connectionState;
+
+        if (connectionState === 'connected') {
+          console.error('Studio plugin connected.');
+        } else if (connectionState === 'studio-only') {
+          console.error('Studio plugin connected, but MCP server inactive.');
+        } else if (connectionState === 'waiting-studio') {
+          console.error('MCP server active, waiting for Studio plugin.');
         } else {
-          console.error('Waiting for connections...');
+          console.error('Waiting for MCP and Studio connections.');
         }
       }
     }, 5000);

@@ -53,7 +53,6 @@ function computeInstanceId(): string {
 }
 
 let assignedRole: string | undefined;
-let duplicateInstanceRole = false;
 const versionMismatchConnections = new Set<Connection>();
 let lastVersionMismatchWarningKey: string | undefined;
 const protocolMismatchConnections = new Set<Connection>();
@@ -309,7 +308,8 @@ function getConnectionStatus(connIndex: number): string {
 	const conn = State.getConnection(connIndex);
 	if (!conn || !conn.isActive) return "disconnected";
 	if (conn.consecutiveFailures >= conn.maxFailuresBeforeError) return "error";
-	if (conn.lastHttpOk) return "connected";
+	if (conn.consecutiveFailures > 0) return "connecting";
+	if (conn.lastHttpOk && conn.lastMcpOk) return "connected";
 	return "connecting";
 }
 
@@ -346,7 +346,6 @@ function ensureIdentityWatcher(conn: Connection): void {
 }
 
 function sendReady(conn: Connection): void {
-	if (duplicateInstanceRole) return; // stop retrying once the server has rejected us
 	const now = tick();
 	if (now - lastReadyPostAt < 2) return; // throttle to ≤1 /ready every 2s
 	lastReadyPostAt = now;
@@ -384,10 +383,10 @@ function sendReady(conn: Connection): void {
 		if (!readyResult.Success) {
 			const reason = HttpDiagnostics.formatRequestFailure(readyUrl, true, readyResult);
 			readyFailureLogKeys.add(readyLogKey);
-			// 409 = duplicate_instance_role. Surface in UI and stop polling.
+			// 409 may be a stale registration left by a crashed or upgraded
+			// plugin. Keep retrying so cleanup can recover without a Studio restart.
 			if (readyResult.StatusCode === 409) {
-				duplicateInstanceRole = true;
-				conn.isActive = false;
+				conn.sessionToken = undefined;
 				const ui = UI.getElements();
 				if (State.getActiveTabIndex() === 0) {
 					ui.statusLabel.Text = "Duplicate instance";
@@ -396,6 +395,9 @@ function sendReady(conn: Connection): void {
 					ui.detailStatusLabel.TextColor3 = Color3.fromRGB(239, 68, 68);
 				}
 				warn(`[BloxForge] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
+				task.delay(conn.currentRetryDelay, () => {
+					if (conn.isActive) sendReady(conn);
+				});
 				return;
 			}
 			warn(`[BloxForge] /ready rejected for ${instanceId}/${readyRole}: ${reason}`);
@@ -420,10 +422,12 @@ function sendReady(conn: Connection): void {
 				receipts.push({ requestId: id, completedAt: tick() * 1000 });
 			}
 			task.spawn(() => {
+				const headers: Record<string, string> = { ["Content-Type"]: "application/json" };
+				if (conn.sessionToken) headers.Authorization = `Bearer ${conn.sessionToken}`;
 				pcall(() => HttpService.RequestAsync({
 					Url: `${conn.serverUrl}/reconcile`,
 					Method: "POST",
-					Headers: { "Content-Type": "application/json" },
+					Headers: headers,
 					Body: HttpService.JSONEncode({
 						pluginSessionId,
 						serverEpoch: readyData.serverEpoch,
@@ -543,7 +547,7 @@ function pollForRequests(connIndex: number) {
 			const warningKey = `${State.CURRENT_VERSION}:${serverVersion}`;
 			if (lastVersionMismatchWarningKey !== warningKey) {
 				lastVersionMismatchWarningKey = warningKey;
-				warn(`[BloxForge] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @princeofscale/bloxforge@latest --auto-install-plugin and restart Studio.`);
+				warn(`[BloxForge] Version mismatch: Studio plugin v${State.CURRENT_VERSION} / MCP v${serverVersion}. Run npx -y @princeofscale/bloxforge@latest --install-plugin and restart Studio.`);
 			}
 			UI.showBanner("version-mismatch", `Plugin v${State.CURRENT_VERSION} / MCP v${serverVersion} mismatch`);
 		} else {
@@ -557,7 +561,7 @@ function pollForRequests(connIndex: number) {
 			const warningKey = `${State.PROTOCOL_VERSION}:${serverProtocol}`;
 			if (lastProtocolMismatchWarningKey !== warningKey) {
 				lastProtocolMismatchWarningKey = warningKey;
-				warn(`[BloxForge] Protocol mismatch: Studio plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}. Run npx -y @princeofscale/bloxforge@latest --auto-install-plugin and restart Studio.`);
+				warn(`[BloxForge] Protocol mismatch: Studio plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}. Run npx -y @princeofscale/bloxforge@latest --install-plugin and restart Studio.`);
 			}
 			UI.showBanner("protocol-mismatch", `Protocol mismatch: Plugin protocol v${State.PROTOCOL_VERSION} / MCP protocol v${serverProtocol}`);
 		} else {
@@ -628,6 +632,17 @@ function pollForRequests(connIndex: number) {
 			handleRequestOnce(conn, data.requestId!, data.request, data.serverEpoch, data.deliveryAttempt, data.leaseToken);
 		}
 	} else if (conn.isActive) {
+		conn.lastHttpOk = false;
+		conn.lastMcpOk = false;
+
+		// Tokens live in the MCP process. After it restarts, an old token gets
+		// 401 before /poll can report knownInstance=false. Bootstrap a fresh
+		// registration instead of retrying the invalid token forever.
+		if (success && result.StatusCode === 401) {
+			conn.sessionToken = undefined;
+			task.spawn(() => sendReady(conn));
+		}
+
 		conn.consecutiveFailures++;
 
 		if (conn.consecutiveFailures > 1) {
@@ -707,6 +722,9 @@ function activatePlugin(connIndex?: number) {
 	conn.isActive = true;
 	conn.consecutiveFailures = 0;
 	conn.currentRetryDelay = 0.5;
+	conn.lastHttpOk = false;
+	conn.lastMcpOk = false;
+	conn.mcpWaitStartTime = undefined;
 
 	if (idx === State.getActiveTabIndex()) {
 		const normalizedUrl = ServerUrlSettings.normalizeServerUrl(ui.urlInput.Text);
@@ -782,10 +800,12 @@ function deactivatePlugin(connIndex?: number) {
 	UI.updateTabDot(idx);
 
 	pcall(() => {
+		const headers: Record<string, string> = { ["Content-Type"]: "application/json" };
+		if (conn.sessionToken) headers.Authorization = `Bearer ${conn.sessionToken}`;
 		HttpService.RequestAsync({
 			Url: `${conn.serverUrl}/disconnect`,
 			Method: "POST",
-			Headers: { "Content-Type": "application/json" },
+			Headers: headers,
 			Body: HttpService.JSONEncode({ pluginSessionId, timestamp: tick() }),
 		});
 	});
@@ -799,9 +819,12 @@ function deactivatePlugin(connIndex?: number) {
 		conn.streamClient = undefined;
 	}
 	conn.streamOpen = false;
+	conn.sessionToken = undefined;
 
 	conn.consecutiveFailures = 0;
 	conn.currentRetryDelay = 0.5;
+	conn.lastHttpOk = false;
+	conn.lastMcpOk = false;
 }
 
 function deactivateAll() {

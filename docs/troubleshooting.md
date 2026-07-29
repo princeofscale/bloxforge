@@ -16,6 +16,25 @@ recent failures. Run it first.
 
 ## Connection & bridge
 
+### "BloxForge starts before Roblox Studio"
+
+This is normal: Claude Code, Codex, Cursor, and other MCP hosts start configured
+stdio servers when the host session starts. BloxForge should remain healthy and
+print `Waiting for Studio plugin to connect...`; Studio can be opened later.
+
+Install or update the plugin separately, then keep the MCP launch command free
+of installation side effects:
+
+```bash
+npx -y @princeofscale/bloxforge@latest --install-plugin
+```
+
+Configure the MCP server itself as `npx -y
+@princeofscale/bloxforge@latest` (without `--auto-install-plugin`). If the MCP
+host reports that the server process itself failed, run that exact command in a
+terminal and inspect the first fatal error; an invalid port or non-port bind
+failure is now reported directly instead of being mislabeled as proxy mode.
+
 ### "Studio plugin connected, but tool calls fail / hang"
 
 Usually the bridge dropped the instance during a transient gap and hasn't
@@ -26,6 +45,9 @@ re-registered yet. The plugin polls the server every ~0.5s and re-fires
   `HttpService:RequestAsync` when Studio is backgrounded or minimized**, which
   is the most common cause of bridge drops.
 - If it persists, toggle the plugin off/on (toolbar), or run `verify`.
+- MCP process restarts rotate plugin session credentials automatically. If an
+  older plugin build remains stuck on `Retrying`, reinstall the current plugin
+  and fully restart Studio.
 - As of 2.20.2 the server tolerates up to **90s** of silence before reaping a
   plugin instance (was 30s), which absorbs most throttling gaps. Tune with the
   `MCP_STALE_INSTANCE_MS` environment variable if your workflow needs more.
@@ -36,7 +58,7 @@ The Studio plugin and the npm package are out of sync. Reinstall and fully
 restart Studio:
 
 ```bash
-npx -y @princeofscale/bloxforge@latest --auto-install-plugin
+npx -y @princeofscale/bloxforge@latest --install-plugin
 ```
 
 Then **completely close and reopen Roblox Studio** (not just reload the plugin).

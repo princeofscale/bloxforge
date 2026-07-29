@@ -44,6 +44,28 @@ describe('persistent request journal', () => {
     restarted.clearAllPendingRequests();
     fs.rmSync(directory, { recursive: true, force: true });
   });
+
+  test('journal write failures do not break live bridge operations', () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-journal-failure-'));
+    const blocker = path.join(directory, 'not-a-directory');
+    fs.writeFileSync(blocker, 'block mkdir');
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const bridge = new BridgeService(path.join(blocker, 'journal.json'));
+      bridge.registerInstance({
+        pluginSessionId: 'plugin',
+        instanceId: 'place:1',
+        role: 'edit',
+      });
+
+      expect(() => bridge.unregisterInstance('plugin', 'plugin_request')).not.toThrow();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[bridge-journal]'));
+    } finally {
+      errorSpy.mockRestore();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('ProxyBridgeService timeout', () => {
@@ -337,6 +359,29 @@ describe('BridgeService', () => {
       expect(registration.sessionToken).toEqual(expect.any(String));
       expect(bridge.authenticatePlugin('auth', registration.sessionToken)).toBe(true);
       expect(bridge.authenticatePlugin('auth', 'wrong')).toBe(false);
+    });
+
+    test('rotates the session token on refresh and revokes it on disconnect', () => {
+      const first = bridge.registerInstance({
+        pluginSessionId: 'auth',
+        instanceId: 'place:auth',
+        role: 'edit',
+      });
+      if (!first.ok) throw new Error('expected first registration');
+
+      const refreshed = bridge.registerInstance({
+        pluginSessionId: 'auth',
+        instanceId: 'place:auth',
+        role: 'edit',
+      });
+      if (!refreshed.ok) throw new Error('expected refreshed registration');
+
+      expect(refreshed.sessionToken).not.toBe(first.sessionToken);
+      expect(bridge.authenticatePlugin('auth', first.sessionToken)).toBe(false);
+      expect(bridge.authenticatePlugin('auth', refreshed.sessionToken)).toBe(true);
+
+      bridge.unregisterInstance('auth', 'plugin_request');
+      expect(bridge.authenticatePlugin('auth', refreshed.sessionToken)).toBe(false);
     });
 
     test('canonicalizes published places when a stale anon id is reported', () => {

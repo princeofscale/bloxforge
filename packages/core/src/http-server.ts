@@ -506,7 +506,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       console.error(
         `[protocol-mismatch] Studio plugin protocol v${registered.pluginProtocolVersion} ` +
         `does not match MCP server protocol v${registered.serverProtocolVersion} for ${registered.instanceId}/${registered.role}. ` +
-        `Run --auto-install-plugin to update the plugin.`,
+        `Run --install-plugin to update the plugin, then restart Studio.`,
       );
     }
 
@@ -860,9 +860,12 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
         server.setRequestHandler(UnsubscribeRequestSchema, async () => ({}));
 
         server.setRequestHandler(ListToolsRequestSchema, async () => {
-          const candidates = (isLazyHttp && registry)
-            ? registry.definitions
-            : legacyFilteredTools;
+          const contractedDefinitions = new Map(
+            (registry?.definitions ?? []).map((definition) => [definition.name, definition]),
+          );
+          const candidates = legacyFilteredTools
+            .filter((tool) => !isLazyHttp || !registry || registry.activeNames.has(tool.name))
+            .map((tool) => contractedDefinitions.get(tool.name) ?? tool);
           return { tools: candidates.map(toolDefinitionToMcpTool) };
         });
 
@@ -1039,6 +1042,7 @@ export function listenWithRetry(
   maxAttempts: number = 5
 ): Promise<{ server: http.Server; port: number }> {
   return new Promise(async (resolve, reject) => {
+    let lastAddressInUseError: NodeJS.ErrnoException | undefined;
     for (let i = 0; i < maxAttempts; i++) {
       const port = startPort + i;
       try {
@@ -1047,6 +1051,7 @@ export function listenWithRetry(
         return;
       } catch (err: any) {
         if (err.code === 'EADDRINUSE') {
+          lastAddressInUseError = err;
           console.error(`Port ${port} in use, trying next...`);
           continue;
         }
@@ -1054,7 +1059,11 @@ export function listenWithRetry(
         return;
       }
     }
-    reject(new Error(`All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`));
+    const exhausted = new Error(
+      `All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`,
+    ) as NodeJS.ErrnoException;
+    exhausted.code = lastAddressInUseError?.code ?? 'EADDRINUSE';
+    reject(exhausted);
   });
 }
 
@@ -1094,7 +1103,13 @@ function attachBridgeWebSocket(server: http.Server, bridge: BridgeService) {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (url.pathname !== '/stream') return;
     const pluginSessionId = url.searchParams.get('pluginSessionId');
-    const sessionToken = url.searchParams.get('sessionToken') ?? undefined;
+    const authorization = req.headers.authorization;
+    const bearerToken = authorization?.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length)
+      : undefined;
+    // Prefer the Authorization header used by the Studio client. Keep the
+    // query parameter as protocol-v2 compatibility for older plugin builds.
+    const sessionToken = bearerToken ?? url.searchParams.get('sessionToken') ?? undefined;
     if (!pluginSessionId || !bridge.getInstanceBySessionId(pluginSessionId) ||
       (requirePluginAuth && !bridge.authenticatePlugin(pluginSessionId, sessionToken ?? ''))) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');

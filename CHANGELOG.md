@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
+- Fixed authenticated plugin disconnects so normal Studio/plugin shutdown removes the registration immediately instead of leaving a stale duplicate for up to 90 seconds.
+- Fixed connection indicators retaining stale success state during retries, and made duplicate registrations retry after the previous session disappears.
+- Fixed bridge-journal write failures turning otherwise successful live operations into HTTP 500 responses on read-only or unavailable home directories.
+- Fixed production WebSocket authentication: the server now accepts the bearer header sent by Studio instead of rejecting every stream upgrade and silently falling back to polling.
+- Fixed reconnect receipt reconciliation being rejected because the plugin omitted its session bearer token.
+- Fixed invalid bridge ports and non-`EADDRINUSE` bind errors being misreported as proxy mode, and stopped repeating unchanged connection-state logs every five seconds.
+- Fixed contracted tools retaining the pre-proxy bridge after a second MCP client connected; registry handlers now use call-time dependencies and remain available after proxy-to-primary promotion.
+- Fixed Streamable HTTP lazy discovery hiding every non-contracted tool, and restored the real input schemas for asset preflight and recipe tools.
+
+### Changed
+- Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
+- Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
+
 ## [3.0.0] - 2026-07-14
 
 ### Added

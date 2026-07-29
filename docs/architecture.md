@@ -65,7 +65,7 @@ Inside the server, a lightweight HTTP long-poll bridge connects to the Studio pl
 
 ### Plugin as thin executor
 
-The Studio plugin is deliberately thin: it receives command + payload, runs it in the plugin context, and returns the result. All orchestration, safety checks, and response formatting happen in the Node server. This makes the plugin easy to update without restarting Studio (just re-run `--auto-install-plugin`).
+The Studio plugin is deliberately thin: it receives command + payload, runs it in the plugin context, and returns the result. All orchestration, safety checks, and response formatting happen in the Node server. Install updates with `--install-plugin`, then fully restart Studio so every DataModel loads the same plugin build.
 
 ### Safety by topology
 

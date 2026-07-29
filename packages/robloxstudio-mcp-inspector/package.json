@@ -53,7 +53,7 @@
     "url": "https://github.com/princeofscale/bloxforge/issues"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "cors": "^2.8.5",
     "express": "^4.22.2",
     "node-fetch": "^3.3.2",

@@ -38,7 +38,7 @@ Commands:
   verify, --doctor              Run diagnostics to verify installation and connection
   report                        Generate a detailed diagnostic report for bug reports
   --install-plugin              Manually install the Studio plugin to your local Roblox directory
-  --auto-install-plugin         Silently install the plugin (used by AI clients automatically)
+  --auto-install-plugin         Install the bundled plugin before starting (legacy/convenience)
   `);
   process.exit(0);
 }

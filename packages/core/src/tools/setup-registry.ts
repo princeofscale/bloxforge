@@ -27,7 +27,7 @@ import type { ToolDefinition } from './definitions.js';
  */
 export function registerContractedTools(
   registry: ToolRegistry,
-  tools: RobloxStudioTools,
+  _tools: RobloxStudioTools,
 ): void {
   // Discovery / meta — always-on
   registry.register(
@@ -37,7 +37,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(META_TOOL_DEFINITIONS, 'tool_catalog_search')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.tool_catalog_search,
-      handler: (_, args) => tools.toolCatalogSearch(args as any),
+      handler: (runtime, args) => asTools(runtime).toolCatalogSearch(args as any),
     }),
     defineTool({
       name: 'load_toolset',
@@ -45,7 +45,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(META_TOOL_DEFINITIONS, 'load_toolset')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.load_toolset,
-      handler: (_, args) => tools.loadToolset(args as any),
+      handler: (runtime, args) => asTools(runtime).loadToolset(args as any),
     }),
   );
 
@@ -57,7 +57,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_world_snapshot')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.get_world_snapshot,
-      handler: (_, args) => tools.getWorldSnapshot(
+      handler: (runtime, args) => asTools(runtime).getWorldSnapshot(
         (args as any).path,
         (args as any).level,
         (args as any).topNPerClass,
@@ -70,7 +70,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_node_batch')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.get_node_batch,
-      handler: (_, args) => tools.getNodeBatch(
+      handler: (runtime, args) => asTools(runtime).getNodeBatch(
         (args as any).paths,
         (args as any).fields,
         (args as any).includeChildrenCount,
@@ -83,7 +83,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_changes_since')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.get_changes_since,
-      handler: (_, args) => tools.getChangesSince(
+      handler: (runtime, args) => asTools(runtime).getChangesSince(
         (args as any).snapshotId,
         (args as any).path,
         (args as any).instance_id,
@@ -95,7 +95,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'scene_search')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.scene_search,
-      handler: (_, args) => tools.sceneSearch(
+      handler: (runtime, args) => asTools(runtime).sceneSearch(
         (args as any).query,
         (args as any).path,
         (args as any).limit,
@@ -110,9 +110,9 @@ export function registerContractedTools(
       name: 'asset_preflight_insert',
       description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_preflight_insert')?.description ?? 'Check asset insertability.',
       category: 'read',
-      inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'asset_preflight_insert')?.inputSchema ?? {},
+      inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_preflight_insert')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.asset_preflight_insert,
-      handler: (_, args) => tools.assetPreflightInsert(
+      handler: (runtime, args) => asTools(runtime).assetPreflightInsert(
         (args as any).assetId,
         (args as any).instance_id,
       ),
@@ -127,7 +127,7 @@ export function registerContractedTools(
       category: 'read',
       inputSchema: findDef(RUNTIME_TOOL_DEFINITIONS, 'playtest_sample_state')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.playtest_sample_state,
-      handler: (_, args) => tools.playtestSampleState(
+      handler: (runtime, args) => asTools(runtime).playtestSampleState(
         (args as any).domains,
         (args as any).target,
         (args as any).instance_id,
@@ -143,7 +143,7 @@ export function registerContractedTools(
       category: 'write',
       inputSchema: findDef(RUNTIME_TOOL_DEFINITIONS, 'run_gameplay_assertions')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.run_gameplay_assertions,
-      handler: (_, args) => tools.runGameplayAssertions(
+      handler: (runtime, args) => asTools(runtime).runGameplayAssertions(
         (args as any).assertions,
         (args as any).target,
         (args as any).instance_id,
@@ -159,7 +159,7 @@ export function registerContractedTools(
       category: 'write',
       inputSchema: findDef(MUTATION_TOOL_DEFINITIONS, 'apply_mutation_plan')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.apply_mutation_plan,
-      handler: (_, args) => tools.applyMutationPlan(
+      handler: (runtime, args) => asTools(runtime).applyMutationPlan(
         (args as any).operations,
         (args as any).dryRun,
         (args as any).confirm,
@@ -174,23 +174,27 @@ export function registerContractedTools(
       name: 'list_recipes',
       description: findDef(GENERATED_TOOL_DEFINITIONS, 'list_recipes')?.description ?? 'List available recipes.',
       category: 'read',
-      inputSchema: findDef(MUTATION_TOOL_DEFINITIONS, 'list_recipes')?.inputSchema ?? {},
+      inputSchema: findDef(GENERATED_TOOL_DEFINITIONS, 'list_recipes')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.list_recipes,
-      handler: () => tools.listRecipes(),
+      handler: (runtime) => asTools(runtime).listRecipes(),
     }),
     defineTool({
       name: 'apply_recipe',
       description: findDef(GENERATED_TOOL_DEFINITIONS, 'apply_recipe')?.description ?? 'Run a recipe with typed parameters.',
       category: 'write',
-      inputSchema: findDef(MUTATION_TOOL_DEFINITIONS, 'apply_recipe')?.inputSchema ?? {},
+      inputSchema: findDef(GENERATED_TOOL_DEFINITIONS, 'apply_recipe')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.apply_recipe,
-      handler: (_, args) => tools.applyRecipe(
+      handler: (runtime, args) => asTools(runtime).applyRecipe(
         (args as any).recipe,
         (args as any).params,
         (args as any).instance_id,
       ),
     }),
   );
+}
+
+function asTools(runtime: unknown): RobloxStudioTools {
+  return runtime as RobloxStudioTools;
 }
 
 function findDef(defs: ToolDefinition[], name: string): ToolDefinition | undefined {

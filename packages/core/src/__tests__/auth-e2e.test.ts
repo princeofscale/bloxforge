@@ -3,6 +3,8 @@ import { createHttpServer } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { BridgeService } from '../bridge-service.js';
 import { Application } from 'express';
+import WebSocket from 'ws';
+import { listenWithRetry } from '../http-server.js';
 
 const READY_BODY = {
   pluginSessionId: 'session-1',
@@ -12,6 +14,7 @@ const READY_BODY = {
   placeName: 'TestPlace',
   dataModelName: 'TestPlace',
   isRunning: false,
+  protocolVersion: 3,
 };
 
 describe('Authentication E2E', () => {
@@ -25,7 +28,7 @@ describe('Authentication E2E', () => {
     // To actually test auth, we must mock process.env.NODE_ENV
     process.env.NODE_ENV = 'production';
 
-    bridge = new BridgeService();
+    bridge = new BridgeService('');
     tools = new RobloxStudioTools(bridge);
     app = createHttpServer(tools, bridge);
     app.setMCPServerActive(true);
@@ -85,5 +88,58 @@ describe('Authentication E2E', () => {
       .expect(401);
 
     expect(res.body.error).toBe('invalid_session_token');
+  });
+
+  test('Authenticated disconnect revokes the registration and its token', async () => {
+    const readyRes = await request(app).post('/ready').send(READY_BODY).expect(200);
+    const token = readyRes.body.sessionToken;
+
+    await request(app)
+      .post('/disconnect')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ pluginSessionId: 'session-1' })
+      .expect(200);
+
+    expect(bridge.getInstances()).toHaveLength(0);
+    expect(bridge.authenticatePlugin('session-1', token)).toBe(false);
+  });
+
+  test('Refreshing ready rotates the token', async () => {
+    const first = await request(app).post('/ready').send(READY_BODY).expect(200);
+    const second = await request(app).post('/ready').send(READY_BODY).expect(200);
+
+    await request(app)
+      .get('/poll')
+      .query({ pluginSessionId: 'session-1' })
+      .set('Authorization', `Bearer ${first.body.sessionToken}`)
+      .expect(401);
+
+    await request(app)
+      .get('/poll')
+      .query({ pluginSessionId: 'session-1' })
+      .set('Authorization', `Bearer ${second.body.sessionToken}`)
+      .expect(200);
+  });
+
+  test('WebSocket stream accepts the Studio Authorization header', async () => {
+    const ready = await request(app).post('/ready').send(READY_BODY).expect(200);
+    const { server } = await listenWithRetry(app, '127.0.0.1', 0, 1);
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('expected TCP server address');
+
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${address.port}/stream?pluginSessionId=session-1`,
+      { headers: { Authorization: `Bearer ${ready.body.sessionToken}` } },
+    );
+
+    try {
+      await expect(new Promise<void>((resolve, reject) => {
+        socket.once('open', resolve);
+        socket.once('error', reject);
+      })).resolves.toBeUndefined();
+    } finally {
+      socket.close();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

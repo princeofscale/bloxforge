@@ -96,6 +96,15 @@ const ASSERTIONS = [
   },
   {
     file: 'Communication.luau',
+    label: 'stale authentication recovers and disconnect is authenticated',
+    test: (src) =>
+      src.includes('result.StatusCode == 401') &&
+      src.includes('conn.sessionToken = nil') &&
+      src.includes('headers.Authorization') &&
+      src.includes('/disconnect'),
+  },
+  {
+    file: 'Communication.luau',
     label: 'protocol v3 delivery fences propagate through ack and response frames',
     test: (src) =>
       src.includes('serverEpoch') &&

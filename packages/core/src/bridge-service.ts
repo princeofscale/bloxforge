@@ -247,6 +247,7 @@ export class BridgeService {
 
   serverEpoch = randomUUID();
   private journal!: RequestJournal;
+  private journalWriteWarningEmitted = false;
   private requestStatuses = new Map<string, RequestStatus>();
   private sessionTokens = new Map<string, string>(); // sessionToken -> pluginSessionId
 
@@ -311,20 +312,35 @@ export class BridgeService {
 
   private persistJournal() {
     if (!this.journal) return;
-    this.journal.save(
-      Array.from(this.requestStatuses.entries()).map(([id, s]) => ({ requestId: id, ...s })),
-      Array.from(this.pendingRequests.values()).map(req => ({
-        id: req.id,
-        endpoint: req.endpoint,
-        data: req.data,
-        targetInstanceId: req.targetInstanceId,
-        targetRole: req.targetRole,
-        timestamp: req.timestamp,
-        state: (this.requestStatuses.get(req.id)?.state as Extract<RequestState, 'queued' | 'delivered' | 'started'>) ?? 'queued',
-        deliveryAttempt: req.deliveryAttempt ?? 0,
-      })),
-      []
-    );
+    try {
+      this.journal.save(
+        Array.from(this.requestStatuses.entries()).map(([id, s]) => ({ requestId: id, ...s })),
+        Array.from(this.pendingRequests.values()).map(req => ({
+          id: req.id,
+          endpoint: req.endpoint,
+          data: req.data,
+          targetInstanceId: req.targetInstanceId,
+          targetRole: req.targetRole,
+          timestamp: req.timestamp,
+          state: (this.requestStatuses.get(req.id)?.state as Extract<RequestState, 'queued' | 'delivered' | 'started'>) ?? 'queued',
+          deliveryAttempt: req.deliveryAttempt ?? 0,
+        })),
+        []
+      );
+      this.journalWriteWarningEmitted = false;
+    } catch (error) {
+      // Persistence is a recovery enhancement, not part of the live bridge
+      // transaction. A read-only/missing home directory must not turn a
+      // successful disconnect or tool response into HTTP 500.
+      if (!this.journalWriteWarningEmitted) {
+        this.journalWriteWarningEmitted = true;
+        console.error(
+          `[bridge-journal] Persistence disabled until the path is writable: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   private updateRequestStatus(requestId: string, status: Partial<typeof this.requestStatuses extends Map<any, infer V> ? V : never>) {
@@ -475,6 +491,9 @@ export class BridgeService {
       connectedAt: prior?.connectedAt ?? Date.now(),
     });
 
+    // /ready is also the reconnect bootstrap, so refreshing a registration
+    // must rotate (rather than accumulate) credentials.
+    this.revokeSessionTokens(pluginSessionId);
     const sessionToken = randomUUID();
     this.sessionTokens.set(sessionToken, pluginSessionId);
 
@@ -486,11 +505,20 @@ export class BridgeService {
     return expectedId === pluginSessionId;
   }
 
+  private revokeSessionTokens(pluginSessionId: string): void {
+    for (const [token, owner] of this.sessionTokens.entries()) {
+      if (owner === pluginSessionId) {
+        this.sessionTokens.delete(token);
+      }
+    }
+  }
+
   unregisterInstance(pluginSessionId: string, reason: PluginDisconnect['reason'] = 'unknown') {
     const instance = this.instances.get(pluginSessionId);
     if (!instance) return;
 
     this.instances.delete(pluginSessionId);
+    this.revokeSessionTokens(pluginSessionId);
 
     this.recentDisconnects.push({
       pluginSessionId,

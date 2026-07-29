@@ -1,5 +1,7 @@
 import { defineTool, ToolRegistry } from '../tools/tool-pipeline.js';
-import { RoutingFailure } from '../bridge-service.js';
+import { BridgeService, RoutingFailure } from '../bridge-service.js';
+import { registerContractedTools } from '../tools/setup-registry.js';
+import { RobloxStudioTools } from '../tools/index.js';
 
 describe('defineTool', () => {
   const spec = {
@@ -117,6 +119,22 @@ describe('ToolRegistry', () => {
     const registry = new ToolRegistry();
     const result = await registry.callTool('nonexistent', null, {});
     expect(result).toBeUndefined();
+  });
+
+  it('contracted handlers use the call-time tools after a bridge swap', async () => {
+    const originalTools = new RobloxStudioTools(new BridgeService(''));
+    const currentTools = new RobloxStudioTools(new BridgeService(''));
+    const originalSpy = jest.spyOn(originalTools, 'toolCatalogSearch');
+    const currentSpy = jest.spyOn(currentTools, 'toolCatalogSearch').mockResolvedValue({
+      content: [{ type: 'text', text: '{"tools":[]}' }],
+    });
+    const registry = new ToolRegistry();
+    registerContractedTools(registry, originalTools);
+
+    await registry.callTool('tool_catalog_search', currentTools, { query: 'scene' });
+
+    expect(currentSpy).toHaveBeenCalledWith({ query: 'scene' });
+    expect(originalSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -33,17 +33,25 @@
 
 In Roblox Studio, open **Game Settings → Security** and enable **Allow HTTP Requests**.
 
-### 2. Add BloxForge to your AI client
+### 2. Install the Studio plugin once
+
+```bash
+npx -y @princeofscale/bloxforge@latest --install-plugin
+```
+
+Fully close and reopen Roblox Studio after the plugin is installed or updated.
+
+### 3. Add BloxForge to your AI client
 
 ```bash
 # Claude Code
-claude mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
+claude mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest
 
 # Codex CLI
-codex mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest --auto-install-plugin
+codex mcp add bloxforge -- npx -y @princeofscale/bloxforge@latest
 
 # Gemini CLI
-gemini mcp add bloxforge npx --trust -- -y @princeofscale/bloxforge@latest --auto-install-plugin
+gemini mcp add bloxforge npx --trust -- -y @princeofscale/bloxforge@latest
 ```
 
 Cursor users can add the same command to `.cursor/mcp.json`:
@@ -53,7 +61,7 @@ Cursor users can add the same command to `.cursor/mcp.json`:
   "mcpServers": {
     "bloxforge": {
       "command": "npx",
-      "args": ["-y", "@princeofscale/bloxforge@latest", "--auto-install-plugin"]
+      "args": ["-y", "@princeofscale/bloxforge@latest"]
     }
   }
 }
@@ -61,9 +69,11 @@ Cursor users can add the same command to `.cursor/mcp.json`:
 
 Use `@next` instead of `@latest` to test the current release candidate.
 
-> Fully close and reopen Roblox Studio after the plugin is first installed or updated.
+MCP clients normally start BloxForge before Studio. `Waiting for Studio plugin
+to connect...` means the MCP server is healthy and idle; opening a Studio
+project later should connect automatically.
 
-### 3. Verify the connection
+### 4. Verify the connection
 
 Start the configured MCP client, open Studio, then run:
 
