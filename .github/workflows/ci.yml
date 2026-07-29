@@ -57,6 +57,9 @@ jobs:
         env:
           MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins
 
+      - name: Legacy dispatch migration baseline
+        run: npm run tools:legacy-report -- --check
+
       - name: Generated docs are current
         run: npm run docs:check
 
@@ -95,6 +98,38 @@ jobs:
 
       - name: Smoke-check compiled plugin output
         run: npm run test:plugin:smoke
+
+      - name: Install pinned Lune runtime
+        run: |
+          curl -fsSL https://github.com/lune-org/lune/releases/download/v0.10.5/lune-0.10.5-linux-x86_64.zip -o "${RUNNER_TEMP}/lune.zip"
+          echo "1fb5dee6a1afa1d300092805c6e660fe06144d29dd68c45cf6956f040667f791  ${RUNNER_TEMP}/lune.zip" | sha256sum --check -
+          unzip -q "${RUNNER_TEMP}/lune.zip" -d "${RUNNER_TEMP}/lune"
+          chmod +x "${RUNNER_TEMP}/lune/lune"
+          echo "${RUNNER_TEMP}/lune" >> "$GITHUB_PATH"
+
+      - name: Runtime-check compiled Luau helpers
+        run: npm run test:plugin:runtime
+
+  rojo:
+    name: Rojo 7.7.0 integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Install pinned stable Rojo
+        run: |
+          curl -fsSL https://github.com/rojo-rbx/rojo/releases/download/v7.7.0/rojo-7.7.0-linux-x86_64.zip -o "${RUNNER_TEMP}/rojo.zip"
+          echo "22503e5839864f9d7c2171c48b536fc229f2cc4d8774c9cc149f60941d864073  ${RUNNER_TEMP}/rojo.zip" | sha256sum --check -
+          unzip -q "${RUNNER_TEMP}/rojo.zip" -d "${RUNNER_TEMP}/rojo"
+          chmod +x "${RUNNER_TEMP}/rojo/rojo"
+          echo "${RUNNER_TEMP}/rojo" >> "$GITHUB_PATH"
+      - run: npm run test:rojo:integration
+        env:
+          BLOXFORGE_EXPECTED_ROJO_VERSION: 7.7.0
 
   cross-platform:
     name: Cross-platform smoke (${{ matrix.os }})

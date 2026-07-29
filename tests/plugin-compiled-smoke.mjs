@@ -112,6 +112,19 @@ const ASSERTIONS = [
       src.includes('leaseToken'),
   },
   {
+    file: 'Communication.luau',
+    label: 'bounded managed-script reads are routed without arbitrary Luau execution',
+    test: (src) => src.includes('/api/read-managed-scripts') && src.includes('readManagedScripts'),
+  },
+  {
+    file: 'handlers/ScriptHandlers.luau',
+    label: 'managed-script reads retain pagination, hash, and source-byte limits',
+    test: (src) =>
+      src.includes('continuationToken') &&
+      src.includes('sourceHash') &&
+      src.includes('maxSourceBytes'),
+  },
+  {
     file: 'RuntimeLogBuffer.luau',
     label: 'malformed UTF-8 log bytes are escaped and oversized results are dropped',
     test: (src) =>

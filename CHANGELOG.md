@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   native `syncback` support.
 - Added registry-only `rojo_*` MCP tools for discovery, validation, serve
   lifecycle, builds, sourcemaps, source mapping/editing, and explicit syncback.
+- Added pinned stable Rojo integration and legacy-dispatch regression gates;
+  `release:check:full` also runs the 10,000-request benchmark.
 
 ### Changed
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
@@ -37,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced binary read/write authorization decisions with explicit Studio,
   local-file, local-process, network, asset-upload, and playtest effects while
   retaining the legacy category metadata for protocol compatibility.
+- Prepared package metadata for 4.0.0 because the published 3.0.0 release
+  supported Node.js 18 and the new Node.js 20+ runtime floor is a breaking change.
 
 ### Fixed
 - Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
