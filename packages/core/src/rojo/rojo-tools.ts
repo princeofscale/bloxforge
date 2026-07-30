@@ -3,19 +3,51 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { RojoCommandRunner } from './command-runner.js';
-import { discoverRojoProjects, selectRojoProject } from './project-discovery.js';
+import { discoverRojoProjects, isRojoProjectFile, selectRojoProject } from './project-discovery.js';
 import { RojoProcessManager } from './process-manager.js';
 import { RojoSourceEditor } from './source-editor.js';
 import { resolveInstanceSource, resolveSourceInstance } from './sourcemap.js';
-import { classifyRojoSource, resolveProjectPath } from './source-mapper.js';
+import { classifyRojoSource, resolveProjectPath, resolveProjectRoot } from './source-mapper.js';
+import type { RojoProject } from './types.js';
 import { QualityTools } from '../quality-tools.js';
 
 const defaultRojoProcessManager = new RojoProcessManager();
 
-function syncbackPlanHash(projectFile: string, input: string, stdout: string): string {
-  const digest = createHash('sha256');
-  for (const file of [projectFile, input]) digest.update(fs.readFileSync(file)).update('\0');
-  return `sha256:${digest.update(stdout).digest('hex')}`;
+const MAX_SNAPSHOT_FILES = 5000;
+const MAX_SNAPSHOT_BYTES = 100 * 1024 * 1024;
+const BUILD_EXTENSIONS = ['.rbxl', '.rbxlx', '.rbxm', '.rbxmx'];
+const SYNCBACK_INPUT_EXTENSIONS = BUILD_EXTENSIONS;
+
+interface SourceSnapshot {
+  files: string[];
+  directories: string[];
+}
+
+function hashFile(file: string): string {
+  return `sha256:${createHash('sha256').update(fs.readFileSync(file)).digest('hex')}`;
+}
+
+/**
+ * Rejects an output path that would clobber project input. Rojo happily writes
+ * wherever it is told, so `--output` must never land on a source file, a project
+ * file, or an extension the command does not actually produce.
+ */
+function assertSafeOutput(project: RojoProject, target: string, allowedExtensions: string[], label: string): void {
+  const name = path.basename(target);
+  const extension = path.extname(name).toLowerCase();
+  if (!allowedExtensions.includes(extension)) {
+    throw new Error(`${label} output must use one of ${allowedExtensions.join(', ')}; got "${extension || name}"`);
+  }
+  if (isRojoProjectFile(name)) throw new Error(`${label} output must not overwrite a Rojo project file`);
+  if (path.resolve(target) === path.resolve(project.projectFile)) {
+    throw new Error(`${label} output must not overwrite the selected project file`);
+  }
+  // A build artefact shares .rbxm/.rbxmx with Rojo-managed model sources, so only
+  // reject an existing file that Rojo currently treats as project input.
+  const mapping = classifyRojoSource(name);
+  if (mapping && mapping.kind !== 'model' && fs.existsSync(target)) {
+    throw new Error(`${label} output must not overwrite the Rojo source ${name}`);
+  }
 }
 
 export class RojoTools {
@@ -33,8 +65,12 @@ export class RojoTools {
     return selectRojoProject(root, projectFile);
   }
 
-  getVersion() {
-    return this.runner.version();
+  getVersion(root?: string) {
+    // Resolution depends on the project's toolchain manifest, so the lookup has
+    // to start from the project directory rather than the server's cwd.
+    let cwd: string | undefined;
+    try { cwd = root ? resolveProjectRoot(root) : undefined; } catch { cwd = undefined; }
+    return this.runner.version(cwd);
   }
 
   async validateProject(root?: string, projectFile?: string) {
@@ -84,6 +120,7 @@ export class RojoTools {
     if (!output) throw new Error('output is required');
     const project = selectRojoProject(root, projectFile);
     const target = resolveProjectPath(project.root, output, false);
+    assertSafeOutput(project, target, BUILD_EXTENSIONS, 'rojo build');
     return {
       projectFile: project.projectFile,
       output: target,
@@ -94,6 +131,7 @@ export class RojoTools {
   async generateSourcemap(root?: string, projectFile?: string, output = 'sourcemap.json') {
     const project = selectRojoProject(root, projectFile);
     const target = resolveProjectPath(project.root, output, false);
+    assertSafeOutput(project, target, ['.json'], 'rojo sourcemap');
     return {
       projectFile: project.projectFile,
       output: target,
@@ -101,7 +139,7 @@ export class RojoTools {
     };
   }
 
-  resolveInstanceSource(root: string | undefined, projectFile: string | undefined, instancePath: string, sourcemap?: string) {
+  resolveInstanceSource(root: string | undefined, projectFile: string | undefined, instancePath: string | string[], sourcemap?: string) {
     const project = selectRojoProject(root, projectFile);
     return resolveInstanceSource(project.root, instancePath, sourcemap);
   }
@@ -145,10 +183,10 @@ export class RojoTools {
   async nativeSyncbackPlan(root: string | undefined, projectFile: string | undefined, inputPlaceFile: string) {
     const project = selectRojoProject(root, projectFile);
     const input = resolveProjectPath(project.root, inputPlaceFile);
-    if (!/\.(?:rbxl|rbxlx|rbxm|rbxmx)$/i.test(input)) {
+    if (!SYNCBACK_INPUT_EXTENSIONS.includes(path.extname(input).toLowerCase())) {
       throw new Error('syncback input must be an RBXL, RBXLX, RBXM, or RBXMX file');
     }
-    const version = await this.runner.version();
+    const version = await this.runner.version(project.root);
     if (!version.features.includes('syncback')) {
       throw new Error(`Installed Rojo ${version.version ?? 'version'} does not support syncback; use Rojo 7.7.0+ or the bounded Studio adapter`);
     }
@@ -161,12 +199,14 @@ export class RojoTools {
       '--list',
       '--non-interactive',
     ], { cwd: project.root });
+    const changes = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     return {
       projectFile: project.projectFile,
       input,
       dryRun: true,
-      planHash: syncbackPlanHash(project.projectFile, input, result.stdout),
-      changes: result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      rojoVersion: version.version,
+      planHash: this.syncbackPlanHash(project, input, changes, version.version),
+      changes,
       ...result,
     };
   }
@@ -181,16 +221,21 @@ export class RojoTools {
     if (!confirm) throw new Error('Confirmation required: review rojo_syncback_plan, then pass confirm=true');
     const project = selectRojoProject(root, projectFile);
     const plan = await this.nativeSyncbackPlan(root, projectFile, inputPlaceFile);
+    // A failed dry run still produces a hash; applying it would run a syncback
+    // whose preview nobody could read.
+    if (!plan.ok) {
+      throw new Error(`Native syncback dry run failed; nothing was applied: ${plan.error ?? plan.stderr ?? 'unknown error'}`);
+    }
     if (!expectedPlanHash || plan.planHash !== expectedPlanHash) {
       throw new Error('Native syncback plan changed since preview; review a fresh rojo_syncback_plan before applying');
     }
-    const snapshot = this.snapshotSources(project.root);
+    const snapshot = this.snapshotSources(project.root, plan.input);
     const backupRoot = resolveProjectPath(
       project.root,
       path.join('.bloxforge', 'backups', `native-syncback-${new Date().toISOString().replace(/[:.]/g, '-')}`),
       false,
     );
-    for (const relative of snapshot) {
+    for (const relative of snapshot.files) {
       const backup = path.join(backupRoot, relative);
       fs.mkdirSync(path.dirname(backup), { recursive: true });
       fs.copyFileSync(path.join(project.root, relative), backup);
@@ -204,14 +249,7 @@ export class RojoTools {
       '--non-interactive',
     ], { cwd: project.root });
     if (!result.ok) {
-      for (const relative of this.snapshotSources(project.root)) {
-        if (!snapshot.has(relative)) fs.rmSync(path.join(project.root, relative), { force: true });
-      }
-      for (const relative of snapshot) {
-        const target = path.join(project.root, relative);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.copyFileSync(path.join(backupRoot, relative), target);
-      }
+      this.restoreSources(project.root, plan.input, snapshot, backupRoot);
       throw new Error(`Rojo syncback failed and local sources were restored: ${result.error ?? result.stderr ?? 'unknown error'}`);
     }
     return {
@@ -219,6 +257,7 @@ export class RojoTools {
       input: plan.input,
       dryRun: false,
       backupRoot,
+      rojoVersion: plan.rojoVersion,
       changes: result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
       ...result,
     };
@@ -232,7 +271,7 @@ export class RojoTools {
     const project = selectRojoProject(root, projectFile);
     return new RojoSourceEditor(project.root, fs.renameSync, validate
       ? (content, file) => {
-        if (!file.endsWith('.lua')) return;
+        if (!/\.luau?$/i.test(file)) return;
         const failures = this.quality.validateScriptSource(content, path.basename(file)).checks
           .filter((check) => check.available && !check.ok);
         if (failures.length > 0) {
@@ -242,25 +281,81 @@ export class RojoTools {
       : undefined);
   }
 
-  private snapshotSources(root: string): Set<string> {
-    const files = new Set<string>();
+  /**
+   * The plan is only reproducible if everything it depends on is hashed: the
+   * project config, the input place, the installed Rojo, the reported operations,
+   * and the current content of every local file syncback could rewrite. Hashing
+   * only the `--list` text would let a local edit slip in between preview and
+   * apply without changing the hash.
+   */
+  private syncbackPlanHash(project: RojoProject, input: string, changes: string[], rojoVersion?: string): string {
+    const snapshot = this.snapshotSources(project.root, input);
+    const digest = createHash('sha256');
+    digest.update(JSON.stringify({
+      rojoVersion: rojoVersion ?? 'unknown',
+      projectFile: path.relative(project.root, project.projectFile).split(path.sep).join('/'),
+      input: path.relative(project.root, input).split(path.sep).join('/'),
+      changes,
+      directories: snapshot.directories,
+    }));
+    digest.update(hashFile(project.projectFile));
+    digest.update(hashFile(input));
+    for (const relative of snapshot.files) {
+      digest.update(`\0${relative}\0${hashFile(path.join(project.root, relative))}`);
+    }
+    return `sha256:${digest.digest('hex')}`;
+  }
+
+  /**
+   * Snapshots every regular file under the project root, not only the ones the
+   * classifier recognises. Rojo syncback writes `.luau`, `.jsonc`, YAML and
+   * whole directories; a classifier-filtered snapshot silently leaves those out
+   * of the backup and they cannot be restored when a partial syncback fails.
+   */
+  private snapshotSources(root: string, exclude?: string): SourceSnapshot {
+    const files: string[] = [];
+    const directories: string[] = [];
     let bytes = 0;
     const walk = (directory: string) => {
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
         if (entry.name === '.git' || entry.name === '.bloxforge' || entry.name === 'node_modules' || entry.isSymbolicLink()) continue;
         const absolute = path.join(directory, entry.name);
-        if (entry.isDirectory()) walk(absolute);
-        else if (entry.isFile() && classifyRojoSource(entry.name)) {
-          const relative = path.relative(root, absolute);
-          files.add(relative);
+        const relative = path.relative(root, absolute);
+        if (entry.isDirectory()) {
+          directories.push(relative);
+          walk(absolute);
+        } else if (entry.isFile()) {
+          if (exclude && path.resolve(absolute) === path.resolve(exclude)) continue;
+          files.push(relative);
           bytes += fs.statSync(absolute).size;
-          if (files.size > 5000 || bytes > 100 * 1024 * 1024) {
-            throw new Error('Native syncback recovery snapshot exceeds 5,000 files or 100 MiB');
+          if (files.length > MAX_SNAPSHOT_FILES || bytes > MAX_SNAPSHOT_BYTES) {
+            throw new Error(`Native syncback recovery snapshot exceeds ${MAX_SNAPSHOT_FILES} files or ${MAX_SNAPSHOT_BYTES / (1024 * 1024)} MiB`);
           }
         }
       }
     };
     walk(root);
-    return files;
+    files.sort();
+    directories.sort();
+    return { files, directories };
+  }
+
+  private restoreSources(root: string, input: string, snapshot: SourceSnapshot, backupRoot: string): void {
+    const current = this.snapshotSources(root, input);
+    const keptFiles = new Set(snapshot.files);
+    const keptDirectories = new Set(snapshot.directories);
+    for (const relative of current.files) {
+      if (!keptFiles.has(relative)) fs.rmSync(path.join(root, relative), { force: true });
+    }
+    for (const relative of snapshot.files) {
+      const target = path.join(root, relative);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(path.join(backupRoot, relative), target);
+    }
+    // Deepest first, so a directory tree syncback created is removed completely.
+    for (const relative of [...current.directories].sort((a, b) => b.length - a.length)) {
+      if (keptDirectories.has(relative)) continue;
+      try { fs.rmdirSync(path.join(root, relative)); } catch { /* not empty or already gone */ }
+    }
   }
 }

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { RojoSourceMapping } from './types.js';
+import type { RojoSourceKind, RojoSourceMapping } from './types.js';
 
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 
@@ -35,35 +35,76 @@ export function resolveProjectPath(root: string, requested: string, mustExist = 
   return checked;
 }
 
-export function encodeInstanceName(name: string): string {
-  if (!name) return '~empty';
-  let encoded = [...name].map((char) =>
-    /[~<>:"/\\|?*]/.test(char) || char.codePointAt(0)! < 32
-      ? `~${char.codePointAt(0)!.toString(16).toUpperCase().padStart(2, '0')}`
-      : char).join('');
-  encoded = encoded.replace(/^[. ]+|[. ]+$/g, (value) =>
-    [...value].map((char) => `~${char.codePointAt(0)!.toString(16).toUpperCase()}`).join(''));
-  if (WINDOWS_RESERVED.test(encoded)) encoded = `~${encoded}`;
-  return encoded;
+/**
+ * Rojo never encodes Instance names that a portable file name cannot represent —
+ * it refuses them. Encoding here would produce a name Rojo cannot decode, so the
+ * next `rojo serve` would silently rename the Instance. Callers must surface the
+ * reason as a conflict instead of writing a file.
+ */
+export function unsupportedInstanceNameReason(name: string): string | undefined {
+  if (!name) return 'Instance name is empty';
+  const illegal = [...name].find((char) => /[<>:"/\\|?*]/.test(char) || char.codePointAt(0)! < 32);
+  if (illegal !== undefined) {
+    const shown = illegal.codePointAt(0)! < 32
+      ? `U+${illegal.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`
+      : `"${illegal}"`;
+    return `Instance name ${JSON.stringify(name)} contains ${shown}, which no portable file name can represent`;
+  }
+  if (/^[. ]|[. ]$/.test(name)) {
+    return `Instance name ${JSON.stringify(name)} starts or ends with a dot or space, which is not portable`;
+  }
+  if (WINDOWS_RESERVED.test(name)) {
+    return `Instance name ${JSON.stringify(name)} is reserved by Windows`;
+  }
+  return undefined;
 }
 
 export function portablePathKey(relativePath: string): string {
   return relativePath.replace(/\\/g, '/').normalize('NFC').toLowerCase();
 }
 
+// Mirrors Rojo 7.7 `default_sync_rules()`. Order matters: the longest matching
+// suffix must be tried first (`.server.lua` before `.lua`, `.meta.json` before
+// `.json`). Matching is case-insensitive so a snapshot taken on a case-folding
+// filesystem still covers every file Rojo can mutate.
+const SCRIPT_SUFFIXES: ReadonlyArray<readonly [string, RojoSourceKind]> = [
+  ['.server.lua', 'Script'],
+  ['.server.luau', 'Script'],
+  ['.client.lua', 'LocalScript'],
+  ['.client.luau', 'LocalScript'],
+  ['.plugin.lua', 'PluginScript'],
+  ['.plugin.luau', 'PluginScript'],
+  ['.lua', 'ModuleScript'],
+  ['.luau', 'ModuleScript'],
+];
+
+const DATA_SUFFIXES: ReadonlyArray<readonly [string, RojoSourceKind]> = [
+  ['.project.json', 'project'],
+  ['.project.jsonc', 'project'],
+  ['.meta.json', 'meta'],
+  ['.meta.jsonc', 'meta'],
+  ['.model.json', 'model'],
+  ['.model.jsonc', 'model'],
+  ['.rbxm', 'model'],
+  ['.rbxmx', 'model'],
+  ['.json', 'value'],
+  ['.jsonc', 'value'],
+  ['.toml', 'value'],
+  ['.csv', 'value'],
+  ['.txt', 'value'],
+  ['.yml', 'value'],
+  ['.yaml', 'value'],
+];
+
 export function classifyRojoSource(fileName: string): RojoSourceMapping | undefined {
-  if (fileName.endsWith('.server.lua')) {
-    return { kind: 'Script', instanceName: fileName.slice(0, -'.server.lua'.length) || undefined };
+  const lower = fileName.toLowerCase();
+  for (const [suffix, kind] of SCRIPT_SUFFIXES) {
+    if (lower.endsWith(suffix)) {
+      return { kind, instanceName: fileName.slice(0, -suffix.length) || undefined };
+    }
   }
-  if (fileName.endsWith('.client.lua')) {
-    return { kind: 'LocalScript', instanceName: fileName.slice(0, -'.client.lua'.length) || undefined };
+  for (const [suffix, kind] of DATA_SUFFIXES) {
+    if (lower.endsWith(suffix)) return { kind };
   }
-  if (fileName.endsWith('.lua')) {
-    return { kind: 'ModuleScript', instanceName: fileName.slice(0, -'.lua'.length) || undefined };
-  }
-  if (fileName.endsWith('.meta.json')) return { kind: 'meta' };
-  if (fileName.endsWith('.model.json') || /\.(?:rbxm|rbxmx)$/i.test(fileName)) return { kind: 'model' };
-  if (fileName.endsWith('.project.json')) return { kind: 'project' };
-  if (/\.(?:json|toml|txt|csv)$/i.test(fileName)) return { kind: 'value' };
   return undefined;
 }

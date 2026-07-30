@@ -122,7 +122,15 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   not blindly dumped to disk.
 - Multi-file native syncback creates a recovery snapshot, but external changes
   made concurrently after planning can still produce a conflict. Re-run the
-  plan instead of forcing an overwrite.
+  plan instead of forcing an overwrite. The snapshot is bounded to 5,000 files
+  and 100 MiB; a larger project root is refused rather than partially covered.
+- Studio Instance names containing characters no portable file name can hold
+  (`< > : " / \ | ? *`, control characters, trailing dots or spaces, Windows
+  reserved names) are reported as unsupported. Rojo does not decode an escaped
+  form, so writing one would rename the Instance on the next `rojo serve`.
+- A rename is only inferred when exactly one added file carries the removed
+  file's baseline content. Two identical scripts are reported as ambiguous
+  instead of moving an arbitrary one.
 - Partially managed projects intentionally leave Studio Instances outside the
   project tree untouched.
 

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added `rokit_*` and `wally_*` MCP tools backed by a real TOML reader:
+  toolchain detection, manifest reads, shim-vs-manifest-vs-running version
+  status, and confirmed install/add/update, plus Wally manifest, lockfile,
+  dependency-graph, lock validation, search, locked install, update, and a
+  check that installed package directories are mapped by the Rojo project.
+- Added `.project.jsonc`, `.meta.jsonc`, `.model.jsonc`, `.jsonc`, `.luau`,
+  `.server.luau`, `.client.luau`, `.plugin.lua`, `.plugin.luau`, `.yml`, and
+  `.yaml` to Rojo source classification and project discovery, matching Rojo
+  7.7's own sync rules.
+- Added `instancePathSegments` to Rojo instance/source resolution so an Instance
+  whose name contains a dot is no longer ambiguous.
+- Added a `resetBaseline` option that quarantines an unusable
+  `.bloxforge/rojo-state.json` and rebuilds the sync baseline explicitly.
+- Added a Rokit + Wally CI job that installs a checksum-pinned Rokit, resolves
+  tools through its shims, and asserts `wally install --locked` fails closed
+  without a lockfile.
+
 - Added a CI contract that cross-checks canonical definitions, registry entries,
   legacy handlers, schemas, domains, capabilities, and duplicate tool names.
 - Added a paginated, inspector-compatible plugin endpoint for bounded managed
@@ -22,6 +39,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `release:check:full` also runs the 10,000-request benchmark.
 
 ### Changed
+- Resolved the Rojo command per canonical project root instead of once per
+  process, keyed by the nearest `rokit.toml`/`aftman.toml` and its mtime, so a
+  toolchain change or install is picked up without restarting the server.
+- Made the Rojo project `name` field optional, deriving it the way Rojo has
+  since 7.4.1 (`default.project.json` takes the parent directory name).
+- Required the `planHash` returned by `rojo_syncback_plan` on every
+  `rojo_syncback_apply`, for the bounded Studio adapter as well as native
+  syncback, and widened the hash to cover the reported operations, each mapped
+  script's Studio identity, and the current hash of every local file.
+- Replaced the whole-file diff returned by Rojo source edits with a bounded
+  single-hunk unified diff, and bounded `rojo_read_source` by file size.
+- Strengthened Studio content identity from a single 31-bit rolling hash to two
+  independent rolling hashes plus the byte length; the sync state schema is
+  now version 2 and an older baseline requires `resetBaseline`.
+- Regenerated the tools reference for the new toolchain tools.
+
 - Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
 - Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
 - Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
@@ -43,6 +76,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported Node.js 18 and the new Node.js 20+ runtime floor is a breaking change.
 
 ### Fixed
+- Removed the non-existent `rokit run rojo --` fallback. Rokit has no `run`
+  subcommand, so a Rokit-only project either used an unrelated global Rojo or
+  failed; BloxForge now uses the toolchain's installed shim and, when a manifest
+  pins Rojo without one, reports the install step instead of falling back.
+- Fixed native syncback rollback skipping files it could not classify. The
+  recovery snapshot now covers every regular file under the project root and
+  removes directories syncback created, so a partial `.luau`, `.jsonc`, or YAML
+  syncback failure is fully restored.
+- Refused to apply a native syncback whose dry run failed; a failed preview
+  previously still produced a plan hash that `confirm=true` would accept.
+- Stopped encoding Studio Instance names that no portable file name can
+  represent. Rojo does not decode such names, so the next `rojo serve` renamed
+  the Instance; unrepresentable names are now reported as `unsupported` and no
+  file is written.
+- Made the sync state file fail closed. A corrupt, foreign, or wrong-schema
+  `.bloxforge/rojo-state.json` no longer reads as "never synced" (which made
+  every local file look like a Studio addition) and blocks the operation until
+  the baseline is explicitly reset.
+- Made the sync state write part of the same transaction as the file changes it
+  describes; a failed state write now rolls the filesystem back instead of
+  leaving changed files with a stale baseline.
+- Required a unique content match before inferring a rename, and reported
+  otherwise-ambiguous candidates, so two identical scripts no longer cause an
+  arbitrary file to be moved.
+- Skipped baseline-only entries during `deleteMissing` instead of failing on an
+  already-absent path, and re-verified each file's hash immediately before
+  writing or deleting it.
+- Enforced `expectedAbsent` with an exclusive create instead of an
+  `existsSync` check followed by a rename, closing the overwrite race.
+- Validated Rojo output paths: builds must target `.rbxl`/`.rbxlx`/`.rbxm`/
+  `.rbxmx`, sourcemaps must target `.json`, and neither may overwrite a project
+  file or an existing Rojo source.
+- Bounded sourcemap size and nesting depth, and bounded Rojo project discovery
+  by count and directory depth.
+- Fixed `set_script_source` rejecting an empty string as a missing value, so
+  clearing a script's source is possible again.
+- Removed the destroy-and-recreate fallback from `set_script_source`. It
+  preserved only `Name` and `Enabled`, silently dropping attributes, tags,
+  children, and every reference to the script; the operation now fails loudly
+  and leaves the script untouched.
+- Ported the upstream cookie-auth image upload fix: uploads now use the
+  `apis.roblox.com` user-auth assets API with operation polling instead of the
+  legacy `data.roblox.com` decal endpoint, which no longer accepts them.
+- Ported upstream structured runtime log context: `LogService.MessageOut`'s
+  third argument is preserved as optional `data` on each runtime log entry.
+- Fixed the lint gate silently skipping every top-level `packages/*/src/*.ts`
+  file — including `http-server.ts`, `bridge-service.ts`, and `server.ts` —
+  because the unquoted glob was expanded by the shell instead of ESLint, and
+  fixed the errors that were hiding behind it.
+- Fixed two integration test scripts throwing from a `finally` block, which
+  replaced the real test failure with the cleanup failure.
+- Fixed `listenWithRetry` using an async Promise executor, where a rejection
+  raised before `reject` ran became an unhandled rejection.
+- Logged the underlying error when a Streamable HTTP request fails instead of
+  discarding it behind a generic 500.
+- Replaced the Wally dependency graph's line-regexp lockfile reader, which
+  returned TOML field names such as `name`, `dependencies`, and `registry`
+  instead of packages, with real `[[package]]` parsing.
+- Preserved the existing file mode when the sync adapter rewrites a file
+  instead of forcing 0600 onto it.
+
 - Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
 - Fixed authenticated plugin disconnects so normal Studio/plugin shutdown removes the registration immediately instead of leaving a stale duplicate for up to 90 seconds.
 - Fixed connection indicators retaining stale success state during retries, and made duplicate registrations retry after the previous session disappears.

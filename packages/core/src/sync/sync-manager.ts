@@ -6,7 +6,7 @@
 //   LocalScript  -> *.client.lua
 //   ModuleScript -> *.lua (the official Rojo convention)
 
-import { classifyRojoSource, encodeInstanceName } from '../rojo/source-mapper.js';
+import { classifyRojoSource, unsupportedInstanceNameReason } from '../rojo/source-mapper.js';
 
 export type ScriptClassName = 'Script' | 'LocalScript' | 'ModuleScript';
 
@@ -64,11 +64,19 @@ export class SyncManager {
     return this.instanceSegmentsToFilePath(segments, className);
   }
 
+  /**
+   * Throws when any segment cannot be represented as a portable file name.
+   * Rojo refuses such names rather than encoding them, so we do too — an encoded
+   * name would round-trip back into Studio as a different Instance name.
+   */
   instanceSegmentsToFilePath(segments: string[], className: ScriptClassName): string {
     if (segments.length === 0) throw new Error('Invalid empty instance path');
-    const encoded = segments.map(encodeInstanceName);
-    const leaf = encoded.pop() as string;
-    const dirs = encoded.join('/');
+    for (const segment of segments) {
+      const reason = unsupportedInstanceNameReason(segment);
+      if (reason) throw new Error(reason);
+    }
+    const leaf = segments[segments.length - 1];
+    const dirs = segments.slice(0, -1).join('/');
     const file = this.fileNameFor(leaf, className);
     return dirs ? `${dirs}/${file}` : file;
   }

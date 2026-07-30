@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 190
+## Total Tools: 209
 
 ### `get_file_tree` (Read-only)
 
@@ -2658,7 +2658,13 @@ Validate a selected project by running a bounded Rojo build into an isolated tem
 
 ### `rojo_get_version` (Read-only)
 
-Report the installed Rojo command, version, and feature-detected optional commands such as syncback.
+Report the Rojo command resolved for the given root (Rokit/Aftman shim or PATH), its version, and feature-detected optional commands such as syncback.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
 
 ---
 
@@ -2756,7 +2762,8 @@ Resolve a Studio Instance path to local source paths using a Rojo sourcemap.
 |---|---|---|---|
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
 | `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
-| `instancePath` | `string` | Yes |  |
+| `instancePath` | `string` | No | Dotted path; ambiguous when an Instance name contains a dot. |
+| `instancePathSegments` | `array` | No | Unambiguous Instance path segments; takes precedence over instancePath. |
 | `sourcemap` | `string` | No | Relative sourcemap path; defaults to sourcemap.json. |
 
 ---
@@ -2856,13 +2863,14 @@ Preview the safe bounded Studio-to-files subset as added, modified, deleted, unm
 | `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
 | `syncDir` | `string` | No |  |
 | `inputPlaceFile` | `string` | No | Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback dry-run. |
+| `resetBaseline` | `boolean` | No | Quarantine an unusable .bloxforge/rojo-state.json and rebuild the baseline. |
 | `instance_id` | `string` | No | Connected Studio place id when multiple places are open. |
 
 ---
 
 ### `rojo_syncback_apply` (Write)
 
-Recompute and apply only conflict-free Studio-to-files changes after confirm=true, with backups and atomic writes.
+Recompute and apply only conflict-free Studio-to-files changes after confirm=true and an expectedPlanHash match, with backups and atomic writes.
 
 **Parameters:**
 
@@ -2874,7 +2882,251 @@ Recompute and apply only conflict-free Studio-to-files changes after confirm=tru
 | `inputPlaceFile` | `string` | No | Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback. |
 | `dryRun` | `boolean` | No |  |
 | `confirm` | `boolean` | Yes |  |
+| `expectedPlanHash` | `string` | Yes | planHash returned by rojo_syncback_plan; required for every apply. |
 | `deleteMissing` | `boolean` | No | Delete baseline-managed local files missing in Studio; requires confirm=true and creates backups. |
+| `resetBaseline` | `boolean` | No | Quarantine an unusable .bloxforge/rojo-state.json and rebuild the baseline. |
 | `instance_id` | `string` | No | Connected Studio place id when multiple places are open. |
+
+---
+
+### `rokit_detect` (Read-only)
+
+Locate the nearest rokit.toml (or legacy aftman.toml) above the given root without modifying or migrating it.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `rokit_get_manifest` (Read-only)
+
+Read the toolchain manifest with a real TOML parser and return each tool as owner, repo, and pinned version.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `rokit_list_tools` (Read-only)
+
+Run the toolchain CLI's own list command for the canonical project root.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `rokit_status` (Read-only)
+
+Compare each tool's manifest version, installed shim, and the version the shim actually runs, and report whether an install is required.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `rokit_install` (Write)
+
+Install every tool pinned by the manifest after confirm=true; downloads binaries and writes shims.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `confirm` | `boolean` | No | Required to execute; downloads from the network and writes local files. |
+
+---
+
+### `rokit_add_tool_plan` (Read-only)
+
+Preview adding a tool spec (owner/repo[@version]) without touching the manifest.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `spec` | `string` | Yes | owner/repo or owner/repo@version. |
+
+---
+
+### `rokit_add_tool_apply` (Write)
+
+Run the toolchain's own add command after confirm=true so the version is resolved and written by the toolchain, never hardcoded.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `spec` | `string` | Yes |  |
+| `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+
+---
+
+### `rokit_update_plan` (Read-only)
+
+Preview updating one tool or every tool without touching the manifest.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `tool` | `string` | No |  |
+
+---
+
+### `rokit_update_apply` (Write)
+
+Update one tool or every tool after confirm=true; rewrites the manifest and downloads new versions.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `tool` | `string` | No |  |
+| `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+
+---
+
+### `wally_get_manifest` (Read-only)
+
+Parse wally.toml with a real TOML parser and return the package metadata plus shared, server, and dev dependencies.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `wally_get_lock` (Read-only)
+
+Parse every [[package]] block in wally.lock and return exact names, versions, checksums, and registry.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `wally_dependency_graph` (Read-only)
+
+Build the resolved package graph from wally.lock as nodes and dependency edges, flagging unresolved targets.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `wally_validate_lock` (Read-only)
+
+Check that wally.lock exists and covers every manifest dependency, reporting missing entries and packages without checksums.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `wally_verify_rojo_mapping` (Read-only)
+
+Verify the installed Packages/ServerPackages/DevPackages directories are actually mounted by the selected Rojo project tree.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `projectFile` | `string` | No | Explicit *.project.json(c) path when discovery is ambiguous. |
+
+---
+
+### `wally_search` (Read-only)
+
+Search the configured Wally registry for a package.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `query` | `string` | Yes |  |
+
+---
+
+### `wally_install_plan` (Read-only)
+
+Preview a Wally install, including whether --locked can be used and whether the lockfile covers the manifest.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+
+---
+
+### `wally_install_apply` (Write)
+
+Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+| `locked` | `boolean` | No | Defaults to true; set false only to deliberately resolve a new lockfile. |
+
+---
+
+### `wally_update_plan` (Read-only)
+
+Preview a Wally update against the current resolved graph without writing the lockfile.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `packages` | `array` | No |  |
+
+---
+
+### `wally_update_apply` (Write)
+
+Update Wally packages after confirm=true; rewrites wally.lock and can change transitive versions.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `packages` | `array` | No |  |
+| `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
 
 ---

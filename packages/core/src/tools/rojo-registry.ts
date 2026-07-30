@@ -39,12 +39,12 @@ const ROJO_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'rojo_get_version',
-    description: 'Report the installed Rojo command, version, and feature-detected optional commands such as syncback.',
+    description: 'Report the Rojo command resolved for the given root (Rokit/Aftman shim or PATH), its version, and feature-detected optional commands such as syncback.',
     category: 'read',
     effects: ['local.process.execute'],
-    inputSchema: { type: 'object', properties: {} },
+    inputSchema: { type: 'object', properties: { root: PROJECT.root } },
     outputSchema: OUTPUT,
-    handler: (runtime) => asTools(runtime).rojoGetVersion(),
+    handler: (runtime, args) => asTools(runtime).rojoGetVersion(args.root as string | undefined),
   }),
   defineTool({
     name: 'rojo_serve_start',
@@ -137,18 +137,25 @@ const ROJO_TOOLS: RegisteredTool[] = [
       properties: {
         ...PROJECT,
         ...(direction === 'instance_source'
-          ? { instancePath: { type: 'string' } }
+          ? {
+            instancePath: { type: 'string', description: 'Dotted path; ambiguous when an Instance name contains a dot.' },
+            instancePathSegments: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Unambiguous Instance path segments; takes precedence over instancePath.',
+            },
+          }
           : { sourcePath: { type: 'string' } }),
         sourcemap: { type: 'string', description: 'Relative sourcemap path; defaults to sourcemap.json.' },
       },
-      required: [direction === 'instance_source' ? 'instancePath' : 'sourcePath'],
+      ...(direction === 'instance_source' ? {} : { required: ['sourcePath'] }),
     },
     outputSchema: OUTPUT,
     handler: (runtime, args) => direction === 'instance_source'
       ? asTools(runtime).rojoResolveInstanceSource(
         args.root as string | undefined,
         args.projectFile as string | undefined,
-        args.instancePath as string,
+        (args.instancePathSegments as string[] | undefined) ?? (args.instancePath as string),
         args.sourcemap as string | undefined,
       )
       : asTools(runtime).rojoResolveSourceInstance(
@@ -276,6 +283,7 @@ const ROJO_TOOLS: RegisteredTool[] = [
         ...PROJECT,
         syncDir: { type: 'string' },
         inputPlaceFile: { type: 'string', description: 'Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback dry-run.' },
+        resetBaseline: { type: 'boolean', description: 'Quarantine an unusable .bloxforge/rojo-state.json and rebuild the baseline.' },
         instance_id: INSTANCE_ID,
       },
     },
@@ -287,12 +295,13 @@ const ROJO_TOOLS: RegisteredTool[] = [
         root: args.root as string | undefined,
         projectFile: args.projectFile as string | undefined,
         inputPlaceFile: args.inputPlaceFile as string | undefined,
+        resetBaseline: args.resetBaseline as boolean | undefined,
       },
     ),
   }),
   defineTool({
     name: 'rojo_syncback_apply',
-    description: 'Recompute and apply only conflict-free Studio-to-files changes after confirm=true, with backups and atomic writes.',
+    description: 'Recompute and apply only conflict-free Studio-to-files changes after confirm=true and an expectedPlanHash match, with backups and atomic writes.',
     category: 'write',
     effects: ['studio.read', 'local.files.read', 'local.files.write', 'local.process.execute'],
     inputSchema: {
@@ -303,11 +312,12 @@ const ROJO_TOOLS: RegisteredTool[] = [
         inputPlaceFile: { type: 'string', description: 'Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback.' },
         dryRun: { type: 'boolean' },
         confirm: { type: 'boolean' },
-        expectedPlanHash: { type: 'string', description: 'Hash returned by rojo_syncback_plan; required for native syncback apply.' },
+        expectedPlanHash: { type: 'string', description: 'planHash returned by rojo_syncback_plan; required for every apply.' },
         deleteMissing: { type: 'boolean', description: 'Delete baseline-managed local files missing in Studio; requires confirm=true and creates backups.' },
+        resetBaseline: { type: 'boolean', description: 'Quarantine an unusable .bloxforge/rojo-state.json and rebuild the baseline.' },
         instance_id: INSTANCE_ID,
       },
-      required: ['confirm'],
+      required: ['confirm', 'expectedPlanHash'],
     },
     outputSchema: OUTPUT,
     handler: (runtime, args) => asTools(runtime).rojoSyncbackApply(
@@ -317,6 +327,7 @@ const ROJO_TOOLS: RegisteredTool[] = [
         dryRun: args.dryRun as boolean | undefined,
         confirm: args.confirm as boolean | undefined,
         deleteMissing: args.deleteMissing as boolean | undefined,
+        resetBaseline: args.resetBaseline as boolean | undefined,
         root: args.root as string | undefined,
         projectFile: args.projectFile as string | undefined,
         inputPlaceFile: args.inputPlaceFile as string | undefined,

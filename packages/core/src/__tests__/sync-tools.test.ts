@@ -59,7 +59,7 @@ describe('SyncTools safety', () => {
     expect(fs.readFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'utf8')).toBe('print("hello")');
     const stateText = fs.readFileSync(path.join(dir, '.bloxforge/rojo-state.json'), 'utf8');
     const state = JSON.parse(stateText);
-    expect(state.schemaVersion).toBe(1);
+    expect(state.schemaVersion).toBe(2);
     expect(state.entries['ServerScriptService/Main.server.lua'].contentHash).toMatch(/^sha256:/);
     expect(stateText).not.toContain('print(\\"hello\\")');
   });
@@ -170,5 +170,90 @@ describe('SyncTools safety', () => {
     }));
     expect(applied.deleted).toEqual(['ServerScriptService/Main.server.lua']);
     expect(fs.existsSync(file)).toBe(false);
+  });
+
+  it('reports Studio names no portable file name can represent instead of encoding them', async () => {
+    callSingle.mockResolvedValue({
+      items: [{
+        ...studioPage('print("bad")').items[0],
+        path: 'game.ServerScriptService.Bad:Name',
+        pathSegments: ['ServerScriptService', 'Bad:Name'],
+      }],
+      continuationToken: undefined,
+    });
+
+    const payload = textPayload(await tools.syncPull(dir, 'place-1', { confirm: true }));
+    expect(payload.unsupported).toEqual([
+      { path: 'game.ServerScriptService.Bad:Name', reason: expect.stringContaining('":"') },
+    ]);
+    expect(payload.added).toEqual([]);
+    expect(fs.readdirSync(dir).filter((name) => name !== '.bloxforge')).toEqual([]);
+  });
+
+  it('refuses to guess a rename when two scripts share the same content', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    const clone = (name: string) => ({
+      ...studioPage('print("hello")').items[0],
+      path: `game.ServerScriptService.${name}`,
+      pathSegments: ['ServerScriptService', name],
+    });
+    callSingle.mockResolvedValue({ items: [clone('A'), clone('B')], continuationToken: undefined });
+
+    const payload = textPayload(await tools.syncStatus(dir, 'place-1'));
+    expect(payload.renamed).toEqual([]);
+    expect(payload.ambiguous).toEqual([{
+      from: 'ServerScriptService/Main.server.lua',
+      candidates: expect.arrayContaining([
+        'ServerScriptService/A.server.lua',
+        'ServerScriptService/B.server.lua',
+      ]),
+    }]);
+  });
+
+  it('fails closed on a corrupt state file until the baseline is explicitly reset', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    const statePath = path.join(dir, '.bloxforge/rojo-state.json');
+    fs.writeFileSync(statePath, '{ this is not json');
+
+    await expect(tools.syncStatus(dir, 'place-1')).rejects.toThrow(/unusable.*resetBaseline=true/s);
+
+    const payload = textPayload(await tools.syncStatus(dir, 'place-1', { resetBaseline: true }));
+    expect(payload.conflicts).toEqual([]);
+    expect(fs.readdirSync(path.join(dir, '.bloxforge')).some((name) => name.includes('quarantine'))).toBe(true);
+  });
+
+  it('rejects a state file that belongs to a different directory', async () => {
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    const statePath = path.join(dir, '.bloxforge/rojo-state.json');
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    fs.writeFileSync(statePath, JSON.stringify({ ...state, projectIdentity: '/somewhere/else' }));
+
+    await expect(tools.syncStatus(dir, 'place-1')).rejects.toThrow(/different directory/);
+  });
+
+  it('rolls the filesystem back when the state write fails after files are written', async () => {
+    const stateDir = path.join(dir, '.bloxforge');
+    fs.mkdirSync(dir, { recursive: true });
+    // A directory where the state file belongs makes the final write fail.
+    fs.mkdirSync(path.join(stateDir, 'rojo-state.json'), { recursive: true });
+
+    await expect(tools.syncPull(dir, 'place-1', { confirm: true })).rejects.toThrow();
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
+  });
+
+  it('binds a bounded apply to the plan hash it was previewed from', async () => {
+    const preview = textPayload(await tools.syncStatus(dir, 'place-1'));
+    expect(preview.planHash).toMatch(/^sha256:/);
+
+    await expect(tools.syncPull(dir, 'place-1', { confirm: true, requirePlanHash: true }))
+      .rejects.toThrow(/expectedPlanHash is required/);
+
+    callSingle.mockResolvedValue(studioPage('print("changed since preview")'));
+    await expect(tools.syncPull(dir, 'place-1', {
+      confirm: true,
+      requirePlanHash: true,
+      expectedPlanHash: preview.planHash,
+    })).rejects.toThrow(/plan changed since preview/i);
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
   });
 });

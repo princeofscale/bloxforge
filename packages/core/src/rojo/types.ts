@@ -14,6 +14,7 @@ export type RojoSourceKind =
   | 'Script'
   | 'LocalScript'
   | 'ModuleScript'
+  | 'PluginScript'
   | 'meta'
   | 'model'
   | 'value'

@@ -59,13 +59,29 @@ function parseJsonc(raw: string): unknown {
   return JSON.parse(normalized);
 }
 
+const PROJECT_SUFFIXES = ['.project.json', '.project.jsonc'] as const;
+
+export function isRojoProjectFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  return PROJECT_SUFFIXES.some((suffix) => lower.endsWith(suffix));
+}
+
+/**
+ * Rojo made `name` optional in 7.4.1: `default.project.json` takes the parent
+ * directory name and `foo.project.json` takes `foo`.
+ */
+function deriveProjectName(projectFile: string): string {
+  const base = path.basename(projectFile).replace(/\.project\.jsonc?$/i, '');
+  return base.toLowerCase() === 'default' ? path.basename(path.dirname(projectFile)) : base;
+}
+
 function readProject(projectFile: string): RojoProject {
   const parsed = parseJsonc(fs.readFileSync(projectFile, 'utf8')) as Record<string, unknown>;
-  if (!parsed || typeof parsed !== 'object' || typeof parsed.name !== 'string' || !parsed.tree || typeof parsed.tree !== 'object') {
-    throw new Error(`Invalid Rojo project ${projectFile}: expected string "name" and object "tree"`);
+  if (!parsed || typeof parsed !== 'object' || !parsed.tree || typeof parsed.tree !== 'object') {
+    throw new Error(`Invalid Rojo project ${projectFile}: expected object "tree"`);
   }
   return {
-    name: parsed.name,
+    name: typeof parsed.name === 'string' ? parsed.name : deriveProjectName(projectFile),
     root: path.dirname(projectFile),
     projectFile,
     servePort: typeof parsed.servePort === 'number' ? parsed.servePort : undefined,
@@ -81,25 +97,34 @@ function readProject(projectFile: string): RojoProject {
   };
 }
 
+const MAX_DISCOVERED_PROJECTS = 200;
+const MAX_DISCOVERY_DEPTH = 24;
+
 export function discoverRojoProjects(root = process.cwd()): RojoProject[] {
   const canonicalRoot = resolveProjectRoot(root);
   const found: string[] = [];
-  const walk = (directory: string) => {
+  const walk = (directory: string, depth: number) => {
+    if (depth > MAX_DISCOVERY_DEPTH) return;
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.bloxforge') continue;
       const absolute = path.join(directory, entry.name);
-      if (entry.isDirectory()) walk(absolute);
-      else if (entry.isFile() && entry.name.endsWith('.project.json')) found.push(absolute);
+      if (entry.isDirectory()) walk(absolute, depth + 1);
+      else if (entry.isFile() && isRojoProjectFile(entry.name)) {
+        found.push(absolute);
+        if (found.length > MAX_DISCOVERED_PROJECTS) {
+          throw new Error(`More than ${MAX_DISCOVERED_PROJECTS} Rojo project files found under ${canonicalRoot}; narrow the search root`);
+        }
+      }
     }
   };
-  walk(canonicalRoot);
+  walk(canonicalRoot, 0);
   return found.sort().map(readProject);
 }
 
 export function selectRojoProject(root = process.cwd(), projectFile?: string): RojoProject {
   if (projectFile) {
     const selected = resolveProjectPath(root, projectFile);
-    if (!selected.endsWith('.project.json')) throw new Error('Rojo project file must end with .project.json');
+    if (!isRojoProjectFile(selected)) throw new Error('Rojo project file must end with .project.json or .project.jsonc');
     return readProject(selected);
   }
   const projects = discoverRojoProjects(root);

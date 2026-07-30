@@ -65,13 +65,13 @@ async function terminateChild(child: ChildProcessWithoutNullStreams, graceMs = 2
 export class RojoProcessManager {
   private readonly processes = new Map<string, ManagedProcess>();
   private readonly starts = new Map<string, Promise<RojoServeStatus>>();
-  private version?: RojoVersionResult;
 
   constructor(private readonly runner = new RojoCommandRunner()) {}
 
-  async getVersion(): Promise<RojoVersionResult> {
-    this.version ??= await this.runner.version();
-    return this.version;
+  // Not cached: the resolved command depends on the project's toolchain manifest,
+  // which can change (or be installed) while the server is running.
+  async getVersion(cwd?: string): Promise<RojoVersionResult> {
+    return this.runner.version(cwd);
   }
 
   async start(
@@ -114,7 +114,7 @@ export class RojoProcessManager {
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Rojo serve port must be an integer from 1 to 65535');
     await assertPortAvailable(host, port);
 
-    const version = await this.getVersion();
+    const version = await this.getVersion(path.dirname(project));
     if (!version.available || !version.ok) throw new Error(version.error ?? 'Rojo is unavailable');
     const child = this.runner.spawn(
       ['serve', project, '--address', host, '--port', String(port)],

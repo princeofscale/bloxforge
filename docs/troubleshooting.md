@@ -92,16 +92,33 @@ tool manager, then rerun `run_quality_gate`. `install_wally_packages` requires
 
 ### Rojo project detection is ambiguous
 
-BloxForge discovers every nested `*.project.json` and deliberately does not
-guess when more than one exists. Pass the returned `projectFile` to subsequent
-`rojo_*` calls. If the project uses comments, trailing commas, included
-projects, or sync rules, validate it with `rojo_validate_project`; the installed
-Rojo CLI is authoritative.
+BloxForge discovers every nested `*.project.json` and `*.project.jsonc` and
+deliberately does not guess when more than one exists. Pass the returned
+`projectFile` to subsequent `rojo_*` calls. If the project uses comments,
+trailing commas, included projects, or sync rules, validate it with
+`rojo_validate_project`; the installed Rojo CLI is authoritative.
+
+### The wrong Rojo version runs
+
+Call `rojo_get_version` with the project `root`. It reports which command was
+resolved and where it came from: `rokit`/`aftman` (the toolchain shim named by a
+manifest above the project), `environment` (`BLOXFORGE_ROJO_BIN`), or `path`.
+Use `rokit_status` to compare the version pinned in `rokit.toml`, the installed
+shim, and the version that shim actually runs. If a manifest pins Rojo but no
+shim exists, run `rokit_install` with `confirm: true`.
+
+### Wally packages are installed but missing in Studio
+
+Run `wally_verify_rojo_mapping`. It reports which of `Packages`,
+`ServerPackages`, and `DevPackages` exist on disk but are not mounted anywhere
+in the selected Rojo project tree. Add the missing `$path` entries, then rebuild
+the sourcemap.
 
 ### `rojo_serve_start` fails
 
 - Install and pin stable Rojo with Rokit or Aftman; BloxForge does not install
-  it automatically.
+  it automatically. `rokit_install` runs the toolchain's own installer once you
+  confirm it.
 - Choose another loopback port if the configured port is occupied.
 - Non-loopback `serveAddress` values are rejected by managed serve. Run Rojo
   outside BloxForge only if you intentionally accept that network exposure.
@@ -109,11 +126,15 @@ Rojo CLI is authoritative.
 
 ### Syncback reports conflicts
 
-Keep local files as the normal source of truth. Review
-`rojo_syncback_plan`; `rojo_syncback_apply` will not overwrite a local file
-whose expected hash changed, and deletions require explicit confirmation.
-Backups and hash-only state are written under `.bloxforge/`, which should remain
-gitignored. On Rojo versions without native `syncback`, BloxForge exposes only
+Keep local files as the normal source of truth. Review `rojo_syncback_plan` and
+pass the `planHash` it returns to `rojo_syncback_apply`: a plan that no longer
+matches the current Studio and local state is rejected rather than applied.
+Deletions require explicit confirmation. `unsupported` entries name Instances
+whose names cannot become portable file names, and `ambiguous` entries name
+renames that could not be resolved to a single candidate. Backups and hash-only
+state are written under `.bloxforge/`, which should remain gitignored. If the
+state file is reported as unusable, inspect it and re-run with
+`resetBaseline: true` to quarantine it and rebuild the baseline. On Rojo versions without native `syncback`, BloxForge exposes only
 the bounded managed-script subset it can prove safe.
 
 ---
