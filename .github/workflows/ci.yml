@@ -151,6 +151,12 @@ jobs:
           chmod +x "${RUNNER_TEMP}/rokit/rokit"
           "${RUNNER_TEMP}/rokit/rokit" self-install
           echo "${HOME}/.rokit/bin" >> "$GITHUB_PATH"
+      # Rokit resolves releases through the GitHub API, which rate-limits
+      # unauthenticated runners to the point of 403ing.
+      - name: Authenticate Rokit with the workflow token
+        run: rokit authenticate github --token "${GITHUB_TOKEN}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install pinned tools through Rokit and verify the shims
         run: npm run test:toolchain:integration
 

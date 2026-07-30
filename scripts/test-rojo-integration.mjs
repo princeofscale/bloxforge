@@ -113,10 +113,10 @@ try {
 
   // Optional project name: supported only for default.project.json, where Rojo
   // falls back to the parent directory name.
-  write('nameless/src/init.luau', 'return {}\n');
-  write('nameless/default.project.json', JSON.stringify({
-    tree: { $className: 'Folder', $path: 'src' },
-  }));
+  write('nameless/src/Value.luau', 'return {}\n');
+  // No $className: `src` is a directory, so Rojo infers Folder. Setting both
+  // only works when the path really is a plain folder.
+  write('nameless/default.project.json', JSON.stringify({ tree: { $path: 'src' } }));
   execFileSync('rojo', ['build', 'default.project.json', '--output', 'nameless.rbxm'], {
     cwd: path.join(root, 'nameless'),
     encoding: 'utf8',
