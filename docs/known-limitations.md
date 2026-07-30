@@ -124,6 +124,10 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   made concurrently after planning can still produce a conflict. Re-run the
   plan instead of forcing an overwrite. The snapshot is bounded to 5,000 files
   and 100 MiB; a larger project root is refused rather than partially covered.
+- Rojo documents `name` as optional since 7.4.1, but Rojo 7.7.0 only implements
+  the fallback for `default.project.json`. Building any other project file
+  without a `name` crashes the CLI, so keep an explicit `name` on non-default
+  project files.
 - Studio Instance names containing characters no portable file name can hold
   (`< > : " / \ | ? *`, control characters, trailing dots or spaces, Windows
   reserved names) are reported as unsupported. Rojo does not decode an escaped

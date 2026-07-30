@@ -22,8 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a `resetBaseline` option that quarantines an unusable
   `.bloxforge/rojo-state.json` and rebuilds the sync baseline explicitly.
 - Added a Rokit + Wally CI job that installs a checksum-pinned Rokit, resolves
-  tools through its shims, and asserts `wally install --locked` fails closed
-  without a lockfile.
+  tools through its shims, and asserts the installed Wally's actual `--locked`
+  behaviour.
 
 - Added a CI contract that cross-checks canonical definitions, registry entries,
   legacy handlers, schemas, domains, capabilities, and duplicate tool names.
@@ -43,7 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process, keyed by the nearest `rokit.toml`/`aftman.toml` and its mtime, so a
   toolchain change or install is picked up without restarting the server.
 - Made the Rojo project `name` field optional, deriving it the way Rojo has
-  since 7.4.1 (`default.project.json` takes the parent directory name).
+  since 7.4.1 (`default.project.json` takes the parent directory name). Rojo
+  7.7.0 itself only implements this for `default.project.json`; documented that
+  a nameless non-default project file crashes the CLI.
+- Probed whether the installed Wally supports `wally install --locked` instead
+  of assuming it. The flag is absent from the released 0.3.2, and silently
+  dropping it would rewrite the lockfile it exists to protect; a locked install
+  is now refused with an explanation.
 - Required the `planHash` returned by `rojo_syncback_plan` on every
   `rojo_syncback_apply`, for the bounded Studio adapter as well as native
   syncback, and widened the hash to cover the reported operations, each mapped

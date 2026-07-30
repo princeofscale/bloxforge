@@ -159,13 +159,26 @@ dependencies = []
     expect(validation.withoutChecksum).toEqual([]);
   });
 
-  test('plans a locked install and requires confirmation before running one', () => {
+  test('plans an install and requires confirmation before running one', () => {
     const tools = new WallyTools();
+    // `--locked` only reaches the command line when the installed Wally has it;
+    // 0.3.2 does not, and silently dropping it would rewrite the lockfile.
+    jest.spyOn(tools, 'supportsLocked').mockReturnValue(true);
     expect(tools.installPlan(root)).toMatchObject({
       command: 'wally install --locked',
       lockPresent: true,
+      lockedSupported: true,
       confirmationRequired: true,
     });
+
+    jest.spyOn(tools, 'supportsLocked').mockReturnValue(false);
+    expect(tools.installPlan(root)).toMatchObject({
+      command: 'wally install',
+      lockedSupported: false,
+      warning: expect.stringContaining('does not support --locked'),
+    });
+    expect(tools.installApply(root, true, true).error).toMatch(/does not support/);
+
     expect(tools.installApply(root, false).error).toMatch(/Confirmation required/);
     expect(tools.updateApply(root, [], false).error).toMatch(/Confirmation required/);
     expect(() => tools.search(root, '--output')).toThrow(/option-shaped/);

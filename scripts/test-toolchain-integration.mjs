@@ -85,22 +85,50 @@ try {
     '',
   ].join('\n'));
 
-  const wally = path.join(shimDirectory, 'wally');
-  const lockedWithoutLock = tryRun(wally, ['install', '--locked'], { cwd: root });
-  assert(!lockedWithoutLock.ok, 'wally install --locked succeeded without a lockfile; it must fail closed');
-
-  run(wally, ['install'], { cwd: root });
-  assert(existsSync(path.join(root, 'wally.lock')), 'wally install did not produce a lockfile');
-  run(wally, ['install', '--locked'], { cwd: root });
-
   const { WallyTools } = await import(
     pathToFileURL(path.join(REPO_ROOT, 'packages/core/dist/toolchain/wally-tools.js')).href
   );
-  const validation = new WallyTools().validateLock(root);
+  const wallyTools = new WallyTools();
+
+  // `--locked` is not in the released Wally 0.3.2; it landed afterwards. Assert
+  // whichever contract the installed Wally actually offers, and assert that
+  // BloxForge agrees with it rather than assuming the flag exists.
+  const wally = path.join(shimDirectory, 'wally');
+  const help = tryRun(wally, ['install', '--help'], { cwd: root });
+  const lockedSupported = help.output.includes('--locked');
+  assert(
+    wallyTools.supportsLocked(root) === lockedSupported,
+    `supportsLocked() disagreed with "wally install --help" (detected ${wallyTools.supportsLocked(root)}, actual ${lockedSupported})`,
+  );
+
+  if (lockedSupported) {
+    const lockedWithoutLock = tryRun(wally, ['install', '--locked'], { cwd: root });
+    assert(!lockedWithoutLock.ok, 'wally install --locked succeeded without a lockfile; it must fail closed');
+  }
+
+  run(wally, ['install'], { cwd: root });
+  assert(existsSync(path.join(root, 'wally.lock')), 'wally install did not produce a lockfile');
+
+  if (lockedSupported) {
+    run(wally, ['install', '--locked'], { cwd: root });
+  } else {
+    // Without the flag, a locked install must be refused, never quietly downgraded.
+    const refused = wallyTools.installApply(root, true, true);
+    assert(refused.ok === false, 'installApply ran an unlocked install on a Wally without --locked');
+    assert(
+      /does not support/.test(refused.error ?? ''),
+      `Expected a --locked support error, got: ${refused.error}`,
+    );
+  }
+
+  const validation = wallyTools.validateLock(root);
   assert(validation.present === true, 'validateLock did not see the generated lockfile');
   assert(validation.ok === true, `validateLock reported missing entries: ${JSON.stringify(validation.missing)}`);
 
-  console.log('toolchain-integration: Rokit shim resolution, pinned versions, and wally --locked behaviour verified');
+  console.log(
+    `toolchain-integration: Rokit shim resolution and pinned versions verified; `
+    + `wally --locked ${lockedSupported ? 'supported and fails closed without a lockfile' : 'unsupported by this Wally and correctly refused'}`,
+  );
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

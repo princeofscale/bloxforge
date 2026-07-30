@@ -42,9 +42,13 @@ try {
   write('src/ReplicatedStorage/Limits.yaml', 'maximum: 10\n');
   write('src/ReplicatedStorage/Marker.model.jsonc', '{\n  // JSONC model\n  "className": "Folder",\n}\n');
 
-  // Rojo made "name" optional in 7.4.1 and added .project.jsonc in 7.7.
+  // Rojo 7.7 added .project.jsonc. It still requires an explicit "name" on a
+  // non-default project file: omitting it hits an unimplemented branch in
+  // set_file_name (src/project.rs) and crashes the CLI, so only
+  // default.project.json may omit it. That case is covered separately below.
   write('fixture.project.jsonc', `{
     // Stable Rojo supports comments and trailing commas.
+    "name": "IntegrationFixture",
     "tree": {
       "$className": "DataModel",
       "ServerScriptService": { "$path": "src/ServerScriptService" },
@@ -94,8 +98,25 @@ try {
     throw new Error('syncback dry-run did not list the divergent .luau source');
   }
 
+  // Optional project name: supported only for default.project.json, where Rojo
+  // falls back to the parent directory name.
+  write('nameless/src/init.luau', 'return {}\n');
+  write('nameless/default.project.json', JSON.stringify({
+    tree: { $className: 'Folder', $path: 'src' },
+  }));
+  execFileSync('rojo', ['build', 'default.project.json', '--output', 'nameless.rbxm'], {
+    cwd: path.join(root, 'nameless'),
+    encoding: 'utf8',
+    timeout: 30000,
+    maxBuffer: 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (!existsSync(path.join(root, 'nameless', 'nameless.rbxm'))) {
+    throw new Error('rojo build of a default.project.json without a name produced no output');
+  }
+
   console.log(
-    `rojo-integration: Rojo ${expected} verified .project.jsonc, optional project name, `
+    `rojo-integration: Rojo ${expected} verified .project.jsonc, a nameless default.project.json, `
     + '.luau/.server.luau/.client.luau, init.luau, .meta.jsonc, .model.jsonc, .jsonc, YAML, '
     + 'sourcemap, and a .luau syncback dry-run',
   );

@@ -190,7 +190,7 @@ const WALLY_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'wally_install_apply',
-    description: 'Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten.',
+    description: 'Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten. Refuses to run if the installed Wally lacks --locked rather than silently downgrading.',
     category: 'write',
     effects: [...MUTATION_EFFECTS],
     inputSchema: {

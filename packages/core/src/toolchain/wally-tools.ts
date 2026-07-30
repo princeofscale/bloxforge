@@ -211,17 +211,33 @@ export class WallyTools {
     return { ...run('wally', ['search', checked], { cwd: manifest.directory }), query: checked };
   }
 
+  /**
+   * `--locked` is not in released Wally 0.3.2 — it landed after it. Probing
+   * beats assuming: silently dropping the flag would rewrite the lockfile,
+   * which is the exact outcome `--locked` exists to prevent.
+   */
+  supportsLocked(root?: string): boolean {
+    const { manifest } = this.load(root);
+    const help = run('wally', ['install', '--help'], { cwd: manifest.directory });
+    return help.available && (help.output ?? '').includes('--locked');
+  }
+
   installPlan(root?: string) {
     const { manifest, lock } = this.load(root);
+    const lockedSupported = this.supportsLocked(root);
+    const useLocked = lockedSupported && lock !== undefined;
     return {
       root: manifest.directory,
-      command: `wally install${lock ? ' --locked' : ''}`,
+      command: `wally install${useLocked ? ' --locked' : ''}`,
       lockPresent: lock !== undefined,
+      lockedSupported,
       validation: this.validateLock(root),
       confirmationRequired: true,
-      warning: lock
+      warning: useLocked
         ? 'Runs with --locked: the install fails rather than silently rewriting wally.lock.'
-        : 'No wally.lock exists, so --locked cannot be used. The install will resolve versions and create one.',
+        : lockedSupported
+          ? 'No wally.lock exists, so --locked cannot be used. The install will resolve versions and create one.'
+          : 'The installed Wally does not support --locked (it is missing from 0.3.2). This install can rewrite wally.lock; review the diff afterwards or install a Wally build that supports --locked.',
     };
   }
 
@@ -234,6 +250,15 @@ export class WallyTools {
         available: hasCommand('wally'),
         ok: false,
         error: 'Confirmation required: review wally_install_plan, then pass confirm=true. Installing downloads packages from the registry and writes into the project.',
+      };
+    }
+    if (locked && lock !== undefined && !this.supportsLocked(root)) {
+      return {
+        tool: 'wally',
+        available: hasCommand('wally'),
+        ok: false,
+        error: 'The installed Wally does not support "wally install --locked" (it is missing from the 0.3.2 release). Refusing to run an unlocked install that could rewrite wally.lock; pass locked=false to accept that, or install a Wally build that supports --locked.',
+        locked: true,
       };
     }
     const useLocked = locked && lock !== undefined;
