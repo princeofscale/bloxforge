@@ -2740,7 +2740,7 @@ Build the selected Rojo project to an explicit output path inside the project ro
 
 ### `rojo_generate_sourcemap` (Write)
 
-Generate a sourcemap for the selected project at a safe explicit local output path.
+Generate a sourcemap for the selected project at a safe explicit local output path. Rojo emits only scripts unless includeNonScripts is set.
 
 **Parameters:**
 
@@ -2749,6 +2749,7 @@ Generate a sourcemap for the selected project at a safe explicit local output pa
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT. |
 | `projectFile` | `string` | No | Explicit *.project.json path; required when discovery is ambiguous. |
 | `output` | `string` | No |  |
+| `includeNonScripts` | `boolean` | No | Include non-script Instances; required to resolve folders, models, and values. |
 
 ---
 

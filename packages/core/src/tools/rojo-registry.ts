@@ -111,18 +111,26 @@ const ROJO_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'rojo_generate_sourcemap',
-    description: 'Generate a sourcemap for the selected project at a safe explicit local output path.',
+    description: 'Generate a sourcemap for the selected project at a safe explicit local output path. Rojo emits only scripts unless includeNonScripts is set.',
     category: 'write',
     effects: ['local.files.read', 'local.files.write', 'local.process.execute'],
     inputSchema: {
       type: 'object',
-      properties: { ...PROJECT, output: { type: 'string', default: 'sourcemap.json' } },
+      properties: {
+        ...PROJECT,
+        output: { type: 'string', default: 'sourcemap.json' },
+        includeNonScripts: {
+          type: 'boolean',
+          description: 'Include non-script Instances; required to resolve folders, models, and values.',
+        },
+      },
     },
     outputSchema: OUTPUT,
     handler: (runtime, args) => asTools(runtime).rojoGenerateSourcemap(
       args.root as string | undefined,
       args.projectFile as string | undefined,
       args.output as string | undefined,
+      args.includeNonScripts as boolean | undefined,
     ),
   }),
   ...(['instance_source', 'source_instance'] as const).map((direction) => defineTool({

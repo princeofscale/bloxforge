@@ -124,6 +124,9 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   made concurrently after planning can still produce a conflict. Re-run the
   plan instead of forcing an overwrite. The snapshot is bounded to 5,000 files
   and 100 MiB; a larger project root is refused rather than partially covered.
+- `rojo sourcemap` emits only `Script`, `LocalScript`, and `ModuleScript` unless
+  `includeNonScripts` is set, so `rojo_resolve_instance_source` cannot resolve a
+  folder, model, or value Instance from a default sourcemap.
 - Rojo documents `name` as optional since 7.4.1, but Rojo 7.7.0 only implements
   the fallback for `default.project.json`. Building any other project file
   without a `name` crashes the CLI, so keep an explicit `name` on non-default

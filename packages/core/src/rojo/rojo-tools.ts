@@ -128,14 +128,26 @@ export class RojoTools {
     };
   }
 
-  async generateSourcemap(root?: string, projectFile?: string, output = 'sourcemap.json') {
+  /**
+   * `rojo sourcemap` emits only Script/LocalScript/ModuleScript unless told
+   * otherwise, so a default sourcemap cannot resolve a Folder, a model, or any
+   * other non-script Instance.
+   */
+  async generateSourcemap(root?: string, projectFile?: string, output = 'sourcemap.json', includeNonScripts = false) {
     const project = selectRojoProject(root, projectFile);
     const target = resolveProjectPath(project.root, output, false);
     assertSafeOutput(project, target, ['.json'], 'rojo sourcemap');
     return {
       projectFile: project.projectFile,
       output: target,
-      ...await this.runner.run(['sourcemap', project.projectFile, '--output', target], { cwd: project.root }),
+      includeNonScripts,
+      ...await this.runner.run([
+        'sourcemap',
+        project.projectFile,
+        '--output',
+        target,
+        ...(includeNonScripts ? ['--include-non-scripts'] : []),
+      ], { cwd: project.root }),
     };
   }
 

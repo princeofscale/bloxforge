@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   7.7's own sync rules.
 - Added `instancePathSegments` to Rojo instance/source resolution so an Instance
   whose name contains a dot is no longer ambiguous.
+- Added `includeNonScripts` to `rojo_generate_sourcemap`. Rojo emits only
+  Script/LocalScript/ModuleScript by default, so folders, models, and other
+  non-script Instances could not be resolved through a generated sourcemap.
 - Added a `resetBaseline` option that quarantines an unusable
   `.bloxforge/rojo-state.json` and rebuilds the sync baseline explicitly.
 - Added a Rokit + Wally CI job that installs a checksum-pinned Rokit, resolves

@@ -400,8 +400,8 @@ export class RobloxStudioTools {
   async rojoBuildProject(root?: string, projectFile?: string, output?: string) {
     return this.rojoTools.buildProject(root, projectFile, output);
   }
-  async rojoGenerateSourcemap(root?: string, projectFile?: string, output?: string) {
-    return this.rojoTools.generateSourcemap(root, projectFile, output);
+  async rojoGenerateSourcemap(root?: string, projectFile?: string, output?: string, includeNonScripts?: boolean) {
+    return this.rojoTools.generateSourcemap(root, projectFile, output, includeNonScripts);
   }
   async rojoResolveInstanceSource(root: string | undefined, projectFile: string | undefined, instancePath: string | string[], sourcemap?: string) {
     return this.rojoTools.resolveInstanceSource(root, projectFile, instancePath, sourcemap);

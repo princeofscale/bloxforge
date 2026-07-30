@@ -81,10 +81,18 @@ try {
       throw new Error(`Sourcemap omitted ${expectedPath}; Rojo ${expected} does not map it the way BloxForge assumes`);
     }
   }
-  // A JSON model contributes Instances rather than a file path, so assert on the
-  // Instance it produces instead.
-  if (!JSON.parse(sourcemap).children?.some((service) => service.children?.some((node) => node.name === 'Marker'))) {
+  // `rojo sourcemap` emits only Script/LocalScript/ModuleScript by default, so a
+  // JSON model that produces a Folder needs --include-non-scripts to show up.
+  run(['sourcemap', 'fixture.project.jsonc', '--output', 'sourcemap-full.json', '--include-non-scripts']);
+  const fullSourcemap = JSON.parse(readFileSync(path.join(root, 'sourcemap-full.json'), 'utf8'));
+  const hasNode = (node, name) =>
+    node.name === name || (node.children ?? []).some((child) => hasNode(child, name));
+  if (!hasNode(fullSourcemap, 'Marker')) {
     throw new Error(`Rojo ${expected} did not turn Marker.model.jsonc into an Instance`);
+  }
+  if (JSON.parse(sourcemap).children?.some((service) =>
+    (service.children ?? []).some((node) => node.name === 'Marker'))) {
+    throw new Error('Default sourcemap unexpectedly contained a non-script Instance');
   }
 
   // A .luau divergence must appear in the syncback plan — that is exactly the
