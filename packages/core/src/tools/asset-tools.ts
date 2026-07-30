@@ -535,13 +535,21 @@ export class AssetTools {
     const cc = this.runtime.cookieClient;
     const oc = this.runtime.openCloudClient;
 
-    // Cookie auth: Decal-only path.
+    // Cookie auth: image-only path via the user-auth assets API. The legacy
+    // data.roblox.com decal endpoint no longer accepts these uploads.
     if (assetType === 'Decal' && cc.hasCookie()) {
-      const result = await cc.uploadDecal(fileContent, displayName, description || '');
+      const result = await cc.uploadImage({
+        fileContent,
+        fileName,
+        displayName,
+        description: description || '',
+        userId: userId || process.env.ROBLOX_CREATOR_USER_ID,
+        groupId: groupId || process.env.ROBLOX_CREATOR_GROUP_ID,
+      });
       return {
         content: [{ type: 'text', text: JSON.stringify({
           done: true,
-          response: { assetId: String(result.assetId), displayName, assetType, decalId: String(result.assetId), imageId: String(result.backingAssetId) },
+          response: { assetId: String(result.assetId), displayName, assetType: 'Image', decalId: null, imageId: String(result.assetId) },
         }) }],
       };
     }

@@ -114,12 +114,18 @@ function getScriptSource(requestData: Record<string, unknown>) {
 	}
 }
 
+// Two independent rolling hashes plus the byte length. A single 31-bit hash
+// collides often enough that a changed script could be reported as unchanged and
+// never resynced. Must stay identical to `studioHash` in packages/core.
 function sourceHash(source: string): string {
-	let hash = 5381;
+	let djb2 = 5381;
+	let sdbm = 0;
 	for (let i = 1; i <= source.size(); i++) {
-		hash = (hash * 33 + string.byte(source, i)[0]) % 2147483647;
+		const byte = string.byte(source, i)[0];
+		djb2 = (djb2 * 33 + byte) % 2147483647;
+		sdbm = (sdbm * 65599 + byte) % 2147483647;
 	}
-	return `djb2:${string.format("%08x", hash)}`;
+	return `djb2:${string.format("%08x", djb2)}:${string.format("%08x", sdbm)}:${source.size()}`;
 }
 
 function instancePathSegments(instance: Instance): string[] {
@@ -248,7 +254,10 @@ function setScriptSource(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
 	const newSource = requestData.source as string;
 
-	if (!instancePath || !newSource) return { error: "Instance path and source are required" };
+	// An empty source is a legitimate edit — only a missing value is an error.
+	if (!instancePath || !typeIs(newSource, "string")) {
+		return { error: "Instance path and source are required" };
+	}
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
@@ -294,39 +303,12 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		return directResult;
 	}
 
-	const [replaceSuccess, replaceResult] = pcall(() => {
-		const parent = instance.Parent;
-		const name = instance.Name;
-		const className = instance.ClassName;
-		const wasBaseScript = instance.IsA("BaseScript");
-		const enabled = wasBaseScript ? instance.Enabled : undefined;
-
-		const newScript = new Instance(className as keyof CreatableInstances) as LuaSourceContainer;
-		newScript.Name = name;
-		(newScript as unknown as { Source: string }).Source = sourceToSet;
-		if (wasBaseScript && enabled !== undefined) {
-			(newScript as BaseScript).Enabled = enabled;
-		}
-
-		newScript.Parent = parent;
-		instance.Destroy();
-
-		return {
-			success: true,
-			instancePath: getInstancePath(newScript),
-			method: "replace",
-			message: "Script replaced successfully with new source",
-		};
-	});
-
-	if (replaceSuccess) {
-		finishRecording(recordingId, true);
-		return replaceResult;
-	}
-
+	// There used to be a destroy-and-recreate fallback here. It preserved only
+	// Name and Enabled, so it silently dropped attributes, tags, children, and
+	// every reference pointing at the script. Failing loudly is the safe outcome.
 	finishRecording(recordingId, false);
 	return {
-		error: `Failed to set script source. UpdateSourceAsync failed: ${updateResult}. Direct assignment failed: ${directResult}. Replace method failed: ${replaceResult}`,
+		error: `Failed to set script source. UpdateSourceAsync failed: ${updateResult}. Direct assignment failed: ${directResult}. The script was left untouched; close any open editor tab for it and retry.`,
 	};
 }
 

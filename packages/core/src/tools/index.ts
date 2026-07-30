@@ -50,6 +50,8 @@ import { DOC_CATEGORIES, getRobloxDoc, isDocCategory } from '../roblox-docs.js';
 import { SessionRecorder } from '../session-recorder.js';
 import { QualityTools } from '../quality-tools.js';
 import { RojoTools } from '../rojo/rojo-tools.js';
+import { RokitTools } from '../toolchain/rokit-tools.js';
+import { WallyTools } from '../toolchain/wally-tools.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -278,6 +280,8 @@ export class RobloxStudioTools {
   private sessionRecorder: SessionRecorder;
   private qualityTools: QualityTools;
   private rojoTools: RojoTools;
+  private rokitTools = new RokitTools();
+  private wallyTools = new WallyTools();
   /** Provenance for externally-imported assets (Track A) — source/license/hash/assetId. */
   private provenance = new Map<string, ProvenanceRecord>();
 
@@ -386,7 +390,7 @@ export class RobloxStudioTools {
   async rojoDetectProjects(root?: string) { return this.rojoTools.detectProjects(root); }
   async rojoGetProjectInfo(root?: string, projectFile?: string) { return this.rojoTools.getProjectInfo(root, projectFile); }
   async rojoValidateProject(root?: string, projectFile?: string) { return this.rojoTools.validateProject(root, projectFile); }
-  async rojoGetVersion() { return this.rojoTools.getVersion(); }
+  async rojoGetVersion(root?: string) { return this.rojoTools.getVersion(root); }
   async rojoServeStart(root?: string, projectFile?: string, host?: string, port?: number, placeId?: number) {
     return this.rojoTools.serveStart(root, projectFile, host, port, placeId);
   }
@@ -399,7 +403,7 @@ export class RobloxStudioTools {
   async rojoGenerateSourcemap(root?: string, projectFile?: string, output?: string) {
     return this.rojoTools.generateSourcemap(root, projectFile, output);
   }
-  async rojoResolveInstanceSource(root: string | undefined, projectFile: string | undefined, instancePath: string, sourcemap?: string) {
+  async rojoResolveInstanceSource(root: string | undefined, projectFile: string | undefined, instancePath: string | string[], sourcemap?: string) {
     return this.rojoTools.resolveInstanceSource(root, projectFile, instancePath, sourcemap);
   }
   async rojoResolveSourceInstance(root: string | undefined, projectFile: string | undefined, sourcePath: string, sourcemap?: string) {
@@ -424,6 +428,27 @@ export class RobloxStudioTools {
     return this.rojoTools.deleteSource(root, projectFile, sourcePath, options);
   }
   async stopManagedRojoProcesses() { await this.rojoTools.stopAll(); }
+
+  // === Toolchain facade (Rokit / Aftman / Wally) ===
+
+  async rokitDetect(root?: string) { return this.rokitTools.detect(root); }
+  async rokitGetManifest(root?: string) { return this.rokitTools.getManifest(root); }
+  async rokitListTools(root?: string) { return this.rokitTools.listTools(root); }
+  async rokitStatus(root?: string) { return this.rokitTools.status(root); }
+  async rokitInstall(root?: string, confirm?: boolean) { return this.rokitTools.install(root, confirm); }
+  async rokitAddTool(root: string | undefined, spec: string, confirm?: boolean) { return this.rokitTools.addTool(root, spec, confirm); }
+  async rokitUpdate(root: string | undefined, tool?: string, confirm?: boolean) { return this.rokitTools.update(root, tool, confirm); }
+
+  async wallyGetManifest(root?: string) { return this.wallyTools.getManifest(root); }
+  async wallyGetLock(root?: string) { return this.wallyTools.getLock(root); }
+  async wallyDependencyGraph(root?: string) { return this.wallyTools.dependencyGraph(root); }
+  async wallyValidateLock(root?: string) { return this.wallyTools.validateLock(root); }
+  async wallyVerifyRojoMapping(root?: string, projectFile?: string) { return this.wallyTools.verifyRojoMapping(root, projectFile); }
+  async wallySearch(root: string | undefined, query: string) { return this.wallyTools.search(root, query); }
+  async wallyInstallPlan(root?: string) { return this.wallyTools.installPlan(root); }
+  async wallyInstallApply(root?: string, confirm?: boolean, locked?: boolean) { return this.wallyTools.installApply(root, confirm, locked); }
+  async wallyUpdatePlan(root?: string, packages?: string[]) { return this.wallyTools.updatePlan(root, packages); }
+  async wallyUpdateApply(root: string | undefined, packages?: string[], confirm?: boolean) { return this.wallyTools.updateApply(root, packages, confirm); }
 
   async getRobloxDocs(name: string, docType?: string, section?: string) {
     if (!name || typeof name !== 'string') {
@@ -537,24 +562,25 @@ export class RobloxStudioTools {
 
   // === Local sync facade ===
 
-  async syncPull(syncDir?: string, instance_id?: string, options?: SafetyOptions & { deleteMissing?: boolean }) { return this.syncTools.syncPull(syncDir, instance_id, options); }
-  async syncStatus(syncDir?: string, instance_id?: string) { return this.syncTools.syncStatus(syncDir, instance_id); }
-  async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions) { return this.syncTools.syncPush(syncDir, instance_id, options); }
+  async syncPull(syncDir?: string, instance_id?: string, options?: SafetyOptions & { deleteMissing?: boolean; resetBaseline?: boolean }) { return this.syncTools.syncPull(syncDir, instance_id, options); }
+  async syncStatus(syncDir?: string, instance_id?: string, options?: { resetBaseline?: boolean }) { return this.syncTools.syncStatus(syncDir, instance_id, options); }
+  async syncPush(syncDir?: string, instance_id?: string, options?: SafetyOptions & { resetBaseline?: boolean }) { return this.syncTools.syncPush(syncDir, instance_id, options); }
   async rojoSyncbackPlan(
     syncDir?: string,
     instance_id?: string,
-    native?: { root?: string; projectFile?: string; inputPlaceFile?: string },
+    native?: { root?: string; projectFile?: string; inputPlaceFile?: string; resetBaseline?: boolean },
   ) {
     if (native?.inputPlaceFile) {
       return this.rojoTools.nativeSyncbackPlan(native.root, native.projectFile, native.inputPlaceFile);
     }
-    return this.syncTools.syncStatus(syncDir, instance_id);
+    return this.syncTools.syncStatus(syncDir, instance_id, { resetBaseline: native?.resetBaseline });
   }
   async rojoSyncbackApply(
     syncDir?: string,
     instance_id?: string,
     options?: SafetyOptions & {
       deleteMissing?: boolean;
+      resetBaseline?: boolean;
       root?: string;
       projectFile?: string;
       inputPlaceFile?: string;
@@ -570,7 +596,9 @@ export class RobloxStudioTools {
         options.expectedPlanHash,
       );
     }
-    return this.syncTools.syncPull(syncDir, instance_id, options);
+    // Both syncback flavours are immutable: the plan the caller reviewed is the
+    // only plan that can be applied.
+    return this.syncTools.syncPull(syncDir, instance_id, { ...options, requirePlanHash: true });
   }
 
   // Resolve (instance_id, target-role) → concrete (instanceId, role) and
@@ -2019,7 +2047,14 @@ export class RobloxStudioTools {
     const fileName = path.basename(filePath);
 
     if (assetType === 'Decal' && this.cookieClient.hasCookie()) {
-      const result = await this.cookieClient.uploadDecal(fileContent, displayName, description || '');
+      const result = await this.cookieClient.uploadImage({
+        fileContent,
+        fileName,
+        displayName,
+        description: description || '',
+        userId: userId || process.env.ROBLOX_CREATOR_USER_ID,
+        groupId: groupId || process.env.ROBLOX_CREATOR_GROUP_ID,
+      });
       return {
         content: [{
           type: 'text',
@@ -2028,9 +2063,9 @@ export class RobloxStudioTools {
             response: {
               assetId: String(result.assetId),
               displayName,
-              assetType,
-              decalId: String(result.assetId),
-              imageId: String(result.backingAssetId),
+              assetType: 'Image',
+              decalId: null,
+              imageId: String(result.assetId),
             },
           })
         }]
