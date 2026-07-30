@@ -3092,7 +3092,7 @@ Preview a Wally install, including whether --locked can be used and whether the 
 
 ### `wally_install_apply` (Write)
 
-Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten.
+Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten. Refuses to run if the installed Wally lacks --locked rather than silently downgrading.
 
 **Parameters:**
 

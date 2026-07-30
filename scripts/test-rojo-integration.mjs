@@ -65,6 +65,7 @@ try {
 
   run(['sourcemap', 'fixture.project.jsonc', '--output', 'sourcemap.json']);
   const sourcemap = readFileSync(path.join(root, 'sourcemap.json'), 'utf8');
+  // Script-like and value files carry their source path in the sourcemap.
   for (const expectedPath of [
     'Main.server.lua',
     'Modern.server.luau',
@@ -75,11 +76,15 @@ try {
     'Settings.jsonc',
     'Tuning.yml',
     'Limits.yaml',
-    'Marker.model.jsonc',
   ]) {
     if (!sourcemap.includes(expectedPath.split('/').pop())) {
       throw new Error(`Sourcemap omitted ${expectedPath}; Rojo ${expected} does not map it the way BloxForge assumes`);
     }
+  }
+  // A JSON model contributes Instances rather than a file path, so assert on the
+  // Instance it produces instead.
+  if (!JSON.parse(sourcemap).children?.some((service) => service.children?.some((node) => node.name === 'Marker'))) {
+    throw new Error(`Rojo ${expected} did not turn Marker.model.jsonc into an Instance`);
   }
 
   // A .luau divergence must appear in the syncback plan — that is exactly the
