@@ -627,12 +627,13 @@ function grepScripts(requestData: Record<string, unknown>) {
 				const searchLine = caseSensitive ? line : line.lower();
 
 				let matchStart: number | undefined;
-				let matchEnd: number | undefined;
+				// The end offset is unused; only the match position matters here.
+				let _matchEnd: number | undefined;
 
 				if (usePattern) {
-					[matchStart, matchEnd] = string.find(searchLine, searchPattern);
+					[matchStart, _matchEnd] = string.find(searchLine, searchPattern);
 				} else {
-					[matchStart, matchEnd] = string.find(searchLine, searchPattern, 1, true);
+					[matchStart, _matchEnd] = string.find(searchLine, searchPattern, 1, true);
 				}
 
 				if (matchStart !== undefined) {

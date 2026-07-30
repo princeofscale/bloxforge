@@ -641,8 +641,6 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       bridge.updateInstanceActivity(pluginSessionId);
     }
 
-    let callerInstanceId: string | undefined;
-    let callerRole: string | undefined;
     let knownInstance = false;
     let callerPluginVersion: string | undefined;
     let callerPluginVariant: string | undefined;
@@ -652,8 +650,6 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     if (pluginSessionId) {
       const inst = bridge.getInstanceBySessionId(pluginSessionId);
       if (inst) {
-        callerInstanceId = inst.instanceId;
-        callerRole = inst.role;
         callerPluginVersion = inst.pluginVersion;
         callerPluginVariant = inst.pluginVariant;
         callerPluginProtocolVersion = inst.pluginProtocolVersion;
@@ -982,6 +978,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           server.close();
         });
       } catch (error) {
+        console.error('[bloxforge] Streamable HTTP request failed:', error);
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: '2.0',
@@ -1062,30 +1059,30 @@ export function listenWithRetry(
   startPort: number,
   maxAttempts: number = 5
 ): Promise<{ server: http.Server; port: number }> {
-  return new Promise(async (resolve, reject) => {
+  // A plain async function, not an async Promise executor: a rejection thrown
+  // before `reject` runs would otherwise be swallowed into an unhandled rejection.
+  return (async () => {
     let lastAddressInUseError: NodeJS.ErrnoException | undefined;
     for (let i = 0; i < maxAttempts; i++) {
       const port = startPort + i;
       try {
-        const server = await bindPort(app, host, port);
-        resolve({ server, port });
-        return;
-      } catch (err: any) {
-        if (err.code === 'EADDRINUSE') {
-          lastAddressInUseError = err;
+        return { server: await bindPort(app, host, port), port };
+      } catch (err) {
+        const error = err as NodeJS.ErrnoException;
+        if (error.code === 'EADDRINUSE') {
+          lastAddressInUseError = error;
           console.error(`Port ${port} in use, trying next...`);
           continue;
         }
-        reject(err);
-        return;
+        throw error;
       }
     }
     const exhausted = new Error(
       `All ports ${startPort}-${startPort + maxAttempts - 1} are in use. Stop some MCP server instances and retry.`,
     ) as NodeJS.ErrnoException;
     exhausted.code = lastAddressInUseError?.code ?? 'EADDRINUSE';
-    reject(exhausted);
-  });
+    throw exhausted;
+  })();
 }
 
 function bindPort(app: express.Express, host: string, port: number): Promise<http.Server> {

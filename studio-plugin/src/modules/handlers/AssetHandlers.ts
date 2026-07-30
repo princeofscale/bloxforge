@@ -2,7 +2,6 @@ import Utils from "../Utils";
 import Recording from "../Recording";
 
 const AssetService = game.GetService("AssetService");
-const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
 
 const { getInstancePath, getInstanceByPath } = Utils;
