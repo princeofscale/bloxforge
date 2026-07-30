@@ -31,6 +31,8 @@ interface SyncStateEntry {
 
 /** Bumped to 2 when `studioHash` gained a second accumulator and a length suffix. */
 const STATE_SCHEMA_VERSION = 2;
+/** The plugin caps items per page, so this bounds a misbehaving or looping peer. */
+const MAX_STUDIO_PAGES = 500;
 
 interface SyncState {
   schemaVersion: typeof STATE_SCHEMA_VERSION;
@@ -85,6 +87,11 @@ function atomicWriteFile(file: string, content: string): void {
   } finally {
     try { fs.unlinkSync(temporary); } catch { /* already renamed or unavailable */ }
   }
+}
+
+/** Only the leading segment is the DataModel; a child may be named "game". */
+function stripDataModelPrefix(segments: string[]): string[] {
+  return segments[0] === 'game' ? segments.slice(1) : segments;
 }
 
 function errorMessage(error: unknown): string {
@@ -181,7 +188,12 @@ export class SyncTools {
       if (knownHashBytes > 256 * 1024) break;
       knownHashes[entry.studioIdentity] = entry.studioHash;
     }
+    const seenTokens = new Set<string>();
+    let pages = 0;
     do {
+      if (++pages > MAX_STUDIO_PAGES) {
+        throw new Error(`Studio returned more than ${MAX_STUDIO_PAGES} managed-script pages; aborting instead of paging forever`);
+      }
       const response = await this.runtime.callSingle('/api/read-managed-scripts', {
         rootPath: 'game',
         limit: 100,
@@ -206,6 +218,13 @@ export class SyncTools {
       continuationToken = typeof response.continuationToken === 'string'
         ? response.continuationToken
         : undefined;
+      // A plugin repeating a token would otherwise spin here forever.
+      if (continuationToken !== undefined) {
+        if (seenTokens.has(continuationToken)) {
+          throw new Error('Studio repeated a managed-script continuation token; aborting the paginated read');
+        }
+        seenTokens.add(continuationToken);
+      }
     } while (continuationToken);
     return scripts;
   }
@@ -296,7 +315,7 @@ export class SyncTools {
     for (const script of studioScripts) {
       const segments = script.pathSegments?.length
         ? script.pathSegments
-        : script.path.split('.').filter((segment) => segment !== 'game');
+        : stripDataModelPrefix(script.path.split('.').filter(Boolean));
       let rel: string;
       try {
         rel = this.sync.instanceSegmentsToFilePath(segments, script.className);
@@ -551,14 +570,21 @@ export class SyncTools {
     }
 
     const pushed: string[] = [];
+    const failed: Array<{ path: string; error: string }> = [];
     for (const rel of plan.localOnly) {
       const script = plan.scripts.get(rel);
       const content = plan.local.get(rel);
       if (!script || content === undefined) continue;
-      await this.runtime.callSingle('/api/set-script-source', {
+      // The plugin reports failure as an { error } envelope rather than throwing.
+      // Recording a baseline for it would mark the file in-sync and lose the edit.
+      const response = await this.runtime.callSingle('/api/set-script-source', {
         instancePath: script.path,
         source: content,
-      }, undefined, instance_id);
+      }, undefined, instance_id) as { error?: unknown } | undefined;
+      if (typeof response?.error === 'string') {
+        failed.push({ path: rel, error: response.error });
+        continue;
+      }
       pushed.push(rel);
     }
     const now = new Date().toISOString();
@@ -585,6 +611,7 @@ export class SyncTools {
           dir,
           dryRun: false,
           pushed,
+          failed,
           conflicts: plan.conflicts,
           unsupported: plan.unsupported,
         }, null, 2),

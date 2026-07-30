@@ -74,6 +74,16 @@ line"""
     });
   });
 
+  test('treats prototype member names as ordinary keys', () => {
+    // Manifest data controls every key, so `__proto__` must not reach
+    // Object.prototype and `toString` must not look like a duplicate.
+    const parsed = parseToml('toString = "a"\nconstructor = "b"\n\n[__proto__]\npolluted = true\n');
+    expect(parsed.toString).toBe('a');
+    expect(parsed.constructor).toBe('b');
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.getPrototypeOf(parsed)).toBeNull();
+  });
+
   test('throws instead of guessing at malformed or unsupported input', () => {
     expect(() => parseToml('name = ')).toThrow(/Invalid TOML/);
     expect(() => parseToml('a = 1\na = 2')).toThrow(/duplicate key/);

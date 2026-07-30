@@ -87,6 +87,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported Node.js 18 and the new Node.js 20+ runtime floor is a breaking change.
 
 ### Fixed
+- Fixed `rojo_generate_sourcemap` failing on every run after the first: the new
+  output-overwrite guard classified the existing `sourcemap.json` as a Rojo
+  value source and refused to replace it.
+- Stopped the TOML reader from reaching `Object.prototype`. Manifest data
+  controls every key, so `__proto__` could pollute and `toString`/`constructor`
+  were rejected as duplicates of inherited members.
+- Fixed `wally_verify_rojo_mapping` matching package directories as substrings
+  of the stringified project tree, so a project mounting only `ServerPackages`
+  reported `Packages` as mapped; it now compares resolved `$path` values.
+- Fixed `sync_push` recording a successful baseline for scripts the plugin
+  rejected. The plugin returns an `{ error }` envelope rather than throwing, so
+  a failed push looked in-sync afterwards and the local edit was lost.
+- Fixed managed-script pages reporting a changed script as `tooLarge` when it
+  merely exhausted the remaining page budget; the page now ends so the script
+  starts the next one with a full budget instead of never being fetched.
+- Bounded the Studio managed-script pagination loop by page count and repeated
+  continuation tokens instead of trusting the peer to terminate it.
+- Treated only a leading `game` segment as the DataModel prefix so an Instance
+  legitimately named `game` is no longer dropped from its path.
+- Logged only the message when a Streamable HTTP request fails, so a thrown
+  object cannot serialize request or credential details into the log.
 - Removed the non-existent `rokit run rojo --` fallback. Rokit has no `run`
   subcommand, so a Rokit-only project either used an unrelated global Rojo or
   failed; BloxForge now uses the toolchain's installed shim and, when a manifest

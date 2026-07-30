@@ -978,7 +978,8 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
           server.close();
         });
       } catch (error) {
-        console.error('[bloxforge] Streamable HTTP request failed:', error);
+        // Message only: a thrown object can carry request bodies or credentials.
+        console.error('[bloxforge] Streamable HTTP request failed:', error instanceof Error ? error.message : 'unknown error');
         if (!res.headersSent) {
           res.status(500).json({
             jsonrpc: '2.0',

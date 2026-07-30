@@ -113,8 +113,12 @@ jobs:
   rojo:
     name: Rojo 7.7.0 integration
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 20
@@ -134,8 +138,14 @@ jobs:
   toolchain:
     name: Rokit + Wally toolchain integration
     runs-on: ubuntu-latest
+    # These steps run third-party CLIs that fetch from the network, so the job
+    # gets read-only scope and no checkout credentials left in .git/config.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 20

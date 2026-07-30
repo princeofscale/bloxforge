@@ -13,6 +13,13 @@ const BARE_KEY = /[A-Za-z0-9_-]/;
 export type TomlValue = string | number | boolean | TomlValue[] | TomlTable;
 export interface TomlTable { [key: string]: TomlValue }
 
+// Null-prototype tables: manifest data controls every key, so a key named
+// `__proto__`, `constructor` or `toString` must not reach Object.prototype or
+// register as a duplicate of an inherited member.
+const emptyTable = (): TomlTable => Object.create(null) as TomlTable;
+const hasOwn = (table: TomlTable, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(table, key);
+
 class Reader {
   index = 0;
   constructor(readonly text: string) {}
@@ -176,7 +183,7 @@ function readValue(reader: Reader): TomlValue {
   }
   if (char === '{') {
     reader.index++;
-    const table: TomlTable = {};
+    const table: TomlTable = emptyTable();
     reader.skip(false);
     if (reader.peek() === '}') {
       reader.index++;
@@ -219,9 +226,9 @@ function readValue(reader: Reader): TomlValue {
 function assign(root: TomlTable, key: string[], value: TomlValue, reader: Reader): void {
   let table = root;
   for (const part of key.slice(0, -1)) {
-    const next = table[part];
+    const next = hasOwn(table, part) ? table[part] : undefined;
     if (next === undefined) {
-      const created: TomlTable = {};
+      const created = emptyTable();
       table[part] = created;
       table = created;
     } else if (typeof next === 'object' && !Array.isArray(next)) {
@@ -231,17 +238,17 @@ function assign(root: TomlTable, key: string[], value: TomlValue, reader: Reader
     }
   }
   const leaf = key[key.length - 1];
-  if (leaf in table) reader.fail(`duplicate key ${key.join('.')}`);
+  if (hasOwn(table, leaf)) reader.fail(`duplicate key ${key.join('.')}`);
   table[leaf] = value;
 }
 
 function tableAt(root: TomlTable, key: string[], arrayOfTables: boolean, reader: Reader): TomlTable {
   let table = root;
   for (const part of key.slice(0, -1)) {
-    let next = table[part];
+    let next = hasOwn(table, part) ? table[part] : undefined;
     if (Array.isArray(next)) next = next[next.length - 1];
     if (next === undefined) {
-      const created: TomlTable = {};
+      const created = emptyTable();
       table[part] = created;
       table = created;
     } else if (typeof next === 'object' && !Array.isArray(next)) {
@@ -252,16 +259,16 @@ function tableAt(root: TomlTable, key: string[], arrayOfTables: boolean, reader:
   }
 
   const leaf = key[key.length - 1];
-  const existing = table[leaf];
+  const existing = hasOwn(table, leaf) ? table[leaf] : undefined;
   if (arrayOfTables) {
-    const created: TomlTable = {};
+    const created = emptyTable();
     if (existing === undefined) table[leaf] = [created];
     else if (Array.isArray(existing)) existing.push(created);
     else reader.fail(`${key.join('.')} is not an array of tables`);
     return created;
   }
   if (existing === undefined) {
-    const created: TomlTable = {};
+    const created = emptyTable();
     table[leaf] = created;
     return created;
   }
@@ -272,7 +279,7 @@ function tableAt(root: TomlTable, key: string[], arrayOfTables: boolean, reader:
 export function parseToml(input: string): TomlTable {
   const bom = input.charCodeAt(0) === 0xFEFF ? 1 : 0;
   const reader = new Reader(bom ? input.slice(1) : input);
-  const root: TomlTable = {};
+  const root = emptyTable();
   let current = root;
 
   for (;;) {

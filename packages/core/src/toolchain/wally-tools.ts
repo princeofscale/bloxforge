@@ -79,6 +79,19 @@ function packageName(spec: string): string {
   return spec.split('@')[0];
 }
 
+/** Every `$path` value in a Rojo project tree, at any depth. */
+function collectProjectPaths(node: unknown, out: string[] = []): string[] {
+  if (!node || typeof node !== 'object') return out;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === '$path' && typeof value === 'string') out.push(value);
+    else if (key === '$path' && value && typeof value === 'object') {
+      const optional = (value as { optional?: unknown }).optional;
+      if (typeof optional === 'string') out.push(optional);
+    } else if (value && typeof value === 'object') collectProjectPaths(value, out);
+  }
+  return out;
+}
+
 export class WallyTools {
   private load(root?: string) {
     const canonicalRoot = resolveProjectRoot(root ?? process.cwd());
@@ -189,9 +202,16 @@ export class WallyTools {
   verifyRojoMapping(root?: string, projectFile?: string) {
     const { manifest } = this.load(root);
     const project = selectRojoProject(manifest.directory, projectFile);
-    const tree = JSON.stringify(project.tree);
+    // Compare resolved $path values, not a substring of the stringified tree:
+    // "Packages" is a substring of "ServerPackages", so a project mounting only
+    // ServerPackages reported both as mapped.
+    const mountedPaths = new Set(
+      collectProjectPaths(project.tree).map((value) =>
+        path.resolve(manifest.directory, value).toLowerCase()),
+    );
     const present = PACKAGE_DIRECTORIES.filter((name) => fs.existsSync(path.join(manifest.directory, name)));
-    const mapped = present.filter((name) => tree.includes(name));
+    const mapped = present.filter((name) =>
+      mountedPaths.has(path.resolve(manifest.directory, name).toLowerCase()));
     return {
       root: manifest.directory,
       projectFile: project.projectFile,

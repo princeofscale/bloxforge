@@ -60,7 +60,10 @@ export class SyncManager {
 
   /** "game.ServerScriptService.A.B" + Script -> "ServerScriptService/A/B.server.lua". */
   instancePathToFilePath(instancePath: string, className: ScriptClassName): string {
-    const segments = instancePath.split('.').filter((s) => s.length > 0 && s !== 'game');
+    // Only the leading "game" is the DataModel prefix; a nested Instance may
+    // legitimately be named "game".
+    const segments = instancePath.split('.').filter((s) => s.length > 0);
+    if (segments[0] === 'game') segments.shift();
     return this.instanceSegmentsToFilePath(segments, className);
   }
 

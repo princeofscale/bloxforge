@@ -200,6 +200,23 @@ dependencies = []
     });
   });
 
+  test('does not count ServerPackages as Packages by substring', () => {
+    // "Packages" is a substring of "ServerPackages"; matching the stringified
+    // tree reported an unmounted Packages directory as mapped.
+    fs.writeFileSync(path.join(root, 'default.project.json'), JSON.stringify({
+      name: 'Minimal',
+      tree: { $className: 'DataModel', ServerStorage: { Deps: { $path: 'ServerPackages' } } },
+    }));
+    fs.mkdirSync(path.join(root, 'Packages'));
+    fs.mkdirSync(path.join(root, 'ServerPackages'));
+
+    expect(new WallyTools().verifyRojoMapping(root)).toMatchObject({
+      mapped: ['ServerPackages'],
+      unmapped: ['Packages'],
+      ok: false,
+    });
+  });
+
   test('missing lockfile fails validation instead of reporting an empty graph', () => {
     fs.rmSync(path.join(root, 'wally.lock'));
     const validation = new WallyTools().validateLock(root);

@@ -129,6 +129,21 @@ describe('Rojo command and process management', () => {
     }
   });
 
+  test('regenerates a sourcemap over its own previous output but refuses metadata', async () => {
+    const rojo = new RojoTools(new RojoCommandRunner(fakeCommand), manager);
+    await expect(rojo.generateSourcemap(root, 'game.project.json')).resolves.toMatchObject({ ok: true });
+    fs.writeFileSync(path.join(root, 'sourcemap.json'), '{}');
+    // sourcemap.json classifies as a `.json` value source; blocking it would
+    // make every regeneration after the first fail.
+    await expect(rojo.generateSourcemap(root, 'game.project.json')).resolves.toMatchObject({ ok: true });
+
+    fs.writeFileSync(path.join(root, 'Thing.meta.json'), '{}');
+    await expect(rojo.generateSourcemap(root, 'game.project.json', 'Thing.meta.json'))
+      .rejects.toThrow(/must not overwrite the Rojo source/);
+    await expect(rojo.buildProject(root, 'game.project.json', 'out.lua'))
+      .rejects.toThrow(/must use one of/);
+  });
+
   test('rejects non-loopback serve addresses', async () => {
     await expect(manager.start(projectFile, { host: '0.0.0.0', port: 34876 }))
       .rejects.toThrow(/loopback/);

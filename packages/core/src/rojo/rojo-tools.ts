@@ -8,7 +8,7 @@ import { RojoProcessManager } from './process-manager.js';
 import { RojoSourceEditor } from './source-editor.js';
 import { resolveInstanceSource, resolveSourceInstance } from './sourcemap.js';
 import { classifyRojoSource, resolveProjectPath, resolveProjectRoot } from './source-mapper.js';
-import type { RojoProject } from './types.js';
+import type { RojoProject, RojoSourceKind } from './types.js';
 import { QualityTools } from '../quality-tools.js';
 
 const defaultRojoProcessManager = new RojoProcessManager();
@@ -32,7 +32,13 @@ function hashFile(file: string): string {
  * wherever it is told, so `--output` must never land on a source file, a project
  * file, or an extension the command does not actually produce.
  */
-function assertSafeOutput(project: RojoProject, target: string, allowedExtensions: string[], label: string): void {
+function assertSafeOutput(
+  project: RojoProject,
+  target: string,
+  allowedExtensions: string[],
+  blockedKinds: RojoSourceKind[],
+  label: string,
+): void {
   const name = path.basename(target);
   const extension = path.extname(name).toLowerCase();
   if (!allowedExtensions.includes(extension)) {
@@ -42,10 +48,13 @@ function assertSafeOutput(project: RojoProject, target: string, allowedExtension
   if (path.resolve(target) === path.resolve(project.projectFile)) {
     throw new Error(`${label} output must not overwrite the selected project file`);
   }
-  // A build artefact shares .rbxm/.rbxmx with Rojo-managed model sources, so only
-  // reject an existing file that Rojo currently treats as project input.
+  // The extension check already excludes script sources. What remains is the
+  // overlap between legitimate outputs and Rojo inputs that share an extension:
+  // `.rbxm` is both a build artefact and a model source, and `sourcemap.json`
+  // is a `.json` output that classifies as a value source. Only the kinds a
+  // given command can never legitimately produce are rejected.
   const mapping = classifyRojoSource(name);
-  if (mapping && mapping.kind !== 'model' && fs.existsSync(target)) {
+  if (mapping && blockedKinds.includes(mapping.kind) && fs.existsSync(target)) {
     throw new Error(`${label} output must not overwrite the Rojo source ${name}`);
   }
 }
@@ -120,7 +129,8 @@ export class RojoTools {
     if (!output) throw new Error('output is required');
     const project = selectRojoProject(root, projectFile);
     const target = resolveProjectPath(project.root, output, false);
-    assertSafeOutput(project, target, BUILD_EXTENSIONS, 'rojo build');
+    // A build may overwrite a previous artefact; it must never land on metadata.
+    assertSafeOutput(project, target, BUILD_EXTENSIONS, ['meta', 'project'], 'rojo build');
     return {
       projectFile: project.projectFile,
       output: target,
@@ -136,7 +146,9 @@ export class RojoTools {
   async generateSourcemap(root?: string, projectFile?: string, output = 'sourcemap.json', includeNonScripts = false) {
     const project = selectRojoProject(root, projectFile);
     const target = resolveProjectPath(project.root, output, false);
-    assertSafeOutput(project, target, ['.json'], 'rojo sourcemap');
+    // sourcemap.json is itself a `.json` value source, so only metadata and
+    // model definitions are off limits — otherwise regeneration is impossible.
+    assertSafeOutput(project, target, ['.json'], ['meta', 'model', 'project'], 'rojo sourcemap');
     return {
       projectFile: project.projectFile,
       output: target,

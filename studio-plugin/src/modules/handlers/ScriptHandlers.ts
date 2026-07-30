@@ -223,6 +223,12 @@ function readManagedScripts(requestData: Record<string, unknown>) {
 		const hash = sourceHash(source);
 		const unchanged = knownHashes[entry.path] === hash;
 		const includeSource = !unchanged && sourceBytes + source.size() <= maxSourceBytes;
+		// A changed script that fits a fresh page but not the remaining budget
+		// must start the next page. Emitting it with sourceOmitted would make the
+		// caller file it under "too large" and never fetch it again.
+		if (!unchanged && !includeSource && source.size() <= maxSourceBytes && items.size() > 0) {
+			break;
+		}
 		items.push({
 			path: entry.path,
 			pathSegments: instancePathSegments(entry.instance),
