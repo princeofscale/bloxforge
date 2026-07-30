@@ -131,6 +131,29 @@ jobs:
         env:
           BLOXFORGE_EXPECTED_ROJO_VERSION: 7.7.0
 
+  toolchain:
+    name: Rokit + Wally toolchain integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Pinned with a checksum: an unpinned toolchain installer is a supply-chain
+      # hole, and the whole point of this job is that pinned tools resolve.
+      - name: Install pinned Rokit
+        run: |
+          curl -fsSL https://github.com/rojo-rbx/rokit/releases/download/v1.2.0/rokit-1.2.0-linux-x86_64.zip -o "${RUNNER_TEMP}/rokit.zip"
+          echo "951a7f3ec3d2a5e021fd1867d32f69f010ee4c2927f644b759578afc59c65fc0  ${RUNNER_TEMP}/rokit.zip" | sha256sum --check -
+          unzip -q "${RUNNER_TEMP}/rokit.zip" -d "${RUNNER_TEMP}/rokit"
+          chmod +x "${RUNNER_TEMP}/rokit/rokit"
+          "${RUNNER_TEMP}/rokit/rokit" self-install
+          echo "${HOME}/.rokit/bin" >> "$GITHUB_PATH"
+      - name: Install pinned tools through Rokit and verify the shims
+        run: npm run test:toolchain:integration
+
   cross-platform:
     name: Cross-platform smoke (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

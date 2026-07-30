@@ -17,6 +17,7 @@ import { GENERATED_TOOL_DEFINITIONS } from './definitions/generated.js';
 import type { RobloxStudioTools } from './index.js';
 import type { ToolDefinition } from './definitions.js';
 import { registerRojoTools } from './rojo-registry.js';
+import { registerToolchainTools } from './toolchain-registry.js';
 import { effectsForTool } from './tool-effects.js';
 
 /**
@@ -32,6 +33,7 @@ export function registerContractedTools(
   _tools: RobloxStudioTools,
 ): void {
   registerRojoTools(registry);
+  registerToolchainTools(registry);
   registerLocalTools(registry);
   // Discovery / meta — always-on
   registry.register(

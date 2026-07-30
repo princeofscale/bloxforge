@@ -10,6 +10,7 @@ import { RUNTIME_TOOL_DEFINITIONS } from '../tools/definitions/runtime.js';
 import { SCRIPTING_TOOL_DEFINITIONS } from '../tools/definitions/scripting.js';
 import { META_TOOL_DEFINITIONS } from '../tools/definitions/meta.js';
 import { ROJO_TOOL_DEFINITIONS } from '../tools/rojo-registry.js';
+import { TOOLCHAIN_TOOL_DEFINITIONS } from '../tools/toolchain-registry.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
@@ -91,6 +92,7 @@ describe('Tool schema compatibility', () => {
       ...GENERATED_TOOL_DEFINITIONS,
       ...META_TOOL_DEFINITIONS,
       ...ROJO_TOOL_DEFINITIONS,
+      ...TOOLCHAIN_TOOL_DEFINITIONS,
     ]));
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
@@ -182,6 +184,7 @@ describe('Tool schema compatibility', () => {
     const allowed = new Set([
       ...CONTRACTED_OUTPUT_TOOL_NAMES,
       ...ROJO_TOOL_DEFINITIONS.map((tool) => tool.name),
+      ...TOOLCHAIN_TOOL_DEFINITIONS.map((tool) => tool.name),
     ]);
     const offenders = TOOL_DEFINITIONS
       .filter((tool) => tool.outputSchema && !allowed.has(tool.name))
@@ -243,6 +246,26 @@ describe('Tool schema compatibility', () => {
     'rojo_patch_source',
     'rojo_create_source',
     'rojo_delete_source',
+    // Rokit/Aftman/Wally tools act on local toolchain manifests and CLIs only.
+    'rokit_detect',
+    'rokit_get_manifest',
+    'rokit_list_tools',
+    'rokit_status',
+    'rokit_install',
+    'rokit_add_tool_plan',
+    'rokit_add_tool_apply',
+    'rokit_update_plan',
+    'rokit_update_apply',
+    'wally_get_manifest',
+    'wally_get_lock',
+    'wally_dependency_graph',
+    'wally_validate_lock',
+    'wally_verify_rojo_mapping',
+    'wally_search',
+    'wally_install_plan',
+    'wally_install_apply',
+    'wally_update_plan',
+    'wally_update_apply',
     // Safety/audit tools operate on in-memory server state, not a Studio place.
     'get_operation_history',
     'list_script_backups',
