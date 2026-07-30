@@ -38,13 +38,17 @@ export function resolveProjectPath(root: string, requested: string, mustExist = 
 export function encodeInstanceName(name: string): string {
   if (!name) return '~empty';
   let encoded = [...name].map((char) =>
-    /[<>:"/\\|?*]/.test(char) || char.codePointAt(0)! < 32
+    /[~<>:"/\\|?*]/.test(char) || char.codePointAt(0)! < 32
       ? `~${char.codePointAt(0)!.toString(16).toUpperCase().padStart(2, '0')}`
       : char).join('');
   encoded = encoded.replace(/^[. ]+|[. ]+$/g, (value) =>
     [...value].map((char) => `~${char.codePointAt(0)!.toString(16).toUpperCase()}`).join(''));
   if (WINDOWS_RESERVED.test(encoded)) encoded = `~${encoded}`;
   return encoded;
+}
+
+export function portablePathKey(relativePath: string): string {
+  return relativePath.replace(/\\/g, '/').normalize('NFC').toLowerCase();
 }
 
 export function classifyRojoSource(fileName: string): RojoSourceMapping | undefined {

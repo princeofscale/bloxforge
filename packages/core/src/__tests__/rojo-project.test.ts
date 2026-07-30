@@ -75,6 +75,7 @@ describe('Rojo project adapter', () => {
     expect(encodeInstanceName('CON')).not.toBe('CON');
     expect(encodeInstanceName('../bad:name')).not.toContain('/');
     expect(encodeInstanceName('Привет')).toBe('Привет');
+    expect(encodeInstanceName('~2F')).not.toBe(encodeInstanceName('/'));
   });
 
   test('rejects traversal and symlink escapes from the project root', () => {

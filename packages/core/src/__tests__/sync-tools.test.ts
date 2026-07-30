@@ -110,6 +110,32 @@ describe('SyncTools safety', () => {
       .rejects.toThrow(/project root/);
   });
 
+  it('rejects Studio names that collide on one portable local path', async () => {
+    callSingle.mockResolvedValue({
+      items: [
+        {
+          ...studioPage('print("upper")').items[0],
+          path: 'game.ServerScriptService.Upper',
+          pathSegments: ['ServerScriptService', 'Main'],
+        },
+        {
+          ...studioPage('print("lower")').items[0],
+          path: 'game.ServerScriptService.Lower',
+          pathSegments: ['ServerScriptService', 'main'],
+        },
+      ],
+      continuationToken: undefined,
+    });
+
+    const payload = textPayload(await tools.syncPull(dir, 'place-1', { confirm: true }));
+    expect(payload.conflicts).toEqual(expect.arrayContaining([
+      'ServerScriptService/Main.server.lua',
+      'ServerScriptService/main.server.lua',
+    ]));
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/main.server.lua'))).toBe(false);
+  });
+
   it('represents renames explicitly and applies them only after confirmation', async () => {
     await tools.syncPull(dir, 'place-1', { confirm: true });
     callSingle.mockResolvedValue({

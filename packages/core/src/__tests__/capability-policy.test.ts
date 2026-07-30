@@ -18,7 +18,18 @@ describe('capability policy', () => {
     expect(requiredCapabilities(syncPull)).toEqual(['read.scene', 'local.files.write']);
 
     const rojoPatch = TOOL_DEFINITIONS.find((tool) => tool.name === 'rojo_patch_source')!;
-    expect(requiredCapabilities(rojoPatch)).toEqual(['local.files.read', 'local.files.write']);
+    expect(requiredCapabilities(rojoPatch)).toEqual([
+      'local.files.read',
+      'local.files.write',
+      'local.process.execute',
+    ]);
+
+    const rojoCreate = TOOL_DEFINITIONS.find((tool) => tool.name === 'rojo_create_source')!;
+    expect(requiredCapabilities(rojoCreate)).toEqual([
+      'local.files.read',
+      'local.files.write',
+      'local.process.execute',
+    ]);
   });
 
   test('parses stdio and per-token capability sets', () => {

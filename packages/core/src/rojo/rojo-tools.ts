@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -10,6 +11,12 @@ import { classifyRojoSource, resolveProjectPath } from './source-mapper.js';
 import { QualityTools } from '../quality-tools.js';
 
 const defaultRojoProcessManager = new RojoProcessManager();
+
+function syncbackPlanHash(projectFile: string, input: string, stdout: string): string {
+  const digest = createHash('sha256');
+  for (const file of [projectFile, input]) digest.update(fs.readFileSync(file)).update('\0');
+  return `sha256:${digest.update(stdout).digest('hex')}`;
+}
 
 export class RojoTools {
   private readonly quality = new QualityTools();
@@ -158,6 +165,7 @@ export class RojoTools {
       projectFile: project.projectFile,
       input,
       dryRun: true,
+      planHash: syncbackPlanHash(project.projectFile, input, result.stdout),
       changes: result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
       ...result,
     };
@@ -168,10 +176,14 @@ export class RojoTools {
     projectFile: string | undefined,
     inputPlaceFile: string,
     confirm = false,
+    expectedPlanHash?: string,
   ) {
     if (!confirm) throw new Error('Confirmation required: review rojo_syncback_plan, then pass confirm=true');
     const project = selectRojoProject(root, projectFile);
     const plan = await this.nativeSyncbackPlan(root, projectFile, inputPlaceFile);
+    if (!expectedPlanHash || plan.planHash !== expectedPlanHash) {
+      throw new Error('Native syncback plan changed since preview; review a fresh rojo_syncback_plan before applying');
+    }
     const snapshot = this.snapshotSources(project.root);
     const backupRoot = resolveProjectPath(
       project.root,
@@ -200,7 +212,7 @@ export class RojoTools {
         fs.mkdirSync(path.dirname(target), { recursive: true });
         fs.copyFileSync(path.join(backupRoot, relative), target);
       }
-      throw new Error(result.error ?? result.stderr ?? 'Rojo syncback failed and local sources were restored');
+      throw new Error(`Rojo syncback failed and local sources were restored: ${result.error ?? result.stderr ?? 'unknown error'}`);
     }
     return {
       projectFile: project.projectFile,

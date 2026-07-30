@@ -558,6 +558,7 @@ export class RobloxStudioTools {
       root?: string;
       projectFile?: string;
       inputPlaceFile?: string;
+      expectedPlanHash?: string;
     },
   ) {
     if (options?.inputPlaceFile) {
@@ -566,6 +567,7 @@ export class RobloxStudioTools {
         options.projectFile,
         options.inputPlaceFile,
         options.confirm,
+        options.expectedPlanHash,
       );
     }
     return this.syncTools.syncPull(syncDir, instance_id, options);

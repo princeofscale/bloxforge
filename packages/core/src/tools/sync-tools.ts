@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SyncManager, type ScriptClassName } from '../sync/sync-manager.js';
-import { resolveProjectPath, resolveProjectRoot } from '../rojo/source-mapper.js';
+import { portablePathKey, resolveProjectPath, resolveProjectRoot } from '../rojo/source-mapper.js';
 import { contentHash } from '../rojo/source-editor.js';
 import type { SafetyOptions, ToolContent } from './runtime-support.js';
 
@@ -187,12 +187,28 @@ export class SyncTools {
       state,
     };
 
-    for (const script of studioScripts) {
-      const segments = script.pathSegments?.length
-        ? script.pathSegments
-        : script.path.split('.').filter((segment) => segment !== 'game');
-      const rel = this.sync.instanceSegmentsToFilePath(segments, script.className);
-      if (this.sync.isIgnored(rel)) continue;
+    const mappedScripts = studioScripts
+      .map((script) => {
+        const segments = script.pathSegments?.length
+          ? script.pathSegments
+          : script.path.split('.').filter((segment) => segment !== 'game');
+        return { script, rel: this.sync.instanceSegmentsToFilePath(segments, script.className) };
+      })
+      .filter(({ rel }) => !this.sync.isIgnored(rel));
+    const pathCounts = new Map<string, number>();
+    for (const { rel } of mappedScripts) {
+      const key = portablePathKey(rel);
+      pathCounts.set(key, (pathCounts.get(key) ?? 0) + 1);
+    }
+    const blockedPaths = new Set(
+      [...pathCounts].filter(([, count]) => count > 1).map(([key]) => key),
+    );
+
+    for (const { script, rel } of mappedScripts) {
+      if (blockedPaths.has(portablePathKey(rel))) {
+        if (!plan.conflicts.includes(rel)) plan.conflicts.push(rel);
+        continue;
+      }
       scripts.set(rel, script);
       const baseline = state.entries[rel];
       if (script.source === undefined && !script.unchanged) {
@@ -210,6 +226,7 @@ export class SyncTools {
       else plan.conflicts.push(rel);
     }
     for (const [rel, baseline] of Object.entries(state.entries)) {
+      if (blockedPaths.has(portablePathKey(rel))) continue;
       if (scripts.has(rel)) continue;
       const localContent = local.get(rel);
       if (localContent === undefined || contentHash(localContent) === baseline.contentHash) plan.deletedInStudio.push(rel);

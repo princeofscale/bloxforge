@@ -179,7 +179,7 @@ const ROJO_TOOLS: RegisteredTool[] = [
     name: 'rojo_patch_source',
     description: 'Patch one unique text span in a local Rojo source with dry-run, formatted diff, and expected content hash.',
     category: 'write',
-    effects: ['local.files.read', 'local.files.write'],
+    effects: ['local.files.read', 'local.files.write', 'local.process.execute'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -211,7 +211,7 @@ const ROJO_TOOLS: RegisteredTool[] = [
     name: 'rojo_create_source',
     description: 'Create one absent Rojo source atomically, with dry-run and expectedAbsent optimistic locking.',
     category: 'write',
-    effects: ['local.files.read', 'local.files.write'],
+    effects: ['local.files.read', 'local.files.write', 'local.process.execute'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -303,6 +303,7 @@ const ROJO_TOOLS: RegisteredTool[] = [
         inputPlaceFile: { type: 'string', description: 'Optional RBXL/RBXLX/RBXM/RBXMX input for native Rojo 7.7+ syncback.' },
         dryRun: { type: 'boolean' },
         confirm: { type: 'boolean' },
+        expectedPlanHash: { type: 'string', description: 'Hash returned by rojo_syncback_plan; required for native syncback apply.' },
         deleteMissing: { type: 'boolean', description: 'Delete baseline-managed local files missing in Studio; requires confirm=true and creates backups.' },
         instance_id: INSTANCE_ID,
       },
@@ -319,6 +320,7 @@ const ROJO_TOOLS: RegisteredTool[] = [
         root: args.root as string | undefined,
         projectFile: args.projectFile as string | undefined,
         inputPlaceFile: args.inputPlaceFile as string | undefined,
+        expectedPlanHash: args.expectedPlanHash as string | undefined,
       },
     ),
   }),

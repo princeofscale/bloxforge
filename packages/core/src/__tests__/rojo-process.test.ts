@@ -47,10 +47,40 @@ describe('Rojo command and process management', () => {
     const input = path.join(root, 'place.rbxl');
     fs.writeFileSync(input, 'fixture');
     const rojo = new RojoTools(new RojoCommandRunner(fakeCommand), manager);
-    await expect(rojo.nativeSyncbackPlan(root, 'game.project.json', 'place.rbxl'))
-      .resolves.toMatchObject({ dryRun: true, ok: true });
+    const plan = await rojo.nativeSyncbackPlan(root, 'game.project.json', 'place.rbxl');
+    expect(plan).toMatchObject({ dryRun: true, ok: true, planHash: expect.stringMatching(/^sha256:/) });
     await expect(rojo.nativeSyncbackApply(root, 'game.project.json', 'place.rbxl', false))
       .rejects.toThrow(/Confirmation required/);
+    fs.writeFileSync(input, 'changed after preview');
+    await expect(rojo.nativeSyncbackApply(
+      root,
+      'game.project.json',
+      'place.rbxl',
+      true,
+      plan.planHash,
+    )).rejects.toThrow(/changed since preview/);
+  });
+
+  test('restores every source when native syncback fails partway through', async () => {
+    const input = path.join(root, 'place.rbxl');
+    const source = path.join(root, 'src', 'existing.lua');
+    fs.mkdirSync(path.dirname(source), { recursive: true });
+    fs.writeFileSync(input, 'fixture');
+    fs.writeFileSync(source, 'original');
+    const runner = new RojoCommandRunner(fakeCommand, { FAKE_ROJO_SYNCBACK_FAIL: '1' });
+    const rojo = new RojoTools(runner, manager);
+    const plan = await rojo.nativeSyncbackPlan(root, 'game.project.json', 'place.rbxl');
+
+    await expect(rojo.nativeSyncbackApply(
+      root,
+      'game.project.json',
+      'place.rbxl',
+      true,
+      plan.planHash,
+    )).rejects.toThrow(/restored/);
+    expect(fs.readFileSync(source, 'utf8')).toBe('original');
+    expect(fs.existsSync(path.join(root, 'src', 'created.lua'))).toBe(false);
+    expect(fs.readdirSync(path.join(root, '.bloxforge', 'backups'))).toHaveLength(1);
   });
 
   test('starts once, captures bounded readiness logs, and stops gracefully', async () => {
