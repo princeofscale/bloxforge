@@ -34,6 +34,17 @@ describe('QualityTools', () => {
     }
   });
 
+  test('detects an arbitrary Rojo project filename', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-project-'));
+    try {
+      fs.writeFileSync(path.join(root, 'arena.project.json'), '{"name":"Arena","tree":{}}');
+      expect(new QualityTools().detectRobloxProject(root).files['arena.project.json'])
+        .toBe(path.join(fs.realpathSync(root), 'arena.project.json'));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test('requires confirmation before package installation', () => {
     const result = new QualityTools().installWallyPackages(os.tmpdir(), false);
     expect(result.ok).toBe(false);

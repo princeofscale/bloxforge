@@ -1,4 +1,5 @@
-import { parseCapabilities, parseClientCapabilities, requiredCapability } from '../capability-policy.js';
+import { parseCapabilities, parseClientCapabilities, requiredCapabilities, requiredCapability } from '../capability-policy.js';
+import { TOOL_DEFINITIONS } from '../tools/definitions.js';
 
 describe('capability policy', () => {
   test('maps sensitive tools to narrow capabilities', () => {
@@ -10,6 +11,25 @@ describe('capability policy', () => {
     expect(requiredCapability('run_playtest_episode', 'write')).toBe('execute.luau');
     expect(requiredCapability('insert_asset', 'write')).toBe('assets.external');
     expect(requiredCapability('start_playtest', 'write')).toBe('playtest.control');
+  });
+
+  test('requires every declared local and Studio effect capability', () => {
+    const syncPull = TOOL_DEFINITIONS.find((tool) => tool.name === 'sync_pull')!;
+    expect(requiredCapabilities(syncPull)).toEqual(['read.scene', 'local.files.write']);
+
+    const rojoPatch = TOOL_DEFINITIONS.find((tool) => tool.name === 'rojo_patch_source')!;
+    expect(requiredCapabilities(rojoPatch)).toEqual([
+      'local.files.read',
+      'local.files.write',
+      'local.process.execute',
+    ]);
+
+    const rojoCreate = TOOL_DEFINITIONS.find((tool) => tool.name === 'rojo_create_source')!;
+    expect(requiredCapabilities(rojoCreate)).toEqual([
+      'local.files.read',
+      'local.files.write',
+      'local.process.execute',
+    ]);
   });
 
   test('parses stdio and per-token capability sets', () => {

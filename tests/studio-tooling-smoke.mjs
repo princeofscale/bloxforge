@@ -3,7 +3,6 @@
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { McpClient, DIST, REPO_ROOT, assert, assertContains } from './lib/mcp-client.mjs';
@@ -290,6 +289,7 @@ async function main() {
   const backups = backupPluginFiles(pluginsDir);
   const { fixtureDir, placePath } = createPlaceFixture(pluginsDir);
   let client;
+  let leakedStudioProcesses = [];
 
   try {
     await closeAllStudio();
@@ -314,10 +314,12 @@ async function main() {
     await closeAllStudio().catch(() => {});
     restorePluginFiles(pluginsDir, backups);
     rmSync(fixtureDir, { recursive: true, force: true });
-    const remaining = listStudioProcesses();
-    if (remaining.length > 0) {
-      throw new Error(`Studio processes remain after cleanup: ${JSON.stringify(remaining)}`);
-    }
+    leakedStudioProcesses = listStudioProcesses();
+  }
+  // Reported after the finally block: throwing inside it would discard the real
+  // failure from the try body.
+  if (leakedStudioProcesses.length > 0) {
+    throw new Error(`Studio processes remain after cleanup: ${JSON.stringify(leakedStudioProcesses)}`);
   }
 }
 

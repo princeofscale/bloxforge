@@ -6,18 +6,17 @@ describe('SyncManager file naming', () => {
   it('maps script classes to suffixed file names', () => {
     expect(sync.fileNameFor('Main', 'Script')).toBe('Main.server.lua');
     expect(sync.fileNameFor('Controller', 'LocalScript')).toBe('Controller.client.lua');
-    expect(sync.fileNameFor('Util', 'ModuleScript')).toBe('Util.module.lua');
+    expect(sync.fileNameFor('Util', 'ModuleScript')).toBe('Util.lua');
   });
 
   it('reverses a file name back to base name and class', () => {
     expect(sync.classNameForFile('Main.server.lua')).toEqual({ baseName: 'Main', className: 'Script' });
     expect(sync.classNameForFile('Controller.client.lua')).toEqual({ baseName: 'Controller', className: 'LocalScript' });
-    expect(sync.classNameForFile('Util.module.lua')).toEqual({ baseName: 'Util', className: 'ModuleScript' });
+    expect(sync.classNameForFile('Util.lua')).toEqual({ baseName: 'Util', className: 'ModuleScript' });
   });
 
   it('returns null for non-script files', () => {
     expect(sync.classNameForFile('readme.md')).toBeNull();
-    expect(sync.classNameForFile('Main.lua')).toBeNull();
   });
 });
 

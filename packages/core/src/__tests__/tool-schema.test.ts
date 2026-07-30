@@ -1,4 +1,4 @@
-import { TOOL_DEFINITIONS } from '../tools/definitions.js';
+import { TOOL_DEFINITIONS, withToolEffects, type ToolDefinition } from '../tools/definitions.js';
 import { CONTRACTED_OUTPUT_TOOL_NAMES, OUTPUT_SCHEMAS, withOutputSchemas } from '../tools/output-schemas.js';
 import { ASSET_TOOL_DEFINITIONS } from '../tools/definitions/assets.js';
 import { BROWSING_TOOL_DEFINITIONS } from '../tools/definitions/browsing.js';
@@ -9,6 +9,8 @@ import { SCENE_TOOL_DEFINITIONS } from '../tools/definitions/scene.js';
 import { RUNTIME_TOOL_DEFINITIONS } from '../tools/definitions/runtime.js';
 import { SCRIPTING_TOOL_DEFINITIONS } from '../tools/definitions/scripting.js';
 import { META_TOOL_DEFINITIONS } from '../tools/definitions/meta.js';
+import { ROJO_TOOL_DEFINITIONS } from '../tools/rojo-registry.js';
+import { TOOLCHAIN_TOOL_DEFINITIONS } from '../tools/toolchain-registry.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
@@ -74,11 +76,12 @@ describe('Tool schema compatibility', () => {
     for (const definition of TOOL_DEFINITIONS) {
       expect(classifyDomain(definition.name)).not.toBe('unknown');
       expect(knownCapabilities).toContain(requiredCapability(definition.name, definition.category));
+      expect(Array.isArray((definition as ToolDefinition & { effects?: unknown }).effects)).toBe(true);
     }
   });
 
   test('domain definition modules compose TOOL_DEFINITIONS in canonical order', () => {
-    const grouped = withOutputSchemas([
+    const grouped = withToolEffects(withOutputSchemas([
       ...BROWSING_TOOL_DEFINITIONS,
       ...MUTATION_TOOL_DEFINITIONS,
       ...SCRIPTING_TOOL_DEFINITIONS,
@@ -88,9 +91,23 @@ describe('Tool schema compatibility', () => {
       ...SCENE_TOOL_DEFINITIONS,
       ...GENERATED_TOOL_DEFINITIONS,
       ...META_TOOL_DEFINITIONS,
-    ]);
+      ...ROJO_TOOL_DEFINITIONS,
+      ...TOOLCHAIN_TOOL_DEFINITIONS,
+    ]));
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
+  });
+
+  test('new Rojo tools are registry-only and declare effects and output schemas', () => {
+    const registry = new ToolRegistry();
+    registerContractedTools(registry, new RobloxStudioTools(new BridgeService('')));
+    const registered = new Map(registry.definitions.map((tool) => [tool.name, tool]));
+    for (const definition of ROJO_TOOL_DEFINITIONS) {
+      expect(registered.get(definition.name)).toEqual(definition);
+      expect(TOOL_HANDLERS[definition.name]).toBeUndefined();
+      expect(definition.effects?.length ?? 0).toBeGreaterThan(0);
+      expect(definition.outputSchema).toBeDefined();
+    }
   });
 
   test('every array schema declares items', () => {
@@ -164,7 +181,11 @@ describe('Tool schema compatibility', () => {
   });
 
   test('no tool advertises outputSchema outside the central registry', () => {
-    const allowed = new Set(CONTRACTED_OUTPUT_TOOL_NAMES);
+    const allowed = new Set([
+      ...CONTRACTED_OUTPUT_TOOL_NAMES,
+      ...ROJO_TOOL_DEFINITIONS.map((tool) => tool.name),
+      ...TOOLCHAIN_TOOL_DEFINITIONS.map((tool) => tool.name),
+    ]);
     const offenders = TOOL_DEFINITIONS
       .filter((tool) => tool.outputSchema && !allowed.has(tool.name))
       .map((tool) => tool.name);
@@ -209,6 +230,42 @@ describe('Tool schema compatibility', () => {
     'validate_with_luau_lsp',
     'generate_rojo_sourcemap',
     'build_rojo_project',
+    'rojo_detect_projects',
+    'rojo_get_project_info',
+    'rojo_validate_project',
+    'rojo_get_version',
+    'rojo_serve_start',
+    'rojo_serve_status',
+    'rojo_serve_logs',
+    'rojo_serve_stop',
+    'rojo_build_project',
+    'rojo_generate_sourcemap',
+    'rojo_resolve_instance_source',
+    'rojo_resolve_source_instance',
+    'rojo_read_source',
+    'rojo_patch_source',
+    'rojo_create_source',
+    'rojo_delete_source',
+    // Rokit/Aftman/Wally tools act on local toolchain manifests and CLIs only.
+    'rokit_detect',
+    'rokit_get_manifest',
+    'rokit_list_tools',
+    'rokit_status',
+    'rokit_install',
+    'rokit_add_tool_plan',
+    'rokit_add_tool_apply',
+    'rokit_update_plan',
+    'rokit_update_apply',
+    'wally_get_manifest',
+    'wally_get_lock',
+    'wally_dependency_graph',
+    'wally_validate_lock',
+    'wally_verify_rojo_mapping',
+    'wally_search',
+    'wally_install_plan',
+    'wally_install_apply',
+    'wally_update_plan',
+    'wally_update_apply',
     // Safety/audit tools operate on in-memory server state, not a Studio place.
     'get_operation_history',
     'list_script_backups',
@@ -254,8 +311,12 @@ describe('Tool schema compatibility', () => {
 
   test('every Studio-routing tool threads body.instance_id through the HTTP handler', () => {
     const offenders: string[] = [];
+    const registry = new ToolRegistry();
+    registerContractedTools(registry, new RobloxStudioTools(new BridgeService('')));
+    const registryNames = new Set(registry.definitions.map((tool) => tool.name));
     for (const tool of TOOL_DEFINITIONS) {
       if (STUDIO_AGNOSTIC_TOOLS.has(tool.name)) continue;
+      if (registryNames.has(tool.name)) continue;
       const body = toolHandlerBody(tool.name);
       if (!body.includes('body.instance_id')) {
         offenders.push(tool.name);
@@ -412,6 +473,8 @@ describe('Tool schema compatibility', () => {
       sync_pull: 'syncPull',
       sync_status: 'syncStatus',
       sync_push: 'syncPush',
+      rojo_syncback_plan: 'rojoSyncbackPlan',
+      rojo_syncback_apply: 'rojoSyncbackApply',
       marketplace_search_and_insert: 'marketplaceSearchAndInsert',
       plan_asset_insert: 'planAssetInsert',
       audio_create_sound: 'audioCreateSound',

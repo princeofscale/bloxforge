@@ -470,6 +470,7 @@ async function main() {
   const pluginsDir = resolvePluginsDir();
   const backups = backupPluginFiles(pluginsDir);
   const { fixtureDir, placePath } = createPlaceFixture(pluginsDir);
+  let leakedStudioProcesses = [];
 
   try {
     await closeAllStudio();
@@ -486,10 +487,12 @@ async function main() {
     await closeAllStudio().catch(() => {});
     restorePluginFiles(pluginsDir, backups);
     rmSync(fixtureDir, { recursive: true, force: true });
-    const remaining = listStudioProcesses();
-    if (remaining.length > 0) {
-      throw new Error(`Studio processes remain after cleanup: ${JSON.stringify(remaining)}`);
-    }
+    leakedStudioProcesses = listStudioProcesses();
+  }
+  // Reported after the finally block: throwing inside it would discard the real
+  // failure from the try body.
+  if (leakedStudioProcesses.length > 0) {
+    throw new Error(`Studio processes remain after cleanup: ${JSON.stringify(leakedStudioProcesses)}`);
   }
 }
 

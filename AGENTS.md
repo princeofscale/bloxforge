@@ -11,7 +11,7 @@ BloxForge is a local-first Model Context Protocol server and Roblox Studio plugi
 - `packages/core/` — shared tool definitions, handlers, bridge code, builders, and tests.
 - `packages/robloxstudio-mcp/` — main CLI and published full server package.
 - `packages/robloxstudio-mcp-inspector/` — read-focused inspector CLI and package.
-- `packages/studio-plugin/` — TypeScript source compiled into the Roblox Studio Luau plugin.
+- `studio-plugin/` — TypeScript source compiled into the Roblox Studio Luau plugin.
 - `scripts/` — build, documentation, package, release, and smoke-test utilities.
 - `tests/` — repository-level integration and regression coverage.
 - `docs/` — maintained user and contributor documentation.

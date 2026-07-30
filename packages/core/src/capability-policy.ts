@@ -1,6 +1,16 @@
-import type { ToolCategory } from './tools/definitions.js';
+import type { ToolCategory, ToolDefinition, ToolEffect } from './tools/definitions.js';
+import { effectsForTool } from './tools/tool-effects.js';
 
-export type Capability = 'read.scene' | 'write.properties' | 'write.instances' | 'execute.luau' | 'assets.external' | 'playtest.control';
+export type Capability =
+  | 'read.scene'
+  | 'write.properties'
+  | 'write.instances'
+  | 'execute.luau'
+  | 'assets.external'
+  | 'playtest.control'
+  | 'local.files.read'
+  | 'local.files.write'
+  | 'local.process.execute';
 
 const PROPERTY_TOOLS = /^(set_property|set_properties|mass_set_property|set_attribute|bulk_set_attributes|add_tag|remove_tag|delete_attribute)$/;
 const EXECUTE_TOOLS = /^(execute_luau|execute_luau_async|eval_.*runtime|apply_mutation_plan|run_gameplay_assertions|run_playtest_episode)$/;
@@ -13,6 +23,31 @@ export function requiredCapability(toolName: string, category: ToolCategory): Ca
   if (PLAYTEST_TOOLS.test(toolName)) return 'playtest.control';
   if (PROPERTY_TOOLS.test(toolName)) return 'write.properties';
   return category === 'write' ? 'write.instances' : 'read.scene';
+}
+
+function capabilityForEffect(
+  effect: ToolEffect,
+  toolName: string,
+  category: ToolCategory,
+): Capability {
+  switch (effect) {
+    case 'studio.read': return 'read.scene';
+    case 'studio.write': return requiredCapability(toolName, category);
+    case 'studio.execute': return 'execute.luau';
+    case 'local.files.read': return 'local.files.read';
+    case 'local.files.write': return 'local.files.write';
+    case 'local.process.execute': return 'local.process.execute';
+    case 'network.external':
+    case 'assets.upload':
+      return 'assets.external';
+    case 'playtest.control':
+      return 'playtest.control';
+  }
+}
+
+export function requiredCapabilities(tool: ToolDefinition): readonly Capability[] {
+  const effects = tool.effects ?? effectsForTool(tool.name, tool.category);
+  return [...new Set(effects.map((effect) => capabilityForEffect(effect, tool.name, tool.category)))];
 }
 
 export function parseCapabilities(value: string | undefined): Set<Capability> | undefined {

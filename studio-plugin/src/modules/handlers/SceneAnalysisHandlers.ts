@@ -98,16 +98,6 @@ function normalizeTopN(topN: unknown): number {
 	return math.clamp(math.floor(topN), 1, 100);
 }
 
-function countLeaves(node: SceneAnalysisNode): number {
-	const children = node.Children;
-	if (children && children.size() > 0) {
-		let total = 0;
-		for (const child of children) total += countLeaves(child);
-		return total;
-	}
-	return 1;
-}
-
 function flattenLeaves(node: SceneAnalysisNode, out: SceneAnalysisNode[]): void {
 	const children = node.Children;
 	if (children && children.size() > 0) {

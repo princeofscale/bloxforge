@@ -335,6 +335,8 @@ function requireLibMP(): LibMPLike | Record<string, unknown> {
 			message: "The MCP plugin bundle does not contain include/LibMP.",
 		};
 	}
+	// Luau's require(), not Node's: LibMP is loaded dynamically from the bundle.
+	// eslint-disable-next-line @typescript-eslint/no-require-imports
 	const [ok, libOrErr] = pcall(() => require(libModule) as LibMPLike);
 	if (!ok) {
 		return {

@@ -213,7 +213,6 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
 
 export async function runDoctor(options: DoctorOptions = {}): Promise<number> {
   const checks = await collectDoctorChecks(options);
-  // eslint-disable-next-line no-console
   console.log(formatDoctorReport(checks));
   return checks.some((c) => c.status === 'fail') ? 1 : 0;
 }

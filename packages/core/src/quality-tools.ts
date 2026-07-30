@@ -2,9 +2,10 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { WallyTools } from './toolchain/wally-tools.js';
 
-const TOOL_COMMANDS = ['luau-analyze', 'luau-lsp', 'stylua', 'selene', 'rojo', 'rokit', 'wally', 'lune'] as const;
-type QualityCommand = typeof TOOL_COMMANDS[number];
+const TOOL_COMMANDS = ['luau-analyze', 'luau-lsp', 'stylua', 'selene', 'rojo', 'rokit', 'aftman', 'wally', 'lune'] as const;
+export type QualityCommand = typeof TOOL_COMMANDS[number];
 const MAX_OUTPUT_BYTES = 1024 * 1024;
 
 function within(root: string, candidate: string): boolean {
@@ -61,7 +62,7 @@ export interface RobloxProject {
   availableTools: QualityCommand[];
 }
 
-function hasCommand(command: QualityCommand): boolean {
+export function hasCommand(command: QualityCommand): boolean {
   try {
     execFileSync(command, ['--version'], { stdio: 'pipe', timeout: 3000 });
     return true;
@@ -72,7 +73,8 @@ function hasCommand(command: QualityCommand): boolean {
 
 function projectFiles(root: string): Record<string, string> {
   const names = [
-    'default.project.json', 'rojo.json', 'rojo.project.json', 'sourcemap.json',
+    ...fs.readdirSync(root).filter((name) => name.endsWith('.project.json')).sort(),
+    'rojo.json', 'sourcemap.json',
     'selene.toml', 'stylua.toml', 'wally.toml', 'wally.lock', 'rokit.toml', 'aftman.toml',
   ];
   return Object.fromEntries(names
@@ -80,7 +82,16 @@ function projectFiles(root: string): Record<string, string> {
     .filter((entry): entry is readonly [string, string] => entry[1] !== undefined));
 }
 
-function run(command: QualityCommand, args: string[], options: { cwd?: string; input?: string } = {}): QualityCheck {
+function selectedProjectFile(project: RobloxProject): { path?: string; error?: string } {
+  const candidates = Object.entries(project.files)
+    .filter(([name]) => name.endsWith('.project.json'))
+    .map(([, file]) => file);
+  if (candidates.length === 0) return { error: 'Rojo project file not found' };
+  if (candidates.length > 1) return { error: 'Multiple Rojo project files found; use the rojo_* tools and select projectFile explicitly' };
+  return { path: candidates[0] };
+}
+
+export function run(command: QualityCommand, args: string[], options: { cwd?: string; input?: string } = {}): QualityCheck {
   if (!hasCommand(command)) return { tool: command, available: false, ok: false, error: `${command} is not installed` };
   try {
     const output = execFileSync(command, args, {
@@ -176,14 +187,24 @@ export class QualityTools {
   getDependencyGraph(root = process.cwd()): Record<string, unknown> {
     const project = this.detectRobloxProject(root);
     const lock = project.files['wally.lock'];
-    const dependencies: string[] = [];
+    // Was a line regexp that collected TOML key names ("name", "dependencies",
+    // "registry") instead of packages. Delegates to the real lockfile reader now.
+    let dependencies: string[] = [];
+    let error: string | undefined;
     if (lock) {
-      for (const line of fs.readFileSync(lock, 'utf8').split(/\r?\n/)) {
-        const match = line.match(/^\s*([\w.-]+)\s*=/);
-        if (match && match[1] !== 'version') dependencies.push(match[1]);
+      try {
+        dependencies = new WallyTools().dependencyGraph(project.root).nodes.map((node) => node.id);
+      } catch (parseError) {
+        error = parseError instanceof Error ? parseError.message : String(parseError);
       }
     }
-    return { root: project.root, manifest: project.files['wally.toml'], lockfile: lock, dependencies: [...new Set(dependencies)] };
+    return {
+      root: project.root,
+      manifest: project.files['wally.toml'],
+      lockfile: lock,
+      dependencies,
+      ...(error ? { error } : {}),
+    };
   }
 
   installWallyPackages(root = process.cwd(), confirm = false): QualityCheck {
@@ -211,21 +232,21 @@ export class QualityTools {
 
   generateRojoSourcemap(root = process.cwd(), output = 'sourcemap.json'): QualityCheck {
     const project = this.detectRobloxProject(root);
-    const projectFile = project.files['default.project.json'] ?? project.files['rojo.project.json'];
-    if (!projectFile) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'Rojo project file not found' };
+    const selected = selectedProjectFile(project);
+    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: selected.error };
     const checked = safeOutputPath(project.root, output);
     if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
-    return run('rojo', ['sourcemap', projectFile, '--output', checked.path], { cwd: project.root });
+    return run('rojo', ['sourcemap', selected.path, '--output', checked.path], { cwd: project.root });
   }
 
   buildRojoProject(root = process.cwd(), output?: string): QualityCheck {
     const project = this.detectRobloxProject(root);
-    const projectFile = project.files['default.project.json'] ?? project.files['rojo.project.json'];
-    if (!projectFile) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'Rojo project file not found' };
+    const selected = selectedProjectFile(project);
+    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: selected.error };
     if (!output) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'output is required' };
     const checked = safeOutputPath(project.root, output);
     if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
-    return run('rojo', ['build', projectFile, '--output', checked.path], { cwd: project.root });
+    return run('rojo', ['build', selected.path, '--output', checked.path], { cwd: project.root });
   }
 
   runQualityGate(root = process.cwd()): { project: RobloxProject; checks: QualityCheck[] } {

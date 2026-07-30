@@ -4,22 +4,17 @@
 // to suffixed Lua files so the class is recoverable from the file name:
 //   Script       -> *.server.lua
 //   LocalScript  -> *.client.lua
-//   ModuleScript -> *.module.lua
+//   ModuleScript -> *.lua (the official Rojo convention)
+
+import { classifyRojoSource, unsupportedInstanceNameReason } from '../rojo/source-mapper.js';
 
 export type ScriptClassName = 'Script' | 'LocalScript' | 'ModuleScript';
 
 const SUFFIX_BY_CLASS: Record<ScriptClassName, string> = {
   Script: '.server.lua',
   LocalScript: '.client.lua',
-  ModuleScript: '.module.lua',
+  ModuleScript: '.lua',
 };
-
-// Longest suffix first so ".module.lua" is matched before a hypothetical ".lua".
-const CLASS_BY_SUFFIX: Array<[string, ScriptClassName]> = [
-  ['.server.lua', 'Script'],
-  ['.client.lua', 'LocalScript'],
-  ['.module.lua', 'ModuleScript'],
-];
 
 export type ConflictKind = 'none' | 'local' | 'studio' | 'both';
 
@@ -56,20 +51,35 @@ export class SyncManager {
   }
 
   classNameForFile(fileName: string): { baseName: string; className: ScriptClassName } | null {
-    for (const [suffix, className] of CLASS_BY_SUFFIX) {
-      if (fileName.endsWith(suffix)) {
-        return { baseName: fileName.slice(0, -suffix.length), className };
-      }
+    const mapping = classifyRojoSource(fileName);
+    if (!mapping || (mapping.kind !== 'Script' && mapping.kind !== 'LocalScript' && mapping.kind !== 'ModuleScript')) {
+      return null;
     }
-    return null;
+    return { baseName: mapping.instanceName ?? '', className: mapping.kind };
   }
 
   /** "game.ServerScriptService.A.B" + Script -> "ServerScriptService/A/B.server.lua". */
   instancePathToFilePath(instancePath: string, className: ScriptClassName): string {
-    const segments = instancePath.split('.').filter((s) => s.length > 0 && s !== 'game');
-    if (segments.length === 0) throw new Error(`Invalid instance path: "${instancePath}"`);
-    const leaf = segments.pop() as string;
-    const dirs = segments.join('/');
+    // Only the leading "game" is the DataModel prefix; a nested Instance may
+    // legitimately be named "game".
+    const segments = instancePath.split('.').filter((s) => s.length > 0);
+    if (segments[0] === 'game') segments.shift();
+    return this.instanceSegmentsToFilePath(segments, className);
+  }
+
+  /**
+   * Throws when any segment cannot be represented as a portable file name.
+   * Rojo refuses such names rather than encoding them, so we do too — an encoded
+   * name would round-trip back into Studio as a different Instance name.
+   */
+  instanceSegmentsToFilePath(segments: string[], className: ScriptClassName): string {
+    if (segments.length === 0) throw new Error('Invalid empty instance path');
+    for (const segment of segments) {
+      const reason = unsupportedInstanceNameReason(segment);
+      if (reason) throw new Error(reason);
+    }
+    const leaf = segments[segments.length - 1];
+    const dirs = segments.slice(0, -1).join('/');
     const file = this.fileNameFor(leaf, className);
     return dirs ? `${dirs}/${file}` : file;
   }

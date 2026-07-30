@@ -112,6 +112,35 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   `peerAttribution="unavailable_shared_logservice"`; guaranteed peer labels
   require a StudioTestService multiplayer run.
 
+## Rojo and reverse synchronization
+
+- BloxForge does not implement a second continuous two-way sync engine. Local
+  files remain authoritative and `rojo serve` carries them into Studio.
+- Reverse sync is explicit and conflict-aware. Stable Rojo versions without
+  native `syncback` receive only the bounded managed-script subset available
+  through the plugin; models, properties, and arbitrary unmanaged Instances are
+  not blindly dumped to disk.
+- Multi-file native syncback creates a recovery snapshot, but external changes
+  made concurrently after planning can still produce a conflict. Re-run the
+  plan instead of forcing an overwrite. The snapshot is bounded to 5,000 files
+  and 100 MiB; a larger project root is refused rather than partially covered.
+- `rojo sourcemap` emits only `Script`, `LocalScript`, and `ModuleScript` unless
+  `includeNonScripts` is set, so `rojo_resolve_instance_source` cannot resolve a
+  folder, model, or value Instance from a default sourcemap.
+- Rojo documents `name` as optional since 7.4.1, but Rojo 7.7.0 only implements
+  the fallback for `default.project.json`. Building any other project file
+  without a `name` crashes the CLI, so keep an explicit `name` on non-default
+  project files.
+- Studio Instance names containing characters no portable file name can hold
+  (`< > : " / \ | ? *`, control characters, trailing dots or spaces, Windows
+  reserved names) are reported as unsupported. Rojo does not decode an escaped
+  form, so writing one would rename the Instance on the next `rojo serve`.
+- A rename is only inferred when exactly one added file carries the removed
+  file's baseline content. Two identical scripts are reported as ambiguous
+  instead of moving an arbitrary one.
+- Partially managed projects intentionally leave Studio Instances outside the
+  project tree untouched.
+
 ## Script diagnostics and output
 
 - `diagnose_scripts` reads the current output buffer; a ModuleScript compile

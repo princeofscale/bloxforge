@@ -321,7 +321,7 @@ export class BridgeService {
           }
           this.pruneTerminalStatuses();
         }
-      } catch (e) {
+      } catch {
         // Journal might be empty or invalid
       }
     }

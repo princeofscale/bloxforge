@@ -324,12 +324,14 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   // === Local sync ===
   {
     name: 'sync_pull',
-    category: 'read',
-    description: 'Pull every Script/LocalScript/ModuleScript from Studio into local files (.server.lua/.client.lua/.module.lua) and write a sync manifest. Does not modify Studio.',
+    category: 'write',
+    description: 'Deprecated compatibility wrapper. Preview Studio-to-files changes safely, then require confirm=true before atomic writes. ModuleScripts use the Rojo .lua convention and state stores hashes, not source.',
     inputSchema: {
       type: 'object',
       properties: {
         syncDir: { type: 'string', description: 'Target directory (default ./roblox-src or $ROBLOX_SYNC_DIR).' },
+        dryRun: { type: 'boolean', description: 'Preview only. This is the default unless confirm=true.' },
+        confirm: { type: 'boolean', description: 'Required before writing local files.' },
         instance_id: INSTANCE_ID_PROP,
       },
     },
@@ -337,7 +339,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'sync_status',
     category: 'read',
-    description: 'Compare local files against Studio using the sync manifest. Reports local-only changes, studio-only changes, and conflicts (both sides changed). Read-only.',
+    description: 'Deprecated compatibility wrapper. Compare local files with bounded Studio script pages and hash-only local state.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -349,13 +351,13 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'sync_push',
     category: 'write',
-    description: 'Push locally-changed scripts back into Studio. Skips files that also changed in Studio (conflicts) instead of overwriting; use dryRun to preview. Resolve conflicts manually or sync_pull to take Studio.',
+    description: 'Deprecated compatibility wrapper. Preview existing-script updates and require confirm=true. Prefer editing local files and using managed rojo serve.',
     inputSchema: {
       type: 'object',
       properties: {
         syncDir: { type: 'string', description: 'Sync directory (default ./roblox-src or $ROBLOX_SYNC_DIR).' },
         dryRun: { type: 'boolean', description: 'Preview which files would be pushed without writing to Studio.' },
-        confirm: { type: 'boolean', description: 'Reserved for future gated pushes.' },
+        confirm: { type: 'boolean', description: 'Required before updating Studio scripts.' },
         instance_id: INSTANCE_ID_PROP,
       },
     },

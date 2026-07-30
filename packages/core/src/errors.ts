@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'PLUGIN_DISCONNECTED'
   | 'RATE_LIMITED'
   | 'CONFIRMATION_REQUIRED'
+  | 'CONTENT_CONFLICT'
   | 'AMBIGUOUS_TARGET'
   | 'INVALID_ARGUMENT'
   | 'UNSUPPORTED_CLASS'
@@ -26,6 +27,7 @@ const PATTERNS: Array<[RegExp, ErrorCode]> = [
   [/bridge queue is busy|\bbusy\b/i, 'BUSY'],
   [/\b429\b|rate.?limit/i, 'RATE_LIMITED'],
   [/confirm(ation)?\s+required|requires?\s+confirm|pass\s+confirm/i, 'CONFIRMATION_REQUIRED'],
+  [/content hash conflict|optimistic.?lock conflict/i, 'CONTENT_CONFLICT'],
   [/multiple\s+(places|instances)|ambiguous\s+target|which\s+instance|specify\s+instance_id/i, 'AMBIGUOUS_TARGET'],
   [/not\s+authorized|unauthorized|access\s+asset|forbidden|\b403\b/i, 'AUTH'],
   [/too\s+large|exceeds?\s+(the\s+)?limit|size\s+limit|over\s+the\s+limit/i, 'RESOURCE_TOO_LARGE'],
@@ -62,6 +64,7 @@ const RECOVERY: Partial<Record<ErrorCode, string>> = {
   NOT_FOUND: 're-resolve the path (it may have changed)',
   AMBIGUOUS_TARGET: 'pass instance_id from get_connected_instances',
   CONFIRMATION_REQUIRED: 'retry with confirm: true once you have reviewed the operation',
+  CONTENT_CONFLICT: 'read the source again, review the new content, and retry with its current hash',
   INVALID_ARGUMENT: 'fix the arguments and retry',
   RESOURCE_TOO_LARGE: 'reduce the size/count and retry',
   BETA_FEATURE_REQUIRED: 'enable the required Studio beta, then retry',

@@ -16,7 +16,7 @@
 // Servers check the registry first, fall back to TOOL_HANDLERS for
 // non-migrated tools.
 
-import type { ToolDefinition, JsonSchema } from './definitions.js';
+import type { ToolDefinition, JsonSchema, ToolEffect } from './definitions.js';
 import { toolErrorResult } from '../errors.js';
 import { attachStructuredContent } from './structured-output.js';
 import { RoutingFailure } from '../bridge-service.js';
@@ -27,6 +27,7 @@ export interface ToolSpec {
   name: string;
   description: string;
   category: 'read' | 'write';
+  effects: readonly ToolEffect[];
   inputSchema: object;
   outputSchema?: JsonSchema;
   /** Handler matching the existing ToolHandler pattern (tools, args) => result. */
@@ -62,6 +63,7 @@ export function defineTool(spec: ToolSpec): RegisteredTool {
     name: spec.name,
     description: spec.description,
     category: spec.category,
+    effects: spec.effects,
     inputSchema: spec.inputSchema,
     ...(spec.outputSchema ? { outputSchema: spec.outputSchema } : {}),
   };

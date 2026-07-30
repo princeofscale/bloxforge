@@ -139,6 +139,7 @@ const PREFIX_RULES: Array<[RegExp, ToolDomain]> = [
   [/^terrain_/, 'terrain'],
   [/^template_/, 'build'],
   [/^sync_/, 'sync'],
+  [/^rojo_/, 'sync'],
   [/^audio_|^animation_/, 'media'],
   [/^image_/, 'assets'],
   [/^marketplace_/, 'assets'],

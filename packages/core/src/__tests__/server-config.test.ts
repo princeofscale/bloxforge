@@ -1,5 +1,5 @@
 import { authorizedToolsForProfile, shouldUseLazyToolLoading, toolProfileDomains } from '../server.js';
-import type { ToolDefinition } from '../tools/definitions.js';
+import { getReadOnlyTools, TOOL_DEFINITIONS, type ToolDefinition } from '../tools/definitions.js';
 
 describe('server config', () => {
   it('defaults lazy tool loading on as the primary discovery path', () => {
@@ -46,5 +46,17 @@ describe('server config', () => {
     expect(authorizedToolsForProfile(tools, 'builder').map((tool) => tool.name))
       .toEqual(['get_place_info', 'set_property']);
     expect(authorizedToolsForProfile(tools, 'full')).toEqual(tools);
+  });
+
+  it('keeps local writes and process execution out of inspector authorization', () => {
+    const byName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
+    const inspectorNames = new Set(getReadOnlyTools().map((tool) => tool.name));
+
+    expect(byName.get('sync_pull')).toMatchObject({
+      effects: expect.arrayContaining(['studio.read', 'local.files.write']),
+    });
+    expect(inspectorNames).not.toContain('sync_pull');
+    expect(inspectorNames).not.toContain('validate_script_source');
+    expect(inspectorNames).not.toContain('run_quality_gate');
   });
 });

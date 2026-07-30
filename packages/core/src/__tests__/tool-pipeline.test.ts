@@ -8,6 +8,7 @@ describe('defineTool', () => {
     name: 'test_tool',
     description: 'A test tool',
     category: 'read' as const,
+    effects: ['studio.read'] as const,
     inputSchema: { type: 'object', properties: { x: { type: 'number' } } },
     outputSchema: {
       type: 'object',
@@ -78,6 +79,7 @@ describe('ToolRegistry', () => {
     name: 'tool_a',
     description: 'First tool',
     category: 'read',
+    effects: ['studio.read'],
     inputSchema: {},
     handler: async () => ({ ok: true }),
   });
@@ -86,6 +88,7 @@ describe('ToolRegistry', () => {
     name: 'tool_b',
     description: 'Second tool',
     category: 'write',
+    effects: ['studio.write'],
     inputSchema: {},
     handler: async () => ({ ok: true }),
   });
@@ -143,6 +146,7 @@ describe('ToolRegistry lazy mode', () => {
     name: 'core_tool',
     description: 'Always-on core tool',
     category: 'read',
+    effects: ['studio.read'],
     inputSchema: {},
     handler: async () => ({ ok: true }),
   });
@@ -151,6 +155,7 @@ describe('ToolRegistry lazy mode', () => {
     name: 'scene_tool',
     description: 'Scene domain tool',
     category: 'read',
+    effects: ['studio.read'],
     inputSchema: {},
     handler: async () => ({ ok: true }),
   });

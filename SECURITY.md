@@ -26,13 +26,17 @@ BloxForge separates lazy schema discovery from authorization. Loading a toolset 
 
 To restrict capabilities further, use the `--profile` flag when starting the server:
 - `--profile core`: Standard permissions; only the initial schema set is small.
-- `--profile inspector`: Read-only permissions. The agent can only read properties, search scripts, and list instances. Write/Execute capabilities are disabled.
+- `--profile inspector`: Studio and local-file reads only. Studio writes,
+  arbitrary Luau, local-file writes, local process execution, external network
+  access, uploads, and playtest control are disabled.
 - `--profile builder`: Allows building operations but restricts arbitrary script
   execution, including assertion expressions and assertion-bearing playtest episodes.
 - `--profile tester`: Allows runtime environment interactions, script execution, and scene reads, but disables pure asset building.
 - `--profile full`: Authorizes and preloads all available tool domains.
 
-Invalid profile names fail startup. The dedicated inspector package also ships only read-category definitions, providing a second independent read-only boundary.
+Invalid profile names fail startup. The dedicated inspector package filters on
+declared effects rather than the legacy read/write category, so a tool such as
+`sync_pull` cannot enter the package merely because it does not mutate Studio.
 
 Prefer environment variables for secrets. The compatibility flags
 `--session-token`, `--open-cloud-key`, and `--pollinations-key` remain
@@ -42,6 +46,13 @@ and process listings.
 Quality-tool file arguments are canonicalized inside `BLOXFORGE_PROJECT_ROOT`;
 escaping symlinks, traversal, absolute paths outside the root, and option-shaped
 file names are rejected before an external command starts.
+
+Rojo source tools use the same canonical, symlink-aware boundary. Source writes
+require optimistic content hashes, use an atomic temporary-file rename, and
+create recovery backups for deletion or reverse synchronization. Managed
+`rojo serve` processes bind to loopback only, have bounded logs, and are stopped
+with BloxForge. Studio-to-files synchronization is preview-first and never
+silently overwrites a conflicting local edit.
 
 Plugin downloads require credential-free HTTPS, follow a bounded redirect
 chain, enforce timeout and size limits, and verify the compiled plugin variant

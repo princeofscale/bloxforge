@@ -7,15 +7,168 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-07-31
+
+### Added
+- Added `rokit_*` and `wally_*` MCP tools backed by a real TOML reader:
+  toolchain detection, manifest reads, shim-vs-manifest-vs-running version
+  status, and confirmed install/add/update, plus Wally manifest, lockfile,
+  dependency-graph, lock validation, search, locked install, update, and a
+  check that installed package directories are mapped by the Rojo project.
+- Added `.project.jsonc`, `.meta.jsonc`, `.model.jsonc`, `.jsonc`, `.luau`,
+  `.server.luau`, `.client.luau`, `.plugin.lua`, `.plugin.luau`, `.yml`, and
+  `.yaml` to Rojo source classification and project discovery, matching Rojo
+  7.7's own sync rules.
+- Added `instancePathSegments` to Rojo instance/source resolution so an Instance
+  whose name contains a dot is no longer ambiguous.
+- Added `includeNonScripts` to `rojo_generate_sourcemap`. Rojo emits only
+  Script/LocalScript/ModuleScript by default, so folders, models, and other
+  non-script Instances could not be resolved through a generated sourcemap.
+- Added a `resetBaseline` option that quarantines an unusable
+  `.bloxforge/rojo-state.json` and rebuilds the sync baseline explicitly.
+- Added a Rokit + Wally CI job that installs a checksum-pinned Rokit, resolves
+  tools through its shims, and asserts the installed Wally's actual `--locked`
+  behaviour.
+
+- Added a CI contract that cross-checks canonical definitions, registry entries,
+  legacy handlers, schemas, domains, capabilities, and duplicate tool names.
+- Added a paginated, inspector-compatible plugin endpoint for bounded managed
+  script metadata/source reads with continuation tokens, byte limits, and hashes.
+- Added a local-first Rojo adapter with arbitrary project discovery, JSONC
+  parsing, official file mappings, sourcemap resolution, pinned-version command
+  execution, managed loopback `rojo serve`, safe source editing, and guarded
+  native `syncback` support.
+- Added registry-only `rojo_*` MCP tools for discovery, validation, serve
+  lifecycle, builds, sourcemaps, source mapping/editing, and explicit syncback.
+- Added pinned stable Rojo integration and legacy-dispatch regression gates;
+  `release:check:full` also runs the 10,000-request benchmark.
+
+### Changed
+- Resolved the Rojo command per canonical project root instead of once per
+  process, keyed by the nearest `rokit.toml`/`aftman.toml` and its mtime, so a
+  toolchain change or install is picked up without restarting the server.
+- Made the Rojo project `name` field optional, deriving it the way Rojo has
+  since 7.4.1 (`default.project.json` takes the parent directory name). Rojo
+  7.7.0 itself only implements this for `default.project.json`; documented that
+  a nameless non-default project file crashes the CLI.
+- Probed whether the installed Wally supports `wally install --locked` instead
+  of assuming it. The flag is absent from the released 0.3.2, and silently
+  dropping it would rewrite the lockfile it exists to protect; a locked install
+  is now refused with an explanation.
+- Required the `planHash` returned by `rojo_syncback_plan` on every
+  `rojo_syncback_apply`, for the bounded Studio adapter as well as native
+  syncback, and widened the hash to cover the reported operations, each mapped
+  script's Studio identity, and the current hash of every local file.
+- Replaced the whole-file diff returned by Rojo source edits with a bounded
+  single-hunk unified diff, and bounded `rojo_read_source` by file size.
+- Strengthened Studio content identity from a single 31-bit rolling hash to two
+  independent rolling hashes plus the byte length; the sync state schema is
+  now version 2 and an older baseline requires `resetBaseline`.
+- Regenerated the tools reference for the new toolchain tools.
+
+- Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
+- Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
+- Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
+- Reduced published CLI packages to the matching compiled Studio plugin plus required runtime assets; source trees, runtime includes, and the opposite plugin variant are no longer bundled.
+- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the supported Node 20/22 matrix.
+- Assigned distinct red, yellow, and green toolbar icons to both full and inspector plugin connection states.
+- Expanded lint and `tsc --noEmit` gates across both CLIs, core, scripts, tests,
+  evals, and Studio plugin source; added package metadata consistency and
+  cross-platform installer/package smoke checks.
+- Declared the dependency-compatible Node.js 20+ floor in every maintained
+  package, removed the false Node 18 CI claim, and removed direct `cors` and
+  `node-fetch` dependencies after source and packed-bundle verification.
+- Extended the 10,000-request benchmark to assert bounded heap, status history,
+  journal size, latency samples, counters, request IDs, timers, and pending work.
+- Replaced binary read/write authorization decisions with explicit Studio,
+  local-file, local-process, network, asset-upload, and playtest effects while
+  retaining the legacy category metadata for protocol compatibility.
+- Prepared package metadata for 4.0.0 because the published 3.0.0 release
+  supported Node.js 18 and the new Node.js 20+ runtime floor is a breaking change.
+
 ### Fixed
-- Refused unauthenticated non-loopback bridge bindings, authenticated internal
-  server-control and diagnostic routes when a server token is configured,
-  rejected non-JSON/browser-origin control requests, and removed operation
-  payloads from public localhost diagnostics.
-- Enforced inspector read-only and builder no-arbitrary-Luau profile policies
-  at dispatch (not only schema discovery), and rejected invalid profile names.
-- Warned when compatibility CLI flags carry secrets and documented the
-  environment-variable migration path.
+- Fixed `rojo_generate_sourcemap` failing on every run after the first: the new
+  output-overwrite guard classified the existing `sourcemap.json` as a Rojo
+  value source and refused to replace it.
+- Stopped the TOML reader from reaching `Object.prototype`. Manifest data
+  controls every key, so `__proto__` could pollute and `toString`/`constructor`
+  were rejected as duplicates of inherited members.
+- Fixed `wally_verify_rojo_mapping` matching package directories as substrings
+  of the stringified project tree, so a project mounting only `ServerPackages`
+  reported `Packages` as mapped; it now compares resolved `$path` values.
+- Fixed `sync_push` recording a successful baseline for scripts the plugin
+  rejected. The plugin returns an `{ error }` envelope rather than throwing, so
+  a failed push looked in-sync afterwards and the local edit was lost.
+- Fixed managed-script pages reporting a changed script as `tooLarge` when it
+  merely exhausted the remaining page budget; the page now ends so the script
+  starts the next one with a full budget instead of never being fetched.
+- Bounded the Studio managed-script pagination loop by page count and repeated
+  continuation tokens instead of trusting the peer to terminate it.
+- Treated only a leading `game` segment as the DataModel prefix so an Instance
+  legitimately named `game` is no longer dropped from its path.
+- Logged only the message when a Streamable HTTP request fails, so a thrown
+  object cannot serialize request or credential details into the log.
+- Removed the non-existent `rokit run rojo --` fallback. Rokit has no `run`
+  subcommand, so a Rokit-only project either used an unrelated global Rojo or
+  failed; BloxForge now uses the toolchain's installed shim and, when a manifest
+  pins Rojo without one, reports the install step instead of falling back.
+- Fixed native syncback rollback skipping files it could not classify. The
+  recovery snapshot now covers every regular file under the project root and
+  removes directories syncback created, so a partial `.luau`, `.jsonc`, or YAML
+  syncback failure is fully restored.
+- Refused to apply a native syncback whose dry run failed; a failed preview
+  previously still produced a plan hash that `confirm=true` would accept.
+- Stopped encoding Studio Instance names that no portable file name can
+  represent. Rojo does not decode such names, so the next `rojo serve` renamed
+  the Instance; unrepresentable names are now reported as `unsupported` and no
+  file is written.
+- Made the sync state file fail closed. A corrupt, foreign, or wrong-schema
+  `.bloxforge/rojo-state.json` no longer reads as "never synced" (which made
+  every local file look like a Studio addition) and blocks the operation until
+  the baseline is explicitly reset.
+- Made the sync state write part of the same transaction as the file changes it
+  describes; a failed state write now rolls the filesystem back instead of
+  leaving changed files with a stale baseline.
+- Required a unique content match before inferring a rename, and reported
+  otherwise-ambiguous candidates, so two identical scripts no longer cause an
+  arbitrary file to be moved.
+- Skipped baseline-only entries during `deleteMissing` instead of failing on an
+  already-absent path, and re-verified each file's hash immediately before
+  writing or deleting it.
+- Enforced `expectedAbsent` with an exclusive create instead of an
+  `existsSync` check followed by a rename, closing the overwrite race.
+- Validated Rojo output paths: builds must target `.rbxl`/`.rbxlx`/`.rbxm`/
+  `.rbxmx`, sourcemaps must target `.json`, and neither may overwrite a project
+  file or an existing Rojo source.
+- Bounded sourcemap size and nesting depth, and bounded Rojo project discovery
+  by count and directory depth.
+- Fixed `set_script_source` rejecting an empty string as a missing value, so
+  clearing a script's source is possible again.
+- Removed the destroy-and-recreate fallback from `set_script_source`. It
+  preserved only `Name` and `Enabled`, silently dropping attributes, tags,
+  children, and every reference to the script; the operation now fails loudly
+  and leaves the script untouched.
+- Ported the upstream cookie-auth image upload fix: uploads now use the
+  `apis.roblox.com` user-auth assets API with operation polling instead of the
+  legacy `data.roblox.com` decal endpoint, which no longer accepts them.
+- Ported upstream structured runtime log context: `LogService.MessageOut`'s
+  third argument is preserved as optional `data` on each runtime log entry.
+- Fixed the lint gate silently skipping every top-level `packages/*/src/*.ts`
+  file — including `http-server.ts`, `bridge-service.ts`, and `server.ts` —
+  because the unquoted glob was expanded by the shell instead of ESLint, and
+  fixed the errors that were hiding behind it.
+- Fixed two integration test scripts throwing from a `finally` block, which
+  replaced the real test failure with the cleanup failure.
+- Fixed `listenWithRetry` using an async Promise executor, where a rejection
+  raised before `reject` ran became an unhandled rejection.
+- Logged the underlying error when a Streamable HTTP request fails instead of
+  discarding it behind a generic 500.
+- Replaced the Wally dependency graph's line-regexp lockfile reader, which
+  returned TOML field names such as `name`, `dependencies`, and `registry`
+  instead of packages, with real `[[package]]` parsing.
+- Preserved the existing file mode when the sync adapter rewrites a file
+  instead of forcing 0600 onto it.
+
 - Fixed Studio reconnects after an MCP process restart by detecting rejected stale session tokens, re-running the `/ready` bootstrap, and rotating server-side plugin credentials.
 - Fixed authenticated plugin disconnects so normal Studio/plugin shutdown removes the registration immediately instead of leaving a stale duplicate for up to 90 seconds.
 - Fixed connection indicators retaining stale success state during retries, and made duplicate registrations retry after the previous session disappears.
@@ -40,16 +193,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stream notifiers, heartbeats, and sockets during shutdown.
 - Corrected `run_gameplay_assertions` from read to execute-capable authorization
   and denied assertion-bearing runtime tools in the builder and inspector profiles.
-- Confined every QualityTools input/output path through canonical project-root
-  checks, rejected option-shaped and escaping symlink paths, guaranteed temporary
-  cleanup, and returned bounded structured missing-tool/timeout/output-limit errors.
-- Added a CI contract that cross-checks canonical definitions, registry entries,
-  legacy handlers, schemas, domains, capabilities, and duplicate tool names.
-- Made Studio plugin installation atomic and validated release type, variant,
-  version, redirect policy, timeout, and download size before replacing a
-  working plugin or removing the opposite variant.
-- Stopped plugin builds from modifying a user's Studio plugin directory unless
-  `MCP_PLUGINS_DIR` is explicitly set.
 - Isolated package verification from the user's global npm cache so stale
   permissions or cache ownership cannot break packed-artifact validation.
 - Avoided request-journal compaction work when persistence is disabled while
@@ -60,22 +203,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interrupted-download cleanup racing an open file handle, and POSIX-only
   journal permission assertions running on Windows; package verification now
   invokes npm portably without executing Windows command shims directly.
+- Fixed project detection and Rojo build/sourcemap selection for arbitrary
+  `*.project.json` names, with structured ambiguity instead of guessing.
+- Serialized concurrent managed Rojo starts, waited for timed-out children to
+  exit, reused bounded plugin pagination snapshots, and skipped retransmitting
+  unchanged Studio source through baseline hashes.
 
-### Changed
-- Changed quick-start configuration to install the Studio plugin explicitly once and launch the MCP stdio server without filesystem installation work on every Codex/Claude session.
-- Updated the MCP SDK and patched transitive runtime dependencies; `npm audit --omit=dev` now reports zero production vulnerabilities.
-- Redesigned the README around a clearer product pitch, client-specific setup, safety model, tool profiles, and contributor workflow.
-- Reduced published CLI packages to the matching compiled Studio plugin plus required runtime assets; source trees, runtime includes, and the opposite plugin variant are no longer bundled.
-- Upgraded to ESLint 9 with flat configuration and Jest 30 while retaining the supported Node 20/22 matrix.
-- Assigned distinct red, yellow, and green toolbar icons to both full and inspector plugin connection states.
-- Expanded lint and `tsc --noEmit` gates across both CLIs, core, scripts, tests,
-  evals, and Studio plugin source; added package metadata consistency and
-  cross-platform installer/package smoke checks.
-- Declared the dependency-compatible Node.js 20+ floor in every maintained
-  package, removed the false Node 18 CI claim, and removed direct `cors` and
-  `node-fetch` dependencies after source and packed-bundle verification.
-- Extended the 10,000-request benchmark to assert bounded heap, status history,
-  journal size, latency samples, counters, request IDs, timers, and pending work.
+### Security
+- Refused unauthenticated non-loopback bridge bindings, authenticated internal
+  server-control and diagnostic routes when a server token is configured,
+  rejected non-JSON/browser-origin control requests, and removed operation
+  payloads from public localhost diagnostics.
+- Enforced inspector read-only and builder no-arbitrary-Luau profile policies
+  at dispatch (not only schema discovery), and rejected invalid profile names.
+- Warned when compatibility CLI flags carry secrets and documented the
+  environment-variable migration path.
+- Confined every QualityTools input/output path through canonical project-root
+  checks, rejected option-shaped and escaping symlink paths, guaranteed temporary
+  cleanup, and returned bounded structured missing-tool/timeout/output-limit errors.
+- Made Studio plugin installation atomic and validated release type, variant,
+  version, redirect policy, timeout, and download size before replacing a
+  working plugin or removing the opposite variant.
+- Stopped plugin builds from modifying a user's Studio plugin directory unless
+  `MCP_PLUGINS_DIR` is explicitly set.
+- Confined legacy sync and all Rojo paths to the canonical project root,
+  rejected symlink/option/traversal escapes, encoded unsafe Instance names,
+  required preview/confirmation, used backups and atomic writes, and replaced
+  plaintext source manifests with bounded hash-only local state.
+
+### Deprecated
+- Deprecated `sync_pull`, `sync_status`, and `sync_push` in favor of the
+  local-files-first Rojo workflow and explicit `rojo_syncback_plan/apply`.
 
 ### Removed
 - Removed the standalone roadmap; completed work remains in the changelog and future work is tracked through GitHub issues.

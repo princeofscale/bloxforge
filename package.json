@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/bloxforge-monorepo",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "author": {
     "name": "princeofscale",
     "url": "https://github.com/princeofscale"
@@ -25,11 +25,11 @@
     "dev:inspector": "npm run build -w packages/core && tsx packages/robloxstudio-mcp-inspector/src/index.ts",
     "start": "node packages/robloxstudio-mcp/dist/index.js",
     "start:inspector": "node packages/robloxstudio-mcp-inspector/dist/index.js",
-    "lint:packages": "eslint packages/*/src/**/*.ts",
-    "lint:scripts": "eslint scripts/**/*.mjs",
-    "lint:tests": "eslint tests/**/*.mjs",
-    "lint:evals": "eslint evals/**/*.ts",
-    "lint:plugin": "eslint studio-plugin/src/**/*.ts",
+    "lint:packages": "eslint \"packages/*/src/**/*.ts\"",
+    "lint:scripts": "eslint \"scripts/**/*.mjs\"",
+    "lint:tests": "eslint \"tests/**/*.mjs\"",
+    "lint:evals": "eslint \"evals/**/*.ts\"",
+    "lint:plugin": "eslint \"studio-plugin/src/**/*.ts\"",
     "lint:all": "npm run lint:packages && npm run lint:scripts && npm run lint:tests && npm run lint:evals && npm run lint:plugin",
     "lint": "npm run lint:all",
     "typecheck:core": "tsc --noEmit -p packages/core/tsconfig.json",
@@ -50,11 +50,15 @@
     "test:plugin:smoke": "node tests/plugin-compiled-smoke.mjs && node tests/plugin-build-install-safety.mjs",
     "test:plugin:installer": "node tests/plugin-installer-smoke.mjs",
     "test:plugin:runtime": "lune run tests/plugin-runtime-smoke.luau",
+    "test:rojo:integration": "node scripts/test-rojo-integration.mjs",
+    "test:toolchain:integration": "npm run build -w packages/core && node scripts/test-toolchain-integration.mjs",
+    "tools:legacy-report": "node scripts/report-legacy-tools.mjs",
     "docs:generate": "node scripts/generate-tool-docs.mjs",
     "docs:check": "node scripts/generate-tool-docs.mjs --check",
     "metadata:check": "node scripts/check-package-metadata.mjs",
     "verify-package": "node scripts/verify-package.mjs",
-    "release:check": "npm run lint && npm run typecheck && npm test && npm run build:all && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run verify-package"
+    "release:check": "npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run verify-package",
+    "release:check:full": "npm run release:check && npm run test:fault-injection:10k"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

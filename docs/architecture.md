@@ -132,15 +132,57 @@ authenticated when a server token is configured. Machine-control requests are
 JSON-only and reject browser origins.
 
 Lazy discovery and authorization are separate. `load_toolset` changes the
-advertised schema set only. The inspector profile permits read-category tools;
-the builder profile denies arbitrary Luau/runtime evaluation; capability
-allowlists apply independently to stdio and token-identified HTTP clients.
+advertised schema set only. Authorization uses explicit effects:
+`studio.read`, `studio.write`, `studio.execute`, `local.files.read`,
+`local.files.write`, `local.process.execute`, `network.external`,
+`assets.upload`, and `playtest.control`. The inspector permits only Studio and
+local-file reads; the builder denies arbitrary Luau/runtime evaluation.
+Capability allowlists apply independently to stdio and token-identified HTTP
+clients. The legacy read/write category remains protocol metadata, not the
+permission boundary.
 
-Optional server-local quality adapters cover Rojo-style project detection,
-builds and sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, Lune test
-scripts, and Wally metadata/install. Missing binaries are reported as
-unavailable, formatting is preview-only, and Wally installation requires
-explicit confirmation. All file arguments resolve through the canonical project
+The Rojo adapter treats local files as the source of truth. Project discovery
+accepts arbitrary nested `*.project.json` and `*.project.jsonc` files and
+requires explicit selection when ambiguous; a project without a `name` field
+derives one exactly as Rojo does. The installed Rojo CLI remains authoritative
+for project-tree validation, builds, included projects, sync rules, and
+sourcemaps. One managed, loopback-only `rojo serve` process may run per
+canonical project. Sourcemap IDs, not raw Instance names, provide the preferred
+file/Instance mapping, and Instance paths may be supplied as unambiguous
+segments instead of a dotted string.
+
+The Rojo command is resolved per canonical project root, not once per process.
+A `rokit.toml` or `aftman.toml` above the project selects that toolchain's
+installed shim; neither manager has a `run` subcommand, so no wrapper call is
+synthesised. When a manifest pins Rojo but no shim exists, the failure names the
+install step instead of silently falling back to an unrelated global Rojo.
+Resolution is cached per project root and invalidated by the manifest's mtime.
+
+Reverse synchronization is explicit: planning reads bounded, paginated script
+metadata/source through `/api/read-managed-scripts`; applying requires
+confirmation, the `planHash` from the preview, optimistic baselines, atomic
+writes, and backups. Every plan hash covers the reported operations, the Studio
+identity of each mapped script, and the current hash of each local file, so an
+edit between preview and apply invalidates it. Hash-only state lives under
+`.bloxforge/`; a damaged state file fails closed and must be quarantined with an
+explicit baseline reset rather than silently re-read as "never synced".
+Instance names that no portable file name can represent are reported, never
+encoded. Native Rojo `syncback` is feature-detected and guarded by the same
+preview/confirmation contract; its recovery snapshot covers every regular file
+under the project root and the directories syncback creates. Partially managed
+projects never delete Instances outside their Rojo roots.
+
+Optional server-local quality adapters cover project detection, builds and
+sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, and Lune test scripts.
+Dedicated `rokit_*` and `wally_*` tools parse `rokit.toml`, `aftman.toml`,
+`wally.toml`, and `wally.lock` with a real TOML reader and expose exact package
+names, versions, checksums, and dependency edges. Reads never modify a manifest;
+install, add, and update are preview/confirm pairs that declare their network,
+filesystem, and process effects. Wally installs default to `--locked` so a stale
+lockfile fails instead of being rewritten; `--locked` is absent from the released
+Wally 0.3.2, so support is probed and a locked install is refused rather than
+quietly downgraded. Missing binaries are reported as unavailable and formatting
+is preview-only. All file arguments resolve through the canonical project
 root, command time/output are bounded, and temporary validation files are always
 removed. CI runs both the focused transport fault matrix and a
 deterministic 10,000-request benchmark that asserts stable redelivery IDs,

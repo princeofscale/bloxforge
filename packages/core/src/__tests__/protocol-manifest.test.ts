@@ -12,6 +12,10 @@ describe('protocol manifest', () => {
     expect(protocolPolicy('/api/insert-asset').mode).toBe('mutation');
     expect(protocolPolicy('/api/mass-get-property').mode).toBe('read');
     expect(protocolPolicy('/api/instance-children').retryPolicy).toBe('safe-read');
+    expect(protocolPolicy('/api/read-managed-scripts')).toMatchObject({
+      mode: 'read',
+      pluginVariants: ['full', 'inspector'],
+    });
   });
 
   test('classifies every compiled plugin endpoint exactly once', () => {
