@@ -141,6 +141,70 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
 - Partially managed projects intentionally leave Studio Instances outside the
   project tree untouched.
 
+## Toolchain (Rokit, Wally) — current gaps
+
+Verified against the code, open, and worth knowing before relying on the
+toolchain tools unattended.
+
+- **Only Rojo resolves through a toolchain shim.** Wally, Selene, StyLua,
+  `luau-lsp` and Lune are still invoked by bare command name, so they are found
+  on `PATH` only. After `rokit_install` creates the shims, the running BloxForge
+  process keeps its original `PATH`: Rojo starts working because it has its own
+  resolver, while the others may still report *not installed* until the server
+  is restarted. A shared project-aware resolver for every pinned tool is the fix.
+- **`wally_validate_lock` compares package names, not versions.** A `wally.toml`
+  asking for `roblox/roact@2.0.0` against a lock pinning `1.4.4` validates as
+  `ok: true`. The dependency graph is also keyed by package name, so a lockfile
+  containing two versions of one package keeps only one node and its edges point
+  at whichever survived. Treat the result as "every declared package appears",
+  not "the lockfile satisfies the manifest".
+- **`rokit_status.installRequired` only checks that a shim exists.** A shim of
+  the wrong version reports `matchesManifest: false` alongside
+  `installRequired: false`. Branch on `matchesManifest`, not on
+  `installRequired`, when deciding whether to install.
+- **`rokit_install` is not covered end to end.** The integration job runs
+  `rokit install --no-trust-check`, while the MCP tool runs plain
+  `rokit install`. On a machine with no trust state the tool's own command path
+  is unproven.
+- **Project discovery descends into Wally package directories.** `Packages/`,
+  `ServerPackages/` and `DevPackages/` are walked like any other directory, so a
+  `*.project.json` shipped inside a dependency can make discovery ambiguous or
+  hit the 200-project ceiling. Pass an explicit `projectFile` when that happens.
+
+## Managed `rojo serve`
+
+- Readiness is a TCP connect to the configured port. The port is checked free
+  before the child spawns, but another process can bind it in between; BloxForge
+  would then attach to that listener and report `running` while the real child
+  exits with `EADDRINUSE`. Prefer a port you control, and treat a `rojo serve`
+  that reports running but does not sync as this case.
+- Processes are tracked in memory only. There is no supervisor: a crashed Rojo
+  is not restarted, an existing `rojo serve` cannot be adopted after a BloxForge
+  restart, and the status stays `exited` until something asks.
+
+## Legacy tools bypass the newer guarantees
+
+`install_wally_packages`, `generate_rojo_sourcemap`, `build_rojo_project`,
+`run_quality_gate` and `resolve_instance_source_file` predate the
+`rojo_*`/`wally_*`/`rokit_*` tools and are still in the always-on core set, so an
+agent usually sees them first. They do not apply the lock policy, output-path
+validation, or project selection the newer tools do — `install_wally_packages`
+runs a plain `wally install` with no `--locked` handling at all.
+
+Likewise `sync_pull`, `sync_status` and `sync_push` are deprecated and take only
+`dryRun`/`confirm`; they do not require the `expectedPlanHash` that
+`rojo_syncback_apply` enforces.
+
+Prefer the canonical tool in every case:
+
+| Legacy | Use instead |
+|---|---|
+| `install_wally_packages` | `wally_install_plan` → `wally_install_apply` |
+| `generate_rojo_sourcemap` | `rojo_generate_sourcemap` |
+| `build_rojo_project` | `rojo_build_project` |
+| `resolve_instance_source_file` | `rojo_resolve_instance_source` |
+| `sync_pull` / `sync_push` | `rojo_syncback_plan` → `rojo_syncback_apply` |
+
 ## Script diagnostics and output
 
 - `diagnose_scripts` reads the current output buffer; a ModuleScript compile

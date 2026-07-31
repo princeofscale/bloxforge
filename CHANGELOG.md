@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Stopped a pinned-but-uninstalled toolchain from running a global Rojo at
+  spawn time. The 4.0.1 fix corrected which command was *reported* but left the
+  executable as the bare name `rojo`, and `execFile` resolves a bare name
+  through `PATH` — so a project pinned to 7.7.0 with no shim still ran whatever
+  global Rojo existed while reporting `source: 'rokit'`. The resolved command is
+  now the absolute shim path even when missing, so the spawn fails with the
+  install instruction. The old test asserted only on metadata; it now runs the
+  binary with a working global Rojo on `PATH`.
+- Classified `rokit_*` and `wally_*` into the `sync` tool domain. Without a
+  prefix rule they fell through to the `scene` default, so loading the `sync`
+  toolset produced the Rojo tools without the toolchain tools they depend on.
+
+### Documentation
+- Rewrote the README's Rojo section to cover the whole toolchain, including who
+  owns what, the preview/confirm contract, and the plan-hash requirement.
+- Rewrote `AGENTS.md` as an operating guide: the invariants that fail silently
+  when broken, how to verify a review claim against primary sources, the real
+  validation gates, and the traps in this codebase.
+- Documented the verified open gaps: only Rojo resolves through a toolchain
+  shim, `wally_validate_lock` compares names rather than versions,
+  `rokit_status.installRequired` ignores a version mismatch, project discovery
+  descends into Wally package directories, the `rojo serve` readiness port race,
+  and the legacy tools that bypass the newer guarantees.
+
 ## [4.0.1] - 2026-07-31
 
 ### Changed

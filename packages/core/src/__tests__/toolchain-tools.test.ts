@@ -51,9 +51,10 @@ describe('Rokit toolchain resolution', () => {
     expect(command.installHint).toMatch(/rokit_install|rokit install/);
   });
 
-  test('a pinned project never silently runs a working global Rojo', () => {
-    // The previous check probed PATH first, so a machine with any global Rojo
-    // ran that against a project pinned to a version it does not have installed.
+  test('a pinned project never silently runs a working global Rojo', async () => {
+    // Asserting on the resolved metadata is not enough: `executable: 'rojo'`
+    // reports source 'rokit' and still lets execFile find a global Rojo on PATH.
+    // This runs it, which is the only assertion that catches that.
     const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-global-rojo-'));
     const global = path.join(fakeBin, process.platform === 'win32' ? 'rojo.cmd' : 'rojo');
     fs.writeFileSync(global, process.platform === 'win32' ? '@echo Rojo 7.5.0\r\n' : '#!/bin/sh\necho "Rojo 7.5.0"\n', { mode: 0o755 });
@@ -62,7 +63,13 @@ describe('Rokit toolchain resolution', () => {
 
     const command = new RojoCommandRunner().resolve(root);
     expect(command.source).toBe('rokit');
+    expect(command.executable).toBe(shim());
     expect(command.installHint).toBeDefined();
+
+    const version = await new RojoCommandRunner().version(root);
+    expect(version.available).toBe(false);
+    expect(version.version).toBeUndefined();
+    expect(version.error).toMatch(/declares rojo but no installed shim/);
     fs.rmSync(fakeBin, { recursive: true, force: true });
   });
 
@@ -92,8 +99,10 @@ describe('Rokit toolchain resolution', () => {
   });
 
   test('re-resolves after rokit.toml changes rather than caching once per process', () => {
+    // Both states name the shim; what changes is whether it is installed, so
+    // `installHint` is the signal rather than the executable path.
     const before = new RojoCommandRunner().resolve(root);
-    expect(before.executable).not.toBe(shim());
+    expect(before.installHint).toBeDefined();
 
     fs.mkdirSync(path.dirname(shim()), { recursive: true });
     fs.writeFileSync(shim(), '');
