@@ -846,7 +846,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v2.20.2...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/princeofscale/bloxforge/compare/v3.0.0...v4.0.0
+[3.0.0]: https://github.com/princeofscale/bloxforge/compare/v2.20.2...v3.0.0
 [2.20.2]: https://github.com/princeofscale/bloxforge/compare/v2.20.1...v2.20.2
 [2.20.1]: https://github.com/princeofscale/bloxforge/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/princeofscale/bloxforge/compare/v2.19.3...v2.20.0
