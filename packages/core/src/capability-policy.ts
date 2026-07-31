@@ -1,5 +1,4 @@
 import type { ToolCategory, ToolDefinition, ToolEffect } from './tools/definitions.js';
-import { effectsForTool } from './tools/tool-effects.js';
 
 export type Capability =
   | 'read.scene'
@@ -46,7 +45,7 @@ function capabilityForEffect(
 }
 
 export function requiredCapabilities(tool: ToolDefinition): readonly Capability[] {
-  const effects = tool.effects ?? effectsForTool(tool.name, tool.category);
+  const effects = tool.effects;
   return [...new Set(effects.map((effect) => capabilityForEffect(effect, tool.name, tool.category)))];
 }
 

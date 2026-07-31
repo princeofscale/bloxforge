@@ -1,5 +1,4 @@
 import type { JsonSchema, ToolDefinition } from './definitions.js';
-import { effectsForTool } from './tool-effects.js';
 
 /** MCP tool annotations (hints a host uses to drive approval UX). All optional and
  *  advisory — a host treats them as untrusted unless the server itself is trusted. */
@@ -59,7 +58,7 @@ const OPEN_WORLD_TOOLS = new Set([
 
 /** Advisory risk hints derived from the tool's category + small explicit sets. */
 export function toolAnnotations(tool: ToolDefinition): McpToolAnnotations {
-  const readOnly = !(tool.effects ?? effectsForTool(tool.name, tool.category)).some((effect) =>
+  const readOnly = !tool.effects.some((effect) =>
     effect === 'studio.write' ||
     effect === 'studio.execute' ||
     effect === 'local.files.write' ||

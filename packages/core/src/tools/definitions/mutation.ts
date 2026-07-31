@@ -5,6 +5,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'set_property',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Set a property on an instance',
     inputSchema: {
       type: 'object',
@@ -31,6 +32,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'mass_set_property',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Set a property on multiple instances',
     inputSchema: {
       type: 'object',
@@ -58,6 +60,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'mass_get_property',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get a property from multiple instances',
     inputSchema: {
       type: 'object',
@@ -82,6 +85,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'set_properties',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Set multiple properties on a single instance in one call.',
     inputSchema: {
       type: 'object',
@@ -107,6 +111,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'create_object',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a new instance. Optionally set properties on creation.',
     inputSchema: {
       type: 'object',
@@ -138,6 +143,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'mass_create_objects',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create multiple instances. Each can have optional properties.',
     inputSchema: {
       type: 'object',
@@ -187,6 +193,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'delete_object',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Delete an instance. Deleting a protected service/root (e.g. Workspace, ServerScriptService) requires confirm:true. Use dryRun:true to preview.',
     inputSchema: {
       type: 'object',
@@ -216,6 +223,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'smart_duplicate',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Duplicate with naming, positioning, and property variations',
     inputSchema: {
       type: 'object',
@@ -272,6 +280,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'mass_duplicate',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Batch smart_duplicate operations',
     inputSchema: {
       type: 'object',
@@ -339,6 +348,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'apply_mutation_plan',
     category: 'write',
+    effects: ['studio.execute'],
     description: 'Apply many small edits in ONE round-trip as a transaction: set_property (primitive values), set_attribute, add_tag, remove_tag. Returns a per-op result with before/after, and a ready-to-run `rollback` plan (a reverse mutation plan you can pass straight back to undo). Use dryRun:true to preview the diff without changing anything; large plans require confirm:true. For Vector3/Color3/Enum property values use set_property instead (full type deserialization).',
     inputSchema: {
       type: 'object',

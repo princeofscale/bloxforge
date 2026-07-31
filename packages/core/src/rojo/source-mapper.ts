@@ -59,6 +59,38 @@ export function unsupportedInstanceNameReason(name: string): string | undefined 
   return undefined;
 }
 
+/**
+ * Minimal glob → RegExp supporting `**`, `*` and literal segments, matched
+ * against a POSIX-style path relative to the project directory — the same shape
+ * Rojo matches `globIgnorePaths` and `syncbackRules.ignorePaths` against.
+ *
+ * Braces and character classes are escaped to literals, so an unsupported
+ * pattern matches *less* than Rojo's globset would. That is the safe direction:
+ * for the syncback snapshot it means a file gets backed up unnecessarily rather
+ * than being left out of a rollback.
+ */
+export function globToRegExp(glob: string): RegExp {
+  let re = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === '*') {
+      if (glob[i + 1] === '*') {
+        // "**" matches across directory separators; consume an optional trailing slash.
+        re += '.*';
+        i++;
+        if (glob[i + 1] === '/') i++;
+      } else {
+        re += '[^/]*';
+      }
+    } else if ('\\^$+?.()|{}[]'.includes(c)) {
+      re += `\\${c}`;
+    } else {
+      re += c;
+    }
+  }
+  return new RegExp(`^${re}$`);
+}
+
 export function portablePathKey(relativePath: string): string {
   return relativePath.replace(/\\/g, '/').normalize('NFC').toLowerCase();
 }

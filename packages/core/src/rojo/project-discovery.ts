@@ -75,6 +75,12 @@ function deriveProjectName(projectFile: string): string {
   return base.toLowerCase() === 'default' ? path.basename(path.dirname(projectFile)) : base;
 }
 
+function stringList(value: unknown): string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string')
+    : undefined;
+}
+
 function readProject(projectFile: string): RojoProject {
   const parsed = parseJsonc(fs.readFileSync(projectFile, 'utf8')) as Record<string, unknown>;
   if (!parsed || typeof parsed !== 'object' || !parsed.tree || typeof parsed.tree !== 'object') {
@@ -93,6 +99,7 @@ function readProject(projectFile: string): RojoProject {
     globIgnorePaths: Array.isArray(parsed.globIgnorePaths)
       ? parsed.globIgnorePaths.filter((value): value is string => typeof value === 'string')
       : undefined,
+    syncbackIgnorePaths: stringList((parsed.syncbackRules as Record<string, unknown> | undefined)?.ignorePaths),
     tree: parsed.tree as Record<string, unknown>,
   };
 }

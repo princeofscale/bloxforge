@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Made `ToolDefinition.effects` required and deleted the name-pattern
+  inference behind it. `/asset|marketplace|…|export_rbxm/` decided whether a
+  tool reached the network, so `export_rbxm` — which asks Studio for bytes and
+  writes them to disk — was marked `network.external` and never
+  `local.files.write`. A pattern also fails in the dangerous direction: a new
+  tool that does reach the network inherits no `network.external` unless its
+  name happens to match, and a capability policy would wave it through. All 209
+  tools now declare their own effects and an omission is a compile error.
+- Excluded the paths a Rojo project declares through `globIgnorePaths` and
+  `syncbackRules.ignorePaths` from the native syncback recovery snapshot, and
+  included both lists in the plan hash. Rojo evaluates them per path relative to
+  the project directory and will not write to a match, so they cannot need
+  restoring. The snapshot is deliberately still not scoped to the dry run's
+  reported paths: `--list` is human-readable output, not a machine contract, and
+  a path a parse missed would be unrecoverable after a partial failure.
 - Upgraded ESLint and `@eslint/js` to 10 together. Dependabot offered
   `@eslint/js` alone, which would have mixed majors of one toolchain;
   typescript-eslint 8.65 already declares ESLint 10 support, so it needed no
@@ -15,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `no-useless-assignment`, and both were fixed rather than switched off: 17
   rethrows now carry `{ cause }` so the original failure survives, and 8 dead
   initializers are gone.
+
+### Fixed
+- Corrected three tool effect sets the name heuristic had wrong:
+  `export_rbxm` is `studio.read` plus `local.files.write`,
+  `get_asset_provenance` reads an in-memory map and has no effects, and
+  `import_rbxm` declares the local read it always performs alongside the
+  network access only its `url` form uses.
 
 ## [4.0.0] - 2026-07-31
 

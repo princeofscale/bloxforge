@@ -27,7 +27,7 @@ import { attachStructuredContent } from './tools/structured-output.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 import { parseCapabilities, requiredCapabilities, type Capability } from './capability-policy.js';
-import { effectsForTool, isInspectorEffect } from './tools/tool-effects.js';
+import { isInspectorEffect } from './tools/tool-effects.js';
 import { isLoopbackHost } from './network.js';
 
 export { isLoopbackHost } from './network.js';
@@ -494,11 +494,11 @@ export function authorizedToolsForProfile(
   const profile = normalizeToolProfile(value);
   if (profile === 'inspector') {
     return tools.filter((tool) =>
-      (tool.effects ?? effectsForTool(tool.name, tool.category)).every(isInspectorEffect));
+      tool.effects.every(isInspectorEffect));
   }
   if (profile === 'builder') {
     return tools.filter((tool) =>
-      !(tool.effects ?? effectsForTool(tool.name, tool.category)).includes('studio.execute'));
+      !tool.effects.includes('studio.execute'));
   }
   return [...tools];
 }

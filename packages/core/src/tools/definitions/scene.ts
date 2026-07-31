@@ -5,6 +5,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'simulate_mouse_input',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Simulate a mouse click in the running game via UserInputService:CreateVirtualInput. Use during a playtest to click UI buttons, interact with objects, or aim. Fires real UserInputService input and activates GUI buttons. Coordinates are logical viewport pixels (top-left is 0,0). Take a capture_screenshot first: if OS display scaling makes the physical image larger than the logical viewport, the screenshot response states the exact image-pixel-to-input conversion. Auto-targets the running client; only works during a playtest. Note: only click/mouseDown/mouseUp are supported (the API has no mouse-move or scroll).',
     inputSchema: {
       type: 'object',
@@ -42,6 +43,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'simulate_keyboard_input',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Simulate keyboard input in the running game via UserInputService:CreateVirtualInput. Use during a playtest for character movement (W/A/S/D walks at full WalkSpeed with player controls intact), jumping (Space), interactions (E), or any key-driven action. Drives the real input pipeline so game scripts and control modules respond. For sustained movement use action="press" to hold and "release" to let go. Pass "text" instead of keyCode to type a string into the focused TextBox. Auto-targets the running client; only works during a playtest.',
     inputSchema: {
       type: 'object',
@@ -83,6 +85,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'character_navigation',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Move the player character to a target position or instance during playtest. Uses PathfindingService for automatic navigation around obstacles, falling back to direct movement. Requires an active playtest in "play" mode. Does NOT simulate player input - moves the character directly.',
     inputSchema: {
       type: 'object',
@@ -120,6 +123,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'clone_object',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Clone an instance to a new parent location. Creates a deep copy of the instance and all its descendants.',
     inputSchema: {
       type: 'object',
@@ -145,6 +149,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_descendants',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get all descendants of an instance recursively with depth info. More efficient than repeated get_instance_children calls.',
     inputSchema: {
       type: 'object',
@@ -175,6 +180,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_scene_summary',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Token-lean scene overview: counts descendants by ClassName under a path and returns totals + the top-N classes, instead of dumping the whole tree. Use before get_descendants to understand a scene cheaply.',
     inputSchema: {
       type: 'object',
@@ -191,6 +197,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'compare_instances',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Diff two instances by comparing their properties. Useful for debugging why a duplicate behaves differently.',
     inputSchema: {
       type: 'object',
@@ -215,6 +222,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'bulk_set_attributes',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Set multiple attributes on an instance in a single call. More efficient than repeated set_attribute calls.',
     inputSchema: {
       type: 'object',
@@ -240,6 +248,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_memory_breakdown',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Read per-category memory usage by iterating Enum.DeveloperMemoryTag and calling Stats:GetMemoryUsageMbForTag per item (workaround for Stats:GetMemoryUsageMbAllCategories being gated by Capabilities: InternalTest and not callable from plugin context), plus Stats:GetTotalMemoryUsageMb for the rollup. target="all" (default) returns { peer: { total_mb, categories, timestamp } } for every connected peer except edit-proxy; single-peer targets return that peer\'s object directly. Optional tags whitelist filters to only those DeveloperMemoryTag entries; unknown tags come back with value 0 and are listed in unknown_tags so cross-version drift doesn\'t error. timestamp is Unix milliseconds (DateTime.now().UnixTimestampMillis). Per-peer MemoryTrackingEnabled=false surfaces as { error } on that peer only.',
     inputSchema: {
       type: 'object',
@@ -263,6 +272,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_scene_analysis',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Read Roblox SceneAnalysisService data for attribution-focused performance analysis. Complements get_memory_breakdown: returns compact top-N entries for instance composition, script memory, unparented instances, triangle composition, animation memory, and audio memory. Requires the Studio Scene Analysis beta feature; if disabled, returns scene_analysis_not_enabled with betaFeatureRequired=true. target="all" (default) returns per-peer data; single-peer targets return that peer directly. raw=true includes the full nested Scene Analysis tree.',
     inputSchema: {
       type: 'object',
@@ -298,6 +308,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'export_rbxm',
     category: 'read',
+    effects: ['studio.read', 'local.files.write'],
     description: 'Serialize one or more instances to a .rbxm file on disk via SerializationService:SerializeInstancesAsync (engine v668+, PluginSecurity). Throws if any path resolves to nil, a service, or a non-creatable instance.',
     inputSchema: {
       type: 'object',
@@ -327,6 +338,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'import_rbxm',
     category: 'write',
+    effects: ['studio.write', 'local.files.read', 'network.external'],
     description: 'Deserialize a .rbxm via SerializationService:DeserializeInstancesAsync (engine v668+, PluginSecurity) and parent the resulting instances under parent_path. All-or-nothing parenting: if any single instance fails to parent, every already-parented sibling is unparented and the call errors. Wrapped in ChangeHistoryService for edit target so one Ctrl+Z reverses the whole import.',
     inputSchema: {
       type: 'object',
@@ -367,6 +379,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'find_and_replace_in_scripts',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Find and replace text across all scripts in the game. Supports literal and Lua pattern matching. Use dryRun to preview changes before applying. Pairs with grep_scripts for search-only operations.',
     inputSchema: {
       type: 'object',
@@ -417,6 +430,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_operation_history',
     category: 'read',
+    effects: ['studio.read'],
     description: 'List recent destructive/bulk operations recorded by the safety layer (deletes, bulk creates, script overwrites, Luau runs, restores), most recent first.',
     inputSchema: {
       type: 'object',
@@ -431,6 +445,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'list_script_backups',
     category: 'read',
+    effects: ['studio.read'],
     description: 'List script sources the safety layer backed up before set_script_source overwrote them. Restore any of them with restore_script_backup.',
     inputSchema: {
       type: 'object',
@@ -440,6 +455,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'restore_script_backup',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Restore a script to the source captured before the most recent set_script_source overwrite. Use list_script_backups to see available paths.',
     inputSchema: {
       type: 'object',
@@ -460,6 +476,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_world_snapshot',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Token-lean world model for reasoning before drill-down. Returns place info, descendant counts (total, distinct classes, tagged, sounds + playing/looped, scripts/localScripts/moduleScripts), top classes, notable subtree roots, and an environment summary (clock time, lighting technology, atmosphere/sky/terrain presence). Use this first to answer "where is the UI", "is there music", "is the scene heavy" without dumping the tree.',
     inputSchema: {
       type: 'object',
@@ -487,6 +504,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_node_batch',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Read several instances in one round-trip, returning only the requested fields per node. Use after a snapshot or summary, when you already know which paths you want — cheaper than a cascade of get_instance_properties or an expensive get_descendants. Values are serialized compactly (Vector3 -> [x,y,z], Color3 -> [r,g,b], Instance -> full path).',
     inputSchema: {
       type: 'object',
@@ -516,6 +534,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_changes_since',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now).',
     inputSchema: {
       type: 'object',
@@ -538,6 +557,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'scene_search',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths.',
     inputSchema: {
       type: 'object',

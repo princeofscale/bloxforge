@@ -7,6 +7,8 @@ export interface RojoProject {
   servePlaceIds?: number[];
   emitLegacyScripts?: boolean;
   globIgnorePaths?: string[];
+  /** `syncbackRules.ignorePaths` — paths Rojo syncback will not write. */
+  syncbackIgnorePaths?: string[];
   tree: Record<string, unknown>;
 }
 

@@ -7,7 +7,7 @@ import { discoverRojoProjects, isRojoProjectFile, selectRojoProject } from './pr
 import { RojoProcessManager } from './process-manager.js';
 import { RojoSourceEditor } from './source-editor.js';
 import { resolveInstanceSource, resolveSourceInstance } from './sourcemap.js';
-import { classifyRojoSource, resolveProjectPath, resolveProjectRoot } from './source-mapper.js';
+import { classifyRojoSource, globToRegExp, resolveProjectPath, resolveProjectRoot } from './source-mapper.js';
 import type { RojoProject, RojoSourceKind } from './types.js';
 import { QualityTools } from '../quality-tools.js';
 
@@ -253,7 +253,8 @@ export class RojoTools {
     if (!expectedPlanHash || plan.planHash !== expectedPlanHash) {
       throw new Error('Native syncback plan changed since preview; review a fresh rojo_syncback_plan before applying');
     }
-    const snapshot = this.snapshotSources(project.root, plan.input);
+    const ignore = this.ignoredPaths(project);
+    const snapshot = this.snapshotSources(project.root, plan.input, ignore);
     const backupRoot = resolveProjectPath(
       project.root,
       path.join('.bloxforge', 'backups', `native-syncback-${new Date().toISOString().replace(/[:.]/g, '-')}`),
@@ -273,7 +274,7 @@ export class RojoTools {
       '--non-interactive',
     ], { cwd: project.root });
     if (!result.ok) {
-      this.restoreSources(project.root, plan.input, snapshot, backupRoot);
+      this.restoreSources(project.root, plan.input, snapshot, backupRoot, ignore);
       throw new Error(`Rojo syncback failed and local sources were restored: ${result.error ?? result.stderr ?? 'unknown error'}`);
     }
     return {
@@ -313,13 +314,15 @@ export class RojoTools {
    * apply without changing the hash.
    */
   private syncbackPlanHash(project: RojoProject, input: string, changes: string[], rojoVersion?: string): string {
-    const snapshot = this.snapshotSources(project.root, input);
+    const ignore = this.ignoredPaths(project);
+    const snapshot = this.snapshotSources(project.root, input, ignore);
     const digest = createHash('sha256');
     digest.update(JSON.stringify({
       rojoVersion: rojoVersion ?? 'unknown',
       projectFile: path.relative(project.root, project.projectFile).split(path.sep).join('/'),
       input: path.relative(project.root, input).split(path.sep).join('/'),
       changes,
+      ignore,
       directories: snapshot.directories,
     }));
     digest.update(hashFile(project.projectFile));
@@ -335,10 +338,19 @@ export class RojoTools {
    * classifier recognises. Rojo syncback writes `.luau`, `.jsonc`, YAML and
    * whole directories; a classifier-filtered snapshot silently leaves those out
    * of the backup and they cannot be restored when a partial syncback fails.
+   *
+   * The only files skipped are the ones the project itself declares off-limits
+   * via `globIgnorePaths` and `syncbackRules.ignorePaths`. Rojo evaluates those
+   * per path, relative to the project directory, and refuses to write to a match
+   * — so excluding them shrinks the snapshot without shrinking what it can
+   * restore. Deliberately *not* scoped to the dry run's reported paths: the
+   * `--list` text is not a machine contract, and any path a parse missed would
+   * be unrecoverable after a partial failure.
    */
-  private snapshotSources(root: string, exclude?: string): SourceSnapshot {
+  private snapshotSources(root: string, exclude?: string, ignore: readonly string[] = []): SourceSnapshot {
     const files: string[] = [];
     const directories: string[] = [];
+    const patterns = ignore.map(globToRegExp);
     let bytes = 0;
     const walk = (directory: string) => {
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -350,10 +362,12 @@ export class RojoTools {
           walk(absolute);
         } else if (entry.isFile()) {
           if (exclude && path.resolve(absolute) === path.resolve(exclude)) continue;
+          const posix = relative.split(path.sep).join('/');
+          if (patterns.some((pattern) => pattern.test(posix))) continue;
           files.push(relative);
           bytes += fs.statSync(absolute).size;
           if (files.length > MAX_SNAPSHOT_FILES || bytes > MAX_SNAPSHOT_BYTES) {
-            throw new Error(`Native syncback recovery snapshot exceeds ${MAX_SNAPSHOT_FILES} files or ${MAX_SNAPSHOT_BYTES / (1024 * 1024)} MiB`);
+            throw new Error(`Native syncback recovery snapshot exceeds ${MAX_SNAPSHOT_FILES} files or ${MAX_SNAPSHOT_BYTES / (1024 * 1024)} MiB; exclude generated directories with globIgnorePaths or syncbackRules.ignorePaths`);
           }
         }
       }
@@ -364,8 +378,13 @@ export class RojoTools {
     return { files, directories };
   }
 
-  private restoreSources(root: string, input: string, snapshot: SourceSnapshot, backupRoot: string): void {
-    const current = this.snapshotSources(root, input);
+  /** Both lists Rojo consults before writing a syncback result. */
+  private ignoredPaths(project: RojoProject): string[] {
+    return [...(project.globIgnorePaths ?? []), ...(project.syncbackIgnorePaths ?? [])];
+  }
+
+  private restoreSources(root: string, input: string, snapshot: SourceSnapshot, backupRoot: string, ignore: readonly string[]): void {
+    const current = this.snapshotSources(root, input, ignore);
     const keptFiles = new Set(snapshot.files);
     const keptDirectories = new Set(snapshot.directories);
     for (const relative of current.files) {
