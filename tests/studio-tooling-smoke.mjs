@@ -289,7 +289,7 @@ async function main() {
   const backups = backupPluginFiles(pluginsDir);
   const { fixtureDir, placePath } = createPlaceFixture(pluginsDir);
   let client;
-  let leakedStudioProcesses = [];
+  let leakedStudioProcesses;
 
   try {
     await closeAllStudio();

@@ -99,7 +99,7 @@ export function resolveStudioExe() {
 
 export function listStudioProcesses() {
   if (process.platform === 'darwin') {
-    let out = '';
+    let out;
     try {
       out = run('pgrep', ['-fl', 'RobloxStudio']);
     } catch {
@@ -114,7 +114,7 @@ export function listStudioProcesses() {
       });
   }
 
-  let out = '';
+  let out;
   try {
     out = powershell(
       `Get-Process ${STUDIO_PROCESS} -ErrorAction SilentlyContinue | ` +

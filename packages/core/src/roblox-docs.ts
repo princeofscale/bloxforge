@@ -78,7 +78,8 @@ export async function fetchRobloxDoc(category: DocCategory, name: string): Promi
     });
   } catch (error) {
     throw new Error(
-      `Failed to fetch Roblox docs for ${key}: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to fetch Roblox docs for ${key}: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   } finally {
     clearTimeout(timer);

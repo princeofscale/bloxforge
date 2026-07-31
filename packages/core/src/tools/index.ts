@@ -883,7 +883,7 @@ export class RobloxStudioTools {
     try {
       fs.mkdirSync(resolved, { recursive: true });
     } catch (error) {
-      throw new Error(`Unable to create ${label} build-library directory at ${resolved}: ${(error as Error).message}`);
+      throw new Error(`Unable to create ${label} build-library directory at ${resolved}: ${(error as Error).message}`, { cause: error });
     }
     if (!RobloxStudioTools.isDirectory(resolved)) {
       throw new Error(`${label} build-library path is not a directory: ${resolved}`);
@@ -891,7 +891,7 @@ export class RobloxStudioTools {
     try {
       fs.accessSync(resolved, fs.constants.W_OK);
     } catch (error) {
-      throw new Error(`${label} build-library directory is not writable: ${resolved}. ${(error as Error).message}`);
+      throw new Error(`${label} build-library directory is not writable: ${resolved}. ${(error as Error).message}`, { cause: error });
     }
     return resolved;
   }
@@ -1885,7 +1885,7 @@ export class RobloxStudioTools {
 
     // 2. Hash for provenance/dedup, then upload via the existing Open Cloud path.
     const sha256 = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
-    let uploadRaw: { response?: { assetId?: string }; decalId?: string; imageId?: string } = {};
+    let uploadRaw: { response?: { assetId?: string }; decalId?: string; imageId?: string };
     try {
       const up = await this.uploadAsset(filePath, assetType, options.displayName ?? options.sourceName ?? path.basename(filePath));
       const text = (up.content?.find((c) => 'text' in c) as { text?: string } | undefined)?.text ?? '{}';

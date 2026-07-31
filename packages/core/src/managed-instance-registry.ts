@@ -186,7 +186,7 @@ export class ManagedInstanceRegistry {
         }
 
         if (Date.now() > deadline) {
-          throw new Error(`Timed out waiting for managed instance registry lock: ${lockDir}`);
+          throw new Error(`Timed out waiting for managed instance registry lock: ${lockDir}`, { cause: error });
         }
         sleepSync(LOCK_RETRY_MS);
       }

@@ -206,11 +206,11 @@ export class OpenCloudClient {
       clearTimeout(timeoutId);
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error('Request timed out');
+          throw new Error('Request timed out', { cause: error });
         }
         throw error;
       }
-      throw new Error(`Unknown error: ${String(error)}`);
+      throw new Error(`Unknown error: ${String(error)}`, { cause: error });
     }
   }
 
@@ -413,11 +413,11 @@ export class OpenCloudClient {
       clearTimeout(timeoutId);
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          throw new Error('Request timed out');
+          throw new Error('Request timed out', { cause: error });
         }
         throw error;
       }
-      throw new Error(`Unknown error: ${String(error)}`);
+      throw new Error(`Unknown error: ${String(error)}`, { cause: error });
     }
   }
 

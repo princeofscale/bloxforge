@@ -53,11 +53,11 @@ export class AssetTools {
   private static ensureWritableDirectory(candidate: string, label: string): string {
     const resolved = path.resolve(candidate);
     try { fs.mkdirSync(resolved, { recursive: true }); } catch (error) {
-      throw new Error(`Unable to create ${label} build-library directory at ${resolved}: ${(error as Error).message}`);
+      throw new Error(`Unable to create ${label} build-library directory at ${resolved}: ${(error as Error).message}`, { cause: error });
     }
     if (!AssetTools.isDirectory(resolved)) throw new Error(`${label} build-library path is not a directory: ${resolved}`);
     try { fs.accessSync(resolved, fs.constants.W_OK); } catch (error) {
-      throw new Error(`${label} build-library directory is not writable: ${resolved}. ${(error as Error).message}`);
+      throw new Error(`${label} build-library directory is not writable: ${resolved}. ${(error as Error).message}`, { cause: error });
     }
     return resolved;
   }

@@ -92,7 +92,7 @@ export class RojoSourceEditor {
       handle = fs.openSync(file, 'wx', 0o600);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-        throw new Error(`Source already exists: ${relativePath}`);
+        throw new Error(`Source already exists: ${relativePath}`, { cause: error });
       }
       throw error;
     }

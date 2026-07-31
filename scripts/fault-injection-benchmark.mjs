@@ -50,7 +50,7 @@ assert(timeoutResourcesAfter <= timeoutResourcesBefore, 'request timers leaked')
 
 const journalDirectory = mkdtempSync(join(tmpdir(), 'bloxforge-fault-journal-'));
 const journalPath = join(journalDirectory, 'journal.json');
-let journalBytes = 0;
+let journalBytes;
 try {
   const now = Date.now();
   new RequestJournal(journalPath).save(

@@ -470,7 +470,7 @@ async function main() {
   const pluginsDir = resolvePluginsDir();
   const backups = backupPluginFiles(pluginsDir);
   const { fixtureDir, placePath } = createPlaceFixture(pluginsDir);
-  let leakedStudioProcesses = [];
+  let leakedStudioProcesses;
 
   try {
     await closeAllStudio();

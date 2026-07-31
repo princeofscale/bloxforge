@@ -19,7 +19,8 @@ export class StudioHttpClient {
     } catch (error) {
       if (error instanceof Error && error.message === 'Request timeout') {
         throw new Error(
-          'Studio plugin connection timeout. Make sure the Roblox Studio plugin is running and activated.'
+          'Studio plugin connection timeout. Make sure the Roblox Studio plugin is running and activated.',
+          { cause: error },
         );
       }
       throw error;

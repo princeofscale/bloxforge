@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Upgraded ESLint and `@eslint/js` to 10 together. Dependabot offered
+  `@eslint/js` alone, which would have mixed majors of one toolchain;
+  typescript-eslint 8.65 already declares ESLint 10 support, so it needed no
+  bump. ESLint 10's `recommended` set adds `preserve-caught-error` and
+  `no-useless-assignment`, and both were fixed rather than switched off: 17
+  rethrows now carry `{ cause }` so the original failure survives, and 8 dead
+  initializers are gone.
+
 ## [4.0.0] - 2026-07-31
 
 ### Added

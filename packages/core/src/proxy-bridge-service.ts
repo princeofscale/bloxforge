@@ -156,7 +156,7 @@ export class ProxyBridgeService extends BridgeService {
             resolveRequestTimeout(endpoint, this.requestTimeout),
           );
         }
-        throw new Error('Proxy request timeout');
+        throw new Error('Proxy request timeout', { cause: err });
       }
       throw err;
     }
