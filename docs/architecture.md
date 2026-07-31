@@ -155,8 +155,12 @@ The Rojo command is resolved per canonical project root, not once per process.
 A `rokit.toml` or `aftman.toml` above the project selects that toolchain's
 installed shim; neither manager has a `run` subcommand, so no wrapper call is
 synthesised. When a manifest pins Rojo but no shim exists, the failure names the
-install step instead of silently falling back to an unrelated global Rojo.
-Resolution is cached per project root and invalidated by the manifest's mtime.
+install step instead of silently falling back to an unrelated global Rojo, and
+the manifest search stops at `BLOXFORGE_PROJECT_ROOT`. Resolution is cached per
+project root and invalidated by the mtime of both the manifest and the shim, so
+an external `rokit install` is picked up without a restart. A managed `rojo
+serve` is ready when its port accepts a connection, not when its stdout matches
+a banner; a failed start reports the tail of the process log.
 
 Reverse synchronization is explicit: planning reads bounded, paginated script
 metadata/source through `/api/read-managed-scripts`; applying requires

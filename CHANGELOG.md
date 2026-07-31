@@ -87,6 +87,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported Node.js 18 and the new Node.js 20+ runtime floor is a breaking change.
 
 ### Fixed
+- Stopped a Rokit- or Aftman-pinned project from silently running an unrelated
+  global Rojo. The resolver probed `PATH` before honouring the manifest, so a
+  project pinned to 7.7.0 with no installed shim ran whatever version happened
+  to be on `PATH` — the exact drift the pin exists to prevent.
+- Fixed sourcemap instance resolution prefixing every path with the project
+  name. Rojo names the sourcemap root after the project, not `game`, so
+  `game.ReplicatedStorage.Shared` never matched in a project named anything
+  else; user-facing paths now start at the root's children.
+- Treated only a leading `game` segment as the DataModel in dotted instance
+  paths, matching the segment form. An Instance legitimately named `game` was
+  dropped from the middle of a path and resolved to the wrong source.
+- Made `sync_pull` re-read a rename source before moving it. The write path
+  verified each file against the plan and the rename path did not, so a source
+  the plan never read was moved into a managed path and recorded as the
+  confirmed baseline.
+- Made `sync_push` re-read each file immediately before sending it. It pushed
+  the plan's snapshot, so an edit landing after planning overwrote Studio with
+  content the caller never reviewed and was then recorded as agreed.
+- Re-verified the content hash immediately before `rojo_patch_source` writes and
+  `rojo_delete_source` unlinks, closing most of the window between the
+  optimistic-locking check and the mutation.
+- Reported an unusable `root` from `rojo_get_version` instead of swallowing it
+  and answering for whatever Rojo the server's own working directory resolves.
+- Bounded the Rojo command runner's toolchain-manifest search by
+  `BLOXFORGE_PROJECT_ROOT`; it walked to the filesystem root and could pick up a
+  `rokit.toml` from outside the workspace.
+- Keyed the Rojo resolution cache on the shim as well as the manifest, so an
+  external `rokit install` no longer needs a server restart to take effect.
+- Detected `rojo serve` readiness by connecting to its port instead of matching
+  its stdout banner, which is not API and has changed between releases. A
+  healthy server whose wording drifted was killed on timeout; failures now
+  include the tail of the process log.
+- Recognised `.project.jsonc` in the legacy quality-tool project detection, and
+  stopped an unreadable project directory from failing detection outright.
+- Compared Rokit manifest pins to the running version component-wise. Substring
+  matching reported 17.7.0 as satisfying a 7.7.0 pin.
+- Compared Wally package directories case-sensitively on Linux, where
+  `Packages` and `packages` are different directories and folding case reported
+  a mount Rojo would fail to resolve as mapped.
 - Fixed `rojo_generate_sourcemap` failing on every run after the first: the new
   output-overwrite guard classified the existing `sourcemap.json` as a Rojo
   value source and refused to replace it.
@@ -807,7 +846,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v2.20.2...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/princeofscale/bloxforge/compare/v3.0.0...v4.0.0
+[3.0.0]: https://github.com/princeofscale/bloxforge/compare/v2.20.2...v3.0.0
 [2.20.2]: https://github.com/princeofscale/bloxforge/compare/v2.20.1...v2.20.2
 [2.20.1]: https://github.com/princeofscale/bloxforge/compare/v2.20.0...v2.20.1
 [2.20.0]: https://github.com/princeofscale/bloxforge/compare/v2.19.3...v2.20.0

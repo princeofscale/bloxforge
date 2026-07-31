@@ -55,6 +55,20 @@ function probeVersion(shim: string, cwd: string): { version?: string; output?: s
   }
 }
 
+/**
+ * Substring matching said "17.7.0" satisfies a 7.7.0 pin, and that "7.70.1"
+ * satisfies 7.7. A manifest pin matches only when it is a component-wise
+ * prefix of the running version.
+ *
+ * ponytail: prefix compare, not a range solver. Rokit pins exact versions; if
+ * caret/tilde requirements ever land in rokit.toml, use a real semver matcher.
+ */
+function versionMatches(running: string, pinned: string): boolean {
+  const wanted = pinned.split('.');
+  const actual = running.split('.');
+  return wanted.length <= actual.length && wanted.every((part, index) => part === actual[index]);
+}
+
 function requireSafeTool(tool: string): string {
   if (!/^[\w.-]+$/.test(tool)) throw new Error(`Tool name must match [A-Za-z0-9_.-]+; got ${JSON.stringify(tool)}`);
   return tool;
@@ -158,7 +172,7 @@ export class RokitTools {
           runningVersion: probe?.version,
           probeOutput: probe?.output,
           matchesManifest: manifestVersion !== undefined && probe?.version !== undefined
-            ? probe.version.includes(manifestVersion)
+            ? versionMatches(probe.version, manifestVersion)
             : undefined,
         };
       }),

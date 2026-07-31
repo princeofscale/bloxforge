@@ -420,6 +420,12 @@ export class SyncTools {
         for (const rename of plan.renamed) {
           const from = resolveProjectPath(dir, rename.from);
           const to = resolveProjectPath(dir, rename.to, false);
+          // The write path re-checks; the rename path must too. Otherwise an edit
+          // made after the preview is moved to a new name and then recorded as
+          // the confirmed baseline, so the next plan sees nothing to reconcile.
+          if (fs.readFileSync(from, 'utf8') !== plan.local.get(rename.from)) {
+            throw new Error(`${rename.from} changed on disk after the plan was produced; re-run rojo_syncback_plan`);
+          }
           fs.mkdirSync(path.dirname(to), { recursive: true });
           fs.renameSync(from, to);
           renamedRollback.push({ from, to });
@@ -575,6 +581,20 @@ export class SyncTools {
       const script = plan.scripts.get(rel);
       const content = plan.local.get(rel);
       if (!script || content === undefined) continue;
+      // Push what the caller reviewed, not the plan's snapshot: a file edited
+      // after planning would otherwise overwrite Studio with unreviewed content
+      // and then be recorded as the agreed baseline.
+      let current: string;
+      try {
+        current = fs.readFileSync(resolveProjectPath(dir, rel), 'utf8');
+      } catch (error) {
+        failed.push({ path: rel, error: errorMessage(error) });
+        continue;
+      }
+      if (current !== content) {
+        failed.push({ path: rel, error: `${rel} changed on disk after the plan was produced; re-run sync_status` });
+        continue;
+      }
       // The plugin reports failure as an { error } envelope rather than throwing.
       // Recording a baseline for it would mark the file in-sync and lose the edit.
       const response = await this.runtime.callSingle('/api/set-script-source', {

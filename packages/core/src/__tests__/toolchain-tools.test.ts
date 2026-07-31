@@ -51,6 +51,46 @@ describe('Rokit toolchain resolution', () => {
     expect(command.installHint).toMatch(/rokit_install|rokit install/);
   });
 
+  test('a pinned project never silently runs a working global Rojo', () => {
+    // The previous check probed PATH first, so a machine with any global Rojo
+    // ran that against a project pinned to a version it does not have installed.
+    const fakeBin = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-global-rojo-'));
+    const global = path.join(fakeBin, process.platform === 'win32' ? 'rojo.cmd' : 'rojo');
+    fs.writeFileSync(global, process.platform === 'win32' ? '@echo Rojo 7.5.0\r\n' : '#!/bin/sh\necho "Rojo 7.5.0"\n', { mode: 0o755 });
+    process.env.PATH = `${fakeBin}${path.delimiter}${process.env.PATH ?? ''}`;
+    clearRojoCommandCache();
+
+    const command = new RojoCommandRunner().resolve(root);
+    expect(command.source).toBe('rokit');
+    expect(command.installHint).toBeDefined();
+    fs.rmSync(fakeBin, { recursive: true, force: true });
+  });
+
+  test('re-resolves when an external rokit install creates the shim', () => {
+    // `rokit install` writes the shim without touching rokit.toml, so a cache
+    // keyed only on the manifest served the stale answer until a restart.
+    expect(new RojoCommandRunner().resolve(root).installHint).toBeDefined();
+
+    fs.mkdirSync(path.dirname(shim()), { recursive: true });
+    fs.writeFileSync(shim(), '');
+
+    const after = new RojoCommandRunner().resolve(root);
+    expect(after).toMatchObject({ source: 'rokit', executable: shim() });
+    expect(after.installHint).toBeUndefined();
+  });
+
+  test('does not read a toolchain manifest above the project root', () => {
+    const outer = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-outer-'));
+    const inner = path.join(outer, 'project');
+    fs.mkdirSync(inner);
+    fs.writeFileSync(path.join(outer, 'rokit.toml'), '[tools]\nrojo = "rojo-rbx/rojo@7.7.0"\n');
+    process.env.BLOXFORGE_PROJECT_ROOT = inner;
+    clearRojoCommandCache();
+
+    expect(new RojoCommandRunner().resolve(inner).manifest).toBeUndefined();
+    fs.rmSync(outer, { recursive: true, force: true });
+  });
+
   test('re-resolves after rokit.toml changes rather than caching once per process', () => {
     const before = new RojoCommandRunner().resolve(root);
     expect(before.executable).not.toBe(shim());

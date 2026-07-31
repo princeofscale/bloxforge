@@ -125,6 +125,20 @@ export class RojoSourceEditor {
     };
   }
 
+  /**
+   * Re-verifies the hash immediately before the mutation. Validation and diffing
+   * happen between the read and the write, and a concurrent editor in that window
+   * would otherwise be overwritten with no conflict reported.
+   *
+   * ponytail: narrows the window, does not close it. A cross-process lock file
+   * is the upgrade if two BloxForge servers ever share a project root.
+   */
+  private assertUnchanged(relativePath: string, expectedHash: string): void {
+    if (this.read(relativePath).contentHash !== expectedHash) {
+      throw new Error(`Content hash conflict for ${relativePath}: the file changed while the edit was being prepared`);
+    }
+  }
+
   patch(
     relativePath: string,
     options: {
@@ -146,7 +160,10 @@ export class RojoSourceEditor {
     }
     const next = current.content.slice(0, first) + options.newText + current.content.slice(first + options.oldText.length);
     this.validate?.(next, current.path);
-    if (!options.dryRun) this.atomicWrite(resolveProjectPath(this.root, current.path), next);
+    if (!options.dryRun) {
+      this.assertUnchanged(relativePath, options.expectedHash);
+      this.atomicWrite(resolveProjectPath(this.root, current.path), next);
+    }
     return {
       path: current.path,
       applied: options.dryRun !== true,
@@ -195,6 +212,7 @@ export class RojoSourceEditor {
         current.path,
       );
       const backup = resolveProjectPath(this.root, backupRelative, false);
+      this.assertUnchanged(relativePath, options.expectedHash);
       this.atomicWrite(backup, current.content);
       fs.unlinkSync(resolveProjectPath(this.root, current.path));
       backupPath = backup;

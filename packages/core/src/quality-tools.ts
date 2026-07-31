@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { isRojoProjectFile } from './rojo/project-discovery.js';
 import { WallyTools } from './toolchain/wally-tools.js';
 
 const TOOL_COMMANDS = ['luau-analyze', 'luau-lsp', 'stylua', 'selene', 'rojo', 'rokit', 'aftman', 'wally', 'lune'] as const;
@@ -72,8 +73,15 @@ export function hasCommand(command: QualityCommand): boolean {
 }
 
 function projectFiles(root: string): Record<string, string> {
+  // Same predicate the Rojo discovery uses, so `.project.jsonc` is not invisible
+  // here. An unreadable directory simply has no project files; it must not take
+  // down project detection for every other tool.
+  let discovered: string[] = [];
+  try {
+    discovered = fs.readdirSync(root).filter(isRojoProjectFile).sort();
+  } catch { /* unreadable or missing directory */ }
   const names = [
-    ...fs.readdirSync(root).filter((name) => name.endsWith('.project.json')).sort(),
+    ...discovered,
     'rojo.json', 'sourcemap.json',
     'selene.toml', 'stylua.toml', 'wally.toml', 'wally.lock', 'rokit.toml', 'aftman.toml',
   ];
@@ -84,7 +92,7 @@ function projectFiles(root: string): Record<string, string> {
 
 function selectedProjectFile(project: RobloxProject): { path?: string; error?: string } {
   const candidates = Object.entries(project.files)
-    .filter(([name]) => name.endsWith('.project.json'))
+    .filter(([name]) => isRojoProjectFile(name))
     .map(([, file]) => file);
   if (candidates.length === 0) return { error: 'Rojo project file not found' };
   if (candidates.length > 1) return { error: 'Multiple Rojo project files found; use the rojo_* tools and select projectFile explicitly' };

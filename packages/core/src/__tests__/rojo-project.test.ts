@@ -11,6 +11,11 @@ import {
   resolveProjectRoot,
   unsupportedInstanceNameReason,
 } from '../rojo/source-mapper.js';
+import {
+  instancePathSegments,
+  resolveInstanceSource,
+  resolveSourceInstance,
+} from '../rojo/sourcemap.js';
 
 describe('Rojo project adapter', () => {
   let root: string;
@@ -143,5 +148,73 @@ describe('Rojo project adapter', () => {
   test('resolves relative search roots from BLOXFORGE_PROJECT_ROOT', () => {
     fs.mkdirSync(path.join(root, 'nested'));
     expect(resolveProjectRoot('nested')).toBe(fs.realpathSync(path.join(root, 'nested')));
+  });
+});
+
+describe('sourcemap instance resolution', () => {
+  let root: string;
+
+  // Rojo names the sourcemap root after the project, and it emits a nested
+  // Instance under whatever name the developer gave it — including "game".
+  const sourcemap = {
+    name: 'BloxForgeGame',
+    className: 'DataModel',
+    children: [{
+      name: 'ReplicatedStorage',
+      className: 'ReplicatedStorage',
+      children: [
+        { name: 'Shared', className: 'ModuleScript', filePaths: ['src/shared/init.luau'] },
+        {
+          name: 'game',
+          className: 'Folder',
+          children: [{ name: 'Config', className: 'ModuleScript', filePaths: ['src/game/Config.luau'] }],
+        },
+      ],
+    }],
+  };
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-rojo-sourcemap-'));
+    process.env.BLOXFORGE_PROJECT_ROOT = root;
+    fs.writeFileSync(path.join(root, 'sourcemap.json'), JSON.stringify(sourcemap));
+    fs.mkdirSync(path.join(root, 'src', 'shared'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'src', 'game'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'src', 'shared', 'init.luau'), 'return {}');
+    fs.writeFileSync(path.join(root, 'src', 'game', 'Config.luau'), 'return {}');
+  });
+
+  afterEach(() => {
+    delete process.env.BLOXFORGE_PROJECT_ROOT;
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  test('does not prefix user paths with the project name', () => {
+    // The root node is "BloxForgeGame", so including it made every lookup of a
+    // real game path miss.
+    expect(resolveInstanceSource(root, 'game.ReplicatedStorage.Shared')).toMatchObject({
+      resolved: true,
+      instancePathSegments: ['ReplicatedStorage', 'Shared'],
+      sourcePaths: ['src/shared/init.luau'],
+    });
+    expect(resolveInstanceSource(root, ['game', 'ReplicatedStorage', 'Shared'])).toMatchObject({ resolved: true });
+  });
+
+  test('keeps an Instance legitimately named "game"', () => {
+    // The string form used to drop every "game" segment, so this resolved to the
+    // wrong Instance (or to nothing) while the array form worked.
+    expect(resolveInstanceSource(root, 'game.ReplicatedStorage.game.Config')).toMatchObject({
+      resolved: true,
+      instancePathSegments: ['ReplicatedStorage', 'game', 'Config'],
+      sourcePaths: ['src/game/Config.luau'],
+    });
+    expect(instancePathSegments('game.ReplicatedStorage.game.Config'))
+      .toEqual(instancePathSegments(['game', 'ReplicatedStorage', 'game', 'Config']));
+  });
+
+  test('maps a source file back to a path that starts at the DataModel', () => {
+    expect(resolveSourceInstance(root, 'src/game/Config.luau')).toMatchObject({
+      resolved: true,
+      instancePath: 'game.ReplicatedStorage.game.Config',
+    });
   });
 });

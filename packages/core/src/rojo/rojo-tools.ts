@@ -76,10 +76,10 @@ export class RojoTools {
 
   getVersion(root?: string) {
     // Resolution depends on the project's toolchain manifest, so the lookup has
-    // to start from the project directory rather than the server's cwd.
-    let cwd: string | undefined;
-    try { cwd = root ? resolveProjectRoot(root) : undefined; } catch { cwd = undefined; }
-    return this.runner.version(cwd);
+    // to start from the project directory rather than the server's cwd. A root
+    // that does not resolve must surface: silently answering for the server's
+    // own cwd reports a plausible version of an entirely different Rojo.
+    return this.runner.version(root === undefined ? undefined : resolveProjectRoot(root));
   }
 
   async validateProject(root?: string, projectFile?: string) {
