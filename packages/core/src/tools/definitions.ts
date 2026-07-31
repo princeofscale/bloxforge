@@ -10,7 +10,7 @@ import { META_TOOL_DEFINITIONS } from './definitions/meta.js';
 import { ROJO_TOOL_DEFINITIONS } from './rojo-registry.js';
 import { TOOLCHAIN_TOOL_DEFINITIONS } from './toolchain-registry.js';
 import { withOutputSchemas } from './output-schemas.js';
-import { effectsForTool, isInspectorEffect } from './tool-effects.js';
+import { isInspectorEffect } from './tool-effects.js';
 
 export type ToolCategory = 'read' | 'write';
 export type ToolEffect =
@@ -29,7 +29,8 @@ export interface ToolDefinition {
   name: string;
   description: string;
   category: ToolCategory;
-  effects?: readonly ToolEffect[];
+  /** Required, and never inferred from the name — see `tool-effects.ts`. */
+  effects: readonly ToolEffect[];
   inputSchema: object;
   outputSchema?: JsonSchema;
 }
@@ -48,10 +49,7 @@ const RAW_TOOL_DEFINITIONS: ToolDefinition[] = [
   ...TOOLCHAIN_TOOL_DEFINITIONS,
 ];
 
-export const withToolEffects = (tools: ToolDefinition[]): ToolDefinition[] =>
-  tools.map((tool) => ({ ...tool, effects: tool.effects ?? effectsForTool(tool.name, tool.category) }));
-
-export const TOOL_DEFINITIONS: ToolDefinition[] = withToolEffects(withOutputSchemas(RAW_TOOL_DEFINITIONS));
+export const TOOL_DEFINITIONS: ToolDefinition[] = withOutputSchemas(RAW_TOOL_DEFINITIONS);
 
 export const getReadOnlyTools = () => TOOL_DEFINITIONS.filter(
   (tool) => tool.effects?.every(isInspectorEffect),

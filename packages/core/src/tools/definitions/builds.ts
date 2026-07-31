@@ -5,6 +5,7 @@ export const BUILD_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'export_build',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Export a Model/Folder into a compact, token-efficient build JSON format and auto-save it to the local build library. The output contains a palette (unique BrickColor+Material combos mapped to short keys) and compact part arrays with positions normalized relative to the bounding box center. The file is saved to build-library/{style}/{id}.json automatically.',
     inputSchema: {
       type: 'object',
@@ -33,6 +34,7 @@ export const BUILD_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'create_build',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a new build model from scratch and save it to the library. Define parts using compact arrays [posX, posY, posZ, sizeX, sizeY, sizeZ, rotX, rotY, rotZ, paletteKey, shape?, transparency?]. Palette maps short keys to [BrickColor, Material] pairs. The build is saved and can be referenced by import_build or import_scene.',
     inputSchema: {
       type: 'object',
@@ -88,6 +90,7 @@ export const BUILD_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'generate_build',
     category: 'write',
+    effects: ['studio.write'],
     description: `Procedurally generate a build via JS code. ALWAYS generate the entire scene in ONE call - never split into multiple small builds. PREFER high-level primitives over manual loops. No comments. No unnecessary variables. Maximize build detail per line.
 
 EDITING: When modifying an existing build, call get_build first to retrieve the original code. Then make ONLY the targeted changes the user requested - do not rewrite unchanged code. Pass the modified code to generate_build.
@@ -159,6 +162,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'import_build',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Import a build into Roblox Studio. Accepts either a full build data object OR a library ID string (e.g. "medieval/church_01") to load from the build library. When using generate_build or create_build, pass the build ID string instead of the full data.',
     inputSchema: {
       type: 'object',
@@ -186,6 +190,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'list_library',
     category: 'read',
+    effects: ['studio.read'],
     description: 'List available builds in the local build library. Returns build IDs, styles, bounds, and part counts. Optionally filter by style.',
     inputSchema: {
       type: 'object',
@@ -201,6 +206,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'search_materials',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Search for MaterialVariant instances in MaterialService by name. Use this to find custom materials before using them in generate_build or create_build palettes. Returns material names and their base material types.',
     inputSchema: {
       type: 'object',
@@ -223,6 +229,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'get_build',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get a build from the library by ID. Returns metadata, palette, and generator code (if the build was created with generate_build). IMPORTANT: When the user asks to modify an existing build, ALWAYS call get_build first to retrieve the original code, then make targeted edits to only the relevant lines, and call generate_build with the modified code. Never rewrite the entire code from scratch - only change what the user asked to change.',
     inputSchema: {
       type: 'object',
@@ -238,6 +245,7 @@ part(0,2,0,2,1,1,"b")`,
   {
     name: 'import_scene',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Import a full scene layout. Provide a scene with model references (resolved from library) and placement data. Each model is placed at the specified position/rotation. Can also include inline custom builds.',
     inputSchema: {
       type: 'object',

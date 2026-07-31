@@ -5,6 +5,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'solo_playtest',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Compatibility wrapper for start_playtest/stop_playtest/status. Use action="start" with mode="play" or "run", action="stop" to stop, or action="status" to inspect runtime roles.',
     inputSchema: {
       type: 'object',
@@ -20,6 +21,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_playtest',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Compatibility wrapper for multiplayer_test_* tools. Supports action="start", "status", "add_players", "leave_client", and "end".',
     inputSchema: {
       type: 'object',
@@ -38,6 +40,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'start_playtest',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Start a simple single-player Studio playtest in play or run mode, waiting until a runtime peer registers with MCP. Read print/warn/error output with get_runtime_logs, then end with stop_playtest. For multi-client testing use multiplayer_test_start instead.',
     inputSchema: {
       type: 'object',
@@ -62,6 +65,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'stop_playtest',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Stop playtest and wait for runtime peers to disconnect.',
     inputSchema: {
       type: 'object',
@@ -76,6 +80,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'set_network_profile',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Apply simulated network conditions to active playtest client peers via NetworkSettings in plugin context. Requires a running playtest and targets only client peers: pass target="client-1", "client-2", etc., or target="all-clients". Presets: great = 30ms total latency (15ms in / 15ms out), 0ms jitter, 0% packet loss; good = 100ms total latency (50ms in / 50ms out), 10ms jitter, 0% packet loss; poor = 300ms (150ms in / 150ms out), 100ms jitter, 0.5% packet loss. profile="custom" applies only the numeric overrides provided; packet loss values above Roblox\'s 0.5% engine limit are rejected.',
     inputSchema: {
       type: 'object',
@@ -139,6 +144,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_simulation_state',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Inspect current NetworkSettings and/or StudioDeviceSimulatorService state for edit and connected playtest clients only. Defaults to include="both" and target="edit-and-clients"; server peers are skipped. Use before diagnosing network or device-sensitive tests, especially because normal Play can write client simulator changes back to edit and StudioTestService clients can inherit stale device simulator state.',
     inputSchema: {
       type: 'object',
@@ -162,6 +168,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'reset_simulation_state',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Reset reachable simulation state to a clean baseline for deterministic tests. Defaults to target="edit-and-clients" and resets both network and device simulator state. Network reset sets all six simulated NetworkSettings fields to 0; device reset calls StopSimulationAsync(). Call before tests, after starting Play or multiplayer, before stopping, and again on edit after stopping.',
     inputSchema: {
       type: 'object',
@@ -188,6 +195,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_device_simulator_state',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Inspect StudioDeviceSimulatorService state and supported built-in device presets. Defaults to target="edit"; also supports a regular playtest client target such as "client-1". Server targets are not supported. When no simulated device is active, active-only fields are omitted and isSimulating=false.',
     inputSchema: {
       type: 'object',
@@ -214,6 +222,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'set_device_simulator',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Set or stop StudioDeviceSimulatorService using built-in device presets only. Defaults to target="edit"; supports "client-N" and "all-clients"; rejects server targets. Applies deviceId first, then orientation, resolution, pixelDensity, and scalingMode overrides.',
     inputSchema: {
       type: 'object',
@@ -268,6 +277,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'capture_device_matrix',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Apply up to 6 ordered Studio device simulator settings, capture each viewport screenshot, and restore the previous simulator state by default when the prior state is default or a built-in preset. Custom device persistence is intentionally unsupported. Defaults to target="edit"; supports regular playtest client targets but not server or all-clients targets.',
     inputSchema: {
       type: 'object',
@@ -350,6 +360,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_start',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Start a StudioTestService multiplayer test and wait for the server plus requested client peers to connect. Use this for multi-client runtime testing.',
     inputSchema: {
       type: 'object',
@@ -376,6 +387,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_state',
     category: 'read',
+    effects: ['studio.read', 'playtest.control'],
     description: 'Get the active multiplayer StudioTestService state for a place: phase, peers, players, original testArgs, result/error, and connected client roles.',
     inputSchema: {
       type: 'object',
@@ -390,6 +402,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_add_players',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Add client players to a running StudioTestService multiplayer test and wait for the new clients to connect.',
     inputSchema: {
       type: 'object',
@@ -413,6 +426,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_leave_client',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'Disconnect a specific client from a running StudioTestService multiplayer test, then wait for that client peer to leave.',
     inputSchema: {
       type: 'object',
@@ -435,6 +449,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_end',
     category: 'write',
+    effects: ['studio.write', 'playtest.control'],
     description: 'End a running StudioTestService multiplayer test with an optional return value, then wait for all runtime peers to disconnect.',
     inputSchema: {
       type: 'object',
@@ -456,6 +471,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_runtime_logs',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Read the in-memory log buffers captured by Studio plugin peers. Each buffer captures ~64 KB of recent LogService output; runtime peers seed from LogService:GetLogHistory() at plugin load so early startup logs emitted before the plugin finishes loading can still be returned, then continue capturing LogService.MessageOut entries. Oldest entries drop when over budget. Entries include capturedBy for the plugin buffer that observed the log. In ordinary Studio play/run sessions, LogService reflects logs across edit/server/client, so script-origin peer is not reliable and entries omit peer. In StudioTestService multiplayer sessions only, peer attribution is reliable and entries also include peer. target=all (default) merges buffers and dedups same-message-and-level entries captured within 2s across different buffers.',
     inputSchema: {
       type: 'object',
@@ -486,6 +502,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'capture_script_profiler',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Capture one short ScriptProfilerService sample on a running server or client peer and return a compact CPU summary. Use this for Luau/script optimization, not render, physics, networking, or engine microprofiler lanes. Minimal flow: start or reproduce the workload, call capture_script_profiler with target="server" or a specific "client-N", inspect top_functions, patch the suspected hot path, then capture again with the same target/workload/duration_ms/frequency/filter/min_total_us to compare. top_functions is sorted by descending total_us after native/plugin/min/filter exclusions; each row includes rank plus function_index, the 1-based index into the raw Roblox Functions array. Function and node TotalDuration values follow Roblox\'s exported Script Profiler JSON format and are reported in microseconds as total_us. total_us is cumulative profiler TotalDuration during the capture; nested labels/functions can overlap, so do not sum rows as total CPU time. source is the runtime script path reported by Roblox and may need mapping back to editable source with search tools. If function names are too broad, add debug.profilebegin("Area:SpecificStep") / debug.profileend() around suspected code and pass filter="Area:" or another label prefix; matching custom labels appear in debug_labels and top_functions with their script source and no line number. The result echoes effective options in applied and omitted.filtered_out counts rows removed by filter. Keep captures short while actively triggering the behavior; duration_ms defaults to 1000 and is clamped to 100-15000. Pass output_path when you need the raw Roblox Script Profiler JSON for offline comparison or deeper analysis. This tool owns the start/stop/request profiler lifecycle for one capture and does not expose long-lived profiler sessions.',
     inputSchema: {
       type: 'object',
@@ -548,6 +565,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'breakpoints',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Manage Studio debugger breakpoints through ScriptDebuggerService. Use this when the user asks to debug with Studio breakpoints. Prefer log breakpoints for agent debugging: pass log_message and let continue_execution default to true, reproduce the issue, then read get_runtime_logs filtered by "Breakpoint". Minimal flow: set a log breakpoint, run or trigger the behavior, call get_runtime_logs with filter="Breakpoint", then call action="clear" to remove MCP-managed breakpoints. Generated breakpoint logs are prefixed with "Breakpoint" plus script_path:line; Studio breakpoint errors also start with "Breakpoint", so this filter captures both successful breakpoint logs and breakpoint-related failures. Set breakpoints on target="edit" before starting a playtest when possible; for an already-running playtest target the runtime DataModel directly, such as "server" or "client-1". Do not set continue_execution=false unless the target DataModel already has a ScriptDebuggerService.OnStopped handler that returns Enum.DebuggerResumeType.Resume for breakpoint/non-exception stops; otherwise the playtest can get stuck and MCP can lose the server/client peers. Minimal OnStopped reference: local sds=game:GetService("ScriptDebuggerService"); sds.OnStopped=function(info) if info.Reason ~= Enum.ScriptStoppedReason.Exception then return Enum.DebuggerResumeType.Resume end print("EXCEPTION:", info.ExceptionText); return Enum.DebuggerResumeType.Resume end. MCP-managed breakpoints persist minimal script_path/line recovery data per place and target so action="list" and action="clear" can find tool-created edit/server/client breakpoints after MCP/plugin reloads. action="clear" removes only breakpoints created through this MCP tool by default; pass clear_all=true only when you intentionally want to clear every Studio breakpoint in the targeted DataModel, including user-created breakpoints. This tool only manages breakpoint lifecycle; it does not pause, resume, step, inspect variables, or install OnStopped callbacks. Requires Studio Debugger Luau API beta enabled.',
     inputSchema: {
       type: 'object',
@@ -602,6 +620,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_connected_instances',
     category: 'read',
+    effects: ['studio.read'],
     description: 'List all connected plugin instances with their roles. Use during multi-client playtest to discover server and client instances for targeted commands.',
     inputSchema: {
       type: 'object',
@@ -613,6 +632,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'undo',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Undo the last change in Roblox Studio. Uses ChangeHistoryService to reverse the most recent operation.',
     inputSchema: {
       type: 'object',
@@ -627,6 +647,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'redo',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Redo the last undone change in Roblox Studio. Uses ChangeHistoryService to reapply the most recently undone operation.',
     inputSchema: {
       type: 'object',
@@ -642,6 +663,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'execute_luau_async',
     category: 'write',
+    effects: ['studio.execute'],
     description: 'Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target. Shares the same execute_luau wrapper, so fresh_require(module) is available and the require-cache caveat applies identically.',
     inputSchema: {
       type: 'object',
@@ -656,6 +678,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_job_status',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Check an execute_luau_async job: returns status (running/done/error/cancelled), done flag, and elapsed seconds. Poll this until done, then call get_job_result. Use the same target the job was started on.',
     inputSchema: {
       type: 'object',
@@ -670,6 +693,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_job_result',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Fetch the result of a finished execute_luau_async job (returnValue, output, success/error). Returns status="running" if not done yet — call get_job_status first. Use the same target the job was started on.',
     inputSchema: {
       type: 'object',
@@ -684,6 +708,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'cancel_job',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Request cancellation of a running execute_luau_async job. Best-effort: Luau coroutines cannot be force-killed, so the code keeps running but its result is discarded and the job is marked cancelled.',
     inputSchema: {
       type: 'object',
@@ -698,6 +723,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'playtest_sample_state',
     category: 'read',
+    effects: ['studio.read', 'playtest.control'],
     description: 'Sample LIVE runtime state during a playtest: players (position/health/team/tool/humanoid state), named world state held in ValueBase objects (round counters, flags, ids), currently-playing audio, and runtime/role flags. Use this to debug gameplay while a test runs — pair with start_playtest/get_runtime_logs. Defaults to target="server"; in edit mode the player/world domains come back empty. Domain-masked via `domains`. AUDIO NOTE: Sound.PlaybackLoudness is always 0 in the Edit DataModel (no active audio listener/render) even when IsPlaying=true — only IsLoaded/IsPlaying are meaningful in edit; judge actual audibility/timbre in a playtest.',
     inputSchema: {
       type: 'object',
@@ -718,6 +744,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'run_gameplay_assertions',
     category: 'write',
+    effects: ['studio.execute'],
     description: 'Run a list of named boolean assertions against the DataModel and get a structured pass/fail per assertion plus an allPassed summary — the QA primitive to PROVE a fix rather than declare it. Each assertion has a name and a Luau boolean `expr` (e.g. "workspace:FindFirstChild(\'Boss\') ~= nil"). Pair with start_playtest + target="server" to assert live runtime state after reproducing an issue.',
     inputSchema: {
       type: 'object',
@@ -743,6 +770,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'run_playtest_episode',
     category: 'write',
+    effects: ['studio.execute', 'playtest.control'],
     description: 'One-shot runtime episode: start a playtest, let it run briefly, then gather the evidence an agent needs to reason about behaviour — runtime logs (error/warning counts + entries), optional gameplay assertions, an optional live state sample — and stop the playtest, returning a single episode object with a pass/fail verdict. Collapses the start_playtest → (sample/assert/logs) → stop_playtest loop into one call so the agent can drive an edit→playtest→observe→assert→fix cycle without hand-orchestrating the lifecycle. Verdict is "fail" if any assertion fails or runtime errors are logged, "error" if the playtest never reaches a ready runtime.',
     inputSchema: {
       type: 'object',
@@ -780,6 +808,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'summarize_episode',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Distill a stored playtest episode (from run_playtest_episode) into the few facts that matter — verdict, failed assertions, the top error lines, the scripts those errors implicate, and a suggested next step — without re-running it. Pass comparedToEpisodeId of an earlier (failing) episode to PROVE a fix: it reports fixed=true on a fail→pass transition. Episodes are also readable as resources at roblox://playtest/episode/{id}.',
     inputSchema: {
       type: 'object',
@@ -799,6 +828,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'propose_next_action',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Deterministically pick the single next step in the edit→playtest→observe→fix loop from the stored playtest episodes — no LLM turn spent on the obvious move. With no episodeId it reads the most recent episode (and locates the most recent earlier FAILING run, so a clean run after a failure is recognized as a fix to prove). Returns { action, done, tool, args, rationale, focus }: when the next step is mechanical it names the exact MCP call + args (e.g. run_playtest_episode, or summarize_episode with comparedToEpisodeId); when it needs a human/LLM edit it sets tool=null and names the implicated scripts/assertions in "focus". action is one of run_episode | fix_startup | fix_assertion | fix_script | prove_fix | done.',
     inputSchema: {
       type: 'object',
@@ -813,6 +843,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_reproduction_bundle',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Capture a point-in-time reproduction/audit bundle in one call: connected Studio places, a world overview snapshot, the recent mutating-operation history, and the stored playtest episodes. Use it to answer "what state is this place in and how did it get here" — for handing off, auditing an agent run, or pairing with get_changes_since for before/after deltas. Also readable as a resource at roblox://repro/bundle.',
     inputSchema: {
       type: 'object',
@@ -824,6 +855,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'manage_instance',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Launch, close, inspect, and find revisions for Studio instances. Use action="launch" with source="baseplate" for a blank place, or source="local_file" with local_place_file for a local place; neither uses place_id. Use action="list_place_versions" with place_id to retrieve version numbers through Open Cloud asset versions, then action="launch" with source="place_revision", place_id, and place_version to open an older revision. action="close" can close an MCP-managed instance or an explicitly connected edit instance by instance_id. action="launch" source="published_place" opens the latest published place and is blocked if that place_id is already connected; source="place_revision" is allowed because Studio opens explicit past revisions as anonymous local copies. Requires ROBLOX_OPEN_CLOUD_API_KEY with asset:read for list_place_versions.',
     inputSchema: {
       type: 'object',
@@ -877,6 +909,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'capture_micro_profiler',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Capture one short Roblox MicroProfiler sample on a running server or client peer using LibMP and return a structured CPU-time attribution dataset. Use this when the performance question is "where is the frame time going?" across scripts, physics, render, network, jobs, scheduler, GC, and engine timers. The primary data is top_groups/top_timers sorted by inclusive_us, exclusive-sorted companion lists, top_threads, top_call_edges, frame_summary, and analysis_window/data_quality so an agent can tell whether a result is steady, spiky, thread-bound, wrapper-heavy, or truncated. For baseline comparison, first capture an empty baseplate/control with the same target/settings and summary_output_path, then capture the game with baseline_path pointing at that saved JSON; saved summaries include a compact comparison_index so baseline_comparison can compare full compact aggregates instead of only visible top rows. Pass baseline inline when the previous capture is already in context. Times are reported in microseconds by converting LibMP MicroProfiler nanosecond ticks; inclusive_us is cumulative nested timer time and can overlap across timers/threads, so do not sum rows as total frame time. *_per_s fields are normalized by analysis_window.analysis_duration_us, not requested duration_ms. pct_of_analyzed_wall can exceed 100 when work overlaps. focus can restrict to script, physics, render, network, or jobs. include_idle defaults false so Sleep/idle noise is omitted. max_events bounds iterator work; event_limit_hit and partial_reasons explain when rankings are useful but partial, so narrow focus/filter or raise max_events for deeper analysis. recommended_tools is intentionally brief; the main purpose is digestible attribution data, not an agent diagnosis.',
     inputSchema: {
       type: 'object',

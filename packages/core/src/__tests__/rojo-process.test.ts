@@ -61,6 +61,43 @@ describe('Rojo command and process management', () => {
     )).rejects.toThrow(/changed since preview/);
   });
 
+  test('excludes only what the project declares ignored from the recovery snapshot', async () => {
+    // Rojo evaluates globIgnorePaths and syncbackRules.ignorePaths per path,
+    // relative to the project directory, and refuses to write to a match — so
+    // those files cannot need restoring. Everything else stays in the snapshot.
+    fs.writeFileSync(projectFile, JSON.stringify({
+      name: 'Game',
+      globIgnorePaths: ['Packages/**'],
+      syncbackRules: { ignorePaths: ['generated/*.luau'] },
+      tree: {},
+    }));
+    const input = path.join(root, 'place.rbxl');
+    fs.writeFileSync(input, 'fixture');
+    for (const [file, content] of [
+      ['src/Kept.luau', 'kept'],
+      ['Packages/Vendored.luau', 'vendored'],
+      ['generated/Machine.luau', 'generated'],
+      ['generated/nested/Deep.luau', 'not matched by generated/*.luau'],
+    ] as const) {
+      fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+      fs.writeFileSync(path.join(root, file), content);
+    }
+    const rojo = new RojoTools(new RojoCommandRunner(fakeCommand), manager);
+    const before = await rojo.nativeSyncbackPlan(root, 'game.project.json', 'place.rbxl');
+
+    // An edit to an ignored file cannot change the plan; an edit to a covered
+    // one must.
+    fs.writeFileSync(path.join(root, 'Packages/Vendored.luau'), 'vendored changed');
+    expect((await rojo.nativeSyncbackPlan(root, 'game.project.json', 'place.rbxl')).planHash)
+      .toBe(before.planHash);
+
+    // `generated/*.luau` does not cross a directory separator, so the nested
+    // file is still covered — matching Rojo's own glob semantics.
+    fs.writeFileSync(path.join(root, 'generated/nested/Deep.luau'), 'deep changed');
+    expect((await rojo.nativeSyncbackPlan(root, 'game.project.json', 'place.rbxl')).planHash)
+      .not.toBe(before.planHash);
+  });
+
   test('restores every source when native syncback fails partway through', async () => {
     const input = path.join(root, 'place.rbxl');
     const source = path.join(root, 'src', 'existing.lua');

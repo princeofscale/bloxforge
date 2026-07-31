@@ -6,7 +6,7 @@
 //   LocalScript  -> *.client.lua
 //   ModuleScript -> *.lua (the official Rojo convention)
 
-import { classifyRojoSource, unsupportedInstanceNameReason } from '../rojo/source-mapper.js';
+import { classifyRojoSource, globToRegExp, unsupportedInstanceNameReason } from '../rojo/source-mapper.js';
 
 export type ScriptClassName = 'Script' | 'LocalScript' | 'ModuleScript';
 
@@ -114,28 +114,4 @@ export class SyncManager {
     if (localChanged) return 'local';
     return 'none';
   }
-}
-
-// Minimal glob → RegExp supporting "**", "*" and literal segments. Deliberately
-// small (no brace/charclass support) — enough for sync ignore lists.
-function globToRegExp(glob: string): RegExp {
-  let re = '';
-  for (let i = 0; i < glob.length; i++) {
-    const c = glob[i];
-    if (c === '*') {
-      if (glob[i + 1] === '*') {
-        // "**" matches across directory separators; consume an optional trailing slash.
-        re += '.*';
-        i++;
-        if (glob[i + 1] === '/') i++;
-      } else {
-        re += '[^/]*';
-      }
-    } else if ('\\^$+?.()|{}[]'.includes(c)) {
-      re += `\\${c}`;
-    } else {
-      re += c;
-    }
-  }
-  return new RegExp(`^${re}$`);
 }

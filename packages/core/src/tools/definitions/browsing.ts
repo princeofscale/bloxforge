@@ -5,6 +5,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_file_tree',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get instance hierarchy tree from Studio',
     inputSchema: {
       type: 'object',
@@ -23,6 +24,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'search_files',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Search instances by name, class, or script content',
     inputSchema: {
       type: 'object',
@@ -49,6 +51,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_place_info',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get place ID, name, and game settings',
     inputSchema: {
       type: 'object',
@@ -63,6 +66,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_services',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get available services and their children',
     inputSchema: {
       type: 'object',
@@ -81,6 +85,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'search_objects',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Find instances by name, class, or properties',
     inputSchema: {
       type: 'object',
@@ -114,6 +119,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_instance_properties',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get all properties of an instance',
     inputSchema: {
       type: 'object',
@@ -137,6 +143,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_instance_children',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get children and their class types',
     inputSchema: {
       type: 'object',
@@ -156,6 +163,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'search_by_property',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Find objects with specific property values',
     inputSchema: {
       type: 'object',
@@ -179,6 +187,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_class_info',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get properties/methods for a class',
     inputSchema: {
       type: 'object',
@@ -200,6 +209,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_project_structure',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Get full game hierarchy tree. Increase maxDepth (default 3) for deeper traversal.',
     inputSchema: {
       type: 'object',
