@@ -1,4 +1,4 @@
-import { TOOL_DEFINITIONS, withToolEffects, type ToolDefinition } from '../tools/definitions.js';
+import { TOOL_DEFINITIONS } from '../tools/definitions.js';
 import { CONTRACTED_OUTPUT_TOOL_NAMES, OUTPUT_SCHEMAS, withOutputSchemas } from '../tools/output-schemas.js';
 import { ASSET_TOOL_DEFINITIONS } from '../tools/definitions/assets.js';
 import { BROWSING_TOOL_DEFINITIONS } from '../tools/definitions/browsing.js';
@@ -76,12 +76,33 @@ describe('Tool schema compatibility', () => {
     for (const definition of TOOL_DEFINITIONS) {
       expect(classifyDomain(definition.name)).not.toBe('unknown');
       expect(knownCapabilities).toContain(requiredCapability(definition.name, definition.category));
-      expect(Array.isArray((definition as ToolDefinition & { effects?: unknown }).effects)).toBe(true);
+      expect(Array.isArray(definition.effects)).toBe(true);
+    }
+  });
+
+  test('effects are declared per tool, not inferred from the tool name', () => {
+    const effectsOf = (name: string) =>
+      TOOL_DEFINITIONS.find((tool) => tool.name === name)?.effects;
+
+    // Each of these was wrong under the old `/asset|…|export_rbxm/` heuristic.
+    // `export_rbxm` asks Studio for bytes and writes them to disk; it never
+    // reaches the network, and its local write went undeclared entirely.
+    expect(effectsOf('export_rbxm')).toEqual(['studio.read', 'local.files.write']);
+    // `get_asset_provenance` reads an in-memory map.
+    expect(effectsOf('get_asset_provenance')).toEqual([]);
+    // `import_rbxm` reads a local path; only its `url` form reaches the network.
+    expect(effectsOf('import_rbxm')).toEqual(['studio.write', 'local.files.read', 'network.external']);
+
+    // A read tool that quietly claimed a write effect would be handed to the
+    // inspector profile's callers as read-only.
+    for (const tool of TOOL_DEFINITIONS) {
+      if (tool.category !== 'read') continue;
+      expect(tool.effects).not.toContain('studio.write');
     }
   });
 
   test('domain definition modules compose TOOL_DEFINITIONS in canonical order', () => {
-    const grouped = withToolEffects(withOutputSchemas([
+    const grouped = withOutputSchemas([
       ...BROWSING_TOOL_DEFINITIONS,
       ...MUTATION_TOOL_DEFINITIONS,
       ...SCRIPTING_TOOL_DEFINITIONS,
@@ -93,7 +114,7 @@ describe('Tool schema compatibility', () => {
       ...META_TOOL_DEFINITIONS,
       ...ROJO_TOOL_DEFINITIONS,
       ...TOOLCHAIN_TOOL_DEFINITIONS,
-    ]));
+    ]);
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
   });
@@ -105,7 +126,7 @@ describe('Tool schema compatibility', () => {
     for (const definition of ROJO_TOOL_DEFINITIONS) {
       expect(registered.get(definition.name)).toEqual(definition);
       expect(TOOL_HANDLERS[definition.name]).toBeUndefined();
-      expect(definition.effects?.length ?? 0).toBeGreaterThan(0);
+      expect(definition.effects.length).toBeGreaterThan(0);
       expect(definition.outputSchema).toBeDefined();
     }
   });
@@ -122,6 +143,7 @@ describe('Tool schema compatibility', () => {
     const noOutput = toolDefinitionToMcpTool({
       name: 'example_no_output',
       category: 'read',
+      effects: ['studio.read'],
       description: 'Example without output schema.',
       inputSchema: { type: 'object', properties: {} },
     });
@@ -135,6 +157,7 @@ describe('Tool schema compatibility', () => {
     const withOutput = toolDefinitionToMcpTool({
       name: 'example_with_output',
       category: 'read',
+      effects: ['studio.read'],
       description: 'Example with output schema.',
       inputSchema: { type: 'object', properties: {} },
       outputSchema: {

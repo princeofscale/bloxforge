@@ -32,13 +32,13 @@ describe('server config', () => {
 
   it('enforces inspector and builder authorization independently of discovery', () => {
     const tools: ToolDefinition[] = [
-      { name: 'get_place_info', description: '', category: 'read', inputSchema: {} },
-      { name: 'set_property', description: '', category: 'write', inputSchema: {} },
-      { name: 'execute_luau', description: '', category: 'write', inputSchema: {} },
-      { name: 'execute_luau_async', description: '', category: 'write', inputSchema: {} },
-      { name: 'eval_server_runtime', description: '', category: 'write', inputSchema: {} },
-      { name: 'run_gameplay_assertions', description: '', category: 'write', inputSchema: {} },
-      { name: 'run_playtest_episode', description: '', category: 'write', inputSchema: {} },
+      { name: 'get_place_info', description: '', category: 'read', effects: ['studio.read'], inputSchema: {} },
+      { name: 'set_property', description: '', category: 'write', effects: ['studio.write'], inputSchema: {} },
+      { name: 'execute_luau', description: '', category: 'write', effects: ['studio.execute'], inputSchema: {} },
+      { name: 'execute_luau_async', description: '', category: 'write', effects: ['studio.execute'], inputSchema: {} },
+      { name: 'eval_server_runtime', description: '', category: 'write', effects: ['studio.execute'], inputSchema: {} },
+      { name: 'run_gameplay_assertions', description: '', category: 'write', effects: ['studio.execute'], inputSchema: {} },
+      { name: 'run_playtest_episode', description: '', category: 'write', effects: ['studio.execute', 'playtest.control'], inputSchema: {} },
     ];
 
     expect(authorizedToolsForProfile(tools, 'inspector').map((tool) => tool.name))

@@ -135,8 +135,12 @@ Lazy discovery and authorization are separate. `load_toolset` changes the
 advertised schema set only. Authorization uses explicit effects:
 `studio.read`, `studio.write`, `studio.execute`, `local.files.read`,
 `local.files.write`, `local.process.execute`, `network.external`,
-`assets.upload`, and `playtest.control`. The inspector permits only Studio and
-local-file reads; the builder denies arbitrary Luau/runtime evaluation.
+`assets.upload`, and `playtest.control`. Every tool declares its own effects and
+none are inferred: a name pattern used to supply them, which both over-declared
+(`export_rbxm` writes a local file and never reaches the network) and, more
+dangerously, under-declared any new tool whose name did not match. The field is
+required, so an omission is a compile error. The inspector permits only Studio
+and local-file reads; the builder denies arbitrary Luau/runtime evaluation.
 Capability allowlists apply independently to stdio and token-identified HTTP
 clients. The legacy read/write category remains protocol metadata, not the
 permission boundary.
@@ -173,8 +177,13 @@ explicit baseline reset rather than silently re-read as "never synced".
 Instance names that no portable file name can represent are reported, never
 encoded. Native Rojo `syncback` is feature-detected and guarded by the same
 preview/confirmation contract; its recovery snapshot covers every regular file
-under the project root and the directories syncback creates. Partially managed
-projects never delete Instances outside their Rojo roots.
+under the project root and the directories syncback creates, minus the paths the
+project itself declares off-limits through `globIgnorePaths` and
+`syncbackRules.ignorePaths` — Rojo will not write to those, so they cannot need
+restoring. The snapshot is deliberately not narrowed to the dry run's reported
+paths: that text is not a machine contract, and a path a parse missed would be
+unrecoverable after a partial failure. Partially managed projects never delete
+Instances outside their Rojo roots.
 
 Optional server-local quality adapters cover project detection, builds and
 sourcemaps, `luau-analyze`, `luau-lsp`, Selene, StyLua, and Lune test scripts.

@@ -5,6 +5,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'search_assets',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Search the Creator Store (Roblox marketplace) for assets by type and keywords. Requires ROBLOX_OPEN_CLOUD_API_KEY env var (no cookie auth for this endpoint).',
     inputSchema: {
       type: 'object',
@@ -38,6 +39,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_asset_details',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Get detailed marketplace metadata for a specific asset. Uses ROBLOX_OPEN_CLOUD_API_KEY or falls back to ROBLOSECURITY cookie (own assets only).',
     inputSchema: {
       type: 'object',
@@ -53,6 +55,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_asset_thumbnail',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Get the thumbnail image for an asset as base64 PNG, suitable for vision LLMs. Thumbnails API is public but asset validation uses ROBLOX_OPEN_CLOUD_API_KEY.',
     inputSchema: {
       type: 'object',
@@ -73,6 +76,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'insert_asset',
     category: 'write',
+    effects: ['studio.write', 'network.external'],
     description: 'Insert a Roblox asset into Studio by loading it via AssetService and parenting it to a target location. Optionally set position.',
     inputSchema: {
       type: 'object',
@@ -105,6 +109,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'preview_asset',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Preview a Roblox asset without permanently inserting it. Loads the asset, builds a hierarchy tree with properties and summary stats, then destroys it. Useful for inspecting asset contents before insertion.',
     inputSchema: {
       type: 'object',
@@ -132,6 +137,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'upload_asset',
     category: 'write',
+    effects: ['studio.write', 'network.external', 'assets.upload'],
     description: 'Upload any supported asset type to Roblox: Audio (mp3/ogg/wav/flac), Decal (png/jpg/bmp/tga), Model (fbx/gltf/glb/rbxm/rbxmx), Animation (rbxm/rbxmx), or Video (mp4/mov). Decal supports ROBLOSECURITY cookie auth or ROBLOX_OPEN_CLOUD_API_KEY. All other types require Open Cloud API key with asset:write scope + creator ID. Audio: max 7 min, 100 uploads/month (ID-verified). Video: max 5 min, requires 13+ ID-verified.',
     inputSchema: {
       type: 'object',
@@ -168,6 +174,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'capture_screenshot',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the physical image size and logical viewport size. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The returned image is never downscaled, but OS display scaling can make physical image pixels larger than the logical viewport coordinates used by simulate_mouse_input; when that happens the response states the exact coordinate conversion. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
     inputSchema: {
       type: 'object',
@@ -203,6 +210,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'asset_preflight_insert',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Authoritatively check whether an asset can be inserted, BEFORE touching the live scene. Loads the asset with AssetService:LoadAssetAsync into an isolated, unparented container, inspects it (root summary, descendant + script counts), then destroys it. Returns insertabilityVerdict ("yes"/"no") with a typed error code on failure (AUTH for copy-locked/unowned assets) and hasScripts as a safety signal. Use this between marketplace_search and insert_asset — metadata like isFree is only a hint; a real load is the source of truth.',
     inputSchema: {
       type: 'object',
@@ -222,6 +230,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'plan_asset_insert',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'One-shot asset discovery: marketplace-search a keyword, run the authoritative insertability preflight (asset_preflight_insert) on the top candidates IN ONE BATCH, and return a ranked, vetted plan — insertable + free + script-free first, with per-candidate warnings (scripts, paid/copy-locked, preflight error). Collapses the search→preflight→search churn an agent otherwise does as many separate round-trips into a single call; then insert the recommended assetId with insert_asset. Use this instead of hand-looping marketplace_search + asset_preflight_insert.',
     inputSchema: {
       type: 'object',
@@ -249,6 +258,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'asset_source_search',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Search free, license-clean (CC0) asset libraries OUTSIDE the Roblox marketplace and return one normalized descriptor shape across providers: { provider, id, name, type, license, attributionRequired, pageUrl, downloadUrl?, thumbnailUrl?, note }. Live search hits Poly Haven (textures/HDRIs/models) and ambientCG (PBR materials); Kenney and Quaternius are browse-only pointers (no search API). The intended flow is asset_source_search → pick a result → import_external_asset with the downloadUrl (which uploads it to Roblox and records provenance). All results are CC0, so no attribution is legally required, but the source is still tracked. Studio-agnostic (web only).',
     inputSchema: {
       type: 'object',
@@ -266,6 +276,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'import_external_asset',
     category: 'write',
+    effects: ['studio.write', 'network.external'],
     description: 'Bring an asset from OUTSIDE the Roblox marketplace into the place: download a URL (or read a local file), upload it to Roblox via Open Cloud, record its provenance (source, license, attribution obligation, sha256, new assetId), and optionally insert it. Use for CC0/CC-BY libraries (Kenney, Quaternius, Poly Haven, ambientCG), your own files, or any direct asset URL. Always pass the license so attribution can be tracked. Requires ROBLOX_OPEN_CLOUD_API_KEY (asset:write) + a creator id (ROBLOX_CREATOR_USER_ID / ROBLOX_CREATOR_GROUP_ID). Only import assets you have the right to upload.',
     inputSchema: {
       type: 'object',
@@ -285,6 +296,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_asset_provenance',
     category: 'read',
+    effects: [],
     description: 'Return the recorded provenance of externally-imported assets (source URL, license, attribution obligation, sha256, assetId, import time). Pass an assetId for one record, or omit to list all imported this session. Use to produce an attribution manifest or audit where assets came from.',
     inputSchema: {
       type: 'object',

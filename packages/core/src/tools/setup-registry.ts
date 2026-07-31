@@ -18,7 +18,6 @@ import type { RobloxStudioTools } from './index.js';
 import type { ToolDefinition } from './definitions.js';
 import { registerRojoTools } from './rojo-registry.js';
 import { registerToolchainTools } from './toolchain-registry.js';
-import { effectsForTool } from './tool-effects.js';
 
 /**
  * Register first-wave contracted tools from the RobloxStudioTools instance
@@ -235,7 +234,7 @@ function registerLocalTools(registry: ToolRegistry): void {
     name: definition.name,
     description: definition.description,
     category: definition.category,
-    effects: definition.effects ?? effectsForTool(definition.name, definition.category),
+    effects: definition.effects,
     inputSchema: definition.inputSchema,
     outputSchema: definition.outputSchema,
     handler: (runtime, args) => handlers[definition.name](asTools(runtime), args),

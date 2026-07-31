@@ -6,6 +6,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'ui_create_screen_gui',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a ScreenGui container (defaults to StarterGui). Returns the new instance path. Build elements inside it with ui_create_frame/text/image tools.',
     inputSchema: {
       type: 'object',
@@ -23,36 +24,42 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'ui_create_frame',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a Frame inside a GUI container. Size/Position use UDim2 arrays [scaleX, offsetX, scaleY, offsetY].',
     inputSchema: { type: 'object', properties: GUI_OBJECT_PROPS, required: ['parentPath'] },
   },
   {
     name: 'ui_create_text_label',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a TextLabel. Supports text, font, TextScaled, and colors.',
     inputSchema: { type: 'object', properties: GUI_OBJECT_PROPS, required: ['parentPath'] },
   },
   {
     name: 'ui_create_text_button',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a TextButton. Supports text, font, TextScaled, and colors.',
     inputSchema: { type: 'object', properties: GUI_OBJECT_PROPS, required: ['parentPath'] },
   },
   {
     name: 'ui_create_image_label',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create an ImageLabel. Set image to an "rbxassetid://..." string.',
     inputSchema: { type: 'object', properties: GUI_OBJECT_PROPS, required: ['parentPath'] },
   },
   {
     name: 'ui_create_image_button',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create an ImageButton. Set image to an "rbxassetid://..." string.',
     inputSchema: { type: 'object', properties: GUI_OBJECT_PROPS, required: ['parentPath'] },
   },
   {
     name: 'ui_apply_layout',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Add a UIListLayout or UIGridLayout to a GUI container so its children arrange automatically.',
     inputSchema: {
       type: 'object',
@@ -73,6 +80,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'ui_make_mobile_friendly',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Apply responsive safeguards (UIScale + TextScaled) to every GuiObject under the target so the UI reflows on small screens.',
     inputSchema: {
       type: 'object',
@@ -88,6 +96,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'environment_set_time_of_day',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Set Lighting time. Pass a number (0-24 ClockTime) or an "HH:MM:SS" string.',
     inputSchema: {
       type: 'object',
@@ -101,6 +110,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'environment_set_lighting_preset',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Apply a named lighting preset: sunny, sunset, night, horror, cyberpunk, obby, simulator, realistic. Set withPostFx for a polished look (Future lighting + idempotent Bloom/ColorCorrection/SunRays).',
     inputSchema: {
       type: 'object',
@@ -115,6 +125,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'environment_set_atmosphere',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create or update the Lighting Atmosphere (density, color, decay, glare, haze).',
     inputSchema: {
       type: 'object',
@@ -132,6 +143,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'environment_set_sky',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create or update the Lighting Sky (sun/moon textures, star count, skybox faces).',
     inputSchema: {
       type: 'object',
@@ -148,6 +160,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'environment_create_day_night_cycle_script',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Generate a Script in ServerScriptService that continuously advances Lighting.ClockTime. Replaces an existing one of the same name.',
     inputSchema: {
       type: 'object',
@@ -163,6 +176,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'terrain_generate_baseplate',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Fill a flat terrain slab. Volume is capped by the safety layer; use dryRun to preview.',
     inputSchema: {
       type: 'object',
@@ -180,6 +194,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'terrain_generate_island',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Fill a ball of land at a center point, optionally surrounded by water.',
     inputSchema: {
       type: 'object',
@@ -199,6 +214,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'terrain_generate_mountains',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Generate noise-driven mountain terrain across a region. Volume (extent x maxHeight) is capped by the safety layer.',
     inputSchema: {
       type: 'object',
@@ -220,6 +236,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'terrain_generate_water',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Fill a block of Water material (e.g. an ocean or lake).',
     inputSchema: {
       type: 'object',
@@ -236,6 +253,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'terrain_paint_material',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Fill a region with a material, or replace one material with another inside the region (set replaceMaterial).',
     inputSchema: {
       type: 'object',
@@ -254,6 +272,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'terrain_clear_region',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Clear (fill with Air) a terrain region. Irreversible — requires confirm:true. Use dryRun to preview.',
     inputSchema: {
       type: 'object',
@@ -272,6 +291,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'template_create_obby_game',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Scaffold a complete obby: spawn, numbered checkpoints, kill bricks, a finish, leaderstats + checkpoint server logic, and a timer HUD. Idempotent.',
     inputSchema: {
       type: 'object',
@@ -284,6 +304,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'template_create_simulator_game',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Scaffold a simulator: currency leaderstat, a click button HUD + RemoteEvent, a shop folder, and a placeholder data ModuleScript. Idempotent.',
     inputSchema: {
       type: 'object',
@@ -296,6 +317,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'template_create_tycoon_game',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Scaffold a tycoon: a plot with a base, a purchase button (ProximityPrompt + touch), a Cash leaderstat, and a basic buy/unlock flow. Idempotent.',
     inputSchema: {
       type: 'object',
@@ -309,6 +331,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'template_create_round_game',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Scaffold a round-based game: a lobby with spawn, an arena with teleport points, and a server round loop (intermission → teleport in → round → teleport out). Idempotent.',
     inputSchema: {
       type: 'object',
@@ -325,6 +348,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'sync_pull',
     category: 'write',
+    effects: ['studio.read', 'local.files.write'],
     description: 'Deprecated compatibility wrapper. Preview Studio-to-files changes safely, then require confirm=true before atomic writes. ModuleScripts use the Rojo .lua convention and state stores hashes, not source.',
     inputSchema: {
       type: 'object',
@@ -339,6 +363,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'sync_status',
     category: 'read',
+    effects: ['studio.read', 'local.files.read'],
     description: 'Deprecated compatibility wrapper. Compare local files with bounded Studio script pages and hash-only local state.',
     inputSchema: {
       type: 'object',
@@ -351,6 +376,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'sync_push',
     category: 'write',
+    effects: ['studio.write', 'local.files.read', 'local.files.write'],
     description: 'Deprecated compatibility wrapper. Preview existing-script updates and require confirm=true. Prefer editing local files and using managed rojo serve.',
     inputSchema: {
       type: 'object',
@@ -367,6 +393,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'marketplace_search',
     category: 'read',
+    effects: ['studio.read', 'network.external'],
     description: 'Search Roblox\'s public marketplace/toolbox for insertable assets (models, decals, audio, meshes) — no Open Cloud key required. Returns asset ids + names to use with insert_asset.',
     inputSchema: {
       type: 'object',
@@ -382,6 +409,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'marketplace_search_and_insert',
     category: 'write',
+    effects: ['studio.write', 'network.external'],
     description: 'Search the public marketplace and insert the top match into the place in one step (key-free, via InsertService). Returns the inserted asset and alternative matches.',
     inputSchema: {
       type: 'object',
@@ -404,6 +432,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'audio_create_sound',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create a Sound under a parent with a SoundId (number or rbxassetid://). Configure volume, looping, playback speed, and optionally play it. AUDIO-LOAD LIMITATION: in the Edit DataModel, catalog/uploaded audio (rbxassetid://) frequently fails to load (IsLoaded=false, TimeLength=0) because Edit has no active audio render path and is subject to asset-permission gating — same constraint class as catalog models in a session. Only built-in rbxasset://sounds/* assets reliably load in Edit. Verify real playback and TimeLength in a playtest. Useful built-in broadband noise sources: rbxasset://sounds/action_falling.mp3 (~10s, wind-like) and rbxasset://sounds/action_swim.mp3 (~4.9s, water).',
     inputSchema: {
       type: 'object',
@@ -423,6 +452,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'audio_play_sound',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Play an existing Sound instance by path.',
     inputSchema: {
       type: 'object',
@@ -436,6 +466,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'animation_create',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Create an Animation instance with an AnimationId (number or rbxassetid://) under a parent — e.g. inside a Humanoid, tool, or ReplicatedStorage.',
     inputSchema: {
       type: 'object',
@@ -451,6 +482,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'animation_play',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Load and play an animation on a rig (finds/creates an Animator under its Humanoid or AnimationController). Best observed during a playtest.',
     inputSchema: {
       type: 'object',
@@ -466,6 +498,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'asset_apply_texture',
     category: 'write',
+    effects: ['studio.write', 'network.external'],
     description: 'Apply an image/texture asset to a target, choosing the right property by class (ImageLabel→Image, Decal/Texture→Texture, MeshPart→TextureID, SurfaceAppearance→ColorMap). Override with property.',
     inputSchema: {
       type: 'object',
@@ -483,6 +516,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'image_generate',
     category: 'write',
+    effects: ['studio.write', 'network.external'],
     description: 'Generate an image from a text prompt via Pollinations (default model zimage; any model from enter.pollinations.ai/#models). Saves a local file and returns its path. Requires POLLINATIONS_API_KEY. To use it in Roblox, upload it (image_generate_and_upload or upload_asset) then asset_apply_texture.',
     inputSchema: {
       type: 'object',
@@ -499,6 +533,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'image_generate_and_upload',
     category: 'write',
+    effects: ['studio.write', 'network.external', 'assets.upload'],
     description: 'Generate an image (Pollinations) and upload it to Roblox in one step, returning the new assetId to use with asset_apply_texture. Requires POLLINATIONS_API_KEY and Roblox upload auth (ROBLOX_OPEN_CLOUD_API_KEY with asset:write, or ROBLOSECURITY for Decals).',
     inputSchema: {
       type: 'object',
@@ -519,6 +554,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'generate_model_native',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Generate a 3D model from a text prompt using Roblox\'s native GenerationService (on-platform, free, moderation-aware) and insert it into the place. Returns the model path, generation UUID, named parts, and bounding box. Takes ~30s (within the heavy-Luau timeout). Use this instead of an external text-to-3D API or composing parts by hand. Default schema "Body1" produces a single mesh; "Car5" a five-part car; or pass `parts` for a custom multi-part model.',
     inputSchema: {
       type: 'object',
@@ -539,6 +575,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'generate_model',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Compatibility alias for generate_model_native. Generate a 3D model from a text prompt using Roblox GenerationService.',
     inputSchema: {
       type: 'object',
@@ -560,12 +597,14 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'ui_component_catalog',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Return the UI design system the agent should build against: theme tokens (spacing scale, radius, typography, colors, min text size), canonical component anatomies (button, card, modal, hud_meter, list_row, nav_rail) and concrete design guidance. Read this FIRST before building UI so layouts are consistent instead of ad-hoc, then verify with design_lint and standardize with apply_theme.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'apply_theme',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Standardize an existing UI onto a theme — recolors Frames/buttons/text to the theme tokens, raises sub-readable text to the minimum size, removes hard borders, and adds rounded corners where missing. Use after building (or on legacy UI) to remove "AI slop" inconsistency; pair with ui_component_catalog (the canon) and design_lint (the metric).',
     inputSchema: {
       type: 'object',
@@ -582,6 +621,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'design_lint',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Deterministically lint a UI for common quality problems and return scored, structured findings — a cheap, reproducible design-quality metric. Catches: tiny_text (TextSize < 9), offscreen elements, overlapping interactive elements, non_responsive_size (large pure-offset sizing that won\'t scale), no_layout_container (4+ children with no UIListLayout/UIGridLayout), and stretched_image_no_slice. Use it to drive "make this UI better" and to verify before/after. Geometric checks use edit-mode layout; topbar/safe-area need a playtest.',
     inputSchema: {
       type: 'object',
@@ -596,6 +636,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'design_review',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and asks a vision model to rate visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk, then return specific Roblox-phrased fixes. Run AFTER design_lint passes (lint is the cheap deterministic gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.',
     inputSchema: {
       type: 'object',
@@ -613,6 +654,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'diagnose_scripts',
     category: 'read',
+    effects: ['studio.read'],
     description: 'Capture the Studio output log and return a structured report of errors and warnings, with each error mapped to its script path and line where possible. Use to drive "fix all script errors".',
     inputSchema: {
       type: 'object',
@@ -625,12 +667,14 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'list_recipes',
     category: 'read',
+    effects: ['studio.read'],
     description: 'List the available recipes — typed, proven, idempotent build macros (e.g. proximity_door, ambient_sound, kill_brick) — with their parameters. Pick one, then run it with apply_recipe instead of hand-writing the Luau.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'apply_recipe',
     category: 'write',
+    effects: ['studio.write'],
     description: 'Run a recipe (a proven, idempotent build macro) with typed parameters — faster and more reliable than generating gameplay Luau from scratch. Re-running a recipe replaces its named instances rather than duplicating. Use list_recipes to see ids and params.',
     inputSchema: {
       type: 'object',
