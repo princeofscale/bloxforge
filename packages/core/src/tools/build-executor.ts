@@ -533,9 +533,9 @@ export function runBuildExecutor(
     script.runInContext(context, { timeout });
   } catch (err: any) {
     if (err.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
-      throw new Error(`Build code execution timed out after ${timeout}ms`);
+      throw new Error(`Build code execution timed out after ${timeout}ms`, { cause: err });
     }
-    throw new Error(`Build code execution error: ${err.message}`);
+    throw new Error(`Build code execution error: ${err.message}`, { cause: err });
   }
 
   if (parts.length === 0) {

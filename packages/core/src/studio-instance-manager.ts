@@ -262,7 +262,7 @@ export function resolveStudioExe(): string {
 
 export function listStudioProcesses(): StudioProcessInfo[] {
   if (process.platform === 'darwin') {
-    let out = '';
+    let out: string;
     try {
       out = run('pgrep', ['-fl', 'RobloxStudio']);
     } catch {
@@ -280,7 +280,7 @@ export function listStudioProcesses(): StudioProcessInfo[] {
 
   if (process.platform !== 'win32' && !isWsl()) return [];
 
-  let out = '';
+  let out: string;
   try {
     out = powershell(
       'Get-Process RobloxStudioBeta -ErrorAction SilentlyContinue | ' +

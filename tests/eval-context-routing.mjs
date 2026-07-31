@@ -14,7 +14,7 @@ function parseJsonField(obj, field, label) {
   try {
     return JSON.parse(raw);
   } catch (err) {
-    throw new Error(`${label}: failed to parse ${field}: ${err.message}\nraw=${raw}`);
+    throw new Error(`${label}: failed to parse ${field}: ${err.message}\nraw=${raw}`, { cause: err });
   }
 }
 

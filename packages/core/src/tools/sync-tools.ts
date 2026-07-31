@@ -139,7 +139,7 @@ export class SyncTools {
       raw = fs.readFileSync(file, 'utf8');
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return fresh();
-      throw new Error(`Cannot read sync state ${file}: ${errorMessage(error)}`);
+      throw new Error(`Cannot read sync state ${file}: ${errorMessage(error)}`, { cause: error });
     }
 
     const problem = ((): string | undefined => {

@@ -207,8 +207,8 @@ export class ClaudeMcpAdapter implements McpHarnessAdapter {
       for (const tu of toolUses) {
         toolCalls += 1;
         distinct.add(tu.name);
-        let isError = false;
-        let text = '';
+        let isError: boolean;
+        let text: string;
         try {
           const result = await this.client!.callTool({ name: tu.name, arguments: (tu.input ?? {}) as Record<string, unknown> });
           isError = result.isError === true;
