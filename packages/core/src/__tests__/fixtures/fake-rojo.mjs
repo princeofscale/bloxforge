@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 
 const args = process.argv.slice(2);
@@ -11,12 +12,22 @@ if (command === '--version') {
     process.stderr.write('fake crash\n');
     process.exit(2);
   }
-  if (process.env.FAKE_ROJO_SILENT !== '1') {
-    process.stdout.write('Rojo server listening on 127.0.0.1:34872\n');
-  }
+  const flag = (name, fallback) => {
+    const index = args.indexOf(name);
+    return index >= 0 && args[index + 1] ? args[index + 1] : fallback;
+  };
+  const address = flag('--address', '127.0.0.1');
+  const port = Number(flag('--port', '34872'));
+  // Readiness is now a TCP probe, so a fake that only prints proves nothing.
+  // FAKE_ROJO_SILENT means "never accepts connections", which is the timeout case.
+  const server = process.env.FAKE_ROJO_SILENT === '1' ? undefined : net.createServer();
   const timer = setInterval(() => {}, 1000);
+  server?.listen(port, address, () => {
+    process.stdout.write(`Rojo server listening on ${address}:${port}\n`);
+  });
   const stop = () => {
     clearInterval(timer);
+    server?.close();
     process.exit(0);
   };
   process.on('SIGTERM', stop);

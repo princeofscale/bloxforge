@@ -39,6 +39,22 @@ async function assertPortAvailable(host: string, port: number): Promise<void> {
   });
 }
 
+/** Readiness is "the port accepts connections", not "stdout said listening":
+ * Rojo's banner wording is not API, and it has moved between releases. */
+function portAccepts(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host, port });
+    const finish = (ready: boolean) => {
+      socket.destroy();
+      resolve(ready);
+    };
+    socket.setTimeout(1000);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
+
 function canonicalProject(projectFile: string): string {
   return resolveProjectPath(path.dirname(projectFile), path.basename(projectFile));
 }
@@ -152,36 +168,31 @@ export class RojoProcessManager {
       managed.status.status = 'exited';
       managed.status.exitCode = exitCode;
     });
+    child.once('error', (error) => {
+      managed.status.status = 'exited';
+      append('stderr', Buffer.from(`spawn failed: ${error.message}`));
+    });
 
     const readinessTimeoutMs = options.readinessTimeoutMs ?? 10000;
-    await new Promise<void>((resolve, reject) => {
-      let timedOut = false;
-      const timeout = setTimeout(() => {
-        timedOut = true;
-        void terminateChild(child).then(() =>
-          reject(new Error(`Rojo serve did not become ready within ${readinessTimeoutMs}ms`)));
-      }, readinessTimeoutMs);
-      const ready = (chunk: Buffer) => {
-        if (!/listening|server started|web interface/i.test(chunk.toString('utf8'))) return;
-        clearTimeout(timeout);
-        child.stdout.off('data', ready);
+    const deadline = Date.now() + readinessTimeoutMs;
+    while (managed.status.status === 'starting') {
+      if (await portAccepts(host, port)) {
         managed.status.status = 'running';
-        resolve();
-      };
-      child.stdout.on('data', ready);
-      child.once('error', (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-      child.once('exit', (code) => {
-        if (managed.status.status === 'running' || timedOut) return;
-        clearTimeout(timeout);
-        reject(new Error(`Rojo serve exited before becoming ready (code ${code ?? 'unknown'})`));
-      });
-    }).catch((error) => {
+        break;
+      }
+      if (Date.now() >= deadline) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    if (managed.status.status !== 'running') {
+      const reason = managed.status.status === 'exited'
+        ? `Rojo serve exited before becoming ready (code ${managed.status.exitCode ?? 'unknown'})`
+        : `Rojo serve did not become ready within ${readinessTimeoutMs}ms`;
+      const tail = managed.logs.slice(-20).join('\n');
+      await terminateChild(child);
       this.processes.delete(project);
-      throw error;
-    });
+      throw new Error(tail ? `${reason}\n${tail}` : reason);
+    }
     return { ...managed.status };
   }
 

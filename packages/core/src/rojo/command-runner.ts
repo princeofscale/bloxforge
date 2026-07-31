@@ -1,7 +1,8 @@
-import { execFile, spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { findManifest } from '../toolchain/manifest.js';
 
 export interface RojoCommand {
   executable: string;
@@ -51,14 +52,13 @@ const TOOLCHAINS = [
   { manifest: 'aftman.toml', source: 'aftman' as const, rootEnv: 'AFTMAN_ROOT', home: '.aftman' },
 ];
 
-function findUpwards(startDirectory: string, fileName: string): string | undefined {
-  let current = startDirectory;
-  for (;;) {
-    const candidate = path.join(current, fileName);
-    if (fs.existsSync(candidate)) return candidate;
-    const parent = path.dirname(current);
-    if (parent === current) return undefined;
-    current = parent;
+/** The shared bounded resolver: an upward search that leaves
+ * `BLOXFORGE_PROJECT_ROOT` could pick up a stranger's toolchain manifest. */
+function findToolchainManifest(startDirectory: string, fileName: string): string | undefined {
+  try {
+    return findManifest(startDirectory, fileName);
+  } catch {
+    return undefined;
   }
 }
 
@@ -77,17 +77,6 @@ function shimPath(rootEnv: string, home: string): string {
   return path.join(root, 'bin', process.platform === 'win32' ? 'rojo.exe' : 'rojo');
 }
 
-function commandWorks(executable: string, prefixArgs: string[], cwd?: string): boolean {
-  const result = spawnSync(executable, [...prefixArgs, '--version'], {
-    cwd,
-    encoding: 'utf8',
-    timeout: 5000,
-    stdio: 'pipe',
-    windowsHide: true,
-  });
-  return !result.error && result.status === 0;
-}
-
 function detectCommand(cwd?: string): RojoCommand {
   const configured = process.env.BLOXFORGE_ROJO_BIN?.trim();
   if (configured) return { executable: configured, prefixArgs: [], source: 'environment' };
@@ -95,7 +84,7 @@ function detectCommand(cwd?: string): RojoCommand {
   const start = cwd && fs.existsSync(cwd) ? fs.realpathSync(cwd) : process.cwd();
   let pending: RojoCommand | undefined;
   for (const toolchain of TOOLCHAINS) {
-    const manifest = findUpwards(start, toolchain.manifest);
+    const manifest = findToolchainManifest(start, toolchain.manifest);
     if (!manifest || !manifestDeclaresRojo(manifest)) continue;
     const shim = shimPath(toolchain.rootEnv, toolchain.home);
     if (fs.existsSync(shim)) {
@@ -112,7 +101,9 @@ function detectCommand(cwd?: string): RojoCommand {
     };
   }
 
-  if (commandWorks('rojo', [], cwd)) return { executable: 'rojo', prefixArgs: [], source: 'path' };
+  // A pinned project outranks whatever global Rojo happens to be on PATH.
+  // Running an unpinned 7.5 against a project pinned to 7.7 is precisely the
+  // drift the pin exists to prevent, and it fails in ways nothing here can see.
   return pending ?? { executable: 'rojo', prefixArgs: [], source: 'path' };
 }
 
@@ -124,19 +115,25 @@ interface CacheEntry {
 const resolutionCache = new Map<string, CacheEntry>();
 const MAX_CACHED_ROOTS = 32;
 
-/** Keyed by project root plus the mtime of every toolchain manifest above it, so
- * editing or installing a toolchain re-resolves without a process restart. */
+function stamp(file: string): string {
+  try {
+    const stats = fs.statSync(file);
+    return `${stats.mtimeMs}:${stats.size}`;
+  } catch {
+    return 'absent';
+  }
+}
+
+/** Keyed by project root plus every toolchain manifest above it *and its shim*.
+ * An external `rokit install` creates the shim without touching the manifest,
+ * so keying on the manifest alone pinned the stale resolution until restart. */
 function cacheKey(start: string): string {
   const parts = [process.env.BLOXFORGE_ROJO_BIN ?? '', process.env.ROKIT_ROOT ?? '', process.env.AFTMAN_ROOT ?? ''];
   for (const toolchain of TOOLCHAINS) {
-    const manifest = findUpwards(start, toolchain.manifest);
-    if (!manifest) {
-      parts.push(`${toolchain.manifest}:absent`);
-      continue;
-    }
-    let mtime = 'unreadable';
-    try { mtime = String(fs.statSync(manifest).mtimeMs); } catch { /* fall through */ }
-    parts.push(`${manifest}:${mtime}`);
+    const manifest = findToolchainManifest(start, toolchain.manifest);
+    parts.push(`${manifest ?? toolchain.manifest}:${manifest ? stamp(manifest) : 'absent'}`);
+    const shim = shimPath(toolchain.rootEnv, toolchain.home);
+    parts.push(`${shim}:${stamp(shim)}`);
   }
   return parts.join('\0');
 }

@@ -7,9 +7,10 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const REPO_ROOT = path.resolve(import.meta.dirname, '..');
+// Not `import.meta.dirname`: that needs Node 20.11, and package.json promises >=20.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = mkdtempSync(path.join(os.tmpdir(), 'bloxforge-toolchain-'));
 const shimDirectory = path.join(os.homedir(), '.rokit', 'bin');
 

@@ -79,6 +79,13 @@ function packageName(spec: string): string {
   return spec.split('@')[0];
 }
 
+/** Windows and macOS fold path case by default; Linux does not, and there
+ * `Packages` and `packages` really are different directories. Folding
+ * everywhere reported a mount Rojo would fail to resolve as mapped. */
+function casePath(value: string): string {
+  return process.platform === 'linux' ? value : value.toLowerCase();
+}
+
 /** Every `$path` value in a Rojo project tree, at any depth. */
 function collectProjectPaths(node: unknown, out: string[] = []): string[] {
   if (!node || typeof node !== 'object') return out;
@@ -207,11 +214,11 @@ export class WallyTools {
     // ServerPackages reported both as mapped.
     const mountedPaths = new Set(
       collectProjectPaths(project.tree).map((value) =>
-        path.resolve(manifest.directory, value).toLowerCase()),
+        casePath(path.resolve(manifest.directory, value))),
     );
     const present = PACKAGE_DIRECTORIES.filter((name) => fs.existsSync(path.join(manifest.directory, name)));
     const mapped = present.filter((name) =>
-      mountedPaths.has(path.resolve(manifest.directory, name).toLowerCase()));
+      mountedPaths.has(casePath(path.resolve(manifest.directory, name))));
     return {
       root: manifest.directory,
       projectFile: project.projectFile,

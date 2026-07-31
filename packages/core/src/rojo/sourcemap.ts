@@ -40,13 +40,25 @@ function walk(
 /**
  * A dotted path cannot express an Instance whose name contains a dot, so
  * callers that know the real hierarchy should pass segments instead.
+ *
+ * Only the leading segment is the DataModel. Dropping every segment named
+ * `game` lost a legitimately named child, and did so only on the string form.
  */
 export function instancePathSegments(instancePath: string | string[]): string[] {
-  if (Array.isArray(instancePath)) {
-    const segments = instancePath.filter((segment) => segment.length > 0);
-    return segments[0] === 'game' ? segments.slice(1) : segments;
+  const segments = (Array.isArray(instancePath) ? instancePath : instancePath.split('.'))
+    .filter((segment) => segment.length > 0);
+  return segments[0] === 'game' ? segments.slice(1) : segments;
+}
+
+/**
+ * Rojo names the sourcemap root after the project, not `game`, so including it
+ * prefixed every path with the project name. User-facing paths start at the
+ * root's children.
+ */
+function walkChildren(root: SourcemapNode, visit: (node: SourcemapNode, segments: string[]) => boolean): void {
+  for (const child of root.children ?? []) {
+    if (walk(child, [], visit)) return;
   }
-  return instancePath.split('.').filter((segment) => segment && segment !== 'game');
 }
 
 export function resolveInstanceSource(
@@ -57,12 +69,11 @@ export function resolveInstanceSource(
   const wanted = instancePathSegments(instancePath);
   const display = Array.isArray(instancePath) ? `game.${wanted.join('.')}` : instancePath;
   let match: { node: SourcemapNode; segments: string[] } | undefined;
-  walk(readSourcemap(root, sourcemap), [], (node, segments) => {
-    const normalized = segments[0] === 'game' ? segments.slice(1) : segments;
-    if (normalized.length !== wanted.length || normalized.some((segment, index) => segment !== wanted[index])) {
+  walkChildren(readSourcemap(root, sourcemap), (node, segments) => {
+    if (segments.length !== wanted.length || segments.some((segment, index) => segment !== wanted[index])) {
       return false;
     }
-    match = { node, segments: normalized };
+    match = { node, segments };
     return true;
   });
   return match
@@ -84,10 +95,10 @@ export function resolveSourceInstance(
   const canonicalRoot = resolveProjectRoot(root);
   const source = resolveProjectPath(canonicalRoot, sourcePath);
   let match: { node: SourcemapNode; segments: string[] } | undefined;
-  walk(readSourcemap(canonicalRoot, sourcemap), [], (node, segments) => {
+  walkChildren(readSourcemap(canonicalRoot, sourcemap), (node, segments) => {
     const paths = (node.filePaths ?? []).map((file) => path.resolve(canonicalRoot, file));
     if (!paths.includes(source)) return false;
-    match = { node, segments: segments[0] === 'game' ? segments.slice(1) : segments };
+    match = { node, segments };
     return true;
   });
   return match

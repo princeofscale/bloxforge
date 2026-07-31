@@ -157,6 +157,72 @@ describe('SyncTools safety', () => {
     expect(fs.readFileSync(path.join(dir, 'ServerScriptService/Renamed.server.lua'), 'utf8')).toBe('print("hello")');
   });
 
+  it('refuses to move a rename source the plan never read', async () => {
+    // The write path re-read each file before writing; the rename path moved it
+    // unconditionally. So a source whose on-disk content is not what the plan
+    // recorded — an ignored file, or one edited after the preview — was moved
+    // into a managed path and then recorded as the confirmed baseline.
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+    const file = path.join(dir, 'ServerScriptService/Main.server.lua');
+    callSingle.mockResolvedValue({
+      items: [{
+        ...studioPage('print("hello")').items[0],
+        path: 'game.ServerScriptService.Renamed',
+        pathSegments: ['ServerScriptService', 'Renamed'],
+      }],
+      continuationToken: undefined,
+    });
+    const ignoring = new SyncTools(
+      new SyncManager({ ignore: ['**/Main.server.lua'] }),
+      { callSingle, recordOperation: jest.fn() },
+    );
+
+    await expect(ignoring.syncPull(dir, 'place-1', { confirm: true }))
+      .rejects.toThrow(/changed on disk after the plan was produced/);
+    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Renamed.server.lua'))).toBe(false);
+    expect(fs.existsSync(file)).toBe(true);
+  });
+
+  it('does not push a file that changed while an earlier push was in flight', async () => {
+    // sync_push sent plan.local, never re-reading, so an edit landing between
+    // planning and the write overwrote Studio with unreviewed content and was
+    // then recorded as the agreed baseline.
+    const studioItem = (name: string) => ({
+      ...studioPage('print("hello")').items[0],
+      path: `game.ServerScriptService.${name}`,
+      pathSegments: ['ServerScriptService', name],
+    });
+    callSingle.mockResolvedValue({
+      items: [studioItem('Main'), studioItem('Other')],
+      continuationToken: undefined,
+    });
+    await tools.syncPull(dir, 'place-1', { confirm: true });
+
+    const second = path.join(dir, 'ServerScriptService/Other.server.lua');
+    fs.writeFileSync(path.join(dir, 'ServerScriptService/Main.server.lua'), 'print("local main")');
+    fs.writeFileSync(second, 'print("local other")');
+    callSingle.mockImplementation(async (endpoint: string) => {
+      if (endpoint !== '/api/read-managed-scripts') {
+        // A concurrent editor lands while the first script is being pushed.
+        fs.writeFileSync(second, 'print("edited mid-push")');
+        return {};
+      }
+      return { items: [studioItem('Main'), studioItem('Other')], continuationToken: undefined };
+    });
+
+    const payload = textPayload(await tools.syncPush(dir, 'place-1', { confirm: true }));
+    expect(payload.pushed).toEqual(['ServerScriptService/Main.server.lua']);
+    expect(payload.failed).toEqual([{
+      path: 'ServerScriptService/Other.server.lua',
+      error: expect.stringContaining('changed on disk after the plan was produced'),
+    }]);
+    // Its baseline must still describe the pulled Studio content, not the edit
+    // that was never sent.
+    const state = JSON.parse(fs.readFileSync(path.join(dir, '.bloxforge/rojo-state.json'), 'utf8'));
+    expect(state.entries['ServerScriptService/Other.server.lua'].studioHash).toBe('plugin-hash');
+    expect(fs.readFileSync(second, 'utf8')).toBe('print("edited mid-push")');
+  });
+
   it('requires an explicit deleteMissing choice before deleting a managed local file', async () => {
     await tools.syncPull(dir, 'place-1', { confirm: true });
     callSingle.mockResolvedValue({ items: [], continuationToken: undefined });
