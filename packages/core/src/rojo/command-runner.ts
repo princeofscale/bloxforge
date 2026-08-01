@@ -92,8 +92,12 @@ function detectCommand(cwd?: string): RojoCommand {
     }
     // The manifest pins Rojo but the shim is missing. Remember why, so an ENOENT
     // later names the fix instead of silently falling back to a random global Rojo.
+    // The *absolute* missing shim, never the bare name `rojo`: `execFile` looks a
+    // bare name up on PATH, so a pinned project with no installed shim would
+    // still run whatever global Rojo exists while reporting source: 'rokit'.
+    // Spawning the absolute path fails with ENOENT, which surfaces installHint.
     pending ??= {
-      executable: 'rojo',
+      executable: shim,
       prefixArgs: [],
       source: toolchain.source,
       manifest,

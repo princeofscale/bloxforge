@@ -139,7 +139,9 @@ const PREFIX_RULES: Array<[RegExp, ToolDomain]> = [
   [/^terrain_/, 'terrain'],
   [/^template_/, 'build'],
   [/^sync_/, 'sync'],
-  [/^rojo_/, 'sync'],
+  // Rojo, Rokit and Wally are one workflow: without these the toolchain tools
+  // fell through to the `scene` default and never loaded with the sync toolset.
+  [/^rojo_|^rokit_|^wally_/, 'sync'],
   [/^audio_|^animation_/, 'media'],
   [/^image_/, 'assets'],
   [/^marketplace_/, 'assets'],

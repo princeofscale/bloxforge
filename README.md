@@ -40,8 +40,8 @@ on your machine.
 | **Code** | Read, search, patch, validate, and safely replace Luau source |
 | **Test** | Playtests, simulated input, gameplay assertions, screenshots, and episode comparison |
 | **Debug** | Runtime logs, transport diagnostics, memory data, breakpoints, and profiler captures |
-| **Integrate** | Rojo-aware project tools, imports/exports, asset workflows, and provenance records |
-| **Protect** | Localhost binding, scoped capabilities, confirmation gates, dry runs, limits, and recovery |
+| **Integrate** | Rojo, Rokit and Wally driven through their real CLIs; imports/exports, assets, provenance |
+| **Protect** | Localhost binding, scoped capabilities, confirmation gates, immutable plans, dry runs, and rollback |
 
 ## Quick start
 
@@ -123,34 +123,61 @@ Start your MCP client, open a place in Studio, and run:
 npx -y @princeofscale/bloxforge@latest verify
 ```
 
-## Recommended Rojo workflow
+## File-backed projects: Rojo, Rokit, Wally
 
 For file-backed projects, local files are the source of truth and Rojo owns the
-continuous Studio sync:
+continuous Studio sync. BloxForge drives the real CLIs — it never reimplements
+their semantics:
 
 ```text
 Codex / Claude → BloxForge MCP tools → local Luau files → rojo serve → Studio
                                              ↘ validate / format / test
 ```
 
-1. Install stable Rojo through your pinned Rokit or Aftman toolchain.
-2. Open the project locally and set `BLOXFORGE_PROJECT_ROOT` when BloxForge is
-   launched outside that directory.
-3. Use `rojo_detect_projects`, select an explicit project if more than one is
-   found, then run `rojo_validate_project`.
-4. Start loopback-only live sync with `rojo_serve_start`.
-5. Let the agent read and edit local sources with the `rojo_*_source` tools.
-6. Run targeted StyLua, Selene, or Luau checks for affected files.
-7. Use the Studio bridge for inspection, playtests, runtime debugging, UI, and
-   Instances outside the Rojo-managed roots.
-8. Bring Studio changes back only through `rojo_syncback_plan`, review the
-   conflicts, then call `rojo_syncback_apply` with confirmation.
+| Tool family | Owns |
+|---|---|
+| **Rokit** | Which version of each executable runs |
+| **Wally** | The package dependency graph |
+| **Rojo** | The filesystem ↔ Studio mapping — the single source of truth |
+| **BloxForge** | Orchestrating the three, and everything Studio-side |
 
-This supports partially managed projects (only selected roots such as scripts
-or packages) and fully managed project trees. BloxForge never treats unmanaged
+### Getting a project running
+
+1. Pin your tools in `rokit.toml`, then `rokit_status` → `rokit_install`.
+   A project pinned to a version whose shim is not installed **fails with the
+   install command**; it never quietly runs a different global Rojo.
+2. `wally_validate_lock`, then `wally_install_apply`, then
+   `wally_verify_rojo_mapping` to confirm the installed package directories are
+   actually mounted by the project.
+3. `rojo_detect_projects` → select an explicit project if more than one is
+   found → `rojo_validate_project`.
+4. `rojo_serve_start` for loopback-only live sync.
+5. Read and edit local sources with the `rojo_*_source` tools; run targeted
+   StyLua, Selene, or Luau checks on the files you touched.
+6. Use the Studio bridge for inspection, playtests, runtime debugging, UI, and
+   Instances outside the Rojo-managed roots.
+7. Bring Studio changes back only through `rojo_syncback_plan` → review →
+   `rojo_syncback_apply` with the `planHash` the preview returned.
+
+Set `BLOXFORGE_PROJECT_ROOT` when BloxForge is launched outside the project
+directory. Every file path resolves through that root.
+
+### What is preview/confirm
+
+Anything that writes files, installs packages, or mutates Studio in bulk is a
+**plan/apply pair**. The plan is immutable: `rojo_syncback_apply` requires the
+`planHash` from its preview and refuses a stale one, so an edit that lands
+between review and apply is never silently carried through.
+
+Wally installs default to `--locked` so a stale lockfile fails instead of being
+rewritten. `--locked` is absent from the released Wally 0.3.2, so support is
+probed and a locked install is **refused** rather than quietly downgraded.
+
+This supports partially managed projects (only selected roots such as scripts or
+packages) and fully managed project trees. BloxForge never treats unmanaged
 Studio Instances as deletion candidates. Stable Rojo 7.7+ native `syncback` is
 feature-detected; older stable versions retain the bounded plugin-based subset.
-BloxForge reports installation guidance when Rojo is absent and never installs
+BloxForge reports installation guidance when a tool is absent and never installs
 it silently.
 
 ## Try it
@@ -177,6 +204,13 @@ Profiles keep tool discovery focused and reduce context use:
 | `full` | Every available BloxForge tool |
 | `inspector` | Studio/local read authorization only; local writes, process execution, network access, and Studio mutation/execute tools are omitted |
 
+Some pre-4.0 tools (`install_wally_packages`, `generate_rojo_sourcemap`,
+`build_rojo_project`, `sync_pull`/`sync_push`) are still discoverable but do not
+apply the newer lock policy, output-path checks, or plan hashes. Prefer the
+`rojo_*`, `wally_*` and `rokit_*` tools; see
+[Known limitations](docs/known-limitations.md#legacy-tools-bypass-the-newer-guarantees)
+for the mapping.
+
 Select one with `--profile <name>` or `BLOXFORGE_TOOL_PROFILE`.
 Profiles control authorization where stated; `load_toolset` only expands
 schema visibility and cannot grant a denied tool. Invalid names fail startup.
@@ -194,6 +228,12 @@ BloxForge treats Studio as a recoverable local execution target:
 - plugin session credentials and capability-scoped MCP clients;
 - localhost-only bridge binding by default, with authenticated non-loopback opt-in;
 - mutation confirmation, dry-run, backup, and rollback-oriented tools.
+
+Authorization is by **declared effect**, not by a tool's name. Every tool states
+its own `studio.*`, `local.files.*`, `local.process.execute`, `network.external`,
+`assets.upload`, and `playtest.control` effects; the field is required, so a new
+tool cannot inherit a wrong guess. The inspector profile permits only Studio and
+local-file reads, and the builder profile denies arbitrary Luau execution.
 
 See [Architecture](docs/architecture.md) and
 [Security policy](SECURITY.md) for the full model.
@@ -227,17 +267,29 @@ modify your normal Studio plugin directory.
 Useful release checks:
 
 ```bash
-npm run test:plugin:smoke
-npm run test:plugin:installer
-npm run docs:check
-npm run verify-package
+npm run test:plugin:smoke        # compiled Luau output
+npm run test:plugin:installer    # both CLIs install atomically
+npm run docs:check               # tools reference matches the definitions
+npm run metadata:check           # package metadata matches the README
+npm run verify-package           # packed tarball contents
+npm run release:check            # everything above, in order
 ```
+
+Integration jobs drive the real binaries and run in CI:
+
+```bash
+npm run test:rojo:integration       # pinned Rojo 7.7.0
+npm run test:toolchain:integration  # pinned Rokit, plus Wally's actual --locked support
+```
+
+`docs:generate` reads `packages/core/dist`, so build core before checking docs.
 
 ## Documentation
 
 - [Tool reference](docs/tools-reference.md)
 - [Architecture](docs/architecture.md)
 - [Known limitations](docs/known-limitations.md)
+- [Agent guide (working on BloxForge)](AGENTS.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)

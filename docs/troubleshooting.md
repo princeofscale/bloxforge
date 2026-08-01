@@ -105,7 +105,31 @@ resolved and where it came from: `rokit`/`aftman` (the toolchain shim named by a
 manifest above the project), `environment` (`BLOXFORGE_ROJO_BIN`), or `path`.
 Use `rokit_status` to compare the version pinned in `rokit.toml`, the installed
 shim, and the version that shim actually runs. If a manifest pins Rojo but no
-shim exists, run `rokit_install` with `confirm: true`.
+shim exists, run `rokit_install` with `confirm: true`. Until that shim exists,
+every Rojo call fails with the install command rather than falling through to a
+global Rojo — a pin is never quietly ignored.
+
+Note `rokit_status.installRequired` only reports whether a shim *exists*. To
+detect a shim of the wrong version, branch on `matchesManifest`.
+
+### Selene, StyLua, Wally or Lune still report "not installed" after `rokit_install`
+
+Only Rojo resolves through the toolchain shim. The others are looked up on
+`PATH`, and the running BloxForge process keeps the `PATH` it started with, so
+newly created shims are invisible to it. Restart the MCP server after installing
+a toolchain. See [Known limitations](known-limitations.md#toolchain-rokit-wally--current-gaps).
+
+### `rojo_detect_projects` finds projects inside `Packages/`
+
+Discovery walks Wally package directories, so a `*.project.json` shipped inside a
+dependency counts. Pass an explicit `projectFile` to every `rojo_*` call, or move
+the search root below the package directories with `BLOXFORGE_PROJECT_ROOT`.
+
+### `wally_validate_lock` says `ok` but the versions are wrong
+
+It compares package *names*, not versions: a manifest asking for `@2.0.0` against
+a lock pinning `1.4.4` still validates. Read `wally_get_lock` and compare the
+versions yourself when that matters.
 
 ### Wally packages are installed but missing in Studio
 
@@ -113,6 +137,13 @@ Run `wally_verify_rojo_mapping`. It reports which of `Packages`,
 `ServerPackages`, and `DevPackages` exist on disk but are not mounted anywhere
 in the selected Rojo project tree. Add the missing `$path` entries, then rebuild
 the sourcemap.
+
+### `rojo serve` reports running but nothing syncs
+
+Readiness is a TCP connect to the configured port. If another process bound that
+port between the free-port check and Rojo's own bind, BloxForge attaches to the
+wrong listener and reports `running` while the real child exits. Check
+`rojo_serve_logs` for `EADDRINUSE`, then restart on a port you control.
 
 ### `rojo_serve_start` fails
 

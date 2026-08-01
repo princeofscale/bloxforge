@@ -10,14 +10,19 @@ This directory is the user-facing handbook for BloxForge. The
 
 - [**Known limitations**](./known-limitations.md) — Roblox-engine constraints
   surfaced during dogfooding (`require()` cache after edits, audio loading in
-  Edit, `PlaybackLoudness` in Edit). The canonical reference for "why didn't my
-  edit apply" and "why won't this sound play."
+  Edit, `PlaybackLoudness` in Edit), plus the current Rojo/Rokit/Wally gaps and
+  which legacy tools to avoid. The canonical reference for "why didn't my edit
+  apply" and "why won't this sound play."
 - [**Troubleshooting**](./troubleshooting.md) — symptom → fix mapping for the
   common failures: plugin won't connect, bridge drops mid-session, version
   mismatch, timeouts on heavy Luau.
 - [**Architecture**](./architecture.md) — Node MCP server ↔ Studio plugin bridge,
   request lifecycle, the edit/server/client peer model, and lazy tool loading.
 - [**Tools reference**](./tools-reference.md) — generated schemas for every MCP tool.
+
+Working *on* BloxForge rather than with it? [AGENTS.md](../AGENTS.md) is the
+operating guide for agents editing this repository: invariants, validation
+gates, and the traps that have cost real debugging time.
 
 ## Contributing
 
