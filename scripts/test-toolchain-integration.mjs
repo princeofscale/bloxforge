@@ -4,7 +4,7 @@
 //    a good one, which is the only install mode CI should ever use;
 //  - the parsed lockfile yields real package identities.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -132,19 +132,34 @@ try {
   }
 
   run(wally, ['install'], { cwd: root });
-  assert(existsSync(path.join(root, 'wally.lock')), 'wally install did not produce a lockfile');
+  const lockFile = path.join(root, 'wally.lock');
+  assert(existsSync(lockFile), 'wally install did not produce a lockfile');
 
-  if (lockedSupported) {
-    run(wally, ['install', '--locked'], { cwd: root });
-  } else {
-    // Without the flag, a locked install must be refused, never quietly downgraded.
-    const refused = wallyTools.installApply(root, true, true);
-    assert(refused.ok === false, 'installApply ran an unlocked install on a Wally without --locked');
-    assert(
-      /does not support/.test(refused.error ?? ''),
-      `Expected a --locked support error, got: ${refused.error}`,
-    );
-  }
+  // Every apply is pinned to the plan that produced it. Exercise the refusals
+  // against the real CLI, not only in unit tests: an agent that skipped the plan
+  // must not be able to install.
+  assert(
+    /expectedPlanHash is required/.test(wallyTools.installApply(root, true, true).error ?? ''),
+    'installApply ran without the planHash from wally_install_plan',
+  );
+  const stalePlan = wallyTools.installPlan(root).planHash;
+  writeFileSync(path.join(root, 'wally.toml'), readFileSync(path.join(root, 'wally.toml'), 'utf8') + '\n# touched\n');
+  assert(
+    /changed after wally_install_plan ran/.test(wallyTools.installApply(root, true, true, stalePlan).error ?? ''),
+    'installApply accepted a planHash from before the manifest changed',
+  );
+
+  // A locked install must leave wally.lock byte-identical. With the flag Wally
+  // enforces that itself; without it (0.3.2) BloxForge backs the file up and
+  // restores it, so the guarantee is the same and this assertion is the same.
+  const plan = wallyTools.installPlan(root);
+  assert(plan.emulateLocked === !lockedSupported,
+    `installPlan.emulateLocked disagreed with --locked support: ${JSON.stringify({ emulateLocked: plan.emulateLocked, lockedSupported })}`);
+  const before = readFileSync(lockFile);
+  const applied = wallyTools.installApply(root, true, true, plan.planHash);
+  assert(applied.ok, `A locked install failed: ${applied.error ?? applied.output}`);
+  assert(readFileSync(lockFile).equals(before), 'A locked install changed wally.lock');
+  assert(applied.lockRestored === false, 'The lockfile needed restoring after an install that should not have moved it');
 
   const validation = wallyTools.validateLock(root);
   assert(validation.present === true, 'validateLock did not see the generated lockfile');
@@ -152,7 +167,8 @@ try {
 
   console.log(
     `toolchain-integration: Rokit shim resolution and pinned versions verified; `
-    + `wally --locked ${lockedSupported ? 'supported and fails closed without a lockfile' : 'unsupported by this Wally and correctly refused'}`,
+    + `plan hashes enforced; wally --locked ${lockedSupported ? 'supported and used' : 'unsupported by this Wally and emulated by backup/restore'}, `
+    + 'and wally.lock was byte-identical afterwards',
   );
 } finally {
   rmSync(root, { recursive: true, force: true });
