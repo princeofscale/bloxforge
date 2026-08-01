@@ -37,11 +37,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   They coincide in a flat project; in a monorepo where
   `games/lobby/default.project.json` mounts `../../Packages`, the old base
   produced a bogus mapped/unmapped verdict.
-- The `rojo serve` settle window watches `error` as well as `exit`. A failed
-  spawn emits `error` and never `exit`, so waiting on `exit` alone timed out and
-  reported "the child survived" for a process that never ran — and a foreign
-  Rojo answering on the port would then have been adopted. Readiness also
-  re-checks the process state after the wait rather than overwriting it.
+- The `rojo serve` settle window watches `error` as well as `exit`, and
+  readiness re-checks the process state after the wait rather than overwriting
+  it. Node documents that "the `exit` event may or may not fire after an error
+  has occurred", so an `exit`-only wait could time out and answer "the child
+  survived" for a process that never ran, letting a foreign Rojo on the port be
+  adopted. This is hardening against that documented behaviour, not a fixed
+  failure: on the Node versions in CI a failed spawn does emit `exit`, so the
+  case is not reproducible here and no test isolates it. The settle window
+  itself is covered by a test that fails without it.
+- `wally_validate_lock` compares build metadata as the release version.
+  `1.2.3+build.5` does not differ from `1.2.3` for compatibility, so reporting
+  it `unverifiable` — and therefore failing `ok` — was wrong. Only a `-`
+  prerelease suffix stays unverifiable.
 - One CLI flag parser, and it treats a flag-shaped value as a missing value.
   `--port --strict` set the port to `"--strict"`, and `--session-token --debug`
   stored `"--debug"` as a credential. A second copy of the same helper inside

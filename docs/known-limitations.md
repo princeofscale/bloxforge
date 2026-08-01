@@ -189,9 +189,11 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   runtime state, so nothing survives a BloxForge restart to be re-adopted. An
   agent that wants a long-lived serve has to re-establish it and handle the
   crash case itself.
-- The settle window watches both `exit` and `error`, so a spawn that fails
-  outright — which emits `error` and never `exit` — is not mistaken for a child
-  that survived, and readiness re-checks the process state after the wait.
+- The settle window watches both `exit` and `error`, and readiness re-checks the
+  process state after the wait. Node documents that `exit` may or may not follow
+  `error`, so an `exit`-only wait could mistake a spawn that never ran for a
+  child that survived. On current Node a failed spawn does emit `exit`, so this
+  is hardening rather than a reproducible failure.
 
 ## Orchestration
 

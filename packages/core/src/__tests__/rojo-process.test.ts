@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as http from 'node:http';
 import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -167,19 +168,39 @@ describe('Rojo command and process management', () => {
     expect(manager.status(projectFile)).toBeUndefined();
   });
 
-  test('a child that fails to spawn is not adopted as ready', async () => {
-    // A failed spawn emits `error` and never `exit`, so waiting on `exit` alone
-    // timed out and reported "it survived" for a process that never ran.
+  test('a foreign Rojo is not adopted when the child fails to spawn', async () => {
+    // The exact race, staged deterministically: the foreign server binds inside
+    // the awaited version() call, which is precisely the gap between
+    // assertPortAvailable and spawn, and the child then fails to start.
+    //
+    // This covers the race end to end. It does *not* isolate the `error`-only
+    // branch of `outlives`: on this Node a failed spawn emits `exit` as well, so
+    // every variant of the ownership check catches this particular case. The
+    // settle window itself is covered by the FAKE_ROJO_EXIT_AFTER_MS test above,
+    // which does fail without it.
+    const foreign = http.createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
+        sessionId: 'not-ours', serverVersion: '7.7.0', protocolVersion: 4, projectName: 'SomebodyElse',
+      }));
+    });
     const missing = new RojoCommandRunner({
       executable: path.join(root, 'no-such-rojo'),
       prefixArgs: [],
       source: 'test',
     });
+    jest.spyOn(missing, 'version').mockImplementation(async () => {
+      await new Promise<void>((resolve) => foreign.listen(34877, '127.0.0.1', resolve));
+      return { available: true, ok: true, version: '7.7.0' } as never;
+    });
+
     const broken = new RojoProcessManager(missing);
-    jest.spyOn(missing, 'version').mockResolvedValue({ available: true, ok: true, version: '7.7.0' } as never);
-    await expect(broken.start(projectFile, { port: 34877, readinessTimeoutMs: 1500 }))
-      .rejects.toThrow(/exited before becoming ready|did not become ready/);
-    expect(broken.status(projectFile)).toBeUndefined();
+    try {
+      await expect(broken.start(projectFile, { port: 34877, readinessTimeoutMs: 1500 }))
+        .rejects.toThrow(/Another Rojo already answers/);
+      expect(broken.status(projectFile)).toBeUndefined();
+    } finally {
+      await new Promise<void>((resolve) => foreign.close(() => resolve()));
+    }
   });
 
   test('rejects occupied ports before spawning', async () => {
