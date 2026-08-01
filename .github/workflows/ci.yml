@@ -221,7 +221,14 @@ jobs:
             sum=eb8e6b4f8026db2b80ad0887c50f342958ecdbacbdeda2fd6028b3c4f774a3ee
           fi
           curl -fsSL "https://github.com/rojo-rbx/rokit/releases/download/v1.2.0/${asset}" -o "${RUNNER_TEMP}/rokit.zip"
-          echo "${sum}  ${RUNNER_TEMP}/rokit.zip" | shasum -a 256 --check -
+          # Git Bash on the Windows runner ships sha256sum but not shasum (a Perl
+          # script); macOS ships shasum but not sha256sum. Detect rather than
+          # branch on RUNNER_OS, so this also works anywhere else it is run.
+          if command -v sha256sum > /dev/null 2>&1; then
+            echo "${sum}  ${RUNNER_TEMP}/rokit.zip" | sha256sum --check -
+          else
+            echo "${sum}  ${RUNNER_TEMP}/rokit.zip" | shasum -a 256 --check -
+          fi
           unzip -q "${RUNNER_TEMP}/rokit.zip" -d "${RUNNER_TEMP}/rokit"
           chmod +x "${RUNNER_TEMP}/rokit/rokit" 2>/dev/null || true
           "${RUNNER_TEMP}/rokit/rokit" self-install
