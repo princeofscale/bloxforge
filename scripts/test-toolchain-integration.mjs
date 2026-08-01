@@ -12,7 +12,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // Not `import.meta.dirname`: that needs Node 20.11, and package.json promises >=20.
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = mkdtempSync(path.join(os.tmpdir(), 'bloxforge-toolchain-'));
-const shimDirectory = path.join(os.homedir(), '.rokit', 'bin');
 
 function run(command, args, options = {}) {
   return execFileSync(command, args, {
@@ -78,14 +77,22 @@ try {
   assert(!loose.ok && /pinned to an exact version/.test(loose.error ?? ''),
     `A loose pin must refuse allowPinnedToolDownloads: ${JSON.stringify(loose)}`);
 
+  // Ask BloxForge where it will look, rather than rebuilding the path here: the
+  // contract worth asserting is "Rokit installed the shim where BloxForge looks",
+  // and a hand-written path got that wrong on Windows, where shims are `.exe`.
+  const { shimPath } = await import(
+    pathToFileURL(path.join(REPO_ROOT, 'packages/core/dist/toolchain/resolver.js')).href
+  );
+  const shimFor = (tool) => shimPath('ROKIT_ROOT', '.rokit', tool);
+
   for (const tool of ['rojo', 'wally']) {
-    const shim = path.join(shimDirectory, tool);
+    const shim = shimFor(tool);
     assert(existsSync(shim), `rokit install did not create a shim at ${shim}`);
     const version = run(shim, ['--version'], { cwd: root });
     console.log(`toolchain-integration: ${tool} shim reports ${version.trim()}`);
   }
   assert(
-    run(path.join(shimDirectory, 'rojo'), ['--version'], { cwd: root }).includes('7.7.0'),
+    run(shimFor('rojo'), ['--version'], { cwd: root }).includes('7.7.0'),
     'Rokit shim did not resolve the version pinned in rokit.toml',
   );
 
@@ -118,7 +125,7 @@ try {
   // `--locked` is not in the released Wally 0.3.2; it landed afterwards. Assert
   // whichever contract the installed Wally actually offers, and assert that
   // BloxForge agrees with it rather than assuming the flag exists.
-  const wally = path.join(shimDirectory, 'wally');
+  const wally = shimFor('wally');
   const help = tryRun(wally, ['install', '--help'], { cwd: root });
   const lockedSupported = help.output.includes('--locked');
   assert(
