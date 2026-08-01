@@ -2967,7 +2967,7 @@ Preview adding a tool spec (owner/repo[@version]) without touching the manifest.
 
 ### `rokit_add_tool_apply` (Write)
 
-Run the toolchain's own add command after confirm=true so the version is resolved and written by the toolchain, never hardcoded.
+Run the toolchain's own add command after confirm=true and an expectedPlanHash match, so the version is resolved and written by the toolchain, never hardcoded.
 
 **Parameters:**
 
@@ -2976,6 +2976,7 @@ Run the toolchain's own add command after confirm=true so the version is resolve
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
 | `spec` | `string` | Yes |  |
 | `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by rokit_add_tool_plan; required for every apply. Covers the manifest and lockfile content at plan time. |
 
 ---
 
@@ -2994,7 +2995,7 @@ Preview updating one tool or every tool without touching the manifest.
 
 ### `rokit_update_apply` (Write)
 
-Update one tool or every tool after confirm=true; rewrites the manifest and downloads new versions.
+Update one tool or every tool after confirm=true and an expectedPlanHash match; rewrites the manifest and downloads new versions.
 
 **Parameters:**
 
@@ -3003,6 +3004,7 @@ Update one tool or every tool after confirm=true; rewrites the manifest and down
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
 | `tool` | `string` | No |  |
 | `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by rokit_update_plan; required for every apply. Covers the manifest and lockfile content at plan time. |
 
 ---
 
@@ -3094,7 +3096,7 @@ Preview a Wally install, including whether --locked can be used and whether the 
 
 ### `wally_install_apply` (Write)
 
-Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten. Refuses to run if the installed Wally lacks --locked rather than silently downgrading.
+Install Wally packages after confirm=true and an expectedPlanHash match, using --locked by default. On a Wally without --locked (0.3.2) the lockfile is backed up and restored if the install moved it, so the install is locked either way rather than refused.
 
 **Parameters:**
 
@@ -3102,7 +3104,8 @@ Install Wally packages after confirm=true, using --locked by default so a stale 
 |---|---|---|---|
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
 | `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
-| `locked` | `boolean` | No | Defaults to true; set false only to deliberately resolve a new lockfile. |
+| `locked` | `boolean` | No | Defaults to true; set false only to deliberately resolve a new lockfile. Only a locked install is pinned to a planHash. |
+| `expectedPlanHash` | `string` | No | planHash returned by wally_install_plan; required for every apply. Covers the manifest and lockfile content at plan time. |
 
 ---
 
@@ -3121,7 +3124,7 @@ Preview a Wally update against the current resolved graph without writing the lo
 
 ### `wally_update_apply` (Write)
 
-Update Wally packages after confirm=true; rewrites wally.lock and can change transitive versions.
+Update Wally packages after confirm=true and an expectedPlanHash match; rewrites wally.lock and can change transitive versions.
 
 **Parameters:**
 
@@ -3130,5 +3133,6 @@ Update Wally packages after confirm=true; rewrites wally.lock and can change tra
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
 | `packages` | `array` | No |  |
 | `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by wally_update_plan; required for every apply. Covers the manifest and lockfile content at plan time. |
 
 ---

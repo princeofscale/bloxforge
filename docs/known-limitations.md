@@ -147,11 +147,27 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   understands an exact version, a caret or tilde range, a partial `1.2` prefix,
   and the `*` wildcard (which always matches). Anything else — a compound range,
   or a locked version carrying a prerelease suffix — is reported under
-  `unverifiable` rather than treated as satisfied, and makes `ok` false.
+  `unverifiable` rather than treated as satisfied, and makes `ok` false. Build
+  metadata (`1.2.3+build.5`) does not affect compatibility and is compared as
+  `1.2.3`.
 - **`rokit_install` needs `allowPinnedToolDownloads: true` to run
   unattended.** Rokit asks for trust before downloading a source it has not
   seen, and there is no terminal here. The flag is refused unless every tool in
-  the manifest is pinned to an exact `owner/repo@x.y.z`.
+  the manifest is pinned to an exact `owner/repo@x.y.z`. `rokit_status` reports
+  the same rule, so a manifest that cannot be restored unattended is
+  `action: 'fix-manifest'` rather than healthy.
+- **A `wally.lock` is protected without `--locked`.** Wally 0.3.2 has no such
+  flag. `wally_install_apply` backs the lockfile up, runs the install, and
+  restores the backup and fails if the lockfile moved. Only the lockfile is
+  rolled back — `Packages/` can hold freshly downloaded content afterwards — but
+  the resolution the caller reviewed is the one left on disk.
+- **Every toolchain apply is pinned to its plan.** `wally_install_apply`,
+  `wally_update_apply`, `rokit_add_tool_apply` and `rokit_update_apply` require
+  the `planHash` their `*_plan` returned. The hash covers the operation, its
+  arguments and the content of the manifest and lockfile, so an edit by another
+  process — or another agent — between plan and apply is refused rather than
+  applied to a state nobody reviewed. `locked: false` is the deliberate
+  "resolve me a new lockfile" path and is not hash-pinned.
 - **The real Rokit and Wally CLIs are exercised nightly on Windows and macOS**,
   not on every pull request. A per-PR failure specific to those platforms
   surfaces the next night, or on a commit whose message contains
@@ -173,6 +189,11 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   runtime state, so nothing survives a BloxForge restart to be re-adopted. An
   agent that wants a long-lived serve has to re-establish it and handle the
   crash case itself.
+- The settle window watches both `exit` and `error`, and readiness re-checks the
+  process state after the wait. Node documents that `exit` may or may not follow
+  `error`, so an `exit`-only wait could mistake a spawn that never ran for a
+  child that survived. On current Node a failed spawn does emit `exit`, so this
+  is hardening rather than a reproducible failure.
 
 ## Orchestration
 

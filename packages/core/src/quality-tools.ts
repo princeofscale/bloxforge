@@ -121,7 +121,9 @@ export function run(command: QualityCommand, args: string[], options: { cwd?: st
   // A pin with no installed shim reports the install step rather than running
   // whatever copy of the tool happens to be on PATH.
   if (resolved.installHint) return { tool: command, available: false, ok: false, error: resolved.installHint };
-  if (!hasCommand(command, options.cwd)) return { tool: command, available: false, ok: false, error: `${command} is not installed` };
+  // No `--version` probe first. It doubled the process count for every quality
+  // call, and it was a TOCTOU: the tool could vanish between the probe and the
+  // real run. ENOENT from the run itself is the same answer, one process later.
   try {
     const output = execFileSync(resolved.executable, [...resolved.prefixArgs, ...args], {
       cwd: options.cwd,
@@ -134,6 +136,9 @@ export function run(command: QualityCommand, args: string[], options: { cwd?: st
     });
     return { tool: command, available: true, ok: true, output: output.trim() };
   } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      return { tool: command, available: false, ok: false, error: `${command} is not installed` };
+    }
     return {
       tool: command,
       available: true,

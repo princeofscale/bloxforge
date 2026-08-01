@@ -1,9 +1,41 @@
 import { BloxForgeServer, getAllTools, runDoctor, generateDiagnosticReport } from '@princeofscale/bloxforge-core';
 import { createRequire } from 'module';
 
+/**
+ * A flag-shaped value is a *missing* value, not a value.
+ *
+ * This returned the next argv entry unconditionally, so `--port --strict` set
+ * the port to "--strict" (parseInt -> NaN) and `--session-token --debug` set the
+ * session token to "--debug" — a credential silently replaced by the next flag.
+ */
 const argFlagValue = (flag: string): string | undefined => {
   const idx = process.argv.indexOf(flag);
-  return idx !== -1 && idx + 1 < process.argv.length ? process.argv[idx + 1] : undefined;
+  const value = idx !== -1 ? process.argv[idx + 1] : undefined;
+  return value !== undefined && !value.startsWith('-') ? value : undefined;
+};
+
+/** A port that is not an integer in 1..65535 is refused, never passed through. */
+const argPortValue = (flag: string): string | undefined => {
+  const raw = argFlagValue(flag);
+  if (raw === undefined) return undefined;
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error(`[config] ${flag} must be an integer from 1 to 65535; got ${JSON.stringify(raw)}. Ignoring it.`);
+    return undefined;
+  }
+  return String(port);
+};
+
+const TOOL_PROFILES = ['core', 'builder', 'tester', 'full', 'inspector'] as const;
+
+const argEnumValue = (flag: string, allowed: readonly string[]): string | undefined => {
+  const raw = argFlagValue(flag);
+  if (raw === undefined) return undefined;
+  if (!allowed.includes(raw)) {
+    console.error(`[config] ${flag} must be one of ${allowed.join('|')}; got ${JSON.stringify(raw)}. Ignoring it.`);
+    return undefined;
+  }
+  return raw;
 };
 const warnSecretFlag = (flag: string, envName: string): void => {
   if (process.argv.includes(flag)) {
@@ -12,7 +44,7 @@ const warnSecretFlag = (flag: string, envName: string): void => {
 };
 
 // --port / --debug are honored by setting env the core server reads.
-const portArg = argFlagValue('--port');
+const portArg = argPortValue('--port');
 if (portArg) process.env.ROBLOX_STUDIO_PORT = portArg;
 const hostArg = argFlagValue('--host');
 if (hostArg) process.env.ROBLOX_STUDIO_HOST = hostArg;
@@ -44,7 +76,8 @@ Options:
 
 Commands:
   verify, --doctor              Run diagnostics to verify installation and connection
-  report                        Generate a detailed diagnostic report for bug reports
+  report [--project <dir>]      Generate a detailed diagnostic report for bug reports; --project also
+                                includes the Rojo/Rokit/Wally state of that directory
   verify [--project <dir>]      Check Node, plugin, bridge and Studio; --project also checks the
                                 Rojo/Rokit/Wally setup of that directory
   verify --strict               Exit non-zero on warnings too (use this from automation)
@@ -58,15 +91,11 @@ Commands:
 if (process.argv.includes('--doctor') || process.argv.includes('verify')) {
   const require = createRequire(import.meta.url);
   const { version } = require('../package.json');
-  const projectIndex = process.argv.indexOf('--project');
-  // A flag-shaped value is a missing value: `verify --project --strict` used to
-  // check a directory literally named "--strict".
-  const projectArg = process.argv[projectIndex + 1];
   process.exitCode = await runDoctor({
     version,
     port: portArg ? parseInt(portArg) : undefined,
-    project: projectIndex >= 0
-      ? (projectArg && !projectArg.startsWith('-') ? projectArg : process.cwd())
+    project: process.argv.includes('--project')
+      ? (argFlagValue('--project') ?? process.cwd())
       : undefined,
     strict: process.argv.includes('--strict'),
     json: process.argv.includes('--json'),
@@ -77,6 +106,9 @@ if (process.argv.includes('--doctor') || process.argv.includes('verify')) {
   const reportText = await generateDiagnosticReport({
     version,
     port: portArg ? parseInt(portArg) : undefined,
+    project: process.argv.includes('--project')
+      ? (argFlagValue('--project') ?? process.cwd())
+      : undefined,
   });
   console.log(reportText);
   process.exit(0);
@@ -103,16 +135,14 @@ if (process.argv.includes('--doctor') || process.argv.includes('verify')) {
     });
   }
 
-  const flagValue = (flag: string): string | undefined => {
-    const idx = process.argv.indexOf(flag);
-    return idx !== -1 && idx + 1 < process.argv.length ? process.argv[idx + 1] : undefined;
-  };
-
-  const openCloudKey = flagValue('--open-cloud-key');
-  const creatorId = flagValue('--creator-id');
-  const creatorGroupId = flagValue('--creator-group-id');
-  const pollinationsKey = flagValue('--pollinations-key');
-  const toolProfile = flagValue('--profile');
+  // One parser for every flag: this was a second copy with the same
+  // swallow-the-next-flag bug, so `--open-cloud-key --debug` stored "--debug" as
+  // an API key.
+  const openCloudKey = argFlagValue('--open-cloud-key');
+  const creatorId = argFlagValue('--creator-id');
+  const creatorGroupId = argFlagValue('--creator-group-id');
+  const pollinationsKey = argFlagValue('--pollinations-key');
+  const toolProfile = argEnumValue('--profile', TOOL_PROFILES);
 
   if (openCloudKey) {
     warnSecretFlag('--open-cloud-key', 'ROBLOX_OPEN_CLOUD_API_KEY');

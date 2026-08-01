@@ -5,6 +5,15 @@ import type { RobloxStudioTools } from './index.js';
 const OUTPUT = { type: 'object', additionalProperties: true };
 const ROOT = { root: { type: 'string', description: 'Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used.' } };
 const CONFIRM = { confirm: { type: 'boolean', description: 'Required to execute; downloads from the network and writes local files.' } };
+// A toolchain plan is immutable, like a Rojo syncback plan: the manifest and
+// lockfile it was computed against are hashed into planHash, so an edit by
+// another process (or another agent) between plan and apply invalidates it.
+const EXPECTED_PLAN_HASH = (planTool: string) => ({
+  expectedPlanHash: {
+    type: 'string',
+    description: `planHash returned by ${planTool}; required for every apply. Covers the manifest and lockfile content at plan time.`,
+  },
+});
 
 // Reads never mutate a manifest. Everything that installs, adds or updates needs
 // an explicit confirm=true and declares its network/filesystem/process effects.
@@ -85,19 +94,20 @@ const ROKIT_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'rokit_add_tool_apply',
-    description: 'Run the toolchain\'s own add command after confirm=true so the version is resolved and written by the toolchain, never hardcoded.',
+    description: 'Run the toolchain\'s own add command after confirm=true and an expectedPlanHash match, so the version is resolved and written by the toolchain, never hardcoded.',
     category: 'write',
     effects: [...MUTATION_EFFECTS],
     inputSchema: {
       type: 'object',
-      properties: { ...ROOT, spec: { type: 'string' }, ...CONFIRM },
-      required: ['spec', 'confirm'],
+      properties: { ...ROOT, spec: { type: 'string' }, ...CONFIRM, ...EXPECTED_PLAN_HASH('rokit_add_tool_plan') },
+      required: ['spec', 'confirm', 'expectedPlanHash'],
     },
     outputSchema: OUTPUT,
     handler: (runtime, args) => asTools(runtime).rokitAddTool(
       args.root as string | undefined,
       args.spec as string,
       args.confirm as boolean | undefined,
+      args.expectedPlanHash as string | undefined,
     ),
   }),
   defineTool({
@@ -111,19 +121,20 @@ const ROKIT_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'rokit_update_apply',
-    description: 'Update one tool or every tool after confirm=true; rewrites the manifest and downloads new versions.',
+    description: 'Update one tool or every tool after confirm=true and an expectedPlanHash match; rewrites the manifest and downloads new versions.',
     category: 'write',
     effects: [...MUTATION_EFFECTS],
     inputSchema: {
       type: 'object',
-      properties: { ...ROOT, tool: { type: 'string' }, ...CONFIRM },
-      required: ['confirm'],
+      properties: { ...ROOT, tool: { type: 'string' }, ...CONFIRM, ...EXPECTED_PLAN_HASH('rokit_update_plan') },
+      required: ['confirm', 'expectedPlanHash'],
     },
     outputSchema: OUTPUT,
     handler: (runtime, args) => asTools(runtime).rokitUpdate(
       args.root as string | undefined,
       args.tool as string | undefined,
       args.confirm as boolean | undefined,
+      args.expectedPlanHash as string | undefined,
     ),
   }),
 ];
@@ -204,7 +215,7 @@ const WALLY_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'wally_install_apply',
-    description: 'Install Wally packages after confirm=true, using --locked by default so a stale or missing lockfile fails instead of being rewritten. Refuses to run if the installed Wally lacks --locked rather than silently downgrading.',
+    description: 'Install Wally packages after confirm=true and an expectedPlanHash match, using --locked by default. On a Wally without --locked (0.3.2) the lockfile is backed up and restored if the install moved it, so the install is locked either way rather than refused.',
     category: 'write',
     effects: [...MUTATION_EFFECTS],
     inputSchema: {
@@ -212,7 +223,8 @@ const WALLY_TOOLS: RegisteredTool[] = [
       properties: {
         ...ROOT,
         ...CONFIRM,
-        locked: { type: 'boolean', description: 'Defaults to true; set false only to deliberately resolve a new lockfile.' },
+        locked: { type: 'boolean', description: 'Defaults to true; set false only to deliberately resolve a new lockfile. Only a locked install is pinned to a planHash.' },
+        ...EXPECTED_PLAN_HASH('wally_install_plan'),
       },
       required: ['confirm'],
     },
@@ -221,6 +233,7 @@ const WALLY_TOOLS: RegisteredTool[] = [
       args.root as string | undefined,
       args.confirm as boolean | undefined,
       args.locked as boolean | undefined,
+      args.expectedPlanHash as string | undefined,
     ),
   }),
   defineTool({
@@ -240,19 +253,25 @@ const WALLY_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'wally_update_apply',
-    description: 'Update Wally packages after confirm=true; rewrites wally.lock and can change transitive versions.',
+    description: 'Update Wally packages after confirm=true and an expectedPlanHash match; rewrites wally.lock and can change transitive versions.',
     category: 'write',
     effects: [...MUTATION_EFFECTS],
     inputSchema: {
       type: 'object',
-      properties: { ...ROOT, packages: { type: 'array', items: { type: 'string' } }, ...CONFIRM },
-      required: ['confirm'],
+      properties: {
+        ...ROOT,
+        packages: { type: 'array', items: { type: 'string' } },
+        ...CONFIRM,
+        ...EXPECTED_PLAN_HASH('wally_update_plan'),
+      },
+      required: ['confirm', 'expectedPlanHash'],
     },
     outputSchema: OUTPUT,
     handler: (runtime, args) => asTools(runtime).wallyUpdateApply(
       args.root as string | undefined,
       args.packages as string[] | undefined,
       args.confirm as boolean | undefined,
+      args.expectedPlanHash as string | undefined,
     ),
   }),
 ];

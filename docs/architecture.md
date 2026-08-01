@@ -199,10 +199,14 @@ Dedicated `rokit_*` and `wally_*` tools parse `rokit.toml`, `aftman.toml`,
 `wally.toml`, and `wally.lock` with a real TOML reader and expose exact package
 names, versions, checksums, and dependency edges. Reads never modify a manifest;
 install, add, and update are preview/confirm pairs that declare their network,
-filesystem, and process effects. Wally installs default to `--locked` so a stale
+filesystem, and process effects, and every apply is pinned to the `planHash` its
+plan returned — that hash covers the operation, its arguments, and the content of
+the manifest and lockfile, so a concurrent edit invalidates the plan instead of
+being applied unseen. Wally installs default to `--locked` so a stale
 lockfile fails instead of being rewritten; `--locked` is absent from the released
-Wally 0.3.2, so support is probed and a locked install is refused rather than
-quietly downgraded. Missing binaries are reported as unavailable and formatting
+Wally 0.3.2, so support is probed and the same guarantee is provided by backing
+the lockfile up and restoring it if the install moved it, rather than either
+downgrading quietly or refusing to run. Missing binaries are reported as unavailable and formatting
 is preview-only. All file arguments resolve through the canonical project
 root, command time/output are bounded, and temporary validation files are always
 removed. CI runs both the focused transport fault matrix and a

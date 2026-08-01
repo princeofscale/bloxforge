@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveProjectRoot } from '../rojo/source-mapper.js';
@@ -43,6 +44,43 @@ export function loadManifest(root: string, fileName: string): ManifestFile | und
     mtimeMs: fs.statSync(file).mtimeMs,
     data: readTomlFile(file),
   };
+}
+
+/** Content hash of a file, or `undefined` when it does not exist. */
+export function fileHash(file: string | undefined): string | undefined {
+  if (!file) return undefined;
+  try {
+    return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A toolchain plan is immutable, exactly like a Rojo syncback plan.
+ *
+ * `wally_*_plan` and `rokit_*_plan` described a change against a manifest and
+ * lockfile that another process could rewrite before the matching `*_apply`
+ * ran, and apply took only `confirm`. Two agents on one repository could
+ * therefore review one plan and apply a different one. The hash covers the
+ * operation, its arguments and the current content of both files, so any edit
+ * in between invalidates it.
+ */
+export function planHashOf(operation: string, args: unknown, files: Array<string | undefined>): string {
+  return crypto.createHash('sha256')
+    .update(JSON.stringify({ operation, args, files: files.map((file) => fileHash(file) ?? 'absent') }))
+    .digest('hex');
+}
+
+/** Thrown as a plain failing QualityCheck by every toolchain apply. */
+export function planHashMismatch(expected: string | undefined, actual: string, planTool: string): string | undefined {
+  if (expected === undefined || expected.trim() === '') {
+    return `expectedPlanHash is required: run ${planTool} and pass the planHash it returns.`;
+  }
+  if (expected !== actual) {
+    return `The manifest or lockfile changed after ${planTool} ran (expected planHash ${expected}, current ${actual}). Re-run the plan and review it before applying.`;
+  }
+  return undefined;
 }
 
 export function asStringMap(value: unknown): Record<string, string> {

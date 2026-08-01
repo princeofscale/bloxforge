@@ -153,6 +153,29 @@ describe('Rokit toolchain resolution', () => {
     expect(status.reasons.join(' ')).toMatch(/manifest pins 7\.7\.0|did not report a version/);
   });
 
+  test('a spec that is unparsable or unpinned is never healthy', () => {
+    // manifestVersion and matchesManifest were both undefined for these, which
+    // matched no branch in summarize(), so an installed shim made the whole
+    // manifest read healthy — while rokit_install refuses the same specs
+    // unattended. verify --strict passed a toolchain it could not restore.
+    const shim = path.join(rokitRoot, 'bin', process.platform === 'win32' ? 'rojo.exe' : 'rojo');
+    fs.mkdirSync(path.dirname(shim), { recursive: true });
+    fs.writeFileSync(shim, '');
+
+    for (const [spec, reason] of [
+      ['rojo-rbx/rojo', /not pinned to an exact version/],
+      ['nonsense', /is not "owner\/repo"/],
+    ] as const) {
+      fs.writeFileSync(path.join(root, 'rokit.toml'), `[tools]\nrojo = "${spec}"\n`);
+      const status = new RokitTools().status(root);
+      expect(status.healthy).toBe(false);
+      // Installing cannot fix a manifest problem, so it must not be advertised.
+      expect(status.action).toBe('fix-manifest');
+      expect(status.installRequired).toBe(false);
+      expect(status.reasons.join(' ')).toMatch(reason);
+    }
+  });
+
   test('treats aftman.toml as legacy without migrating it', () => {
     fs.rmSync(path.join(root, 'rokit.toml'));
     fs.writeFileSync(path.join(root, 'aftman.toml'), '[tools]\nrojo = "rojo-rbx/rojo@7.7.0"\n');
@@ -242,17 +265,36 @@ dependencies = []
       confirmationRequired: true,
     });
 
+    // Without the flag the plan does not give up: the apply emulates it with a
+    // backup-and-restore, so a stable Wally 0.3.2 still gets a locked install.
     jest.spyOn(tools, 'supportsLocked').mockReturnValue(false);
-    expect(tools.installPlan(root)).toMatchObject({
+    const plan = tools.installPlan(root);
+    expect(plan).toMatchObject({
       command: 'wally install',
       lockedSupported: false,
-      warning: expect.stringContaining('does not support --locked'),
+      emulateLocked: true,
+      warning: expect.stringContaining('backs wally.lock up'),
     });
-    expect(tools.installApply(root, true, true).error).toMatch(/does not support/);
+    expect(plan.planHash).toMatch(/^[0-9a-f]{64}$/);
 
     expect(tools.installApply(root, false).error).toMatch(/Confirmation required/);
     expect(tools.updateApply(root, [], false).error).toMatch(/Confirmation required/);
     expect(() => tools.search(root, '--output')).toThrow(/option-shaped/);
+  });
+
+  test('an apply refuses a plan hash from a manifest that has since changed', () => {
+    const tools = new WallyTools();
+    jest.spyOn(tools, 'supportsLocked').mockReturnValue(true);
+    const { planHash } = tools.installPlan(root);
+
+    // Missing entirely: an agent that never ran the plan cannot apply.
+    expect(tools.installApply(root, true, true).error).toMatch(/expectedPlanHash is required/);
+
+    fs.appendFileSync(path.join(root, 'wally.toml'), '\nRoact2 = "roblox/roact@1.4.4"\n');
+    expect(tools.installApply(root, true, true, planHash).error)
+      .toMatch(/changed after wally_install_plan ran/);
+    expect(tools.updateApply(root, [], true, planHash).error)
+      .toMatch(/changed after wally_update_plan ran/);
   });
 
   test('flags installed package directories the Rojo project does not mount', () => {
@@ -269,6 +311,24 @@ dependencies = []
       unmapped: ['ServerPackages'],
       ok: false,
     });
+  });
+
+  test('resolves $path against the project file, not against wally.toml', () => {
+    // Rojo resolves $path relative to the directory holding the project file.
+    // They coincide in a flat project, which is why resolving from the wally.toml
+    // root read as correct; in a monorepo it produced a bogus verdict.
+    const nested = path.join(root, 'games', 'lobby');
+    fs.mkdirSync(nested, { recursive: true });
+    fs.mkdirSync(path.join(root, 'Packages'), { recursive: true });
+    fs.writeFileSync(path.join(nested, 'default.project.json'), JSON.stringify({
+      name: 'Lobby',
+      tree: { $className: 'DataModel', ReplicatedStorage: { Packages: { $path: '../../Packages' } } },
+    }));
+
+    const mapping = new WallyTools().verifyRojoMapping(root, path.join(nested, 'default.project.json'));
+    expect(mapping.mapped).toEqual(['Packages']);
+    expect(mapping.unmapped).toEqual([]);
+    expect(mapping.ok).toBe(true);
   });
 
   test('does not count ServerPackages as Packages by substring', () => {

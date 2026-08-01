@@ -115,15 +115,19 @@ const OWNERSHIP_SETTLE_MS = 400;
 function outlives(child: ChildProcessWithoutNullStreams, ms: number): Promise<boolean> {
   if (child.exitCode !== null) return Promise.resolve(false);
   return new Promise((resolve) => {
-    const onExit = () => {
+    // `error` too, not only `exit`: a failed spawn emits `error` and never
+    // `exit`, so waiting on `exit` alone timed out and returned "it survived"
+    // for a child that never ran.
+    const settle = (survived: boolean) => {
       clearTimeout(timer);
-      resolve(false);
+      child.off('exit', onFailure);
+      child.off('error', onFailure);
+      resolve(survived);
     };
-    const timer = setTimeout(() => {
-      child.off('exit', onExit);
-      resolve(true);
-    }, ms);
-    child.once('exit', onExit);
+    const onFailure = () => settle(false);
+    const timer = setTimeout(() => settle(true), ms);
+    child.once('exit', onFailure);
+    child.once('error', onFailure);
   });
 }
 
@@ -251,8 +255,13 @@ export class RojoProcessManager {
     while (managed.status.status === 'starting') {
       const info = await readServerInfo(host, port);
       // A response only proves *a* Rojo answers. It is ours if the child then
-      // outlives the settle window rather than dying of EADDRINUSE.
-      if (info && await outlives(child, OWNERSHIP_SETTLE_MS)) {
+      // outlives the settle window rather than dying of EADDRINUSE. The state is
+      // re-read after the await: the `error` handler can have marked the child
+      // exited while we waited, and readiness must not overwrite that.
+      if (info
+        && await outlives(child, OWNERSHIP_SETTLE_MS)
+        && managed.status.status === 'starting'
+        && child.exitCode === null) {
         managed.status.status = 'running';
         managed.status.sessionId = info.sessionId;
         managed.status.projectName = info.projectName;
