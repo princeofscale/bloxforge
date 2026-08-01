@@ -8,6 +8,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- An immutable plan for every toolchain mutation. `wally_install_plan`,
+  `wally_update_plan`, `rokit_add_tool_plan` and `rokit_update_plan` now return
+  `manifestHash`, `lockHash` and `planHash`, and the matching applies require
+  `expectedPlanHash`. The pairs previously described a change against a manifest
+  and lockfile another process could rewrite before the apply ran, and apply
+  took only `confirm` — so two agents on one repository could review one plan
+  and apply a different one. `locked: false` stays unpinned; it is the explicit
+  "resolve me a new lockfile" path.
+- A locked Wally install on a Wally that has no `--locked`. The flag is missing
+  from the released 0.3.2, and refusing outright stopped every unattended flow
+  on the Wally most people have. `wally_install_apply` now backs `wally.lock`
+  up, runs the install, and restores the backup and fails if the lockfile moved,
+  which is the guarantee the flag provides. Only the lockfile is rolled back.
+- `report --project <dir>`, so the diagnostic report a user pastes into a bug
+  carries the same Rojo/Rokit/Wally state `verify --project` already reported.
+
+### Changed
+- `rokit_status` no longer calls an unpinned or unparsable manifest healthy.
+  `rojo = "rojo-rbx/rojo"` and `rojo = "nonsense"` both left `manifestVersion`
+  and `matchesManifest` undefined, which matched no branch in the summary, so an
+  installed shim made the whole manifest report `healthy: true, action: 'none'`
+  — while `rokit_install` refuses those same specs unattended. Each tool now
+  carries `validSpec` and `exactPin`, and a manifest problem reports
+  `fix-manifest` with `installRequired: false`, because installing cannot fix it.
+- `wally_verify_rojo_mapping` resolves `$path` against the directory holding the
+  project file, as Rojo does, instead of the directory holding `wally.toml`.
+  They coincide in a flat project; in a monorepo where
+  `games/lobby/default.project.json` mounts `../../Packages`, the old base
+  produced a bogus mapped/unmapped verdict.
+- The `rojo serve` settle window watches `error` as well as `exit`. A failed
+  spawn emits `error` and never `exit`, so waiting on `exit` alone timed out and
+  reported "the child survived" for a process that never ran — and a foreign
+  Rojo answering on the port would then have been adopted. Readiness also
+  re-checks the process state after the wait rather than overwriting it.
+- One CLI flag parser, and it treats a flag-shaped value as a missing value.
+  `--port --strict` set the port to `"--strict"`, and `--session-token --debug`
+  stored `"--debug"` as a credential. A second copy of the same helper inside
+  the server path had the same bug for `--open-cloud-key`, `--creator-id`,
+  `--creator-group-id`, `--pollinations-key` and `--profile`. `--port` must now
+  be an integer in 1..65535 and `--profile` one of the five known profiles;
+  anything else is reported and ignored rather than passed through.
+- Quality tools spawn one process per call instead of two. `run()` probed the
+  binary with `--version` and then ran the real command, which doubled the
+  process count for every call and left a window for the tool to disappear in
+  between. `ENOENT` from the real invocation is the same answer.
+- `scripts/publish.mjs` distinguishes "not published" from "the registry did not
+  answer". Every `npm view` failure — a timeout, a 429, an auth error, an outage
+  — used to read as absent, so a rerun during an outage tried to republish an
+  immutable version. Only a real 404 counts as absent now; a transient failure
+  is retried and then aborts rather than publishing blind.
+- Split the release workflow's publish job from asset upload. The publish job
+  runs three `npm ci` runs, a build and a publish — a large amount of
+  third-party code — and now does so with `contents: read` and without
+  persisted credentials. A separate job with `contents: write` downloads the
+  built plugins as an artifact and runs only `gh release upload`.
+
+### Added (toolchain resolver)
 - One shared project-aware toolchain resolver for every tool a
   `rokit.toml`/`aftman.toml` pins — Rojo, Wally, Selene, StyLua, Lune,
   luau-lsp — instead of a resolver private to Rojo. Selene and StyLua were

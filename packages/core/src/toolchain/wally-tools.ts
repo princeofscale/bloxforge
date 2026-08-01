@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { selectRojoProject } from '../rojo/project-discovery.js';
 import { resolveProjectRoot } from '../rojo/source-mapper.js';
 import { hasCommand, run, type QualityCheck } from '../quality-tools.js';
-import { asStringMap, loadManifest } from './manifest.js';
+import { asStringMap, fileHash, loadManifest, planHashMismatch, planHashOf } from './manifest.js';
 import type { TomlTable, TomlValue } from './toml.js';
 
 const DEPENDENCY_SECTIONS = ['dependencies', 'server-dependencies', 'dev-dependencies'] as const;
@@ -102,9 +102,12 @@ function satisfiesRequirement(locked: string, requirement: string): boolean | un
   const [, operator, version] = match;
   // Cargo excludes prereleases from a plain requirement: 1.0.0-alpha does not
   // satisfy ^1.0.0. Stripping the suffix and comparing numbers said it did, so
-  // say "cannot verify" instead of guessing at Cargo's prerelease rules.
-  if (/[-+]/.test(locked)) return undefined;
-  const lockedParts = locked.split('.').slice(0, 3).map(Number);
+  // say "cannot verify" instead of guessing at Cargo's prerelease rules. Build
+  // metadata is different — `1.2.3+build.5` *is* 1.2.3 for compatibility, so
+  // only the `-` prerelease suffix is unverifiable.
+  const core = locked.split('+')[0] ?? locked;
+  if (core.includes('-')) return undefined;
+  const lockedParts = core.split('.').slice(0, 3).map(Number);
   const wantedParts = version.split('.').map(Number);
   if (lockedParts.some(Number.isNaN) || wantedParts.some(Number.isNaN)) return undefined;
   const [lockedMajor = 0, lockedMinor = 0, lockedPatch = 0] = lockedParts;
@@ -315,12 +318,18 @@ export class WallyTools {
   verifyRojoMapping(root?: string, projectFile?: string) {
     const { manifest } = this.load(root);
     const project = selectRojoProject(manifest.directory, projectFile);
+    // Rojo resolves `$path` relative to the directory holding the project file,
+    // not the directory holding wally.toml. They are the same in a flat project,
+    // which is why this read as correct; in a monorepo where
+    // games/lobby/default.project.json mounts "../../Packages", resolving from
+    // the wally.toml root produced a bogus mapped/unmapped verdict.
+    const projectDirectory = path.dirname(project.projectFile);
     // Compare resolved $path values, not a substring of the stringified tree:
     // "Packages" is a substring of "ServerPackages", so a project mounting only
     // ServerPackages reported both as mapped.
     const mountedPaths = new Set(
       collectProjectPaths(project.tree).map((value) =>
-        casePath(path.resolve(manifest.directory, value))),
+        casePath(path.resolve(projectDirectory, value))),
     );
     const present = PACKAGE_DIRECTORIES.filter((name) => fs.existsSync(path.join(manifest.directory, name)));
     const mapped = present.filter((name) =>
@@ -355,78 +364,154 @@ export class WallyTools {
     return help.available && (help.output ?? '').includes('--locked');
   }
 
-  installPlan(root?: string) {
+  /** The two files every toolchain plan is pinned to. */
+  private state(root?: string) {
     const { manifest, lock } = this.load(root);
+    return {
+      manifest,
+      lock,
+      manifestHash: fileHash(manifest.path),
+      lockHash: fileHash(lock?.path),
+      files: [manifest.path, lock?.path],
+    };
+  }
+
+  installPlan(root?: string) {
+    const { manifest, lock, manifestHash, lockHash, files } = this.state(root);
     const lockedSupported = this.supportsLocked(root);
     const useLocked = lockedSupported && lock !== undefined;
+    // Without the flag the lockfile is still protected: the apply backs it up
+    // and restores it if the install moved it, so a stable Wally no longer
+    // forces the caller to choose between stopping and risking a rewrite.
+    const emulateLocked = !lockedSupported && lock !== undefined;
     return {
       root: manifest.directory,
       command: `wally install${useLocked ? ' --locked' : ''}`,
       lockPresent: lock !== undefined,
       lockedSupported,
+      emulateLocked,
+      manifestHash,
+      lockHash,
+      planHash: planHashOf('wally_install', { locked: true }, files),
       validation: this.validateLock(root),
       confirmationRequired: true,
       warning: useLocked
         ? 'Runs with --locked: the install fails rather than silently rewriting wally.lock.'
-        : lockedSupported
-          ? 'No wally.lock exists, so --locked cannot be used. The install will resolve versions and create one.'
-          : 'The installed Wally does not support --locked (it is missing from 0.3.2). This install can rewrite wally.lock; review the diff afterwards or install a Wally build that supports --locked.',
+        : emulateLocked
+          ? 'The installed Wally has no --locked (it is missing from 0.3.2), so the apply backs wally.lock up, runs the install, and restores the backup and fails if the lockfile moved. Same guarantee, without the flag.'
+          : 'No wally.lock exists, so nothing can be locked. The install will resolve versions and create one.',
     };
   }
 
-  /** `--locked` is the default so an install can never silently move the lock. */
-  installApply(root?: string, confirm = false, locked = true): QualityCheck & { root?: string; locked?: boolean } {
-    const { manifest, lock } = this.load(root);
+  /**
+   * `--locked` is the default so an install can never silently move the lock.
+   *
+   * Wally 0.3.2 has no such flag, and refusing outright stopped every unattended
+   * flow on the only Wally most people have installed. The guarantee `--locked`
+   * provides is "this install did not change wally.lock", which a backup and a
+   * content comparison provide just as well: back the lockfile up, run the
+   * install, and if the lockfile moved, restore it and fail. The install is not
+   * rolled back beyond the lockfile — `Packages/` may hold freshly downloaded
+   * content — but the resolution the caller reviewed is what stays on disk.
+   */
+  installApply(
+    root?: string,
+    confirm = false,
+    locked = true,
+    expectedPlanHash?: string,
+  ): QualityCheck & { root?: string; locked?: boolean; lockRestored?: boolean; planHash?: string } {
+    const { manifest, lock, files } = this.state(root);
+    const planHash = planHashOf('wally_install', { locked: true }, files);
     if (!confirm) {
       return {
         tool: 'wally',
-        available: hasCommand('wally'),
+        available: hasCommand('wally', manifest.directory),
         ok: false,
         error: 'Confirmation required: review wally_install_plan, then pass confirm=true. Installing downloads packages from the registry and writes into the project.',
+        planHash,
       };
     }
-    if (locked && lock !== undefined && !this.supportsLocked(root)) {
-      return {
-        tool: 'wally',
-        available: hasCommand('wally'),
-        ok: false,
-        error: 'The installed Wally does not support "wally install --locked" (it is missing from the 0.3.2 release). Refusing to run an unlocked install that could rewrite wally.lock; pass locked=false to accept that, or install a Wally build that supports --locked.',
-        locked: true,
-      };
+    // Only a locked install is pinned to a plan. `locked: false` is the explicit
+    // "resolve me a new lockfile" path, and there is no prior resolution to
+    // protect.
+    if (locked) {
+      const mismatch = planHashMismatch(expectedPlanHash, planHash, 'wally_install_plan');
+      if (mismatch) {
+        return { tool: 'wally', available: hasCommand('wally', manifest.directory), ok: false, error: mismatch, planHash };
+      }
     }
-    const useLocked = locked && lock !== undefined;
-    const result = run('wally', useLocked ? ['install', '--locked'] : ['install'], { cwd: manifest.directory });
-    return { ...result, root: manifest.directory, locked: useLocked };
+
+    const useFlag = locked && lock !== undefined && this.supportsLocked(root);
+    const emulate = locked && lock !== undefined && !useFlag;
+    const backup = emulate ? fs.readFileSync(lock!.path) : undefined;
+    const result = run('wally', useFlag ? ['install', '--locked'] : ['install'], { cwd: manifest.directory });
+
+    if (emulate) {
+      // Byte comparison, not a hash: it is exact, and a lockfile the install
+      // deleted outright reads as changed rather than throwing.
+      let after: Buffer | undefined;
+      try {
+        after = fs.readFileSync(lock!.path);
+      } catch { /* deleted by the install; treated as changed below */ }
+      if (after === undefined || !after.equals(backup!)) {
+        fs.writeFileSync(lock!.path, backup!);
+        return {
+          ...result,
+          ok: false,
+          error: 'The install rewrote wally.lock. This Wally has no --locked, so the lockfile was restored from a backup and the install is reported as failed. Re-run wally_install_plan to see the new resolution, or pass locked=false to accept it.',
+          root: manifest.directory,
+          locked: true,
+          lockRestored: true,
+          planHash,
+        };
+      }
+    }
+    return { ...result, root: manifest.directory, locked: locked && lock !== undefined, lockRestored: false, planHash };
   }
 
   updatePlan(root?: string, packages: string[] = []) {
-    const { manifest } = this.load(root);
+    const { manifest, manifestHash, lockHash, files } = this.state(root);
     const checked = packages.map((entry) => requireSafeArgument(entry, 'package'));
     return {
       root: manifest.directory,
       command: `wally update${checked.length ? ` ${checked.join(' ')}` : ''}`,
       packages: checked,
+      manifestHash,
+      lockHash,
+      planHash: planHashOf('wally_update', { packages: checked }, files),
       before: this.dependencyGraph(root),
       confirmationRequired: true,
       warning: 'Updating rewrites wally.lock and can change every transitive version.',
     };
   }
 
-  updateApply(root: string | undefined, packages: string[] = [], confirm = false): QualityCheck & { packages: string[] } {
-    const { manifest } = this.load(root);
+  updateApply(
+    root: string | undefined,
+    packages: string[] = [],
+    confirm = false,
+    expectedPlanHash?: string,
+  ): QualityCheck & { packages: string[]; planHash?: string } {
+    const { manifest, files } = this.state(root);
     const checked = packages.map((entry) => requireSafeArgument(entry, 'package'));
+    const planHash = planHashOf('wally_update', { packages: checked }, files);
     if (!confirm) {
       return {
         tool: 'wally',
-        available: hasCommand('wally'),
+        available: hasCommand('wally', manifest.directory),
         ok: false,
         error: 'Confirmation required: review wally_update_plan, then pass confirm=true. Updating rewrites wally.lock.',
         packages: checked,
+        planHash,
       };
+    }
+    const mismatch = planHashMismatch(expectedPlanHash, planHash, 'wally_update_plan');
+    if (mismatch) {
+      return { tool: 'wally', available: hasCommand('wally', manifest.directory), ok: false, error: mismatch, packages: checked, planHash };
     }
     return {
       ...run('wally', ['update', ...checked], { cwd: manifest.directory }),
       packages: checked,
+      planHash,
     };
   }
 }

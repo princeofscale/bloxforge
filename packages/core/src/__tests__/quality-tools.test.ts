@@ -101,11 +101,11 @@ describe('QualityTools', () => {
     ['ETIMEDOUT', /timed out/i],
     ['ENOBUFS', /output limit/i],
   ])('returns a structured %s execution error', (code, message) => {
-    exec
-      .mockReturnValueOnce('1.0.0' as never)
-      .mockImplementationOnce(() => {
-        throw Object.assign(new Error(code), { code, stdout: 'partial output' });
-      });
+    // One spawn per quality call: the `--version` probe that used to run first
+    // is gone, so the real invocation is the first mocked call now.
+    exec.mockImplementationOnce(() => {
+      throw Object.assign(new Error(code), { code, stdout: 'partial output' });
+    });
     const result = new QualityTools().formatScriptPreview('return true');
     expect(result).toMatchObject({
       tool: 'stylua',
@@ -116,7 +116,10 @@ describe('QualityTools', () => {
     });
   });
 
-  test('reports a missing binary without attempting execution', () => {
+  test('reports a missing binary as unavailable, from the run itself', () => {
+    // ENOENT from the real invocation is the same answer the separate probe
+    // gave, one process cheaper and with no window for the tool to disappear
+    // between "is it there" and "run it".
     exec.mockImplementation(() => {
       throw Object.assign(new Error('missing'), { code: 'ENOENT' });
     });
@@ -126,6 +129,7 @@ describe('QualityTools', () => {
       ok: false,
       error: 'stylua is not installed',
     });
+    expect(exec).toHaveBeenCalledTimes(1);
   });
 
   test('cleans validation temporary directories when a validator throws unexpectedly', () => {

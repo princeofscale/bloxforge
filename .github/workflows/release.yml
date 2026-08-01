@@ -38,16 +38,20 @@ jobs:
           npm test
           npm run metadata:check
 
+  # No `contents: write` here. Three `npm ci` runs, a full build and a publish
+  # execute a large amount of third-party code, and none of it needs to write to
+  # the repository — the short upload job below is the only step that does.
   publish:
     needs: gate
     runs-on: ubuntu-latest
     permissions:
-      contents: write # upload plugin assets to the published release
+      contents: read
       id-token: write # enables npm provenance
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
 
       - name: Set up Node 20
         uses: actions/setup-node@v7
@@ -84,15 +88,38 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
 
-      # Idempotent: publish.mjs skips a version already on the registry and
-      # verifies each one afterwards, so a rerun after a partial failure
-      # finishes the remaining package instead of dying on the published one.
+      # Idempotent: publish.mjs skips a version already on the registry, refuses
+      # to publish blind when the registry will not say, and verifies each one
+      # afterwards, so a rerun after a partial failure finishes the remaining
+      # package instead of dying on the published one.
+      - name: Stage plugin assets for the upload job
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-plugins
+          path: |
+            studio-plugin/MCPPlugin.rbxmx
+            studio-plugin/MCPInspectorPlugin.rbxmx
+          if-no-files-found: error
+          retention-days: 1
+
+  # The only job with write access, and it runs no project code: it downloads the
+  # artifact the publish job produced and calls `gh release upload`.
+  upload-release-assets:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: studio-plugins
+          path: plugins
       - name: Attach plugin assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           gh release upload "$RELEASE_TAG" \
-            studio-plugin/MCPPlugin.rbxmx \
-            studio-plugin/MCPInspectorPlugin.rbxmx \
+            plugins/MCPPlugin.rbxmx \
+            plugins/MCPInspectorPlugin.rbxmx \
             --clobber

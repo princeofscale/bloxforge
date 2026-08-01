@@ -351,6 +351,10 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<number> {
 
 export async function generateDiagnosticReport(options: DoctorOptions = {}): Promise<string> {
   const checks = await collectDoctorChecks(options);
+  // `verify --project` already reported the Rojo/Rokit/Wally state; the report a
+  // user actually pastes into a bug did not, so every toolchain question had to
+  // be asked again by hand.
+  if (options.project) checks.push(...await collectProjectChecks(options.project));
   const home = os.homedir();
   const sanitize = (text: string) => {
     const escapedHome = home.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { clearRojoCommandCache } from '../rojo/command-runner.js';
 import { resolveProjectRoot } from '../rojo/source-mapper.js';
 import { hasCommand, run, type QualityCheck } from '../quality-tools.js';
-import { asStringMap, loadManifest, type ManifestFile } from './manifest.js';
+import { asStringMap, fileHash, loadManifest, planHashMismatch, planHashOf, type ManifestFile } from './manifest.js';
 
 type ToolchainKind = 'rokit' | 'aftman';
 
@@ -93,10 +93,16 @@ export interface ToolStatus {
   shim?: string;
   shimInstalled: boolean;
   unsafeToolName: boolean;
+  /** The spec parses as `owner/repo` or `owner/repo@version`. */
+  validSpec: boolean;
+  /** The spec pins an exact `x.y.z` — the only shape an unattended install accepts. */
+  exactPin: boolean;
   runningVersion?: string;
   probeOutput?: string;
   matchesManifest?: boolean;
 }
+
+const EXACT_VERSION = /^\d+\.\d+\.\d+$/;
 
 /**
  * `installRequired` used to mean only "a shim file is missing", so a shim of the
@@ -104,23 +110,34 @@ export interface ToolStatus {
  * `installRequired: false` — contradictory for anything deciding automatically.
  * It now covers every state an install would fix, and `healthy`/`reasons` say
  * which, so a caller never has to combine three fields itself.
+ *
+ * A manifest problem is not an install problem. `rojo = "rojo-rbx/rojo"` and
+ * `rojo = "nonsense"` both left `manifestVersion` and `matchesManifest`
+ * undefined, which matched no branch here, so an installed shim made the whole
+ * manifest report `healthy: true, action: 'none'` — while `install()` refuses
+ * `allowPinnedToolDownloads` for exactly those specs. `verify --strict` passed a
+ * toolchain that cannot be restored unattended.
  */
 function summarize(tools: ToolStatus[]) {
   const reasons: string[] = [];
   for (const tool of tools) {
     if (tool.unsafeToolName) reasons.push(`${tool.name}: unsafe tool name in the manifest`);
-    else if (!tool.shimInstalled) reasons.push(`${tool.name}: no installed shim`);
+    else if (!tool.validSpec) reasons.push(`${tool.name}: spec ${JSON.stringify(tool.spec)} is not "owner/repo" or "owner/repo@version"`);
+    else if (!tool.exactPin) {
+      reasons.push(`${tool.name}: spec ${JSON.stringify(tool.spec)} is not pinned to an exact version, so an unattended install is refused`);
+    } else if (!tool.shimInstalled) reasons.push(`${tool.name}: no installed shim`);
     else if (tool.runningVersion === undefined) reasons.push(`${tool.name}: shim did not report a version`);
     else if (tool.matchesManifest === false) {
       reasons.push(`${tool.name}: running ${tool.runningVersion}, manifest pins ${tool.manifestVersion}`);
     }
   }
-  const blocked = tools.some((tool) => tool.unsafeToolName);
+  // Installing cannot fix any of these; only editing the manifest can.
+  const manifestProblem = tools.some((tool) => tool.unsafeToolName || !tool.validSpec || !tool.exactPin);
   return {
     tools,
-    installRequired: reasons.length > 0 && !blocked,
+    installRequired: reasons.length > 0 && !manifestProblem,
     healthy: reasons.length === 0,
-    action: reasons.length === 0 ? 'none' : blocked ? 'fix-manifest' : 'install',
+    action: reasons.length === 0 ? 'none' : manifestProblem ? 'fix-manifest' : 'install',
     reasons,
   };
 }
@@ -194,7 +211,8 @@ export class RokitTools {
         TOOLCHAINS.find((entry) => entry.kind === kind)!.home,
       ),
       ...summarize(Object.entries(tools).map(([name, spec]) => {
-        const manifestVersion = TOOL_SPEC.exec(spec)?.groups?.version;
+        const parsed = TOOL_SPEC.exec(spec)?.groups;
+        const manifestVersion = parsed?.version;
         // The name comes from project data, so it is validated before it is ever
         // turned into a path — and only the resolved shim path is executed.
         const safeName = /^[\w.-]+$/.test(name) ? name : undefined;
@@ -208,6 +226,8 @@ export class RokitTools {
           shim,
           shimInstalled,
           unsafeToolName: safeName === undefined,
+          validSpec: parsed !== undefined,
+          exactPin: EXACT_VERSION.test(manifestVersion ?? ''),
           runningVersion: probe?.version,
           probeOutput: probe?.output,
           matchesManifest: manifestVersion !== undefined && probe?.version !== undefined
@@ -277,9 +297,16 @@ export class RokitTools {
    * Never edits the manifest directly: versions are resolved and written by
    * `rokit add`, so a hand-written pin cannot drift from the lock Rokit keeps.
    */
-  addTool(root: string | undefined, spec: string, confirm = false): QualityCheck & { spec: string } {
+  addTool(
+    root: string | undefined,
+    spec: string,
+    confirm = false,
+    expectedPlanHash?: string,
+  ): QualityCheck & { spec: string; manifestHash?: string; planHash?: string } {
     const { detection, kind } = this.require(root);
     const checked = requireSafeSpec(spec);
+    const manifestHash = fileHash(detection.manifestPath);
+    const planHash = planHashOf('rokit_add_tool', { spec: checked }, [detection.manifestPath]);
     if (!confirm) {
       return {
         tool: kind,
@@ -287,16 +314,29 @@ export class RokitTools {
         ok: false,
         error: `Confirmation required: pass confirm=true to run "${kind} add ${checked}" in ${detection.root}. It edits ${detection.manifestPath} and downloads the tool.`,
         spec: checked,
+        manifestHash,
+        planHash,
       };
+    }
+    const mismatch = planHashMismatch(expectedPlanHash, planHash, 'rokit_add_tool_plan');
+    if (mismatch) {
+      return { tool: kind, available: hasCommand(kind, detection.root), ok: false, error: mismatch, spec: checked, manifestHash, planHash };
     }
     const result = run(kind, ['add', checked], { cwd: detection.root });
     clearRojoCommandCache();
-    return { ...result, spec: checked };
+    return { ...result, spec: checked, manifestHash, planHash };
   }
 
-  update(root: string | undefined, tool?: string, confirm = false): QualityCheck & { tool_name?: string } {
+  update(
+    root: string | undefined,
+    tool?: string,
+    confirm = false,
+    expectedPlanHash?: string,
+  ): QualityCheck & { tool_name?: string; manifestHash?: string; planHash?: string } {
     const { detection, kind } = this.require(root);
     const checked = tool === undefined ? undefined : requireSafeTool(tool);
+    const manifestHash = fileHash(detection.manifestPath);
+    const planHash = planHashOf('rokit_update', { tool: checked ?? null }, [detection.manifestPath]);
     if (!confirm) {
       return {
         tool: kind,
@@ -304,10 +344,16 @@ export class RokitTools {
         ok: false,
         error: `Confirmation required: pass confirm=true to run "${kind} update${checked ? ` ${checked}` : ''}" in ${detection.root}. It edits ${detection.manifestPath} and downloads new versions.`,
         tool_name: checked,
+        manifestHash,
+        planHash,
       };
+    }
+    const mismatch = planHashMismatch(expectedPlanHash, planHash, 'rokit_update_plan');
+    if (mismatch) {
+      return { tool: kind, available: hasCommand(kind, detection.root), ok: false, error: mismatch, tool_name: checked, manifestHash, planHash };
     }
     const result = run(kind, checked ? ['update', checked] : ['update'], { cwd: detection.root });
     clearRojoCommandCache();
-    return { ...result, tool_name: checked };
+    return { ...result, tool_name: checked, manifestHash, planHash };
   }
 }

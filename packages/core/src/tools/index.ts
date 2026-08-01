@@ -486,8 +486,8 @@ export class RobloxStudioTools {
   async rokitListTools(root?: string) { return this.rokitTools.listTools(root); }
   async rokitStatus(root?: string) { return this.rokitTools.status(root); }
   async rokitInstall(root?: string, confirm?: boolean, allowPinnedToolDownloads?: boolean) { return this.rokitTools.install(root, confirm, allowPinnedToolDownloads); }
-  async rokitAddTool(root: string | undefined, spec: string, confirm?: boolean) { return this.rokitTools.addTool(root, spec, confirm); }
-  async rokitUpdate(root: string | undefined, tool?: string, confirm?: boolean) { return this.rokitTools.update(root, tool, confirm); }
+  async rokitAddTool(root: string | undefined, spec: string, confirm?: boolean, expectedPlanHash?: string) { return this.rokitTools.addTool(root, spec, confirm, expectedPlanHash); }
+  async rokitUpdate(root: string | undefined, tool?: string, confirm?: boolean, expectedPlanHash?: string) { return this.rokitTools.update(root, tool, confirm, expectedPlanHash); }
 
   async wallyGetManifest(root?: string) { return this.wallyTools.getManifest(root); }
   async wallyGetLock(root?: string) { return this.wallyTools.getLock(root); }
@@ -496,9 +496,9 @@ export class RobloxStudioTools {
   async wallyVerifyRojoMapping(root?: string, projectFile?: string) { return this.wallyTools.verifyRojoMapping(root, projectFile); }
   async wallySearch(root: string | undefined, query: string) { return this.wallyTools.search(root, query); }
   async wallyInstallPlan(root?: string) { return this.wallyTools.installPlan(root); }
-  async wallyInstallApply(root?: string, confirm?: boolean, locked?: boolean) { return this.wallyTools.installApply(root, confirm, locked); }
+  async wallyInstallApply(root?: string, confirm?: boolean, locked?: boolean, expectedPlanHash?: string) { return this.wallyTools.installApply(root, confirm, locked, expectedPlanHash); }
   async wallyUpdatePlan(root?: string, packages?: string[]) { return this.wallyTools.updatePlan(root, packages); }
-  async wallyUpdateApply(root: string | undefined, packages?: string[], confirm?: boolean) { return this.wallyTools.updateApply(root, packages, confirm); }
+  async wallyUpdateApply(root: string | undefined, packages?: string[], confirm?: boolean, expectedPlanHash?: string) { return this.wallyTools.updateApply(root, packages, confirm, expectedPlanHash); }
 
   async getRobloxDocs(name: string, docType?: string, section?: string) {
     if (!name || typeof name !== 'string') {

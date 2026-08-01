@@ -167,6 +167,21 @@ describe('Rojo command and process management', () => {
     expect(manager.status(projectFile)).toBeUndefined();
   });
 
+  test('a child that fails to spawn is not adopted as ready', async () => {
+    // A failed spawn emits `error` and never `exit`, so waiting on `exit` alone
+    // timed out and reported "it survived" for a process that never ran.
+    const missing = new RojoCommandRunner({
+      executable: path.join(root, 'no-such-rojo'),
+      prefixArgs: [],
+      source: 'test',
+    });
+    const broken = new RojoProcessManager(missing);
+    jest.spyOn(missing, 'version').mockResolvedValue({ available: true, ok: true, version: '7.7.0' } as never);
+    await expect(broken.start(projectFile, { port: 34877, readinessTimeoutMs: 1500 }))
+      .rejects.toThrow(/exited before becoming ready|did not become ready/);
+    expect(broken.status(projectFile)).toBeUndefined();
+  });
+
   test('rejects occupied ports before spawning', async () => {
     const server = net.createServer();
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

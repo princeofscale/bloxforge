@@ -13,12 +13,38 @@ const run = (cmd) => {
   execSync(cmd, { stdio: 'inherit', cwd: rootDir });
 };
 
-const capture = (cmd) => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * `npm view` failures are not all the same failure.
+ *
+ * Swallowing every error into `undefined` meant a network timeout, a 429, an
+ * auth error and a registry outage all read as "this version is not published",
+ * so a rerun during an outage tried to publish an immutable version again and
+ * died. Only a real 404 means absent.
+ */
+const viewVersion = (name, wanted) => {
   try {
-    return execSync(cmd, { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-  } catch {
-    return undefined;
+    const out = execSync(`npm view ${name}@${wanted} version`, {
+      cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim();
+    return { state: out === wanted ? 'present' : 'absent', version: out };
+  } catch (error) {
+    const text = `${error.stderr ?? ''}${error.stdout ?? ''}`;
+    if (/E404|404 Not Found|is not in this registry/i.test(text)) return { state: 'absent' };
+    return { state: 'unknown', detail: text.trim().split('\n').slice(-3).join(' ') };
   }
+};
+
+/** Retries the transient states; `present`/`absent` are answers, not attempts. */
+const viewVersionWithRetry = async (name, wanted, attempts = 4) => {
+  let last = { state: 'unknown' };
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) await sleep(2000 * attempt);
+    last = viewVersion(name, wanted);
+    if (last.state !== 'unknown') return last;
+  }
+  return last;
 };
 
 /**
@@ -27,28 +53,30 @@ const capture = (cmd) => {
  * Publishing is therefore per package and skipped when the registry already has
  * that exact version.
  */
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const publishIfMissing = async (workspace, name) => {
-  const published = capture(`npm view ${name}@${version} version`);
-  if (published === version) {
-    console.log(`
-${name}@${version} is already on the registry; skipping.`);
+  const before = await viewVersionWithRetry(name, version);
+  if (before.state === 'unknown') {
+    throw new Error(
+      `Cannot tell whether ${name}@${version} is already published; the registry did not answer. `
+      + `Refusing to publish blind, because npm versions are immutable. Last error: ${before.detail}`,
+    );
+  }
+  if (before.state === 'present') {
+    console.log(`\n${name}@${version} is already on the registry; skipping.`);
     return 'skipped';
   }
-  console.log(`
-Publishing ${name}@${version} with dist-tag ${npmTag}...`);
+  console.log(`\nPublishing ${name}@${version} with dist-tag ${npmTag}...`);
   run(`npm publish -w ${workspace} --tag ${npmTag}`);
   // Confirm rather than trust the exit code: a partial upload must not read as
   // success on the next rerun either. Retry first — a new version can take a
   // few seconds to become visible to `npm view` (registry replication, and
   // publish-time scanning), and failing a release that actually succeeded is
   // the more expensive mistake.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    if (attempt > 0) await sleep(2000 * attempt);
-    if (capture(`npm view ${name}@${version} version`) === version) return 'published';
+  const after = await viewVersionWithRetry(name, version, 5);
+  if (after.state !== 'present') {
+    throw new Error(`${name}@${version} did not appear on the registry after publishing (${after.state}${after.detail ? `: ${after.detail}` : ''})`);
   }
-  throw new Error(`${name}@${version} did not appear on the registry after publishing`);
+  return 'published';
 };
 
 // Read version from root package.json
