@@ -232,7 +232,15 @@ jobs:
           unzip -q "${RUNNER_TEMP}/rokit.zip" -d "${RUNNER_TEMP}/rokit"
           chmod +x "${RUNNER_TEMP}/rokit/rokit" 2>/dev/null || true
           "${RUNNER_TEMP}/rokit/rokit" self-install
-          echo "${HOME}/.rokit/bin" >> "$GITHUB_PATH"
+          # GITHUB_PATH is read by the runner, not by bash. On Windows $HOME is a
+          # Git Bash path (/c/Users/...), which bash resolves and CreateProcess
+          # does not — so the later Node steps, which run under pwsh, could not
+          # find the shim even though the bash step just used it.
+          rokit_bin="${HOME}/.rokit/bin"
+          if command -v cygpath > /dev/null 2>&1; then
+            rokit_bin="$(cygpath -w "${rokit_bin}")"
+          fi
+          echo "${rokit_bin}" >> "$GITHUB_PATH"
       - name: Authenticate Rokit with the workflow token
         run: rokit authenticate github --token "${GITHUB_TOKEN}"
         shell: bash
