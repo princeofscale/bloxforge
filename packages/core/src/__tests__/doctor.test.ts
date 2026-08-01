@@ -1,5 +1,5 @@
 import * as os from 'os';
-import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, generateDiagnosticReport, DoctorCheck } from '../doctor.js';
+import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, generateDiagnosticReport, nextAction, DoctorCheck } from '../doctor.js';
 
 describe('checkNodeVersion', () => {
   it('passes for Node 20 and above', () => {
@@ -103,6 +103,26 @@ describe('collectDoctorChecks', () => {
 
     await collectDoctorChecks({ fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('nextAction', () => {
+  it('takes the name and the fix from the same check', () => {
+    // Four independent find() calls paired the failure's name with a later
+    // warning's fix whenever the failure carried no `actionable`, and the
+    // project checks produce exactly those. Automation ran the wrong step.
+    expect(nextAction([
+      { name: 'Rojo project', status: 'fail', detail: 'discovery threw' },
+      { name: 'Studio plugin installed', status: 'warn', detail: 'not found',
+        actionable: { fix: 'Run --install-plugin' } },
+    ])).toEqual({ check: 'Rojo project', fix: undefined });
+  });
+
+  it('falls back to the first warning when nothing failed', () => {
+    expect(nextAction([
+      { name: 'Node version', status: 'ok', detail: 'v20.0.0' },
+      { name: 'Toolchain pins', status: 'warn', detail: 'stale', actionable: { fix: 'rokit_install' } },
+    ])).toEqual({ check: 'Toolchain pins', fix: 'rokit_install' });
   });
 });
 

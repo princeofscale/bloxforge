@@ -397,8 +397,11 @@ export class RobloxStudioTools {
         ...this.rojoTools.resolveInstanceSource(root, undefined, instancePath),
       });
     } catch (error) {
-      // Ambiguous or absent Rojo project: the legacy sourcemap walk still works
-      // from a bare sourcemap.json, so it stays as the fallback.
+      // ponytail: this is the one legacy tool that keeps a second code path, and
+      // the ceiling is narrow — it reads a bare sourcemap.json when no Rojo
+      // project resolves at all. Deleting it would break callers who never had a
+      // project file; the upgrade path is teaching rojo_resolve_instance_source
+      // to accept an explicit sourcemap, then dropping this branch.
       return wrapToolJsonText({
         deprecated: true,
         warning: `resolve_instance_source_file is deprecated; use rojo_resolve_instance_source. Falling back to a bare sourcemap read: ${errorMessage(error)}`,

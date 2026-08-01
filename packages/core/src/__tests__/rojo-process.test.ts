@@ -155,6 +155,18 @@ describe('Rojo command and process management', () => {
     expect(manager.status(projectFile)).toBeUndefined();
   });
 
+  test('a handshake the child does not outlive is a foreign listener, not readiness', async () => {
+    // `child.exitCode === null` proved nothing: a Rojo that binds between the
+    // free-port check and the child's own bind answers /api/rojo while our child
+    // is still on its way to an EADDRINUSE exit, and that response was accepted.
+    await expect(manager.start(projectFile, {
+      port: 34876,
+      env: { FAKE_ROJO_EXIT_AFTER_MS: '150' },
+      readinessTimeoutMs: 2000,
+    })).rejects.toThrow(/Another Rojo already answers/);
+    expect(manager.status(projectFile)).toBeUndefined();
+  });
+
   test('rejects occupied ports before spawning', async () => {
     const server = net.createServer();
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

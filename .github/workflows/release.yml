@@ -21,10 +21,13 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
           persist-credentials: false
+      # No `cache: npm`. This workflow is release-triggered, and the npm cache is
+      # keyed by lockfile and shared with less-trusted workflows: a run that only
+      # holds a default GITHUB_TOKEN can seed an entry that `npm ci` would then
+      # restore and execute here.
       - uses: actions/setup-node@v7
         with:
           node-version: 20
-          cache: npm
       - run: npm ci
       - run: npm --prefix studio-plugin ci
       - run: npm --prefix evals ci
@@ -50,7 +53,6 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 20
-          cache: npm
           registry-url: https://registry.npmjs.org
 
       - name: Install dependencies

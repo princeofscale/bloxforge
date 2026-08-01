@@ -168,8 +168,11 @@ with `ENOENT` rather than letting `execFile` find a bare `rojo` on `PATH`. The
 manifest search stops at `BLOXFORGE_PROJECT_ROOT`. Resolution is cached per
 project root and invalidated by the mtime of both the manifest and the shim, so
 an external `rokit install` is picked up without a restart. A managed `rojo
-serve` is ready when its port accepts a connection, not when its stdout matches
-a banner; a failed start reports the tail of the process log.
+serve` is ready when `/api/rojo` returns a Rojo server-info document and the
+child then survives a short settle window — not when its stdout matches a banner
+and not when the port merely accepts a connection. A listener that is not Rojo,
+or a Rojo the managed child lost the port race to, is reported rather than
+adopted; a failed start reports the tail of the process log.
 
 Reverse synchronization is explicit: planning reads bounded, paginated script
 metadata/source through `/api/read-managed-scripts`; applying requires

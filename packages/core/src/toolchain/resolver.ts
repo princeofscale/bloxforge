@@ -57,6 +57,23 @@ function findToolchainManifest(startDirectory: string, fileName: string): string
 }
 
 /**
+ * The project root to search from, or the server's own cwd when it cannot be
+ * resolved. `existsSync` followed by `realpathSync` is not atomic — the
+ * temporary project directories these paths run against are created and removed
+ * constantly — and `quality-tools` calls the resolver outside a `try`, so an
+ * ENOENT here would escape as an unhandled tool error instead of `available:
+ * false`.
+ */
+function startDirectory(cwd?: string): string {
+  if (!cwd) return process.cwd();
+  try {
+    return fs.realpathSync(cwd);
+  } catch {
+    return process.cwd();
+  }
+}
+
+/**
  * Whether the manifest's `[tools]` table declares `tool`, by alias or by the
  * repository name in its spec — `luau-lsp = "JohnnyMorganz/luau-lsp@1.x"` and
  * `lsp = "JohnnyMorganz/luau-lsp@1.x"` both install a `luau-lsp` shim under the
@@ -82,8 +99,7 @@ function detect(tool: string, cwd?: string): ToolCommand {
   const override = process.env[BIN_OVERRIDE_ENV[tool] ?? '']?.trim();
   if (override) return { executable: override, prefixArgs: [], source: 'environment' };
 
-  const start = cwd && fs.existsSync(cwd) ? fs.realpathSync(cwd) : process.cwd();
-  let pending: ToolCommand | undefined;
+  const start = startDirectory(cwd);
   for (const toolchain of TOOLCHAINS) {
     const manifest = findToolchainManifest(start, toolchain.manifest);
     if (!manifest || !manifestDeclares(manifest, tool)) continue;
@@ -91,10 +107,15 @@ function detect(tool: string, cwd?: string): ToolCommand {
     if (fs.existsSync(shim)) {
       return { executable: shim, prefixArgs: [], source: toolchain.source, manifest };
     }
+    // The first manifest that declares the tool is authoritative, installed or
+    // not — the same precedence `RokitTools.detect` uses. Falling through to a
+    // second toolchain's *installed* shim would run an aftman-pinned version
+    // against a rokit-pinned project, which is the drift the pin prevents.
+    //
     // The *absolute* missing shim, never the bare tool name: `execFile` looks a
     // bare name up on PATH, so a pinned project with no installed shim would
     // still run whatever global copy exists while reporting source: 'rokit'.
-    pending ??= {
+    return {
       executable: shim,
       prefixArgs: [],
       source: toolchain.source,
@@ -103,9 +124,8 @@ function detect(tool: string, cwd?: string): ToolCommand {
     };
   }
 
-  // A pinned project outranks whatever copy happens to be on PATH. Running an
-  // unpinned version against a pinned project is the drift the pin prevents.
-  return pending ?? { executable: tool, prefixArgs: [], source: 'path' };
+  // Nothing pins it, so whatever is on PATH is the honest answer.
+  return { executable: tool, prefixArgs: [], source: 'path' };
 }
 
 interface CacheEntry {
@@ -148,7 +168,7 @@ function cacheKey(tool: string, start: string): string {
  * falls back to the server's own working directory.
  */
 export function resolveToolCommand(tool: string, cwd?: string): ToolCommand {
-  const start = cwd && fs.existsSync(cwd) ? fs.realpathSync(cwd) : process.cwd();
+  const start = startDirectory(cwd);
   const key = cacheKey(tool, start);
   const cacheId = `${tool}\0${start}`;
   const cached = resolutionCache.get(cacheId);

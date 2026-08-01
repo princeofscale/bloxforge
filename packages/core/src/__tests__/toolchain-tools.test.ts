@@ -351,6 +351,73 @@ dependencies = []
     expect(validation.ok).toBe(false);
     expect(validation.present).toBe(false);
     expect(validation.error).toMatch(/wally\.lock is missing/);
+    // Same `alias = spec` shape the present-lock branch reports, so one parser
+    // handles both instead of two.
+    expect(validation.missing).toEqual(expect.arrayContaining([expect.stringContaining(' = ')]));
+  });
+
+  test('an edge whose only candidate misses the requirement is unresolved', () => {
+    // The trailing single-candidate fallback resolved it anyway, so `unresolved`
+    // stayed empty and validateLock could pass a lock whose transitive edge
+    // points at a version the parent rejects.
+    fs.writeFileSync(path.join(root, 'wally.lock'), `
+registry = "https://github.com/UpliftGames/wally-index"
+
+[[package]]
+name = "roblox/roact"
+version = "1.4.4"
+checksum = "aaa"
+dependencies = [["Symbol", "roblox/symbol@^3.0.0"]]
+
+[[package]]
+name = "roblox/symbol"
+version = "2.0.1"
+checksum = "bbb"
+dependencies = []
+`);
+    const graph = new WallyTools().dependencyGraph(root);
+    expect(graph.edges).toEqual([
+      { from: 'roblox/roact@1.4.4', alias: 'Symbol', to: 'roblox/symbol@^3.0.0', resolved: false },
+    ]);
+    expect(graph.unresolved).toEqual(['roblox/symbol@^3.0.0']);
+  });
+
+  test('a locked prerelease is unverifiable, and a bare ~1 spans the major', () => {
+    // Cargo excludes prereleases from a plain requirement, and `~1` means
+    // >=1.0.0 <2.0.0 — not >=1.0.0 <1.1.0. Stripping the suffix and comparing
+    // numbers said 2.0.0-rc.1 satisfied ^2.0.0.
+    fs.writeFileSync(path.join(root, 'wally.lock'), `
+registry = "https://github.com/UpliftGames/wally-index"
+
+[[package]]
+name = "roblox/roact"
+version = "2.0.0-rc.1"
+checksum = "aaa"
+dependencies = []
+
+[[package]]
+name = "roblox/symbol"
+version = "1.4.0"
+checksum = "bbb"
+dependencies = []
+`);
+    fs.writeFileSync(path.join(root, 'wally.toml'), `
+[package]
+name = "biff/minimal"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+Roact = "roblox/roact@^2.0.0"
+Symbol = "roblox/symbol@~1"
+`);
+    const validation = new WallyTools().validateLock(root);
+    expect(validation.mismatched).toEqual([]);
+    expect(validation.unverifiable).toEqual([
+      { alias: 'Roact', spec: 'roblox/roact@^2.0.0', locked: '2.0.0-rc.1' },
+    ]);
+    expect(validation.ok).toBe(false);
   });
 });
 
@@ -415,5 +482,33 @@ describe('shared toolchain resolver', () => {
 
   test('a tool the manifest does not pin still resolves from PATH', () => {
     expect(resolveToolCommand('stylua', root)).toMatchObject({ source: 'path', executable: 'stylua' });
+  });
+
+  test('the first manifest that pins a tool wins even when its shim is missing', () => {
+    // Falling through to an installed Aftman shim would run an aftman-pinned
+    // version against a rokit-pinned project, and would disagree with
+    // RokitTools.detect, which stops at the first manifest it finds.
+    const aftmanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-aftman-home-'));
+    process.env.AFTMAN_ROOT = aftmanRoot;
+    const aftmanShim = path.join(aftmanRoot, 'bin', process.platform === 'win32' ? 'rojo.exe' : 'rojo');
+    fs.mkdirSync(path.dirname(aftmanShim), { recursive: true });
+    fs.writeFileSync(aftmanShim, '');
+    fs.writeFileSync(path.join(root, 'aftman.toml'), '[tools]\nrojo = "rojo-rbx/rojo@7.4.0"\n');
+    clearToolCommandCache();
+
+    expect(resolveToolCommand('rojo', root)).toMatchObject({
+      source: 'rokit',
+      executable: shimFor('rojo'),
+      installHint: expect.stringMatching(/no installed shim/),
+    });
+    fs.rmSync(aftmanRoot, { recursive: true, force: true });
+  });
+
+  test('an unreadable project root falls back instead of throwing', () => {
+    // existsSync + realpathSync is not atomic, and quality-tools calls the
+    // resolver outside a try: an ENOENT here escaped as an unhandled tool error.
+    const gone = path.join(root, 'deleted-between-the-two-calls');
+    expect(() => resolveToolCommand('stylua', gone)).not.toThrow();
+    expect(resolveToolCommand('stylua', gone).source).toBe('path');
   });
 });

@@ -98,6 +98,35 @@ function readServerInfo(host: string, port: number, timeoutMs = 1500): Promise<R
   });
 }
 
+/**
+ * How long the managed child must outlive a successful handshake before the
+ * handshake counts as *ours*.
+ *
+ * `child.exitCode === null` alone proves nothing: a foreign Rojo can bind
+ * between `assertPortAvailable` and the child's own bind, and while the child is
+ * still on its way to an `EADDRINUSE` exit its exit code is null, so the
+ * stranger's `/api/rojo` response was accepted as readiness. A bind failure
+ * lands within milliseconds of the spawn, so surviving this window is the
+ * practical ownership proof. It is a timing argument, not a kernel-level one —
+ * see docs/known-limitations.md.
+ */
+const OWNERSHIP_SETTLE_MS = 400;
+
+function outlives(child: ChildProcessWithoutNullStreams, ms: number): Promise<boolean> {
+  if (child.exitCode !== null) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(false);
+    };
+    const timer = setTimeout(() => {
+      child.off('exit', onExit);
+      resolve(true);
+    }, ms);
+    child.once('exit', onExit);
+  });
+}
+
 function canonicalProject(projectFile: string): string {
   return resolveProjectPath(path.dirname(projectFile), path.basename(projectFile));
 }
@@ -221,9 +250,9 @@ export class RojoProcessManager {
     let foreignListener = false;
     while (managed.status.status === 'starting') {
       const info = await readServerInfo(host, port);
-      // The child must still be alive: a response from a port our own process
-      // never took belongs to somebody else's server.
-      if (info && child.exitCode === null) {
+      // A response only proves *a* Rojo answers. It is ours if the child then
+      // outlives the settle window rather than dying of EADDRINUSE.
+      if (info && await outlives(child, OWNERSHIP_SETTLE_MS)) {
         managed.status.status = 'running';
         managed.status.sessionId = info.sessionId;
         managed.status.projectName = info.projectName;
@@ -236,10 +265,12 @@ export class RojoProcessManager {
     }
 
     if (managed.status.status !== 'running') {
-      const reason = managed.status.status === 'exited'
-        ? `Rojo serve exited before becoming ready (code ${managed.status.exitCode ?? 'unknown'})`
-        : foreignListener
-          ? `Another Rojo already answers on ${host}:${port}; the managed process did not take the port`
+      // The foreign listener is the more actionable diagnosis even when the
+      // child also exited — losing the port race is *why* it exited.
+      const reason = foreignListener
+        ? `Another Rojo already answers on ${host}:${port}; the managed process did not take the port`
+        : managed.status.status === 'exited'
+          ? `Rojo serve exited before becoming ready (code ${managed.status.exitCode ?? 'unknown'})`
           : `Rojo serve did not become ready within ${readinessTimeoutMs}ms`;
       const tail = managed.logs.slice(-20).join('\n');
       await terminateChild(child);

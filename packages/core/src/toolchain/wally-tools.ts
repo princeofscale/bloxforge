@@ -89,9 +89,10 @@ function packageRequirement(spec: string): string | undefined {
  * Whether a locked version satisfies a manifest requirement.
  *
  * ponytail: handles the forms Wally manifests actually use — an exact version,
- * a caret or tilde range, and a partial `1.2` prefix. Anything else is reported
- * as unverifiable rather than silently passing. Swap in a real semver matcher
- * if manifests start carrying compound ranges.
+ * a caret or tilde range, a partial `1.2` prefix, and `*`. Anything else, and
+ * any locked prerelease, is reported as unverifiable rather than silently
+ * passing. Swap in a real semver matcher if manifests start carrying compound
+ * ranges or prerelease requirements.
  */
 function satisfiesRequirement(locked: string, requirement: string): boolean | undefined {
   const wanted = requirement.trim();
@@ -99,7 +100,11 @@ function satisfiesRequirement(locked: string, requirement: string): boolean | un
   const match = /^([\^~]?)(\d+(?:\.\d+){0,2})$/.exec(wanted);
   if (!match) return undefined;
   const [, operator, version] = match;
-  const lockedParts = locked.split(/[.\-+]/).slice(0, 3).map(Number);
+  // Cargo excludes prereleases from a plain requirement: 1.0.0-alpha does not
+  // satisfy ^1.0.0. Stripping the suffix and comparing numbers said it did, so
+  // say "cannot verify" instead of guessing at Cargo's prerelease rules.
+  if (/[-+]/.test(locked)) return undefined;
+  const lockedParts = locked.split('.').slice(0, 3).map(Number);
   const wantedParts = version.split('.').map(Number);
   if (lockedParts.some(Number.isNaN) || wantedParts.some(Number.isNaN)) return undefined;
   const [lockedMajor = 0, lockedMinor = 0, lockedPatch = 0] = lockedParts;
@@ -114,6 +119,9 @@ function satisfiesRequirement(locked: string, requirement: string): boolean | un
     return lockedMajor === 0 && lockedMinor === 0 && lockedPatch === wantedPatch;
   }
   if (operator === '~') {
+    // Cargo again: `~1.2.3` and `~1.2` are >=x, <1.3.0, but a bare `~1` widens
+    // to the whole major — >=1.0.0, <2.0.0.
+    if (wantedParts.length === 1) return lockedMajor === wantedMajor;
     return lockedMajor === wantedMajor && lockedMinor === wantedMinor && atLeast;
   }
   // A bare "1.2" is a prefix; a bare "1.2.3" is exact.
@@ -207,11 +215,15 @@ export class WallyTools {
       const name = packageName(dependency.package);
       const requirement = packageRequirement(dependency.package);
       const candidates = byName.get(name) ?? [];
+      // No trailing single-candidate fallback: it used to resolve an edge whose
+      // only candidate did *not* satisfy the requirement, so `unresolved` stayed
+      // empty and validateLock could report ok for a lock whose transitive edge
+      // points at a version the parent package rejects. Declared requirements
+      // are already treated strictly; edges get the same rule.
       const target = known.get(dependency.package)
         ?? (requirement === undefined
           ? (candidates.length === 1 ? candidates[0] : undefined)
-          : candidates.find((candidate) => satisfiesRequirement(candidate.version, requirement) === true))
-        ?? (candidates.length === 1 ? candidates[0] : undefined);
+          : candidates.find((candidate) => satisfiesRequirement(candidate.version, requirement) === true));
       return {
         from: `${entry.name}@${entry.version}`,
         alias: dependency.alias,
@@ -237,7 +249,8 @@ export class WallyTools {
         ok: false,
         present: false,
         error: 'wally.lock is missing; run wally_install_apply (which uses --locked in CI) to produce one',
-        missing: manifestDependencies(manifest.data).map((entry) => entry.spec),
+        // Same shape as the present-lock branch below, so one parser handles both.
+        missing: manifestDependencies(manifest.data).map((entry) => `${entry.alias} = ${entry.spec}`),
       };
     }
     const packages = lockPackages(lock.data);

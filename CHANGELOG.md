@@ -41,9 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `unresolved` — a requirement shape it cannot evaluate is reported as
   unverifiable rather than silently passing.
 - A managed `rojo serve` is ready when `/api/rojo` returns a Rojo server info
-  document, not when the port accepts a connection. An unrelated listener on
-  the port now reports "Another Rojo already answers on host:port" instead of
-  being adopted as ours; `sessionId` and `projectName` are reported on success.
+  document *and* the managed child then outlives a short settle window — not
+  when the port merely accepts a connection. `child.exitCode === null` alone
+  proved nothing: a foreign Rojo can bind between the free-port check and the
+  child's own bind, and while the child is on its way to an `EADDRINUSE` exit
+  its exit code is still null, so the stranger's response was accepted as
+  readiness. Either case now reports "Another Rojo already answers on
+  host:port"; `sessionId` and `projectName` are reported on success. This is a
+  timing argument rather than a kernel-level ownership proof — the remaining
+  window is written down in `docs/known-limitations.md`.
 - Project discovery no longer descends into `Packages`, `ServerPackages`, or
   `DevPackages`, so a Wally dependency's own `*.project.json` cannot be offered
   as the project to sync.
@@ -73,6 +79,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Classified `rokit_*` and `wally_*` into the `sync` tool domain. Without a
   prefix rule they fell through to the `scene` default, so loading the `sync`
   toolset produced the Rojo tools without the toolchain tools they depend on.
+- Stopped `verify` reporting `Wally lockfile: ok` for an unparsable `wally.toml`
+  or `wally.lock`. One `catch` covered the whole Wally block to allow for a
+  project that does not use Wally, so every other failure — a parse error, an
+  unreadable manifest, an ambiguous Rojo project raised inside the mapping
+  check — landed there as a pass, and a throw after the lockfile check had
+  already been recorded emitted a *second* check under the same name. Only the
+  "no wally.toml anywhere above" error is a skip now; the mapping check has its
+  own `catch`.
+- Made `verify --json` take `nextAction.check` and `nextAction.fix` from one
+  check. They were four independent lookups, so a failure with no `actionable`
+  was reported by name alongside an unrelated warning's fix.
+- Stopped the shared resolver falling through to a second toolchain when the
+  first manifest that pins a tool has no installed shim — that ran an
+  aftman-pinned version against a rokit-pinned project and disagreed with
+  `RokitTools.detect`, which stops at the first manifest it finds. The resolver
+  also no longer throws when the project root disappears between its `existsSync`
+  and `realpathSync`, which broke its documented never-throws contract and
+  escaped `quality-tools` as an unhandled error rather than `available: false`.
+- Dropped the single-candidate fallback that resolved a Wally lock edge whose
+  only candidate did not satisfy the requirement, so `unresolved` stayed empty
+  and `validateLock` could pass a lock whose transitive edge points at a
+  rejected version. A locked prerelease is now `unverifiable` rather than
+  compared with its suffix stripped (Cargo excludes prereleases from a plain
+  requirement), and a bare `~1` spans the whole major as Cargo defines it.
+  `validateLock.missing` uses the same `alias = spec` shape in both branches.
+- Fixed `verify --project` swallowing the following flag as its value, so
+  `verify --project --strict` checked a directory named `--strict`.
+- Removed `cache: npm` from the release workflow. It is release-triggered, and
+  the lockfile-keyed npm cache is shared with less-trusted workflows, so a run
+  holding only a default `GITHUB_TOKEN` could seed an entry that `npm ci`
+  restores and executes here.
+- Brought `packages/*/src/**/*.mjs` test fixtures into the ESLint config and the
+  `lint:packages` glob. They matched no config block, so Node globals read as
+  undefined and the files could only be linted by hand.
 
 ### Documentation
 - Rewrote the README's Rojo section to cover the whole toolchain, including who

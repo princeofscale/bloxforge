@@ -31,7 +31,10 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ['scripts/**/*.mjs', 'tests/**/*.mjs'],
+    // Test fixtures under packages/*/src are Node scripts too. Without them here
+    // the fixtures are outside every config block, so `process` and the timer
+    // globals read as undefined and the files can only be linted by hand.
+    files: ['scripts/**/*.mjs', 'tests/**/*.mjs', 'packages/*/src/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: globals.node,

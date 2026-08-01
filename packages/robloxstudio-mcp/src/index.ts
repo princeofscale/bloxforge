@@ -59,10 +59,15 @@ if (process.argv.includes('--doctor') || process.argv.includes('verify')) {
   const require = createRequire(import.meta.url);
   const { version } = require('../package.json');
   const projectIndex = process.argv.indexOf('--project');
+  // A flag-shaped value is a missing value: `verify --project --strict` used to
+  // check a directory literally named "--strict".
+  const projectArg = process.argv[projectIndex + 1];
   process.exitCode = await runDoctor({
     version,
     port: portArg ? parseInt(portArg) : undefined,
-    project: projectIndex >= 0 ? (process.argv[projectIndex + 1] ?? process.cwd()) : undefined,
+    project: projectIndex >= 0
+      ? (projectArg && !projectArg.startsWith('-') ? projectArg : process.cwd())
+      : undefined,
     strict: process.argv.includes('--strict'),
     json: process.argv.includes('--json'),
   });

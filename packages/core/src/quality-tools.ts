@@ -72,6 +72,10 @@ export interface RobloxProject {
 export function hasCommand(command: QualityCommand, root?: string): boolean {
   const resolved = resolveToolCommand(command, root);
   if (resolved.installHint) return false;
+  // Deliberately not memoised. Caching the probe per resolved command makes
+  // availability sticky across an uninstall of an unpinned tool — the resolver's
+  // own cache only invalidates on manifest and shim mtimes, and a bare PATH
+  // resolution has neither. A `--version` spawn is the cheaper of the two.
   try {
     execFileSync(resolved.executable, [...resolved.prefixArgs, '--version'], {
       cwd: root,

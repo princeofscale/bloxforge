@@ -144,9 +144,10 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
 ## Toolchain (Rokit, Wally)
 
 - **Version requirements are matched, not solved.** `wally_validate_lock`
-  understands an exact version, a caret or tilde range, and a partial `1.2`
-  prefix. Anything else is reported under `unverifiable` rather than treated as
-  satisfied, and makes `ok` false.
+  understands an exact version, a caret or tilde range, a partial `1.2` prefix,
+  and the `*` wildcard (which always matches). Anything else — a compound range,
+  or a locked version carrying a prerelease suffix — is reported under
+  `unverifiable` rather than treated as satisfied, and makes `ok` false.
 - **`rokit_install` needs `allowPinnedToolDownloads: true` to run
   unattended.** Rokit asks for trust before downloading a source it has not
   seen, and there is no terminal here. The flag is refused unless every tool in
@@ -161,10 +162,13 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
 - Processes are tracked in memory only. There is no supervisor: a crashed Rojo
   is not restarted, an existing `rojo serve` cannot be adopted after a BloxForge
   restart, and the status stays `exited` until something asks.
-- Readiness is a `/api/rojo` handshake against the managed child, so a port
-  taken by another Rojo between the free-port check and the child's own bind is
-  reported rather than adopted. A *non-Rojo* listener on that port simply looks
-  like a server that never became ready.
+- Readiness is a `/api/rojo` handshake plus a short settle window: the handshake
+  proves a Rojo answers, and the child outliving the window proves it was not the
+  one that lost the port race and died of `EADDRINUSE`. It is a timing argument,
+  not a kernel-level ownership proof — nothing here asks the OS which PID owns
+  the listening socket, so a foreign Rojo that binds first *and* a managed child
+  that takes longer than the window to die would still be adopted. A *non-Rojo*
+  listener on that port simply looks like a server that never became ready.
 - There is no restart backoff, no on-disk process lease, and no persisted
   runtime state, so nothing survives a BloxForge restart to be re-adopted. An
   agent that wants a long-lived serve has to re-establish it and handle the

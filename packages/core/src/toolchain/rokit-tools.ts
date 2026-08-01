@@ -283,7 +283,7 @@ export class RokitTools {
     if (!confirm) {
       return {
         tool: kind,
-        available: hasCommand(kind),
+        available: hasCommand(kind, detection.root),
         ok: false,
         error: `Confirmation required: pass confirm=true to run "${kind} add ${checked}" in ${detection.root}. It edits ${detection.manifestPath} and downloads the tool.`,
         spec: checked,
@@ -300,7 +300,7 @@ export class RokitTools {
     if (!confirm) {
       return {
         tool: kind,
-        available: hasCommand(kind),
+        available: hasCommand(kind, detection.root),
         ok: false,
         error: `Confirmation required: pass confirm=true to run "${kind} update${checked ? ` ${checked}` : ''}" in ${detection.root}. It edits ${detection.manifestPath} and downloads new versions.`,
         tool_name: checked,

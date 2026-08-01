@@ -37,6 +37,11 @@ if (command === '--version') {
   const timer = setInterval(() => {}, 1000);
   server?.listen(port, address, () => {
     process.stdout.write(`Rojo server listening on ${address}:${port}\n`);
+    // Stands in for the managed child losing the port race: a Rojo answers the
+    // handshake, but *this* process dies of EADDRINUSE right after. Only the
+    // settle window tells the two apart.
+    const exitAfter = Number(process.env.FAKE_ROJO_EXIT_AFTER_MS || 0);
+    if (exitAfter > 0) setTimeout(() => process.exit(3), exitAfter);
   });
   const stop = () => {
     clearInterval(timer);

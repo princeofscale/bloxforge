@@ -88,6 +88,12 @@ export async function collectProjectChecks(project: string): Promise<DoctorCheck
     add('Rojo binary', 'fail', errorText(error));
   }
 
+  // Only "this project does not use Wally" is a pass. An unparsable manifest or
+  // lockfile must fail closed: a readiness gate that reports `ok` with the parse
+  // error as its detail is worse than no gate at all. `WallyTools.load` searches
+  // upward, so absence is its error rather than a check on this directory.
+  const noWally = (error: unknown) => /No wally\.toml found at or above/.test(errorText(error));
+  let wallyInUse = true;
   try {
     const validation = new WallyTools().validateLock(project);
     add('Wally lockfile', validation.ok ? 'ok' : 'fail',
@@ -97,13 +103,29 @@ export async function collectProjectChecks(project: string): Promise<DoctorCheck
         unresolved: validation.unresolved,
       }),
       validation.ok ? undefined : 'Run wally_install_plan, review it, then wally_install_apply.');
-    const mapping = new WallyTools().verifyRojoMapping(project);
-    add('Wally package mapping', mapping.ok ? 'ok' : 'warn',
-      mapping.ok ? mapping.mapped.join(', ') : mapping.reason ?? `unmapped: ${mapping.unmapped.join(', ')}`,
-      mapping.ok ? undefined : 'Add a $path entry for each unmapped package directory to the Rojo project.');
   } catch (error) {
-    // No wally.toml at all is normal for a project that does not use Wally.
-    add('Wally lockfile', 'ok', errorText(error));
+    wallyInUse = !noWally(error);
+    if (wallyInUse) {
+      add('Wally lockfile', 'fail', errorText(error),
+        'Fix wally.toml/wally.lock so they parse, then re-run verify.');
+    } else {
+      add('Wally lockfile', 'ok', 'no wally.toml; this project does not use Wally');
+    }
+  }
+
+  // Its own try: a throw here used to append a *second* check named "Wally
+  // lockfile", so the JSON report carried a duplicate name and an `ok` verdict
+  // sitting on top of a failure.
+  if (wallyInUse) {
+    try {
+      const mapping = new WallyTools().verifyRojoMapping(project);
+      add('Wally package mapping', mapping.ok ? 'ok' : 'warn',
+        mapping.ok ? mapping.mapped.join(', ') : mapping.reason ?? `unmapped: ${mapping.unmapped.join(', ')}`,
+        mapping.ok ? undefined : 'Add a $path entry for each unmapped package directory to the Rojo project.');
+    } catch (error) {
+      add('Wally package mapping', 'warn', errorText(error),
+        'Select the Rojo project explicitly, or fix the project tree, then re-run verify.');
+    }
   }
 
   return checks;
@@ -292,6 +314,19 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
   return checks;
 }
 
+/**
+ * The one check an agent should act on, and that same check's fix.
+ *
+ * This used to be four independent `find` calls, so `check` resolved to the
+ * first failure while `fix` fell through to an unrelated warning's fix whenever
+ * that failure carried no `actionable` — and `collectProjectChecks` produces
+ * exactly those. Automation following `nextAction` then ran the wrong step.
+ */
+export function nextAction(checks: DoctorCheck[]): { check?: string; fix?: string } {
+  const blocking = checks.find((c) => c.status === 'fail') ?? checks.find((c) => c.status === 'warn');
+  return { check: blocking?.name, fix: blocking?.actionable?.fix };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<number> {
   const checks = await collectDoctorChecks(options);
   if (options.project) checks.push(...await collectProjectChecks(options.project));
@@ -304,12 +339,7 @@ export async function runDoctor(options: DoctorOptions = {}): Promise<number> {
       ready,
       strict: options.strict === true,
       checks,
-      nextAction: ready ? null : {
-        check: checks.find((c) => c.status === 'fail')?.name
-          ?? checks.find((c) => c.status === 'warn')?.name,
-        fix: checks.find((c) => c.status === 'fail')?.actionable?.fix
-          ?? checks.find((c) => c.status === 'warn')?.actionable?.fix,
-      },
+      nextAction: ready ? null : nextAction(checks),
     }, null, 2));
   } else {
     console.log(formatDoctorReport(checks));
