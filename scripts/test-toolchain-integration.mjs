@@ -50,7 +50,33 @@ try {
     '',
   ].join('\n'));
 
-  run('rokit', ['install', '--no-trust-check'], { cwd: root });
+  process.env.BLOXFORGE_PROJECT_ROOT = root;
+  delete process.env.BLOXFORGE_ROJO_BIN;
+
+  // Drive RokitTools.install itself, not a hand-written command line: CI must
+  // exercise the exact invocation the MCP tool produces, including how it
+  // handles Rokit's trust prompt with no terminal attached.
+  const { RokitTools } = await import(pathToFileURL(path.join(REPO_ROOT, 'packages/core/dist/toolchain/rokit-tools.js')).href);
+  const rokitTools = new RokitTools();
+  assert(
+    !rokitTools.install(root, false).ok,
+    'rokit_install ran without confirm=true',
+  );
+  const installed = rokitTools.install(root, true, true);
+  assert(installed.ok, `rokit_install failed: ${installed.error ?? installed.output}`);
+  assert(
+    Array.isArray(installed.trustedSources) && installed.trustedSources.length === 2,
+    `rokit_install did not report the exact pins it trusted: ${JSON.stringify(installed.trustedSources)}`,
+  );
+
+  // A loose requirement must refuse the non-interactive path rather than
+  // trusting whatever the manifest happens to resolve to.
+  const looseRoot = path.join(root, 'loose');
+  mkdirSync(looseRoot, { recursive: true });
+  writeFileSync(path.join(looseRoot, 'rokit.toml'), '[tools]\nrojo = "rojo-rbx/rojo@7"\n');
+  const loose = rokitTools.install(looseRoot, true, true);
+  assert(!loose.ok && /pinned to an exact version/.test(loose.error ?? ''),
+    `A loose pin must refuse allowPinnedToolDownloads: ${JSON.stringify(loose)}`);
 
   for (const tool of ['rojo', 'wally']) {
     const shim = path.join(shimDirectory, tool);
@@ -67,8 +93,6 @@ try {
   const { RojoCommandRunner, clearRojoCommandCache } = await import(
     pathToFileURL(path.join(REPO_ROOT, 'packages/core/dist/rojo/command-runner.js')).href
   );
-  process.env.BLOXFORGE_PROJECT_ROOT = root;
-  delete process.env.BLOXFORGE_ROJO_BIN;
   clearRojoCommandCache();
   const resolved = new RojoCommandRunner().resolve(root);
   assert(resolved.source === 'rokit', `Expected the Rokit shim, resolved ${resolved.source} (${resolved.executable})`);

@@ -139,18 +139,18 @@ Environment notes that have cost real debugging time:
   on Linux, Windows and macOS.
 - Set a temporary `MCP_PLUGINS_DIR` when testing plugin installation so the real
   Studio plugin directory is untouched.
-- The real Rojo, Rokit and Wally integration jobs run on Linux only.
-  Shim resolution, case folding, and file-locking differences on Windows and
-  macOS are covered by unit tests, not by the real binaries.
+- The real Rojo integration job runs on Linux only. The Rokit/Wally job runs on
+  Linux per PR and on Windows and macOS nightly; push a commit whose message
+  contains `[toolchain-matrix]` to run the cross-platform one on demand.
 
 ## Known traps in this codebase
 
-- **Legacy tools bypass the newer guarantees.** `install_wally_packages`,
-  `generate_rojo_sourcemap`, `build_rojo_project`, `run_quality_gate` and
-  `resolve_instance_source_file` predate the `rojo_*`/`wally_*`/`rokit_*` tools
-  and do not apply their lock policy, output-path checks, or plan hashes. They
-  are still in `CORE_TOOLS`, so an agent sees them first. Route new work through
-  the canonical tools.
+- **Legacy tools are wrappers, not a second implementation.**
+  `install_wally_packages`, `generate_rojo_sourcemap`, `build_rojo_project` and
+  `resolve_instance_source_file` delegate to the canonical `rojo_*`/`wally_*`
+  tools and return `deprecated: true`. Keep it that way: the moment one grows
+  its own logic it becomes a path with weaker guarantees that an agent may well
+  reach for first.
 - `sync_pull`, `sync_status` and `sync_push` are deprecated in favour of
   `rojo_syncback_plan`/`_apply` and do not require a plan hash.
 - The lint globs must stay quoted in `package.json`. Unquoted,

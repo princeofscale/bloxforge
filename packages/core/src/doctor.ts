@@ -22,20 +22,117 @@ export interface DoctorCheck {
 
 const SYMBOL: Record<DoctorStatus, string> = { ok: '✓', warn: '!', fail: '✗' };
 
+/** Must match `engines.node` in every published package. */
+const MINIMUM_NODE_MAJOR = 20;
+
 export function checkNodeVersion(version: string): DoctorCheck {
   const major = parseInt(version.replace(/^v/, '').split('.')[0] ?? '0', 10);
-  if (Number.isNaN(major) || major < 18) {
+  if (Number.isNaN(major) || major < MINIMUM_NODE_MAJOR) {
     return {
       name: 'Node version',
       status: 'fail',
-      detail: `${version} — Node 18+ is required.`,
+      detail: `${version} — Node ${MINIMUM_NODE_MAJOR}+ is required.`,
       actionable: {
-        fix: 'Upgrade Node.js to version 18 or newer.',
+        fix: `Upgrade Node.js to version ${MINIMUM_NODE_MAJOR} or newer.`,
         verify: 'Run "node -v" to verify your version, then run "npx @princeofscale/bloxforge verify".'
       }
     };
   }
   return { name: 'Node version', status: 'ok', detail: version };
+}
+
+/**
+ * Toolchain and project readiness, for a caller that has a file-backed project.
+ * Skipped entirely when `project` is not given, so the plain `verify` stays a
+ * Studio/bridge check.
+ */
+export async function collectProjectChecks(project: string): Promise<DoctorCheck[]> {
+  const checks: DoctorCheck[] = [];
+  const add = (name: string, status: DoctorStatus, detail: string, fix?: string, verify?: string) => {
+    checks.push({ name, status, detail, ...(fix ? { actionable: { fix, verify: verify ?? '' } } : {}) });
+  };
+
+  const { RokitTools } = await import('./toolchain/rokit-tools.js');
+  const { WallyTools } = await import('./toolchain/wally-tools.js');
+  const { discoverRojoProjects } = await import('./rojo/project-discovery.js');
+  const { RojoTools } = await import('./rojo/rojo-tools.js');
+
+  try {
+    const projects = discoverRojoProjects(project);
+    if (projects.length === 0) add('Rojo project', 'warn', `no *.project.json under ${project}`);
+    else if (projects.length > 1) {
+      add('Rojo project', 'warn', `${projects.length} project files found; tools need an explicit projectFile`,
+        'Pass projectFile to the rojo_* tools, or narrow BLOXFORGE_PROJECT_ROOT.');
+    } else add('Rojo project', 'ok', projects[0].projectFile);
+  } catch (error) {
+    add('Rojo project', 'fail', errorText(error));
+  }
+
+  try {
+    const status = new RokitTools().status(project);
+    add('Toolchain pins', status.healthy ? 'ok' : 'fail',
+      status.healthy ? `${status.tools.length} tool(s) match the manifest` : status.reasons.join('; '),
+      status.healthy ? undefined : status.action === 'install'
+        ? 'Run the rokit_install tool with confirm=true (and allowPinnedToolDownloads=true for exact pins).'
+        : 'Fix the tool specs in the manifest, then re-run verify.');
+  } catch (error) {
+    add('Toolchain pins', 'warn', errorText(error));
+  }
+
+  try {
+    const rojo = await new RojoTools().getVersion(project);
+    add('Rojo binary', rojo.available && rojo.ok ? 'ok' : 'fail',
+      rojo.available && rojo.ok ? `${rojo.version} (${rojo.command.source})` : rojo.error ?? 'unavailable',
+      rojo.available ? undefined : 'Install the pinned toolchain with rokit_install.');
+  } catch (error) {
+    add('Rojo binary', 'fail', errorText(error));
+  }
+
+  // Only "this project does not use Wally" is a pass. An unparsable manifest or
+  // lockfile must fail closed: a readiness gate that reports `ok` with the parse
+  // error as its detail is worse than no gate at all. `WallyTools.load` searches
+  // upward, so absence is its error rather than a check on this directory.
+  const noWally = (error: unknown) => /No wally\.toml found at or above/.test(errorText(error));
+  let wallyInUse = true;
+  try {
+    const validation = new WallyTools().validateLock(project);
+    add('Wally lockfile', validation.ok ? 'ok' : 'fail',
+      validation.ok ? `${validation.locked ?? 0} locked package(s)` : JSON.stringify({
+        missing: validation.missing,
+        mismatched: validation.mismatched,
+        unresolved: validation.unresolved,
+      }),
+      validation.ok ? undefined : 'Run wally_install_plan, review it, then wally_install_apply.');
+  } catch (error) {
+    wallyInUse = !noWally(error);
+    if (wallyInUse) {
+      add('Wally lockfile', 'fail', errorText(error),
+        'Fix wally.toml/wally.lock so they parse, then re-run verify.');
+    } else {
+      add('Wally lockfile', 'ok', 'no wally.toml; this project does not use Wally');
+    }
+  }
+
+  // Its own try: a throw here used to append a *second* check named "Wally
+  // lockfile", so the JSON report carried a duplicate name and an `ok` verdict
+  // sitting on top of a failure.
+  if (wallyInUse) {
+    try {
+      const mapping = new WallyTools().verifyRojoMapping(project);
+      add('Wally package mapping', mapping.ok ? 'ok' : 'warn',
+        mapping.ok ? mapping.mapped.join(', ') : mapping.reason ?? `unmapped: ${mapping.unmapped.join(', ')}`,
+        mapping.ok ? undefined : 'Add a $path entry for each unmapped package directory to the Rojo project.');
+    } catch (error) {
+      add('Wally package mapping', 'warn', errorText(error),
+        'Select the Rojo project explicitly, or fix the project tree, then re-run verify.');
+    }
+  }
+
+  return checks;
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function formatDoctorReport(checks: DoctorCheck[]): string {
@@ -67,6 +164,12 @@ export interface DoctorOptions {
   version?: string;
   port?: number;
   fetchImpl?: typeof fetch;
+  /** Project root to additionally check the Rojo/Rokit/Wally setup of. */
+  project?: string;
+  /** Treat warnings as failures, so automation gets a usable exit code. */
+  strict?: boolean;
+  /** Emit a machine-readable report instead of the human one. */
+  json?: boolean;
 }
 
 const HEALTH_TIMEOUT_MS = 3_000;
@@ -211,10 +314,39 @@ export async function collectDoctorChecks(options: DoctorOptions = {}): Promise<
   return checks;
 }
 
+/**
+ * The one check an agent should act on, and that same check's fix.
+ *
+ * This used to be four independent `find` calls, so `check` resolved to the
+ * first failure while `fix` fell through to an unrelated warning's fix whenever
+ * that failure carried no `actionable` — and `collectProjectChecks` produces
+ * exactly those. Automation following `nextAction` then ran the wrong step.
+ */
+export function nextAction(checks: DoctorCheck[]): { check?: string; fix?: string } {
+  const blocking = checks.find((c) => c.status === 'fail') ?? checks.find((c) => c.status === 'warn');
+  return { check: blocking?.name, fix: blocking?.actionable?.fix };
+}
+
 export async function runDoctor(options: DoctorOptions = {}): Promise<number> {
   const checks = await collectDoctorChecks(options);
-  console.log(formatDoctorReport(checks));
-  return checks.some((c) => c.status === 'fail') ? 1 : 0;
+  if (options.project) checks.push(...await collectProjectChecks(options.project));
+  const failed = checks.some((c) => c.status === 'fail');
+  const warned = checks.some((c) => c.status === 'warn');
+  const ready = !failed && !(options.strict === true && warned);
+
+  if (options.json === true) {
+    console.log(JSON.stringify({
+      ready,
+      strict: options.strict === true,
+      checks,
+      nextAction: ready ? null : nextAction(checks),
+    }, null, 2));
+  } else {
+    console.log(formatDoctorReport(checks));
+  }
+  // Without --strict a warning still exits 0, which is right for a human and
+  // ambiguous for a script; --strict is what automation should use.
+  return ready ? 0 : 1;
 }
 
 export async function generateDiagnosticReport(options: DoctorOptions = {}): Promise<string> {

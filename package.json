@@ -25,7 +25,7 @@
     "dev:inspector": "npm run build -w packages/core && tsx packages/robloxstudio-mcp-inspector/src/index.ts",
     "start": "node packages/robloxstudio-mcp/dist/index.js",
     "start:inspector": "node packages/robloxstudio-mcp-inspector/dist/index.js",
-    "lint:packages": "eslint \"packages/*/src/**/*.ts\"",
+    "lint:packages": "eslint \"packages/*/src/**/*.ts\" \"packages/*/src/**/*.mjs\"",
     "lint:scripts": "eslint \"scripts/**/*.mjs\"",
     "lint:tests": "eslint \"tests/**/*.mjs\"",
     "lint:evals": "eslint \"evals/**/*.ts\"",

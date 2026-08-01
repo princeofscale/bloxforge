@@ -1,15 +1,19 @@
 import * as os from 'os';
-import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, generateDiagnosticReport, DoctorCheck } from '../doctor.js';
+import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, generateDiagnosticReport, nextAction, DoctorCheck } from '../doctor.js';
 
 describe('checkNodeVersion', () => {
-  it('passes for Node 18 and above', () => {
-    expect(checkNodeVersion('v18.0.0').status).toBe('ok');
-    expect(checkNodeVersion('v20.11.1').status).toBe('ok');
+  it('passes for Node 20 and above', () => {
+    expect(checkNodeVersion('v20.0.0').status).toBe('ok');
+    expect(checkNodeVersion('v22.11.1').status).toBe('ok');
   });
-  it('fails for Node below 18', () => {
-    const check = checkNodeVersion('v16.20.0');
-    expect(check.status).toBe('fail');
-    expect(check.detail).toMatch(/18/);
+  it('fails below the floor every published package declares', () => {
+    // The check still said "Node 18+" long after engines.node moved to >=20, so
+    // doctor passed a runtime npm would refuse to install on.
+    for (const version of ['v16.20.0', 'v18.20.4']) {
+      const check = checkNodeVersion(version);
+      expect(check.status).toBe('fail');
+      expect(check.detail).toMatch(/Node 20\+/);
+    }
   });
 });
 
@@ -99,6 +103,26 @@ describe('collectDoctorChecks', () => {
 
     await collectDoctorChecks({ fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('nextAction', () => {
+  it('takes the name and the fix from the same check', () => {
+    // Four independent find() calls paired the failure's name with a later
+    // warning's fix whenever the failure carried no `actionable`, and the
+    // project checks produce exactly those. Automation ran the wrong step.
+    expect(nextAction([
+      { name: 'Rojo project', status: 'fail', detail: 'discovery threw' },
+      { name: 'Studio plugin installed', status: 'warn', detail: 'not found',
+        actionable: { fix: 'Run --install-plugin' } },
+    ])).toEqual({ check: 'Rojo project', fix: undefined });
+  });
+
+  it('falls back to the first warning when nothing failed', () => {
+    expect(nextAction([
+      { name: 'Node version', status: 'ok', detail: 'v20.0.0' },
+      { name: 'Toolchain pins', status: 'warn', detail: 'stale', actionable: { fix: 'rokit_install' } },
+    ])).toEqual({ check: 'Toolchain pins', fix: 'rokit_install' });
   });
 });
 

@@ -79,6 +79,55 @@ function packageName(spec: string): string {
   return spec.split('@')[0];
 }
 
+/** "scope/name@^1.2.3" -> "^1.2.3", or undefined when the spec has no version. */
+function packageRequirement(spec: string): string | undefined {
+  const at = spec.indexOf('@');
+  return at < 0 ? undefined : spec.slice(at + 1);
+}
+
+/**
+ * Whether a locked version satisfies a manifest requirement.
+ *
+ * ponytail: handles the forms Wally manifests actually use — an exact version,
+ * a caret or tilde range, a partial `1.2` prefix, and `*`. Anything else, and
+ * any locked prerelease, is reported as unverifiable rather than silently
+ * passing. Swap in a real semver matcher if manifests start carrying compound
+ * ranges or prerelease requirements.
+ */
+function satisfiesRequirement(locked: string, requirement: string): boolean | undefined {
+  const wanted = requirement.trim();
+  if (!wanted || wanted === '*') return true;
+  const match = /^([\^~]?)(\d+(?:\.\d+){0,2})$/.exec(wanted);
+  if (!match) return undefined;
+  const [, operator, version] = match;
+  // Cargo excludes prereleases from a plain requirement: 1.0.0-alpha does not
+  // satisfy ^1.0.0. Stripping the suffix and comparing numbers said it did, so
+  // say "cannot verify" instead of guessing at Cargo's prerelease rules.
+  if (/[-+]/.test(locked)) return undefined;
+  const lockedParts = locked.split('.').slice(0, 3).map(Number);
+  const wantedParts = version.split('.').map(Number);
+  if (lockedParts.some(Number.isNaN) || wantedParts.some(Number.isNaN)) return undefined;
+  const [lockedMajor = 0, lockedMinor = 0, lockedPatch = 0] = lockedParts;
+  const [wantedMajor = 0, wantedMinor = 0, wantedPatch = 0] = wantedParts;
+  const atLeast = lockedMajor > wantedMajor
+    || (lockedMajor === wantedMajor && (lockedMinor > wantedMinor
+      || (lockedMinor === wantedMinor && lockedPatch >= wantedPatch)));
+  if (operator === '^') {
+    // Wally follows Cargo: below 1.0.0 a caret pins the leading non-zero field.
+    if (wantedMajor > 0) return lockedMajor === wantedMajor && atLeast;
+    if (wantedMinor > 0) return lockedMajor === 0 && lockedMinor === wantedMinor && atLeast;
+    return lockedMajor === 0 && lockedMinor === 0 && lockedPatch === wantedPatch;
+  }
+  if (operator === '~') {
+    // Cargo again: `~1.2.3` and `~1.2` are >=x, <1.3.0, but a bare `~1` widens
+    // to the whole major — >=1.0.0, <2.0.0.
+    if (wantedParts.length === 1) return lockedMajor === wantedMajor;
+    return lockedMajor === wantedMajor && lockedMinor === wantedMinor && atLeast;
+  }
+  // A bare "1.2" is a prefix; a bare "1.2.3" is exact.
+  return wantedParts.every((part, index) => part === lockedParts[index]);
+}
+
 /** Windows and macOS fold path case by default; Linux does not, and there
  * `Packages` and `packages` really are different directories. Folding
  * everywhere reported a mount Rojo would fail to resolve as mapped. */
@@ -154,9 +203,27 @@ export class WallyTools {
       realm: entry.realm,
       checksum: entry.checksum,
     }));
-    const known = new Map(lock.packages.map((entry) => [entry.name, entry] as const));
+    // Keyed by name@version, not by name: a lockfile legitimately carries two
+    // versions of one package, and a name-keyed map kept whichever came last and
+    // pointed every edge at it.
+    const known = new Map<string, WallyPackage>(lock.packages.map((entry) => [`${entry.name}@${entry.version}`, entry]));
+    const byName = new Map<string, WallyPackage[]>();
+    for (const entry of lock.packages) {
+      byName.set(entry.name, [...(byName.get(entry.name) ?? []), entry]);
+    }
     const edges = lock.packages.flatMap((entry) => entry.dependencies.map((dependency) => {
-      const target = known.get(packageName(dependency.package));
+      const name = packageName(dependency.package);
+      const requirement = packageRequirement(dependency.package);
+      const candidates = byName.get(name) ?? [];
+      // No trailing single-candidate fallback: it used to resolve an edge whose
+      // only candidate did *not* satisfy the requirement, so `unresolved` stayed
+      // empty and validateLock could report ok for a lock whose transitive edge
+      // points at a version the parent package rejects. Declared requirements
+      // are already treated strictly; edges get the same rule.
+      const target = known.get(dependency.package)
+        ?? (requirement === undefined
+          ? (candidates.length === 1 ? candidates[0] : undefined)
+          : candidates.find((candidate) => satisfiesRequirement(candidate.version, requirement) === true));
       return {
         from: `${entry.name}@${entry.version}`,
         alias: dependency.alias,
@@ -182,22 +249,61 @@ export class WallyTools {
         ok: false,
         present: false,
         error: 'wally.lock is missing; run wally_install_apply (which uses --locked in CI) to produce one',
-        missing: manifestDependencies(manifest.data).map((entry) => entry.spec),
+        // Same shape as the present-lock branch below, so one parser handles both.
+        missing: manifestDependencies(manifest.data).map((entry) => `${entry.alias} = ${entry.spec}`),
       };
     }
     const packages = lockPackages(lock.data);
-    const locked = new Set(packages.map((entry) => entry.name));
+    const byName = new Map<string, WallyPackage[]>();
+    for (const entry of packages) byName.set(entry.name, [...(byName.get(entry.name) ?? []), entry]);
     const declared = manifestDependencies(manifest.data);
-    const missing = declared.filter((entry) => !locked.has(packageName(entry.spec)));
-    const withoutChecksum = packages.filter((entry) => !entry.checksum).map((entry) => entry.name);
+
+    // Names alone are not enough: a manifest asking for roblox/roact@2.0.0
+    // against a lock pinning 1.4.4 matched on the name and validated as ok.
+    const missing: typeof declared = [];
+    const mismatched: Array<{ alias: string; spec: string; locked: string }> = [];
+    const unverifiable: Array<{ alias: string; spec: string; locked: string }> = [];
+    for (const entry of declared) {
+      const candidates = byName.get(packageName(entry.spec)) ?? [];
+      if (candidates.length === 0) {
+        missing.push(entry);
+        continue;
+      }
+      const requirement = packageRequirement(entry.spec);
+      if (requirement === undefined) continue;
+      const results = candidates.map((candidate) => ({
+        candidate,
+        satisfied: satisfiesRequirement(candidate.version, requirement),
+      }));
+      if (results.some((result) => result.satisfied === true)) continue;
+      const versions = candidates.map((candidate) => candidate.version).join(', ');
+      // A requirement shape the matcher does not understand is reported as
+      // unverified, never as satisfied.
+      if (results.every((result) => result.satisfied === undefined)) {
+        unverifiable.push({ alias: entry.alias, spec: entry.spec, locked: versions });
+      } else {
+        mismatched.push({ alias: entry.alias, spec: entry.spec, locked: versions });
+      }
+    }
+
+    const withoutChecksum = packages
+      .filter((entry) => !entry.checksum)
+      .map((entry) => `${entry.name}@${entry.version}`);
+    const graph = this.dependencyGraph(root);
     return {
       root: manifest.directory,
       lockPath: lock.path,
-      ok: missing.length === 0,
+      ok: missing.length === 0
+        && mismatched.length === 0
+        && unverifiable.length === 0
+        && graph.unresolved.length === 0,
       present: true,
       declared: declared.length,
       locked: packages.length,
       missing: missing.map((entry) => `${entry.alias} = ${entry.spec}`),
+      mismatched,
+      unverifiable,
+      unresolved: graph.unresolved,
       withoutChecksum,
     };
   }

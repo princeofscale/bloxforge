@@ -141,61 +141,59 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
 - Partially managed projects intentionally leave Studio Instances outside the
   project tree untouched.
 
-## Toolchain (Rokit, Wally) — current gaps
+## Toolchain (Rokit, Wally)
 
-Verified against the code, open, and worth knowing before relying on the
-toolchain tools unattended.
-
-- **Only Rojo resolves through a toolchain shim.** Wally, Selene, StyLua,
-  `luau-lsp` and Lune are still invoked by bare command name, so they are found
-  on `PATH` only. After `rokit_install` creates the shims, the running BloxForge
-  process keeps its original `PATH`: Rojo starts working because it has its own
-  resolver, while the others may still report *not installed* until the server
-  is restarted. A shared project-aware resolver for every pinned tool is the fix.
-- **`wally_validate_lock` compares package names, not versions.** A `wally.toml`
-  asking for `roblox/roact@2.0.0` against a lock pinning `1.4.4` validates as
-  `ok: true`. The dependency graph is also keyed by package name, so a lockfile
-  containing two versions of one package keeps only one node and its edges point
-  at whichever survived. Treat the result as "every declared package appears",
-  not "the lockfile satisfies the manifest".
-- **`rokit_status.installRequired` only checks that a shim exists.** A shim of
-  the wrong version reports `matchesManifest: false` alongside
-  `installRequired: false`. Branch on `matchesManifest`, not on
-  `installRequired`, when deciding whether to install.
-- **`rokit_install` is not covered end to end.** The integration job runs
-  `rokit install --no-trust-check`, while the MCP tool runs plain
-  `rokit install`. On a machine with no trust state the tool's own command path
-  is unproven.
-- **Project discovery descends into Wally package directories.** `Packages/`,
-  `ServerPackages/` and `DevPackages/` are walked like any other directory, so a
-  `*.project.json` shipped inside a dependency can make discovery ambiguous or
-  hit the 200-project ceiling. Pass an explicit `projectFile` when that happens.
+- **Version requirements are matched, not solved.** `wally_validate_lock`
+  understands an exact version, a caret or tilde range, a partial `1.2` prefix,
+  and the `*` wildcard (which always matches). Anything else — a compound range,
+  or a locked version carrying a prerelease suffix — is reported under
+  `unverifiable` rather than treated as satisfied, and makes `ok` false.
+- **`rokit_install` needs `allowPinnedToolDownloads: true` to run
+  unattended.** Rokit asks for trust before downloading a source it has not
+  seen, and there is no terminal here. The flag is refused unless every tool in
+  the manifest is pinned to an exact `owner/repo@x.y.z`.
+- **The real Rokit and Wally CLIs are exercised nightly on Windows and macOS**,
+  not on every pull request. A per-PR failure specific to those platforms
+  surfaces the next night, or on a commit whose message contains
+  `[toolchain-matrix]`.
 
 ## Managed `rojo serve`
 
-- Readiness is a TCP connect to the configured port. The port is checked free
-  before the child spawns, but another process can bind it in between; BloxForge
-  would then attach to that listener and report `running` while the real child
-  exits with `EADDRINUSE`. Prefer a port you control, and treat a `rojo serve`
-  that reports running but does not sync as this case.
 - Processes are tracked in memory only. There is no supervisor: a crashed Rojo
   is not restarted, an existing `rojo serve` cannot be adopted after a BloxForge
   restart, and the status stays `exited` until something asks.
+- Readiness is a `/api/rojo` handshake plus a short settle window: the handshake
+  proves a Rojo answers, and the child outliving the window proves it was not the
+  one that lost the port race and died of `EADDRINUSE`. It is a timing argument,
+  not a kernel-level ownership proof — nothing here asks the OS which PID owns
+  the listening socket, so a foreign Rojo that binds first *and* a managed child
+  that takes longer than the window to die would still be adopted. A *non-Rojo*
+  listener on that port simply looks like a server that never became ready.
+- There is no restart backoff, no on-disk process lease, and no persisted
+  runtime state, so nothing survives a BloxForge restart to be re-adopted. An
+  agent that wants a long-lived serve has to re-establish it and handle the
+  crash case itself.
 
-## Legacy tools bypass the newer guarantees
+## Orchestration
 
-`install_wally_packages`, `generate_rojo_sourcemap`, `build_rojo_project`,
-`run_quality_gate` and `resolve_instance_source_file` predate the
-`rojo_*`/`wally_*`/`rokit_*` tools and are still in the always-on core set, so an
-agent usually sees them first. They do not apply the lock policy, output-path
-validation, or project selection the newer tools do — `install_wally_packages`
-runs a plain `wally install` with no `--locked` handling at all.
+There is no single "get this project into a working state" tool. Detecting the
+project, installing the toolchain, installing Wally packages, starting `rojo
+serve`, and reconciling Studio against the filesystem are separate tools that an
+agent sequences itself, and there is no policy block that says which of those
+steps may run unattended. `verify --project <dir> --json` reports `nextAction`
+to drive that sequence, but it does not perform it.
 
-Likewise `sync_pull`, `sync_status` and `sync_push` are deprecated and take only
+## Legacy tools
+
+`install_wally_packages`, `generate_rojo_sourcemap`, `build_rojo_project` and
+`resolve_instance_source_file` are deprecated wrappers over the canonical
+implementations. They apply the same lock policy, output-path validation and
+project selection, and every response carries `deprecated: true` with the tool
+to use instead. They are no longer in the always-on core set.
+
+`sync_pull`, `sync_status` and `sync_push` remain deprecated and still take only
 `dryRun`/`confirm`; they do not require the `expectedPlanHash` that
 `rojo_syncback_apply` enforces.
-
-Prefer the canonical tool in every case:
 
 | Legacy | Use instead |
 |---|---|

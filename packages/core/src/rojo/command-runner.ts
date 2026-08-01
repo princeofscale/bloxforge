@@ -1,18 +1,7 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-import { findManifest } from '../toolchain/manifest.js';
+import { clearToolCommandCache, resolveToolCommand, type ToolCommand } from '../toolchain/resolver.js';
 
-export interface RojoCommand {
-  executable: string;
-  prefixArgs: string[];
-  source: 'path' | 'environment' | 'rokit' | 'aftman' | 'test';
-  /** Toolchain manifest that selected this command, when one did. */
-  manifest?: string;
-  /** Set when a manifest declares Rojo but no installed shim was found. */
-  installHint?: string;
-}
+export type RojoCommand = ToolCommand;
 
 export interface RojoCommandResult {
   available: boolean;
@@ -44,120 +33,15 @@ function commandErrorMessage(error: CommandError, timeoutMs: number, command: Ro
   return error.message;
 }
 
-// Neither Rokit nor Aftman has a `run` subcommand — both work by installing
-// per-tool shims into their own bin directory and putting it on PATH. Resolving
-// a toolchain therefore means finding that shim, not inventing a wrapper call.
-const TOOLCHAINS = [
-  { manifest: 'rokit.toml', source: 'rokit' as const, rootEnv: 'ROKIT_ROOT', home: '.rokit' },
-  { manifest: 'aftman.toml', source: 'aftman' as const, rootEnv: 'AFTMAN_ROOT', home: '.aftman' },
-];
-
-/** The shared bounded resolver: an upward search that leaves
- * `BLOXFORGE_PROJECT_ROOT` could pick up a stranger's toolchain manifest. */
-function findToolchainManifest(startDirectory: string, fileName: string): string | undefined {
-  try {
-    return findManifest(startDirectory, fileName);
-  } catch {
-    return undefined;
-  }
-}
-
-function manifestDeclaresRojo(manifest: string): boolean {
-  try {
-    // Deliberately not a full TOML parse: this only decides whether to prefer a
-    // toolchain shim. RokitTools does the real parsing.
-    return /^\s*rojo\s*=/m.test(fs.readFileSync(manifest, 'utf8'));
-  } catch {
-    return false;
-  }
-}
-
-function shimPath(rootEnv: string, home: string): string {
-  const root = process.env[rootEnv]?.trim() || path.join(os.homedir(), home);
-  return path.join(root, 'bin', process.platform === 'win32' ? 'rojo.exe' : 'rojo');
-}
-
-function detectCommand(cwd?: string): RojoCommand {
-  const configured = process.env.BLOXFORGE_ROJO_BIN?.trim();
-  if (configured) return { executable: configured, prefixArgs: [], source: 'environment' };
-
-  const start = cwd && fs.existsSync(cwd) ? fs.realpathSync(cwd) : process.cwd();
-  let pending: RojoCommand | undefined;
-  for (const toolchain of TOOLCHAINS) {
-    const manifest = findToolchainManifest(start, toolchain.manifest);
-    if (!manifest || !manifestDeclaresRojo(manifest)) continue;
-    const shim = shimPath(toolchain.rootEnv, toolchain.home);
-    if (fs.existsSync(shim)) {
-      return { executable: shim, prefixArgs: [], source: toolchain.source, manifest };
-    }
-    // The manifest pins Rojo but the shim is missing. Remember why, so an ENOENT
-    // later names the fix instead of silently falling back to a random global Rojo.
-    // The *absolute* missing shim, never the bare name `rojo`: `execFile` looks a
-    // bare name up on PATH, so a pinned project with no installed shim would
-    // still run whatever global Rojo exists while reporting source: 'rokit'.
-    // Spawning the absolute path fails with ENOENT, which surfaces installHint.
-    pending ??= {
-      executable: shim,
-      prefixArgs: [],
-      source: toolchain.source,
-      manifest,
-      installHint: `${manifest} declares rojo but no installed shim was found at ${shim}. Run the rokit_install tool (or \`${toolchain.source} install\` in ${path.dirname(manifest)}) and retry.`,
-    };
-  }
-
-  // A pinned project outranks whatever global Rojo happens to be on PATH.
-  // Running an unpinned 7.5 against a project pinned to 7.7 is precisely the
-  // drift the pin exists to prevent, and it fails in ways nothing here can see.
-  return pending ?? { executable: 'rojo', prefixArgs: [], source: 'path' };
-}
-
-interface CacheEntry {
-  key: string;
-  command: RojoCommand;
-}
-
-const resolutionCache = new Map<string, CacheEntry>();
-const MAX_CACHED_ROOTS = 32;
-
-function stamp(file: string): string {
-  try {
-    const stats = fs.statSync(file);
-    return `${stats.mtimeMs}:${stats.size}`;
-  } catch {
-    return 'absent';
-  }
-}
-
-/** Keyed by project root plus every toolchain manifest above it *and its shim*.
- * An external `rokit install` creates the shim without touching the manifest,
- * so keying on the manifest alone pinned the stale resolution until restart. */
-function cacheKey(start: string): string {
-  const parts = [process.env.BLOXFORGE_ROJO_BIN ?? '', process.env.ROKIT_ROOT ?? '', process.env.AFTMAN_ROOT ?? ''];
-  for (const toolchain of TOOLCHAINS) {
-    const manifest = findToolchainManifest(start, toolchain.manifest);
-    parts.push(`${manifest ?? toolchain.manifest}:${manifest ? stamp(manifest) : 'absent'}`);
-    const shim = shimPath(toolchain.rootEnv, toolchain.home);
-    parts.push(`${shim}:${stamp(shim)}`);
-  }
-  return parts.join('\0');
-}
-
+/** Rojo resolves through the shared toolchain resolver like every other pinned
+ * tool; this module only adds Rojo's version/feature detection on top. */
 function resolveCommand(cwd?: string): RojoCommand {
-  const start = cwd && fs.existsSync(cwd) ? fs.realpathSync(cwd) : process.cwd();
-  const key = cacheKey(start);
-  const cached = resolutionCache.get(start);
-  if (cached?.key === key) return cached.command;
-  const command = detectCommand(start);
-  if (resolutionCache.size >= MAX_CACHED_ROOTS) {
-    resolutionCache.delete(resolutionCache.keys().next().value as string);
-  }
-  resolutionCache.set(start, { key, command });
-  return command;
+  return resolveToolCommand('rojo', cwd);
 }
 
 /** Exposed for tests and for tooling that installs a toolchain mid-session. */
 export function clearRojoCommandCache(): void {
-  resolutionCache.clear();
+  clearToolCommandCache();
 }
 
 export class RojoCommandRunner {
