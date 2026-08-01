@@ -163,3 +163,25 @@ describe('RobloxStudioTools.loadToolset', () => {
     expect(payload.count).toBe(payload.tools.length);
   });
 });
+
+describe('core tool set and toolchain domains', () => {
+  test('routes rokit and wally tools into the sync domain, not the scene default', () => {
+    // Without prefix rules these fell through to `scene`, so loading the `sync`
+    // toolset produced the Rojo tools without the toolchain tools they need.
+    for (const name of ['rokit_install', 'wally_install_apply', 'rojo_serve_start']) {
+      expect(classifyDomain(name)).toBe('sync');
+    }
+  });
+
+  test('keeps mutating toolchain tools out of the always-on core set', () => {
+    // `install_wally_packages` ran a bare `wally install` with no lock policy and
+    // was the first thing an agent saw. Only read-only checks stay in core.
+    for (const name of ['install_wally_packages', 'generate_rojo_sourcemap', 'build_rojo_project']) {
+      expect(CORE_TOOLS.has(name)).toBe(false);
+    }
+    for (const name of ['rokit_status', 'wally_validate_lock', 'rojo_detect_projects']) {
+      expect(CORE_TOOLS.has(name)).toBe(true);
+      expect(classifyDomain(name)).toBe('core');
+    }
+  });
+});

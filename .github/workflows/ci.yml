@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly, for the jobs that download real third-party binaries.
+    - cron: '0 4 * * *'
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
@@ -169,6 +172,54 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install pinned tools through Rokit and verify the shims
         run: npm run test:toolchain:integration
+
+  # Shim resolution, case folding, file locking and process termination all
+  # differ on Windows and macOS, and those are exactly what the toolchain layer
+  # touches. Nightly rather than per-PR: it downloads real binaries every run.
+  toolchain-cross-platform:
+    name: Real toolchain CLIs (${{ matrix.os }})
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[toolchain-matrix]')
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Checksums are the per-asset digests published with the v1.2.0 release;
+      # the linux-x86_64 one matches the value the Linux job already pins.
+      - name: Install pinned Rokit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            asset=rokit-1.2.0-windows-x86_64.zip
+            sum=f9ba1704014ff67d51e8005f605955c7c26d2429a5312a9419dc477fc310e96d
+          else
+            asset=rokit-1.2.0-macos-aarch64.zip
+            sum=eb8e6b4f8026db2b80ad0887c50f342958ecdbacbdeda2fd6028b3c4f774a3ee
+          fi
+          curl -fsSL "https://github.com/rojo-rbx/rokit/releases/download/v1.2.0/${asset}" -o "${RUNNER_TEMP}/rokit.zip"
+          echo "${sum}  ${RUNNER_TEMP}/rokit.zip" | shasum -a 256 --check -
+          unzip -q "${RUNNER_TEMP}/rokit.zip" -d "${RUNNER_TEMP}/rokit"
+          chmod +x "${RUNNER_TEMP}/rokit/rokit" 2>/dev/null || true
+          "${RUNNER_TEMP}/rokit/rokit" self-install
+          echo "${HOME}/.rokit/bin" >> "$GITHUB_PATH"
+      - name: Authenticate Rokit with the workflow token
+        run: rokit authenticate github --token "${GITHUB_TOKEN}"
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run test:toolchain:integration
 
   cross-platform:
     name: Cross-platform smoke (${{ matrix.os }})

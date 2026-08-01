@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- One shared project-aware toolchain resolver for every tool a
+  `rokit.toml`/`aftman.toml` pins — Rojo, Wally, Selene, StyLua, Lune,
+  luau-lsp — instead of a resolver private to Rojo. Selene and StyLua were
+  probed with a bare name, so a project that pins them ran whatever version
+  happened to be on `PATH`, or reported them missing while a pinned shim sat
+  installed. Availability is now per project: a tool the manifest declares never
+  falls back to `PATH`, and a pinned-but-uninstalled tool reports the install
+  step rather than reading as absent.
+- `verify --project <dir> [--strict] [--json]`, which checks Rojo project
+  discovery, toolchain pins, the Rojo binary, the Wally lockfile, and the Wally
+  package mapping for a real project directory and emits
+  `{ready, strict, checks, nextAction}` for an agent to branch on.
+- A nightly cross-platform toolchain job (windows-latest, macos-latest) that
+  installs Rokit from checksum-pinned release assets and runs the Rokit/Wally
+  integration script. It also runs on demand for a commit whose message
+  contains `[toolchain-matrix]`. The per-platform checksums were read from the
+  GitHub release API, not copied from the Linux pin.
+
+### Changed
+- `rokit_status` now reports the running version of each shim against the
+  manifest pin, so a stale install is `install`-actionable instead of healthy.
+  A manifest whose tool name is not a safe shim name is reported as
+  `fix-manifest` and blocks the install path entirely.
+- `rokit_install` passes `--no-trust-check` only when every pin in the manifest
+  is an exact `x.y.z`, and returns the exact sources it trusted. A loose
+  requirement is refused rather than resolved to whatever the manifest happens
+  to match today.
+- `wally_validate_lock` compares versions, not just names. The lockfile graph is
+  keyed `name@version`, dependency requirements are checked against the locked
+  version, and the result separates `mismatched`, `unverifiable`, and
+  `unresolved` — a requirement shape it cannot evaluate is reported as
+  unverifiable rather than silently passing.
+- A managed `rojo serve` is ready when `/api/rojo` returns a Rojo server info
+  document, not when the port accepts a connection. An unrelated listener on
+  the port now reports "Another Rojo already answers on host:port" instead of
+  being adopted as ours; `sessionId` and `projectName` are reported on success.
+- Project discovery no longer descends into `Packages`, `ServerPackages`, or
+  `DevPackages`, so a Wally dependency's own `*.project.json` cannot be offered
+  as the project to sync.
+- `install_wally_packages`, `generate_rojo_sourcemap`, `build_rojo_project`, and
+  `resolve_instance_source_file` are now thin wrappers over the canonical
+  `wally_*`/`rojo_*` implementations and return `deprecated: true` with a
+  pointer, so they inherit the toolchain resolution and confirmation contract
+  they used to bypass. They are off the core tool list; the canonical detection,
+  status, and validation tools took their place.
+- `doctor` requires Node 20, matching `engines.node` on every published package.
+  The check still said "Node 18+" long after the floor moved.
+- `scripts/publish.mjs` publishes per package, skips a version already on the
+  registry, and verifies presence afterwards, so a rerun after a partial failure
+  finishes the remaining package instead of dying on the published one.
+- Split the release workflow into a read-only `gate` job and a `publish` job, so
+  the gate runs without `contents: write` or persisted credentials.
+
 ### Fixed
 - Stopped a pinned-but-uninstalled toolchain from running a global Rojo at
   spawn time. The 4.0.1 fix corrected which command was *reported* but left the
@@ -26,11 +80,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rewrote `AGENTS.md` as an operating guide: the invariants that fail silently
   when broken, how to verify a review claim against primary sources, the real
   validation gates, and the traps in this codebase.
-- Documented the verified open gaps: only Rojo resolves through a toolchain
-  shim, `wally_validate_lock` compares names rather than versions,
-  `rokit_status.installRequired` ignores a version mismatch, project discovery
-  descends into Wally package directories, the `rojo serve` readiness port race,
-  and the legacy tools that bypass the newer guarantees.
+- Rewrote the toolchain, managed-`rojo serve`, and legacy-tool sections of
+  `docs/known-limitations.md`, `docs/troubleshooting.md`, and
+  `docs/architecture.md` for the behaviour above, including what a pinned tool
+  reports when its shim is missing, what `wally_validate_lock` calls
+  unverifiable, and what "Another Rojo already answers on…" means.
+- Recorded the two items from the review that were deliberately **not** built:
+  a supervised `rojo serve` with backoff, a process lease, and adoption after a
+  restart; and a `project_reconcile` orchestration flow driven by an
+  `[automation]` policy block. Both are real gaps, not oversights.
 
 ## [4.0.1] - 2026-07-31
 

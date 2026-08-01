@@ -155,10 +155,13 @@ canonical project. Sourcemap IDs, not raw Instance names, provide the preferred
 file/Instance mapping, and Instance paths may be supplied as unambiguous
 segments instead of a dotted string.
 
-The Rojo command is resolved per canonical project root, not once per process.
-A `rokit.toml` or `aftman.toml` above the project selects that toolchain's
-installed shim; neither manager has a `run` subcommand, so no wrapper call is
-synthesised. When a manifest pins Rojo but no shim exists, the failure names the
+Every tool a `rokit.toml`/`aftman.toml` pins — Rojo, Wally, Selene, StyLua,
+Lune, luau-lsp — resolves through one shared project-aware resolver, per
+canonical project root rather than once per process.
+The nearest manifest above the project selects that toolchain's installed shim;
+neither manager has a `run` subcommand, so no wrapper call is synthesised. A tool
+the manifest does not declare falls back to `PATH`; a tool it does declare never
+does, so availability is per project rather than per machine. When a manifest pins Rojo but no shim exists, the failure names the
 install step instead of falling back to an unrelated global Rojo: the resolved
 command is the absolute shim path even when it is missing, so spawning it fails
 with `ENOENT` rather than letting `execFile` find a bare `rojo` on `PATH`. The

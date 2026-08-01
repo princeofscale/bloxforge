@@ -90,6 +90,17 @@ Install and pin Rojo/Selene/StyLua/Luau tooling with your project’s preferred
 tool manager, then rerun `run_quality_gate`. `install_wally_packages` requires
 `confirm: true` and only runs in the detected project root.
 
+### `verify` for a whole project
+
+`verify --project <dir>` adds the Rojo/Rokit/Wally checks to the usual Node,
+plugin and bridge ones: project discovery, whether the pinned versions match what
+is installed, whether the Rojo binary runs, whether the lockfile satisfies the
+manifest, and whether the installed package directories are mounted.
+
+Add `--strict` so warnings exit non-zero, and `--json` for a machine-readable
+report with a `nextAction`. Without `--strict` a warning still exits 0, which is
+right for a person reading the output and ambiguous for a script.
+
 ### Rojo project detection is ambiguous
 
 BloxForge discovers every nested `*.project.json` and `*.project.jsonc` and
@@ -112,12 +123,19 @@ global Rojo — a pin is never quietly ignored.
 Note `rokit_status.installRequired` only reports whether a shim *exists*. To
 detect a shim of the wrong version, branch on `matchesManifest`.
 
-### Selene, StyLua, Wally or Lune still report "not installed" after `rokit_install`
+### A tool reports "not installed" right after `rokit_install`
 
-Only Rojo resolves through the toolchain shim. The others are looked up on
-`PATH`, and the running BloxForge process keeps the `PATH` it started with, so
-newly created shims are invisible to it. Restart the MCP server after installing
-a toolchain. See [Known limitations](known-limitations.md#toolchain-rokit-wally--current-gaps).
+Every tool a manifest pins now resolves through its shim, so a fresh install is
+picked up without restarting the server. If one still reports unavailable, the
+manifest most likely does not declare it — an undeclared tool is looked up on
+`PATH` as before. Check `rokit_status`.
+
+### `rokit_install` hangs or fails on a fresh machine
+
+Rokit asks for trust before downloading a source it has not seen, and BloxForge
+has no terminal to answer with. Pass `allowPinnedToolDownloads: true`; it is
+accepted only when every tool is pinned to an exact `owner/repo@x.y.z`, and the
+response lists the exact sources it trusted.
 
 ### `rojo_detect_projects` finds projects inside `Packages/`
 
@@ -125,11 +143,13 @@ Discovery walks Wally package directories, so a `*.project.json` shipped inside 
 dependency counts. Pass an explicit `projectFile` to every `rojo_*` call, or move
 the search root below the package directories with `BLOXFORGE_PROJECT_ROOT`.
 
-### `wally_validate_lock` says `ok` but the versions are wrong
+### `wally_validate_lock` fails with `mismatched` or `unverifiable`
 
-It compares package *names*, not versions: a manifest asking for `@2.0.0` against
-a lock pinning `1.4.4` still validates. Read `wally_get_lock` and compare the
-versions yourself when that matters.
+`mismatched` means the lockfile pins a version the manifest requirement does not
+allow — run `wally_install_plan` then `wally_install_apply`. `unverifiable` means
+the requirement uses a form the matcher does not understand (anything beyond an
+exact version, a caret or tilde range, or a `1.2` prefix); check it by hand with
+`wally_get_lock`.
 
 ### Wally packages are installed but missing in Studio
 
@@ -138,12 +158,11 @@ Run `wally_verify_rojo_mapping`. It reports which of `Packages`,
 in the selected Rojo project tree. Add the missing `$path` entries, then rebuild
 the sourcemap.
 
-### `rojo serve` reports running but nothing syncs
+### "Another Rojo already answers on 127.0.0.1:34872"
 
-Readiness is a TCP connect to the configured port. If another process bound that
-port between the free-port check and Rojo's own bind, BloxForge attaches to the
-wrong listener and reports `running` while the real child exits. Check
-`rojo_serve_logs` for `EADDRINUSE`, then restart on a port you control.
+Readiness is a `/api/rojo` handshake against the managed child, so a port taken
+by a different Rojo between the free-port check and the child's own bind is
+reported instead of adopted. Stop the other server, or start on another port.
 
 ### `rojo_serve_start` fails
 

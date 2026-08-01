@@ -2940,7 +2940,7 @@ Compare each tool's manifest version, installed shim, and the version the shim a
 
 ### `rokit_install` (Write)
 
-Install every tool pinned by the manifest after confirm=true; downloads binaries and writes shims.
+Install every tool pinned by the manifest after confirm=true; downloads binaries and writes shims. Rokit prompts for trust on an unseen source and there is no terminal here, so set allowPinnedToolDownloads=true to skip that check — allowed only when every tool is pinned to an exact version.
 
 **Parameters:**
 
@@ -2948,6 +2948,7 @@ Install every tool pinned by the manifest after confirm=true; downloads binaries
 |---|---|---|---|
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
 | `confirm` | `boolean` | No | Required to execute; downloads from the network and writes local files. |
+| `allowPinnedToolDownloads` | `boolean` | No | Run non-interactively, trusting the exact owner/repo@version pins already in the manifest. Refused if any tool uses a loose requirement. |
 
 ---
 

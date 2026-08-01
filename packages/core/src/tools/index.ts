@@ -378,14 +378,61 @@ export class RobloxStudioTools {
   async detectRobloxProject(root?: string) { return wrapToolJsonText(this.qualityTools.detectRobloxProject(root)); }
   async validateScriptSource(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.validateScriptSource(source, fileName)); }
   async formatScriptPreview(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.formatScriptPreview(source, fileName)); }
-  async resolveInstanceSourceFile(instancePath: string, root?: string) { return wrapToolJsonText(this.qualityTools.resolveInstanceSourceFile(instancePath, root)); }
   async runProjectTests(root?: string, script?: string) { return wrapToolJsonText(this.qualityTools.runProjectTests(root, script)); }
   async getDependencyGraph(root?: string) { return wrapToolJsonText(this.qualityTools.getDependencyGraph(root)); }
-  async installWallyPackages(root?: string, confirm?: boolean) { return wrapToolJsonText(this.qualityTools.installWallyPackages(root, confirm)); }
   async runQualityGate(root?: string) { return wrapToolJsonText(this.qualityTools.runQualityGate(root)); }
   async validateWithLuauLsp(root?: string, files?: string[]) { return wrapToolJsonText(this.qualityTools.validateWithLuauLsp(root, files)); }
-  async generateRojoSourcemap(root?: string, output?: string) { return wrapToolJsonText(this.qualityTools.generateRojoSourcemap(root, output)); }
-  async buildRojoProject(root?: string, output?: string) { return wrapToolJsonText(this.qualityTools.buildRojoProject(root, output)); }
+
+  // ── Pre-4.0 tools, now thin wrappers over the canonical implementations ──
+  // They stay for compatibility, but they must not be a second code path with
+  // weaker guarantees: an agent that picks the older, more visible name gets the
+  // same lock policy, output-path validation and project selection.
+
+  /** @deprecated Use `rojo_resolve_instance_source`. */
+  async resolveInstanceSourceFile(instancePath: string, root?: string) {
+    try {
+      return wrapToolJsonText({
+        deprecated: true,
+        warning: 'resolve_instance_source_file is deprecated; use rojo_resolve_instance_source.',
+        ...this.rojoTools.resolveInstanceSource(root, undefined, instancePath),
+      });
+    } catch (error) {
+      // Ambiguous or absent Rojo project: the legacy sourcemap walk still works
+      // from a bare sourcemap.json, so it stays as the fallback.
+      return wrapToolJsonText({
+        deprecated: true,
+        warning: `resolve_instance_source_file is deprecated; use rojo_resolve_instance_source. Falling back to a bare sourcemap read: ${errorMessage(error)}`,
+        ...this.qualityTools.resolveInstanceSourceFile(instancePath, root),
+      });
+    }
+  }
+
+  /** @deprecated Use `wally_install_plan` then `wally_install_apply`. */
+  async installWallyPackages(root?: string, confirm?: boolean) {
+    return wrapToolJsonText({
+      deprecated: true,
+      warning: 'install_wally_packages is deprecated; use wally_install_plan then wally_install_apply.',
+      ...this.wallyTools.installApply(root, confirm === true),
+    });
+  }
+
+  /** @deprecated Use `rojo_generate_sourcemap`. */
+  async generateRojoSourcemap(root?: string, output?: string) {
+    return wrapToolJsonText({
+      deprecated: true,
+      warning: 'generate_rojo_sourcemap is deprecated; use rojo_generate_sourcemap.',
+      ...await this.rojoTools.generateSourcemap(root, undefined, output),
+    });
+  }
+
+  /** @deprecated Use `rojo_build_project`. */
+  async buildRojoProject(root?: string, output?: string) {
+    return wrapToolJsonText({
+      deprecated: true,
+      warning: 'build_rojo_project is deprecated; use rojo_build_project.',
+      ...await this.rojoTools.buildProject(root, undefined, output),
+    });
+  }
 
   async rojoDetectProjects(root?: string) { return this.rojoTools.detectProjects(root); }
   async rojoGetProjectInfo(root?: string, projectFile?: string) { return this.rojoTools.getProjectInfo(root, projectFile); }
@@ -435,7 +482,7 @@ export class RobloxStudioTools {
   async rokitGetManifest(root?: string) { return this.rokitTools.getManifest(root); }
   async rokitListTools(root?: string) { return this.rokitTools.listTools(root); }
   async rokitStatus(root?: string) { return this.rokitTools.status(root); }
-  async rokitInstall(root?: string, confirm?: boolean) { return this.rokitTools.install(root, confirm); }
+  async rokitInstall(root?: string, confirm?: boolean, allowPinnedToolDownloads?: boolean) { return this.rokitTools.install(root, confirm, allowPinnedToolDownloads); }
   async rokitAddTool(root: string | undefined, spec: string, confirm?: boolean) { return this.rokitTools.addTool(root, spec, confirm); }
   async rokitUpdate(root: string | undefined, tool?: string, confirm?: boolean) { return this.rokitTools.update(root, tool, confirm); }
 

@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import net from 'node:net';
+import http from 'node:http';
 import path from 'node:path';
 
 const args = process.argv.slice(2);
@@ -18,9 +18,22 @@ if (command === '--version') {
   };
   const address = flag('--address', '127.0.0.1');
   const port = Number(flag('--port', '34872'));
-  // Readiness is now a TCP probe, so a fake that only prints proves nothing.
-  // FAKE_ROJO_SILENT means "never accepts connections", which is the timeout case.
-  const server = process.env.FAKE_ROJO_SILENT === '1' ? undefined : net.createServer();
+  // Readiness is a real `/api/rojo` handshake, so a fake that only prints — or
+  // only accepts TCP — proves nothing. FAKE_ROJO_SILENT never listens at all,
+  // and FAKE_ROJO_NOT_ROJO listens but answers like some other server, which is
+  // the port-stolen-between-check-and-bind case.
+  const server = process.env.FAKE_ROJO_SILENT === '1' ? undefined : http.createServer((req, res) => {
+    if (req.url !== '/api/rojo' || process.env.FAKE_ROJO_NOT_ROJO === '1') {
+      res.writeHead(404).end('not found');
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
+      sessionId: 'fake-session',
+      serverVersion: process.env.FAKE_ROJO_SERVER_VERSION || '7.7.0',
+      protocolVersion: 4,
+      projectName: 'Game',
+    }));
+  });
   const timer = setInterval(() => {}, 1000);
   server?.listen(port, address, () => {
     process.stdout.write(`Rojo server listening on ${address}:${port}\n`);

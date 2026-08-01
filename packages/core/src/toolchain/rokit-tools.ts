@@ -86,6 +86,45 @@ function requireSafeSpec(spec: string): string {
  * their own bin directory. These tools therefore inspect the manifest and the
  * shims rather than trying to wrap tool invocations.
  */
+export interface ToolStatus {
+  name: string;
+  spec: string;
+  manifestVersion?: string;
+  shim?: string;
+  shimInstalled: boolean;
+  unsafeToolName: boolean;
+  runningVersion?: string;
+  probeOutput?: string;
+  matchesManifest?: boolean;
+}
+
+/**
+ * `installRequired` used to mean only "a shim file is missing", so a shim of the
+ * wrong version reported `matchesManifest: false` next to
+ * `installRequired: false` — contradictory for anything deciding automatically.
+ * It now covers every state an install would fix, and `healthy`/`reasons` say
+ * which, so a caller never has to combine three fields itself.
+ */
+function summarize(tools: ToolStatus[]) {
+  const reasons: string[] = [];
+  for (const tool of tools) {
+    if (tool.unsafeToolName) reasons.push(`${tool.name}: unsafe tool name in the manifest`);
+    else if (!tool.shimInstalled) reasons.push(`${tool.name}: no installed shim`);
+    else if (tool.runningVersion === undefined) reasons.push(`${tool.name}: shim did not report a version`);
+    else if (tool.matchesManifest === false) {
+      reasons.push(`${tool.name}: running ${tool.runningVersion}, manifest pins ${tool.manifestVersion}`);
+    }
+  }
+  const blocked = tools.some((tool) => tool.unsafeToolName);
+  return {
+    tools,
+    installRequired: reasons.length > 0 && !blocked,
+    healthy: reasons.length === 0,
+    action: reasons.length === 0 ? 'none' : blocked ? 'fix-manifest' : 'install',
+    reasons,
+  };
+}
+
 export class RokitTools {
   detect(root?: string): RokitDetection {
     const canonicalRoot = resolveProjectRoot(root ?? process.cwd());
@@ -154,7 +193,7 @@ export class RokitTools {
         TOOLCHAINS.find((entry) => entry.kind === kind)!.rootEnv,
         TOOLCHAINS.find((entry) => entry.kind === kind)!.home,
       ),
-      tools: Object.entries(tools).map(([name, spec]) => {
+      ...summarize(Object.entries(tools).map(([name, spec]) => {
         const manifestVersion = TOOL_SPEC.exec(spec)?.groups?.version;
         // The name comes from project data, so it is validated before it is ever
         // turned into a path — and only the resolved shim path is executed.
@@ -175,26 +214,63 @@ export class RokitTools {
             ? versionMatches(probe.version, manifestVersion)
             : undefined,
         };
-      }),
-      installRequired: Object.entries(tools).some(([name]) =>
-        !/^[\w.-]+$/.test(name) || !fs.existsSync(shimFor(kind, name))),
+      })),
     };
   }
 
-  install(root?: string, confirm = false): QualityCheck & { root?: string; manifestPath?: string } {
-    const { detection, kind } = this.require(root);
+  /**
+   * Runs the manifest's install.
+   *
+   * Rokit asks for trust before downloading a source it has not seen. A prompt
+   * has nowhere to go here — stdin is not a terminal — so the run would hang or
+   * fail on a fresh machine. Trust is skipped only when every declared tool is
+   * an exact `owner/repo@x.y.z` pin from the manifest the caller just reviewed,
+   * and only when the caller opts in with `allowPinnedToolDownloads`. A loose
+   * requirement or an unparsable spec is refused, never silently trusted.
+   */
+  install(
+    root?: string,
+    confirm = false,
+    allowPinnedToolDownloads = false,
+  ): QualityCheck & { root?: string; manifestPath?: string; trustedSources?: string[] } {
+    const { detection, manifest, kind } = this.require(root);
+    const toolchain = TOOLCHAINS.find((entry) => entry.kind === kind)!;
+    const specs = Object.entries(asStringMap(manifest.data.tools));
+    const parsed = specs.map(([name, spec]) => ({ name, spec, groups: TOOL_SPEC.exec(spec)?.groups }));
+    const loose = parsed.filter((entry) => !entry.groups || !/^\d+\.\d+\.\d+$/.test(entry.groups.version ?? ''));
+    const sources = parsed.map((entry) => `${entry.groups?.owner}/${entry.groups?.repo}@${entry.groups?.version}`);
+
     if (!confirm) {
       return {
         tool: kind,
-        available: hasCommand(kind),
+        available: hasCommand(kind, detection.root),
         ok: false,
-        error: `Confirmation required: pass confirm=true to run "${kind} install" for ${detection.manifestPath}. It downloads tools from the network and writes executables into ${binDirectory(TOOLCHAINS.find((entry) => entry.kind === kind)!.rootEnv, TOOLCHAINS.find((entry) => entry.kind === kind)!.home)}.`,
+        error: `Confirmation required: pass confirm=true to run "${kind} install" for ${detection.manifestPath}. It downloads ${specs.length} tool(s) from the network and writes executables into ${binDirectory(toolchain.rootEnv, toolchain.home)}.`,
+        ...(loose.length === 0 ? { trustedSources: sources } : {}),
       };
     }
-    const result = run(kind, ['install'], { cwd: detection.root });
-    // Newly installed shims change how Rojo resolves for this project.
+
+    const nonInteractive = allowPinnedToolDownloads && loose.length > 0
+      ? undefined
+      : allowPinnedToolDownloads;
+    if (allowPinnedToolDownloads && loose.length > 0) {
+      return {
+        tool: kind,
+        available: hasCommand(kind, detection.root),
+        ok: false,
+        error: `allowPinnedToolDownloads requires every tool to be pinned to an exact version. ${loose.map((entry) => `${entry.name} = "${entry.spec}"`).join(', ')} ${loose.length === 1 ? 'is' : 'are'} not.`,
+      };
+    }
+
+    const result = run(kind, nonInteractive ? ['install', '--no-trust-check'] : ['install'], { cwd: detection.root });
+    // Newly installed shims change how every pinned tool resolves for this project.
     clearRojoCommandCache();
-    return { ...result, root: detection.root, manifestPath: detection.manifestPath };
+    return {
+      ...result,
+      root: detection.root,
+      manifestPath: detection.manifestPath,
+      ...(nonInteractive ? { trustedSources: sources } : {}),
+    };
   }
 
   /**

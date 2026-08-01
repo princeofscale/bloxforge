@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { isRojoProjectFile } from './rojo/project-discovery.js';
+import { resolveToolCommand } from './toolchain/resolver.js';
 import { WallyTools } from './toolchain/wally-tools.js';
 
 const TOOL_COMMANDS = ['luau-analyze', 'luau-lsp', 'stylua', 'selene', 'rojo', 'rokit', 'aftman', 'wally', 'lune'] as const;
@@ -63,9 +64,21 @@ export interface RobloxProject {
   availableTools: QualityCommand[];
 }
 
-export function hasCommand(command: QualityCommand): boolean {
+/**
+ * Availability is per project, not per machine. A tool a `rokit.toml` pins but
+ * has not installed is *not* available, even when a global copy sits on PATH —
+ * reporting it available is how an unpinned version ends up running.
+ */
+export function hasCommand(command: QualityCommand, root?: string): boolean {
+  const resolved = resolveToolCommand(command, root);
+  if (resolved.installHint) return false;
   try {
-    execFileSync(command, ['--version'], { stdio: 'pipe', timeout: 3000 });
+    execFileSync(resolved.executable, [...resolved.prefixArgs, '--version'], {
+      cwd: root,
+      stdio: 'pipe',
+      timeout: 3000,
+      windowsHide: true,
+    });
     return true;
   } catch (error: any) {
     return error?.code !== 'ENOENT';
@@ -100,15 +113,20 @@ function selectedProjectFile(project: RobloxProject): { path?: string; error?: s
 }
 
 export function run(command: QualityCommand, args: string[], options: { cwd?: string; input?: string } = {}): QualityCheck {
-  if (!hasCommand(command)) return { tool: command, available: false, ok: false, error: `${command} is not installed` };
+  const resolved = resolveToolCommand(command, options.cwd);
+  // A pin with no installed shim reports the install step rather than running
+  // whatever copy of the tool happens to be on PATH.
+  if (resolved.installHint) return { tool: command, available: false, ok: false, error: resolved.installHint };
+  if (!hasCommand(command, options.cwd)) return { tool: command, available: false, ok: false, error: `${command} is not installed` };
   try {
-    const output = execFileSync(command, args, {
+    const output = execFileSync(resolved.executable, [...resolved.prefixArgs, ...args], {
       cwd: options.cwd,
       input: options.input,
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
       timeout: 120000,
       maxBuffer: MAX_OUTPUT_BYTES,
+      windowsHide: true,
     });
     return { tool: command, available: true, ok: true, output: output.trim() };
   } catch (error: any) {
@@ -140,14 +158,21 @@ export class QualityTools {
         return {
           root: current,
           files,
-          availableTools: TOOL_COMMANDS.filter(hasCommand),
+          // Availability is resolved against this project, so a tool pinned but
+          // not installed reports unavailable even with a global copy on PATH.
+          availableTools: TOOL_COMMANDS.filter((tool) => hasCommand(tool, current)),
         };
       }
       const parent = path.dirname(current);
       if (parent === current || !within(boundary, parent)) break;
       current = parent;
     }
-    return { root: path.resolve(root), files: {}, availableTools: TOOL_COMMANDS.filter(hasCommand) };
+    const fallbackRoot = path.resolve(root);
+    return {
+      root: fallbackRoot,
+      files: {},
+      availableTools: TOOL_COMMANDS.filter((tool) => hasCommand(tool, fallbackRoot)),
+    };
   }
 
   validateScriptSource(source: string, fileName = 'script.server.lua'): { checks: QualityCheck[] } {
@@ -216,15 +241,16 @@ export class QualityTools {
   }
 
   installWallyPackages(root = process.cwd(), confirm = false): QualityCheck {
-    if (!confirm) return { tool: 'wally', available: hasCommand('wally'), ok: false, error: 'Confirmation required: pass confirm=true to install packages' };
-    return run('wally', ['install'], { cwd: this.detectRobloxProject(root).root });
+    const project = this.detectRobloxProject(root);
+    if (!confirm) return { tool: 'wally', available: hasCommand('wally', project.root), ok: false, error: 'Confirmation required: pass confirm=true to install packages' };
+    return run('wally', ['install'], { cwd: project.root });
   }
 
   runProjectTests(root = process.cwd(), script?: string): QualityCheck {
-    if (!script) return { tool: 'lune', available: hasCommand('lune'), ok: false, error: 'script is required' };
     const project = this.detectRobloxProject(root);
+    if (!script) return { tool: 'lune', available: hasCommand('lune', project.root), ok: false, error: 'script is required' };
     const checked = safeExistingPath(project.root, script, 'script');
-    if (!checked.path) return { tool: 'lune', available: hasCommand('lune'), ok: false, error: checked.error };
+    if (!checked.path) return { tool: 'lune', available: hasCommand('lune', project.root), ok: false, error: checked.error };
     return run('lune', ['run', checked.path], { cwd: project.root });
   }
 
@@ -232,7 +258,7 @@ export class QualityTools {
     const project = this.detectRobloxProject(root);
     const checked = files.map(file => safeExistingPath(project.root, file, 'file'));
     const invalid = checked.find(result => !result.path);
-    if (invalid) return { tool: 'luau-lsp', available: hasCommand('luau-lsp'), ok: false, error: invalid.error };
+    if (invalid) return { tool: 'luau-lsp', available: hasCommand('luau-lsp', project.root), ok: false, error: invalid.error };
     const args = ['analyze', ...checked.map(result => result.path!)];
     if (project.files['sourcemap.json']) args.push('--sourcemap', project.files['sourcemap.json']);
     return run('luau-lsp', args, { cwd: project.root });
@@ -241,19 +267,19 @@ export class QualityTools {
   generateRojoSourcemap(root = process.cwd(), output = 'sourcemap.json'): QualityCheck {
     const project = this.detectRobloxProject(root);
     const selected = selectedProjectFile(project);
-    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: selected.error };
+    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo', project.root), ok: false, error: selected.error };
     const checked = safeOutputPath(project.root, output);
-    if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
+    if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo', project.root), ok: false, error: checked.error };
     return run('rojo', ['sourcemap', selected.path, '--output', checked.path], { cwd: project.root });
   }
 
   buildRojoProject(root = process.cwd(), output?: string): QualityCheck {
     const project = this.detectRobloxProject(root);
     const selected = selectedProjectFile(project);
-    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: selected.error };
-    if (!output) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: 'output is required' };
+    if (!selected.path) return { tool: 'rojo', available: hasCommand('rojo', project.root), ok: false, error: selected.error };
+    if (!output) return { tool: 'rojo', available: hasCommand('rojo', project.root), ok: false, error: 'output is required' };
     const checked = safeOutputPath(project.root, output);
-    if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo'), ok: false, error: checked.error };
+    if (!checked.path) return { tool: 'rojo', available: hasCommand('rojo', project.root), ok: false, error: checked.error };
     return run('rojo', ['build', selected.path, '--output', checked.path], { cwd: project.root });
   }
 

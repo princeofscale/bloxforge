@@ -2,14 +2,18 @@ import * as os from 'os';
 import { checkNodeVersion, collectDoctorChecks, formatDoctorReport, generateDiagnosticReport, DoctorCheck } from '../doctor.js';
 
 describe('checkNodeVersion', () => {
-  it('passes for Node 18 and above', () => {
-    expect(checkNodeVersion('v18.0.0').status).toBe('ok');
-    expect(checkNodeVersion('v20.11.1').status).toBe('ok');
+  it('passes for Node 20 and above', () => {
+    expect(checkNodeVersion('v20.0.0').status).toBe('ok');
+    expect(checkNodeVersion('v22.11.1').status).toBe('ok');
   });
-  it('fails for Node below 18', () => {
-    const check = checkNodeVersion('v16.20.0');
-    expect(check.status).toBe('fail');
-    expect(check.detail).toMatch(/18/);
+  it('fails below the floor every published package declares', () => {
+    // The check still said "Node 18+" long after engines.node moved to >=20, so
+    // doctor passed a runtime npm would refuse to install on.
+    for (const version of ['v16.20.0', 'v18.20.4']) {
+      const check = checkNodeVersion(version);
+      expect(check.status).toBe('fail');
+      expect(check.detail).toMatch(/Node 20\+/);
+    }
   });
 });
 

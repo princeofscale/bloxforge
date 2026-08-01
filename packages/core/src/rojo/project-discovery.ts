@@ -107,13 +107,27 @@ function readProject(projectFile: string): RojoProject {
 const MAX_DISCOVERED_PROJECTS = 200;
 const MAX_DISCOVERY_DEPTH = 24;
 
+/**
+ * Directories whose contents belong to something else. Wally installs vendored
+ * packages that ship their own `*.project.json`; walking into them made
+ * discovery ambiguous after any `wally install`, or hit the project ceiling.
+ */
+const IGNORED_DIRECTORIES = new Set([
+  '.git',
+  '.bloxforge',
+  'node_modules',
+  'Packages',
+  'ServerPackages',
+  'DevPackages',
+]);
+
 export function discoverRojoProjects(root = process.cwd()): RojoProject[] {
   const canonicalRoot = resolveProjectRoot(root);
   const found: string[] = [];
   const walk = (directory: string, depth: number) => {
     if (depth > MAX_DISCOVERY_DEPTH) return;
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.bloxforge') continue;
+      if (IGNORED_DIRECTORIES.has(entry.name)) continue;
       const absolute = path.join(directory, entry.name);
       if (entry.isDirectory()) walk(absolute, depth + 1);
       else if (entry.isFile() && isRojoProjectFile(entry.name)) {

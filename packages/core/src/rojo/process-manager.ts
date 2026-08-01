@@ -1,4 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import * as http from 'node:http';
 import * as net from 'node:net';
 import * as path from 'node:path';
 import { RojoCommandRunner, type RojoVersionResult } from './command-runner.js';
@@ -14,6 +15,9 @@ export interface RojoServeStatus {
   startedAt?: string;
   status: 'starting' | 'running' | 'stopped' | 'exited';
   exitCode?: number | null;
+  /** From Rojo's own `/api/rojo`, so readiness names the server it found. */
+  sessionId?: string;
+  projectName?: string;
 }
 
 interface ManagedProcess {
@@ -39,19 +43,58 @@ async function assertPortAvailable(host: string, port: number): Promise<void> {
   });
 }
 
-/** Readiness is "the port accepts connections", not "stdout said listening":
- * Rojo's banner wording is not API, and it has moved between releases. */
-function portAccepts(host: string, port: number): Promise<boolean> {
+export interface RojoServerInfo {
+  sessionId?: string;
+  serverVersion?: string;
+  protocolVersion?: number;
+  projectName?: string;
+}
+
+/**
+ * Readiness is "*this* Rojo answers on the port" — not "stdout said listening",
+ * and not "something accepts TCP".
+ *
+ * The banner wording is not API and has moved between releases. A bare TCP
+ * connect is not enough either: the port is checked free before the child
+ * spawns, but another process can bind it in between, and BloxForge would then
+ * adopt a stranger's listener while the real child died of EADDRINUSE.
+ *
+ * `/api/rojo` is Rojo's own server-info route and returns `sessionId`,
+ * `serverVersion`, `protocolVersion` and `projectName`, so a valid response
+ * proves both that it is Rojo and which project it serves.
+ */
+function readServerInfo(host: string, port: number, timeoutMs = 1500): Promise<RojoServerInfo | undefined> {
   return new Promise((resolve) => {
-    const socket = net.connect({ host, port });
-    const finish = (ready: boolean) => {
-      socket.destroy();
-      resolve(ready);
-    };
-    socket.setTimeout(1000);
-    socket.once('connect', () => finish(true));
-    socket.once('timeout', () => finish(false));
-    socket.once('error', () => finish(false));
+    const request = http.get(
+      { host, port, path: '/api/rojo', timeout: timeoutMs, agent: false },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.resume();
+          resolve(undefined);
+          return;
+        }
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk: string) => {
+          body += chunk;
+          // A stranger streaming megabytes must not become a memory problem.
+          if (body.length > 64 * 1024) request.destroy();
+        });
+        response.on('end', () => {
+          try {
+            const parsed = JSON.parse(body) as RojoServerInfo;
+            resolve(typeof parsed?.sessionId === 'string' && typeof parsed?.serverVersion === 'string'
+              ? parsed
+              : undefined);
+          } catch {
+            resolve(undefined);
+          }
+        });
+        response.on('error', () => resolve(undefined));
+      },
+    );
+    request.once('timeout', () => request.destroy());
+    request.once('error', () => resolve(undefined));
   });
 }
 
@@ -175,11 +218,19 @@ export class RojoProcessManager {
 
     const readinessTimeoutMs = options.readinessTimeoutMs ?? 10000;
     const deadline = Date.now() + readinessTimeoutMs;
+    let foreignListener = false;
     while (managed.status.status === 'starting') {
-      if (await portAccepts(host, port)) {
+      const info = await readServerInfo(host, port);
+      // The child must still be alive: a response from a port our own process
+      // never took belongs to somebody else's server.
+      if (info && child.exitCode === null) {
         managed.status.status = 'running';
+        managed.status.sessionId = info.sessionId;
+        managed.status.projectName = info.projectName;
+        if (info.serverVersion) managed.status.version = info.serverVersion;
         break;
       }
+      if (info) foreignListener = true;
       if (Date.now() >= deadline) break;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -187,7 +238,9 @@ export class RojoProcessManager {
     if (managed.status.status !== 'running') {
       const reason = managed.status.status === 'exited'
         ? `Rojo serve exited before becoming ready (code ${managed.status.exitCode ?? 'unknown'})`
-        : `Rojo serve did not become ready within ${readinessTimeoutMs}ms`;
+        : foreignListener
+          ? `Another Rojo already answers on ${host}:${port}; the managed process did not take the port`
+          : `Rojo serve did not become ready within ${readinessTimeoutMs}ms`;
       const tail = managed.logs.slice(-20).join('\n');
       await terminateChild(child);
       this.processes.delete(project);

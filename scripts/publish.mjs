@@ -13,6 +13,38 @@ const run = (cmd) => {
   execSync(cmd, { stdio: 'inherit', cwd: rootDir });
 };
 
+const capture = (cmd) => {
+  try {
+    return execSync(cmd, { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * npm versions are immutable, so a rerun after a partial failure used to die on
+ * the package that already published instead of finishing the one that did not.
+ * Publishing is therefore per package and skipped when the registry already has
+ * that exact version.
+ */
+const publishIfMissing = (workspace, name) => {
+  const published = capture(`npm view ${name}@${version} version`);
+  if (published === version) {
+    console.log(`
+${name}@${version} is already on the registry; skipping.`);
+    return 'skipped';
+  }
+  console.log(`
+Publishing ${name}@${version} with dist-tag ${npmTag}...`);
+  run(`npm publish -w ${workspace} --tag ${npmTag}`);
+  // Confirm rather than trust the exit code: a partial upload must not read as
+  // success on the next rerun either.
+  if (capture(`npm view ${name}@${version} version`) !== version) {
+    throw new Error(`${name}@${version} did not appear on the registry after publishing`);
+  }
+  return 'published';
+};
+
 // Read version from root package.json
 const rootPkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'));
 const version = rootPkg.version;
@@ -55,10 +87,10 @@ if (updatedReadme !== readme) {
 console.log('\nBuilding all packages...');
 run('npm run build:all');
 
-console.log(`\nPublishing robloxstudio-mcp with dist-tag ${npmTag}...`);
-run(`npm publish -w packages/robloxstudio-mcp --tag ${npmTag}`);
+const results = [
+  ['packages/robloxstudio-mcp', '@princeofscale/bloxforge'],
+  ['packages/robloxstudio-mcp-inspector', '@princeofscale/bloxforge-inspector'],
+].map(([workspace, name]) => [name, publishIfMissing(workspace, name)]);
 
-console.log(`\nPublishing robloxstudio-mcp-inspector with dist-tag ${npmTag}...`);
-run(`npm publish -w packages/robloxstudio-mcp-inspector --tag ${npmTag}`);
-
-console.log('\nAll packages published successfully!');
+for (const [name, outcome] of results) console.log(`  ${name}@${version}: ${outcome}`);
+console.log('\nAll packages are on the registry at the released version.');

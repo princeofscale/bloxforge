@@ -41,14 +41,19 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
   'detect_roblox_project',
   'validate_script_source',
   'format_script_preview',
-  'resolve_instance_source_file',
   'run_project_tests',
   'get_dependency_graph',
-  'install_wally_packages',
   'run_quality_gate',
   'validate_with_luau_lsp',
-  'generate_rojo_sourcemap',
-  'build_rojo_project',
+  // Read-only toolchain checks. An agent needs to see *whether* the project is
+  // set up before it can decide to load anything else; the mutating install and
+  // build tools arrive with the `sync` toolset, behind preview/confirm.
+  'rojo_detect_projects',
+  'rojo_get_version',
+  'rokit_detect',
+  'rokit_status',
+  'wally_validate_lock',
+  'wally_verify_rojo_mapping',
   'get_connected_instances',
   'get_scene_summary',
   'execute_luau',

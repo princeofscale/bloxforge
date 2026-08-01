@@ -49,12 +49,26 @@ const ROKIT_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'rokit_install',
-    description: 'Install every tool pinned by the manifest after confirm=true; downloads binaries and writes shims.',
+    description: 'Install every tool pinned by the manifest after confirm=true; downloads binaries and writes shims. Rokit prompts for trust on an unseen source and there is no terminal here, so set allowPinnedToolDownloads=true to skip that check — allowed only when every tool is pinned to an exact version.',
     category: 'write',
     effects: [...MUTATION_EFFECTS],
-    inputSchema: { type: 'object', properties: { ...ROOT, ...CONFIRM } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...ROOT,
+        ...CONFIRM,
+        allowPinnedToolDownloads: {
+          type: 'boolean',
+          description: 'Run non-interactively, trusting the exact owner/repo@version pins already in the manifest. Refused if any tool uses a loose requirement.',
+        },
+      },
+    },
     outputSchema: OUTPUT,
-    handler: (runtime, args) => asTools(runtime).rokitInstall(args.root as string | undefined, args.confirm as boolean | undefined),
+    handler: (runtime, args) => asTools(runtime).rokitInstall(
+      args.root as string | undefined,
+      args.confirm as boolean | undefined,
+      args.allowPinnedToolDownloads as boolean | undefined,
+    ),
   }),
   defineTool({
     name: 'rokit_add_tool_plan',
