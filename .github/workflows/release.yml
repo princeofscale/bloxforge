@@ -3,10 +3,27 @@ name: Release
 # Publishing a GitHub Release publishes both npm packages and attaches the
 # freshly-built Studio plugins to that release. Requires a granular NPM_TOKEN
 # with write access to both @princeofscale packages.
+#
+# Running it from the Actions tab instead rehearses the same path and writes
+# nothing to npm or to the release.
 
 on:
   release:
     types: [published]
+  # Rehearsal only. A dispatched run builds and packs everything the real
+  # release does, installs the tarballs into a clean directory, and publishes
+  # nothing — so the release path itself gets exercised before it matters,
+  # rather than being first tried on the release that counts.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Must stay true. Publishing happens by creating a GitHub Release, never from this button.'
+        type: boolean
+        default: true
+
+env:
+  # A dispatched run is always a rehearsal; see the guard in `gate`.
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' }}
 
 jobs:
   # The quality gate runs read-only and without checkout credentials. Only the
@@ -17,9 +34,16 @@ jobs:
     permissions:
       contents: read
     steps:
+      # There is no supported way to publish from the dispatch button: the
+      # rehearsal must not become a second, less-reviewed release path.
+      - name: Refuse a dispatched run that asks to publish
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == false
+        run: |
+          echo "::error::This workflow only rehearses when dispatched. Publish by creating a GitHub Release."
+          exit 1
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
           persist-credentials: false
       # No `cache: npm`. This workflow is release-triggered, and the npm cache is
       # keyed by lockfile and shared with less-trusted workflows: a run that only
@@ -50,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || github.ref }}
           persist-credentials: false
 
       - name: Set up Node 20
@@ -71,6 +95,7 @@ jobs:
         run: npm ci
 
       - name: Set version from tag
+        if: env.DRY_RUN != 'true'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
@@ -82,17 +107,52 @@ jobs:
           echo "Releasing v$VERSION"
           RELEASE_VERSION="$VERSION" node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.version=process.env.RELEASE_VERSION;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
 
+      # Idempotent: publish.mjs skips a version already on the registry, refuses
+      # to publish blind when the registry will not say, and verifies each one
+      # afterwards, so a rerun after a partial failure finishes the remaining
+      # package instead of dying on the published one.
       - name: Build and publish
+        if: env.DRY_RUN != 'true'
         run: node scripts/publish.mjs
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
 
-      # Idempotent: publish.mjs skips a version already on the registry, refuses
-      # to publish blind when the registry will not say, and verifies each one
-      # afterwards, so a rerun after a partial failure finishes the remaining
-      # package instead of dying on the published one.
+      # Everything the real path does except the two network writes. No
+      # NODE_AUTH_TOKEN reaches this step, so it cannot publish even by mistake.
+      - name: Rehearse the release (build, pack, install, publish nothing)
+        if: env.DRY_RUN == 'true'
+        env:
+          MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins
+        run: |
+          set -euo pipefail
+          npm run build:all
+          mkdir -p "${RUNNER_TEMP}/tarballs"
+          npm pack -w packages/robloxstudio-mcp --pack-destination "${RUNNER_TEMP}/tarballs"
+          npm pack -w packages/robloxstudio-mcp-inspector --pack-destination "${RUNNER_TEMP}/tarballs"
+
+          # A clean directory outside the workspace: node_modules here would
+          # otherwise resolve @princeofscale/* to the local sources and prove
+          # nothing about the tarball.
+          install_dir="${RUNNER_TEMP}/install-check"
+          mkdir -p "$install_dir"
+          cd "$install_dir"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "${RUNNER_TEMP}"/tarballs/*.tgz
+
+          # The core library is bundled by tsup rather than published, so running
+          # each entrypoint is also the check that the tarball is self-contained.
+          # The inspector has no `verify` command — it would start the stdio
+          # server and hang — so it is exercised through `--help`, which is the
+          # only argument it handles that exits.
+          node node_modules/@princeofscale/bloxforge/dist/index.js verify
+          node node_modules/@princeofscale/bloxforge-inspector/dist/index.js --help
+          test -x node_modules/.bin/bloxforge
+          test -x node_modules/.bin/bloxforge-inspector
+          echo "Rehearsal installed and ran both packages from their tarballs."
+
       - name: Stage plugin assets for the upload job
+        if: env.DRY_RUN != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: studio-plugins
@@ -102,10 +162,23 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Upload the rehearsal output for inspection
+        if: env.DRY_RUN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-rehearsal
+          path: |
+            ${{ runner.temp }}/tarballs/*.tgz
+            studio-plugin/MCPPlugin.rbxmx
+            studio-plugin/MCPInspectorPlugin.rbxmx
+          if-no-files-found: error
+          retention-days: 7
+
   # The only job with write access, and it runs no project code: it downloads the
   # artifact the publish job produced and calls `gh release upload`.
   upload-release-assets:
     needs: publish
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write

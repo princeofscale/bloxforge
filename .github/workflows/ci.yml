@@ -8,6 +8,12 @@ on:
   schedule:
     # Nightly, for the jobs that download real third-party binaries.
     - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      run_toolchain_matrix:
+        description: 'Also run the Windows/macOS toolchain job that downloads real Rokit and Wally binaries.'
+        type: boolean
+        default: false
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
@@ -178,7 +184,13 @@ jobs:
   # touches. Nightly rather than per-PR: it downloads real binaries every run.
   toolchain-cross-platform:
     name: Real toolchain CLIs (${{ matrix.os }})
-    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[toolchain-matrix]')
+    # Nightly, or on demand. The `[toolchain-matrix]` commit-message trigger is
+    # kept for the branch-push case, but `workflow_dispatch` means running it
+    # before a release no longer needs an empty commit to carry the marker.
+    if: >-
+      github.event_name == 'schedule'
+      || inputs.run_toolchain_matrix
+      || contains(github.event.head_commit.message, '[toolchain-matrix]')
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
