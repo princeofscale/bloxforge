@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- The release workflow's asset upload can find the repository. That job has no
+  checkout on purpose — it is the only one holding `contents: write` — so `gh`
+  had no git remote to infer from and failed with "not a git repository". It now
+  gets `GH_REPO`. The job is release-only, so the rehearsal never ran it and
+  v4.0.3 was the first execution; its assets were attached by hand from the
+  artifact the same run produced.
+- `publish.mjs` waits for a published version to become visible instead of
+  failing on the first 404. The retry helper treated `absent` as a definitive
+  answer, which is right *before* publishing and wrong *after* it: a new version
+  takes seconds to replicate, so the post-publish check returned immediately and
+  failed a release whose publish had succeeded. Each of the two v4.0.3 packages
+  hit this. Re-running was safe — an already-published version is skipped — but
+  the failure said the opposite of what had happened, so the message now says
+  so too.
 - `docs:check` compares generated tool docs by content rather than by bytes. The
   generator writes LF and a Windows checkout rewrites the working copy to CRLF,
   so the gate reported "out of date" on a file that had not changed, and
