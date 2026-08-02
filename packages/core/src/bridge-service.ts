@@ -6,7 +6,11 @@ import {
   REQUEST_STATUS_TTL_MS,
   defaultRequestJournalPath,
 } from './request-journal.js';
-import { protocolPolicy } from './protocol-manifest.js';
+import {
+  normalizeProtocolPluginVariant,
+  pluginVariantSupportsEndpoint,
+  protocolPolicy,
+} from './protocol-manifest.js';
 
 export interface PluginInstance {
   // Internal: per-plugin GUID, regenerated on every plugin load.
@@ -150,6 +154,14 @@ export class BridgeBusyError extends Error {
   constructor(public retryAfterMs?: number) {
     super(retryAfterMs ? `Bridge is busy, retry after ${retryAfterMs}ms` : 'Bridge is busy');
     this.name = 'BridgeBusyError';
+  }
+}
+
+export class PluginVariantPolicyError extends Error {
+  public code = 'PLUGIN_VARIANT_FORBIDDEN';
+  constructor(public endpoint: string, public pluginVariant: string) {
+    super(`Studio plugin variant "${pluginVariant}" cannot handle endpoint "${endpoint}".`);
+    this.name = 'PluginVariantPolicyError';
   }
 }
 
@@ -965,6 +977,19 @@ export class BridgeService {
     requestId = randomUUID(),
   ): Promise<any> {
     const effectiveTimeout = resolveRequestTimeout(endpoint, this.requestTimeout);
+    const targetInstance = Array.from(this.instances.values()).find(
+      (instance) => instance.instanceId === targetInstanceId && instance.role === targetRole,
+    );
+    const targetVariant = targetInstance
+      ? normalizeProtocolPluginVariant(targetInstance.pluginVariant)
+      : undefined;
+    if (
+      targetInstance &&
+      targetVariant !== undefined &&
+      !pluginVariantSupportsEndpoint(endpoint, targetInstance.pluginVariant)
+    ) {
+      throw new PluginVariantPolicyError(endpoint, targetInstance.pluginVariant);
+    }
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => this.expireRequest(requestId), effectiveTimeout);
@@ -1014,6 +1039,7 @@ export class BridgeService {
     callerRole: string,
     pluginSessionId?: string,
   ): ({ requestId: string; request: { endpoint: string; data: any } } & RequestFence) | null {
+    const callerInstance = pluginSessionId ? this.instances.get(pluginSessionId) : undefined;
     let inFlightMutations = 0;
     let inFlightReads = 0;
     for (const request of this.pendingRequests.values()) {
@@ -1042,6 +1068,11 @@ export class BridgeService {
       if (request.targetInstanceId !== callerInstanceId) continue;
       if (request.targetRole !== callerRole) continue;
       if (request.inFlight) continue;
+      if (
+        callerInstance &&
+        normalizeProtocolPluginVariant(callerInstance.pluginVariant) !== undefined &&
+        !pluginVariantSupportsEndpoint(request.endpoint, callerInstance.pluginVariant)
+      ) continue;
 
       const isMutationReq = this.isMutation(request.endpoint);
       if (isMutationReq && inFlightMutations >= 1) continue;

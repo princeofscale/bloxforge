@@ -110,6 +110,7 @@ suggested fix is wrong. Fix the defect; explain the deviation.
 ```sh
 npm ci
 npm --prefix studio-plugin ci
+npm --prefix evals ci
 ```
 
 Run what the change touches. Before a release, the full set:
@@ -117,7 +118,7 @@ Run what the change touches. Before a release, the full set:
 ```sh
 npm run lint                  # 0 errors expected; ~43 pre-existing `any` warnings
 npm run typecheck
-npm test -- --runInBand
+npm test -w packages/core -- --runInBand
 npm run build:all
 npm run test:plugin:smoke
 npm run test:plugin:installer

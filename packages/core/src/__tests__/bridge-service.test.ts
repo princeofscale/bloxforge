@@ -203,7 +203,7 @@ class MirroredBridgeService extends BridgeService {
   }
 }
 
-function register(b: BridgeService, opts: { pluginSessionId: string; instanceId: string; role: string; placeId?: number; placeName?: string }) {
+function register(b: BridgeService, opts: { pluginSessionId: string; instanceId: string; role: string; placeId?: number; placeName?: string; pluginVariant?: string }) {
   const res = b.registerInstance({
     pluginSessionId: opts.pluginSessionId,
     instanceId: opts.instanceId,
@@ -212,6 +212,7 @@ function register(b: BridgeService, opts: { pluginSessionId: string; instanceId:
     placeName: opts.placeName ?? '',
     dataModelName: opts.placeName ?? '',
     isRunning: false,
+    pluginVariant: opts.pluginVariant ?? 'main',
   });
   if (!res.ok) throw new Error(`registerInstance failed: ${res.error.code}`);
   return res;
@@ -333,6 +334,43 @@ describe('BridgeService', () => {
       expect(delivered).toMatchObject({ request: { endpoint: '/api/delete-object' } });
       bridge.resolveRequest(delivered!.requestId, { ok: true });
       await expect(pending).resolves.toEqual({ ok: true });
+    });
+
+    test('refuses mutations for inspector sessions while still delivering reads', async () => {
+      register(bridge, {
+        pluginSessionId: 'inspector',
+        instanceId: 'place:1',
+        role: 'edit',
+        placeId: 1,
+        pluginVariant: 'inspector',
+      });
+
+      await expect(
+        bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit'),
+      ).rejects.toMatchObject({ code: 'PLUGIN_VARIANT_FORBIDDEN' });
+      expect(bridge.getPendingRequestForSession('inspector')).toBeNull();
+
+      const read = bridge.sendRequest('/api/file-tree', {}, 'place:1', 'edit');
+      const delivered = bridge.getPendingRequestForSession('inspector');
+      expect(delivered).toMatchObject({ request: { endpoint: '/api/file-tree' } });
+      bridge.resolveRequest(delivered!.requestId, { ok: true });
+      await expect(read).resolves.toEqual({ ok: true });
+    });
+
+    test('does not deliver an already queued mutation when an inspector session connects', async () => {
+      const queued = bridge.sendRequest('/api/delete-object', {}, 'place:1', 'edit');
+      queued.catch(() => {});
+      register(bridge, {
+        pluginSessionId: 'inspector',
+        instanceId: 'place:1',
+        role: 'edit',
+        placeId: 1,
+        pluginVariant: 'inspector',
+      });
+
+      expect(bridge.getPendingRequestForSession('inspector')).toBeNull();
+      bridge.clearAllPendingRequests();
+      await expect(queued).rejects.toThrow(/Connection closed/);
     });
 
     test('releases an undelivered pushed request for polling fallback', async () => {

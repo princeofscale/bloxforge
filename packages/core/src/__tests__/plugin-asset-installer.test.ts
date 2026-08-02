@@ -138,7 +138,11 @@ describe('plugin asset installation', () => {
     }
   });
 
-  (process.platform === 'win32' ? test.skip : test)(
+  // Windows permission semantics differ, and UID 0 bypasses directory mode
+  // bits. Neither environment can prove the EACCES cleanup path with chmod.
+  const canEnforceReadOnlyDirectory = process.platform !== 'win32' &&
+    (typeof process.getuid !== 'function' || process.getuid() !== 0);
+  (canEnforceReadOnlyDirectory ? test : test.skip)(
     'cleans temporary files when the destination directory is read-only',
     () => {
       const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bloxforge-plugin-readonly-'));

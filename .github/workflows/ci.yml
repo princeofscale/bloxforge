@@ -265,7 +265,7 @@ jobs:
       - run: npm --prefix studio-plugin ci
       - run: npm --prefix evals ci
       - run: npm run typecheck
-      - run: npm test -- --runInBand
+      - run: npm test -w packages/core -- --runInBand
       - run: npm run build:all
         env:
           MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins

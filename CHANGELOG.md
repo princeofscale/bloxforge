@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.2] - 2026-08-02
+
 ### Added
 - An immutable plan for every toolchain mutation. `wally_install_plan`,
   `wally_update_plan`, `rokit_add_tool_plan` and `rokit_update_plan` now return
@@ -133,6 +135,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate runs without `contents: write` or persisted credentials.
 
 ### Fixed
+- Enforced the Inspector plugin's read-only boundary twice: the bridge now
+  refuses mutation endpoints for a registered Inspector session, and the
+  plugin itself rejects every endpoint outside the manifest-backed read
+  allowlist. Previously a full server could route `/api/delete-object` (and
+  every other mutation handler compiled into the shared plugin) to an
+  Inspector session because `pluginVariants` was metadata only. The manifest
+  now uses the real `main` variant name while retaining `full` as an input
+  compatibility alias, and regression tests keep the plugin allowlist synced.
+- Passed `--runInBand` through the cross-platform CI job to Jest rather than to
+  the nested npm process, which ignored it with an unknown-config warning.
+- Made the read-only-directory installer test skip environments that cannot
+  enforce Unix mode bits (Windows and UID 0), so root-based containers no
+  longer fail while testing a permission condition they cannot represent.
 - Stopped a pinned-but-uninstalled toolchain from running a global Rojo at
   spawn time. The 4.0.1 fix corrected which command was *reported* but left the
   executable as the bare name `rojo`, and `execFile` resolves a bare name
@@ -180,6 +195,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   undefined and the files could only be linted by hand.
 
 ### Documentation
+- Added the evals install step to the agent setup guide and corrected its
+  serialized Jest command so a fresh checkout can run the documented gates.
 - Rewrote the README's Rojo section to cover the whole toolchain, including who
   owns what, the preview/confirm contract, and the plan-hash requirement.
 - Rewrote `AGENTS.md` as an operating guide: the invariants that fail silently
@@ -1067,7 +1084,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.1...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.2...HEAD
+[4.0.2]: https://github.com/princeofscale/bloxforge/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/princeofscale/bloxforge/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/princeofscale/bloxforge/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/princeofscale/bloxforge/compare/v2.20.2...v3.0.0

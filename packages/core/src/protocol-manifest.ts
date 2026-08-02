@@ -1,12 +1,13 @@
 export type ProtocolMode = 'read' | 'mutation';
 export type RetryPolicy = 'safe-read' | 'never';
+export type ProtocolPluginVariant = 'main' | 'inspector';
 
 export interface ProtocolManifestEntry {
   endpoint: string;
   mode: ProtocolMode;
   timeoutClass: 'normal' | 'heavy';
   retryPolicy: RetryPolicy;
-  pluginVariants: readonly ('full' | 'inspector')[];
+  pluginVariants: readonly ProtocolPluginVariant[];
   concurrencyCategory: 'read' | 'mutation';
 }
 
@@ -104,7 +105,7 @@ const entry = (endpoint: string, mode: ProtocolMode): ProtocolManifestEntry => (
   mode,
   timeoutClass: HEAVY_ENDPOINTS.has(endpoint) ? 'heavy' : 'normal',
   retryPolicy: mode === 'read' ? 'safe-read' : 'never',
-  pluginVariants: mode === 'read' ? ['full', 'inspector'] : ['full'],
+  pluginVariants: mode === 'read' ? ['main', 'inspector'] : ['main'],
   concurrencyCategory: mode,
 });
 
@@ -121,4 +122,15 @@ export function protocolPolicy(endpoint: string): ProtocolManifestEntry {
     throw new Error(`Unknown plugin endpoint "${endpoint}". Add an explicit protocol policy before dispatch.`);
   }
   return policy;
+}
+
+export function normalizeProtocolPluginVariant(value: string): ProtocolPluginVariant | undefined {
+  if (value === 'main' || value === 'full') return 'main';
+  if (value === 'inspector') return 'inspector';
+  return undefined;
+}
+
+export function pluginVariantSupportsEndpoint(endpoint: string, pluginVariant: string): boolean {
+  const normalized = normalizeProtocolPluginVariant(pluginVariant);
+  return normalized !== undefined && protocolPolicy(endpoint).pluginVariants.includes(normalized);
 }

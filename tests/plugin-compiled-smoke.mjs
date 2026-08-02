@@ -117,6 +117,13 @@ const ASSERTIONS = [
     test: (src) => src.includes('/api/read-managed-scripts') && src.includes('readManagedScripts'),
   },
   {
+    file: 'Communication.luau',
+    label: 'inspector rejects endpoints outside its read-only allowlist',
+    test: (src) =>
+      src.includes('inspectorAllowedEndpoints') &&
+      src.includes('BloxForge Inspector is read-only and rejected endpoint'),
+  },
+  {
     file: 'handlers/ScriptHandlers.luau',
     label: 'managed-script reads retain pagination, hash, and source-byte limits',
     test: (src) =>

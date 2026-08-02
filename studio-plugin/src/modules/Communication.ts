@@ -116,6 +116,47 @@ function isCancelledForThread(co: thread): boolean {
 
 type Handler = (data: Record<string, unknown>) => unknown;
 
+// Inspector is read-only even if it connects to a full server or receives a
+// request from a stale/incorrect bridge. Keep this fail-closed allowlist in
+// lockstep with the shared protocol manifest (covered by protocol-manifest.test).
+const inspectorAllowedEndpoints = new Set<string>([
+	"/api/file-tree",
+	"/api/search-files",
+	"/api/place-info",
+	"/api/services",
+	"/api/search-objects",
+	"/api/instance-properties",
+	"/api/instance-children",
+	"/api/search-by-property",
+	"/api/class-info",
+	"/api/project-structure",
+	"/api/grep-scripts",
+	"/api/get-descendants",
+	"/api/compare-instances",
+	"/api/mass-get-property",
+	"/api/get-script-source",
+	"/api/read-managed-scripts",
+	"/api/get-attributes",
+	"/api/get-tags",
+	"/api/get-tagged",
+	"/api/get-selection",
+	"/api/get-job-status",
+	"/api/get-job-result",
+	"/api/multiplayer-test-state",
+	"/api/export-build",
+	"/api/search-materials",
+	"/api/preview-asset",
+	"/api/capture-screenshot",
+	"/api/capture-begin",
+	"/api/capture-read",
+	"/api/get-runtime-logs",
+	"/api/capture-script-profiler",
+	"/api/capture-micro-profiler",
+	"/api/export-rbxm",
+	"/api/get-memory-breakdown",
+	"/api/get-scene-analysis",
+]);
+
 const routeMap: Record<string, Handler> = {
 
 	"/api/file-tree": QueryHandlers.getFileTree,
@@ -210,6 +251,9 @@ const routeMap: Record<string, Handler> = {
 function processRequest(request: RequestPayload): unknown {
 	const endpoint = request.endpoint;
 	const data = request.data ?? {};
+	if (State.PLUGIN_VARIANT === "inspector" && !inspectorAllowedEndpoints.has(endpoint)) {
+		return { error: `BloxForge Inspector is read-only and rejected endpoint: ${endpoint}` };
+	}
 
 	const handler = routeMap[endpoint];
 	if (handler) {
