@@ -54,6 +54,10 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
   'rokit_status',
   'wally_validate_lock',
   'wally_verify_rojo_mapping',
+  // The one read that answers "what is wrong and in what order" without the
+  // agent having to know that rokit_status comes before wally_validate_lock.
+  'project_reconcile_plan',
+  'project_reconcile_status',
   'get_connected_instances',
   'get_scene_summary',
   'execute_luau',
@@ -146,7 +150,7 @@ const PREFIX_RULES: Array<[RegExp, ToolDomain]> = [
   [/^sync_/, 'sync'],
   // Rojo, Rokit and Wally are one workflow: without these the toolchain tools
   // fell through to the `scene` default and never loaded with the sync toolset.
-  [/^rojo_|^rokit_|^wally_/, 'sync'],
+  [/^rojo_|^rokit_|^wally_|^project_reconcile_/, 'sync'],
   [/^audio_|^animation_/, 'media'],
   [/^image_/, 'assets'],
   [/^marketplace_/, 'assets'],

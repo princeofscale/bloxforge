@@ -58,6 +58,13 @@ workflow rules.
    and never silently downgrade (for example, dropping `--locked`).
 7. **Secrets stay out** of source, logs, fixtures, changelogs, commits, and
    command output. Never print npm or GitHub tokens.
+8. **Reconcile restores declared state and never invents new state.** A step
+   that installs the exact version a manifest pins, or the packages a lock
+   already resolved, is a repair. Choosing a version, resolving a new lock,
+   editing the Rojo tree, or migrating Aftman is a decision: it comes back as a
+   blocked step naming the `[automation]` flag that would permit it. When adding
+   a step to `project-reconcile.ts`, decide which side of that line it is on
+   before writing the implementation.
 
 ## Working rules
 

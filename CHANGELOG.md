@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `project_reconcile_plan`, `project_reconcile_apply` and
+  `project_reconcile_status`. Every individual operation was already safe; what
+  was missing was the order. An agent had to work out for itself that
+  `rokit_status` precedes `rokit_install`, that a Wally install is pointless
+  before the lock validates, and that a sourcemap generated before the packages
+  exist describes a tree that does not. Reconcile owns that order and nothing
+  else: it composes the same tools, behind the same plan/confirm/`planHash`
+  contract, rather than becoming a second and less-reviewed way to run them.
+
+  It restores declared state and never invents new state. Installing the exact
+  version the manifest pins, or the packages the lock resolved, is a repair;
+  choosing a version, resolving a new lock, editing the Rojo tree or migrating
+  Aftman is a decision, and each returns as a blocked step naming the
+  `[automation]` flag in `bloxforge.toml` that would permit it. Applies run
+  under a single-writer lease at `.bloxforge/locks/project-reconcile.lock`, so a
+  second agent gets `another_reconcile_is_running` rather than a half-applied
+  project, and a lease whose process is gone is treated as stale. Each run
+  journals to `.bloxforge/reconcile/<runId>.json`, so the same `runId` resumes
+  an interrupted run instead of repeating finished steps. State is re-read after
+  every mutation rather than precomputed once: `rokit_install` changes which
+  tools exist, which changes what the remaining steps should be. Every run ends
+  on the full strict project verify.
 - A canonical `protocol-endpoints.json` source and generated Studio policy, with
   a check that fails builds when the TypeScript and Luau protocol surfaces
   drift apart.

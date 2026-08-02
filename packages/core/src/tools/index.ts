@@ -52,6 +52,7 @@ import { QualityTools } from '../quality-tools.js';
 import { RojoTools } from '../rojo/rojo-tools.js';
 import { RokitTools } from '../toolchain/rokit-tools.js';
 import { WallyTools } from '../toolchain/wally-tools.js';
+import { ProjectReconciler } from '../toolchain/project-reconcile.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -282,6 +283,7 @@ export class RobloxStudioTools {
   private rojoTools: RojoTools;
   private rokitTools = new RokitTools();
   private wallyTools = new WallyTools();
+  private reconciler = new ProjectReconciler(this.rokitTools, this.wallyTools);
   /** Provenance for externally-imported assets (Track A) — source/license/hash/assetId. */
   private provenance = new Map<string, ProvenanceRecord>();
 
@@ -499,6 +501,12 @@ export class RobloxStudioTools {
   async wallyInstallApply(root?: string, confirm?: boolean, locked?: boolean, expectedPlanHash?: string) { return this.wallyTools.installApply(root, confirm, locked, expectedPlanHash); }
   async wallyUpdatePlan(root?: string, packages?: string[]) { return this.wallyTools.updatePlan(root, packages); }
   async wallyUpdateApply(root: string | undefined, packages?: string[], confirm?: boolean, expectedPlanHash?: string) { return this.wallyTools.updateApply(root, packages, confirm, expectedPlanHash); }
+
+  async projectReconcilePlan(root?: string, projectFile?: string) { return this.reconciler.plan(root, projectFile); }
+  async projectReconcileApply(root?: string, projectFile?: string, confirm?: boolean, expectedPlanHash?: string, runId?: string) {
+    return this.reconciler.apply(root, projectFile, confirm, expectedPlanHash, runId);
+  }
+  async projectReconcileStatus(root?: string, projectFile?: string) { return this.reconciler.status(root, projectFile); }
 
   async getRobloxDocs(name: string, docType?: string, section?: string) {
     if (!name || typeof name !== 'string') {

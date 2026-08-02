@@ -289,6 +289,10 @@ describe('Tool schema compatibility', () => {
     'wally_install_apply',
     'wally_update_plan',
     'wally_update_apply',
+    // Reconcile composes those same local tools; nothing crosses the bridge.
+    'project_reconcile_plan',
+    'project_reconcile_apply',
+    'project_reconcile_status',
     // Safety/audit tools operate on in-memory server state, not a Studio place.
     'get_operation_history',
     'list_script_backups',

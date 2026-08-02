@@ -276,7 +276,71 @@ const WALLY_TOOLS: RegisteredTool[] = [
   }),
 ];
 
-const TOOLCHAIN_TOOLS = [...ROKIT_TOOLS, ...WALLY_TOOLS];
+// Three tools, not one that quietly does everything. Reconcile owns the *order*
+// of the existing operations; it does not become a second, less-reviewed way to
+// perform them, so it keeps the same plan / confirm / planHash contract.
+const RECONCILE_TOOLS: RegisteredTool[] = [
+  defineTool({
+    name: 'project_reconcile_plan',
+    description: 'Read the whole project — Rojo project, toolchain pins, Wally lock, package mounts, sourcemap, rojo serve — and return the ordered steps that would make it ready, each marked automatic or blocked by the [automation] policy. Writes nothing and makes no network request.',
+    category: 'read',
+    effects: ['local.files.read', 'local.process.execute'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...ROOT,
+        projectFile: { type: 'string', description: 'Explicit *.project.json(c) path. Required when discovery finds more than one.' },
+      },
+    },
+    outputSchema: OUTPUT,
+    handler: (runtime, args) => asTools(runtime).projectReconcilePlan(
+      args.root as string | undefined,
+      args.projectFile as string | undefined,
+    ),
+  }),
+  defineTool({
+    name: 'project_reconcile_apply',
+    description: 'Run the planned steps in order under a single-writer lease, re-reading state after each one, then finish with a strict project verify. Restores declared state only: installing pinned tools and locked packages is permitted, resolving new versions is not. Pass the same runId to resume an interrupted run from its journal.',
+    category: 'write',
+    effects: [...MUTATION_EFFECTS],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...ROOT,
+        projectFile: { type: 'string' },
+        ...CONFIRM,
+        ...EXPECTED_PLAN_HASH('project_reconcile_plan'),
+        runId: { type: 'string', description: 'Resume the journal at .bloxforge/reconcile/<runId>.json instead of starting a new run.' },
+      },
+      required: ['confirm', 'expectedPlanHash'],
+    },
+    outputSchema: OUTPUT,
+    handler: (runtime, args) => asTools(runtime).projectReconcileApply(
+      args.root as string | undefined,
+      args.projectFile as string | undefined,
+      args.confirm as boolean | undefined,
+      args.expectedPlanHash as string | undefined,
+      args.runId as string | undefined,
+    ),
+  }),
+  defineTool({
+    name: 'project_reconcile_status',
+    description: 'The current plan plus the reconcile lease holder and the most recent run journals, for checking whether another agent is mid-reconcile or why the last one stopped.',
+    category: 'read',
+    effects: ['local.files.read', 'local.process.execute'],
+    inputSchema: {
+      type: 'object',
+      properties: { ...ROOT, projectFile: { type: 'string' } },
+    },
+    outputSchema: OUTPUT,
+    handler: (runtime, args) => asTools(runtime).projectReconcileStatus(
+      args.root as string | undefined,
+      args.projectFile as string | undefined,
+    ),
+  }),
+];
+
+const TOOLCHAIN_TOOLS = [...ROKIT_TOOLS, ...WALLY_TOOLS, ...RECONCILE_TOOLS];
 
 function asTools(runtime: unknown): RobloxStudioTools {
   return runtime as RobloxStudioTools;
