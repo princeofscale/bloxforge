@@ -264,6 +264,17 @@ const rbxtsItems = buildModuleItems(nodeModulesRbxtsDir);
 const missingModules = new Set();
 for (const source of packagedSources) {
   for (const call of source.matchAll(/TS\.import\(([^)]*)\)/g)) {
+    // The argument list stops at the first `)`, which is every one of the calls
+    // roblox-ts emits here. A nested call would truncate it, and the last quoted
+    // name would then come from the inner call rather than the import — a guard
+    // that quietly checks the wrong name is worse than no guard, so refuse.
+    if (call[1].includes('(')) {
+      throw new Error(
+        `Cannot read the module reference in ${call[0]}: roblox-ts now nests a call inside `
+        + 'TS.import, so this check no longer sees the imported name. Teach it the new shape '
+        + 'before trusting the build again.',
+      );
+    }
     const names = [...call[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
     const target = names[names.length - 1];
     if (target !== undefined && !packagedNames.has(target)) missingModules.add(target);
