@@ -31,7 +31,9 @@ try {
 
   for (const relativePath of fixturePaths.slice(2)) {
     const fixturePath = join(fixtureRoot, relativePath);
-    const crlfContent = readFileSync(fixturePath, 'utf8').replace(/\n/g, '\r\n');
+    const crlfContent = readFileSync(fixturePath, 'utf8')
+      .replace(/\r\n?/g, '\n')
+      .replace(/\n/g, '\r\n');
     writeFileSync(fixturePath, crlfContent, 'utf8');
   }
 
