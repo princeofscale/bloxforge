@@ -95,6 +95,8 @@ const INSPECTOR_ONLY_MODULES = new Set([
   'InspectorRoutes.luau',
   'InspectorEvalBridges.luau',
   'handlers/InspectorBreakpointHandlers.luau',
+  'handlers/InspectorInputHandlers.luau',
+  'handlers/InspectorEvalRuntimeHandlers.luau',
 ]);
 
 function moduleKey(filePath) {
@@ -108,20 +110,51 @@ function shouldPackageModule(filePath) {
     : !INSPECTOR_ONLY_MODULES.has(key);
 }
 
+// roblox-ts emits a module reference as a quoted child name — `TS.import(script,
+// script.Parent, "PluginRoutes")` — so the Inspector build rewrites those names
+// to its own modules. The main-only originals are then left out of the package.
+const INSPECTOR_REDIRECTS = {
+  'Communication.luau': [
+    ['PluginRoutes', 'InspectorRoutes'],
+    ['EvalBridges', 'InspectorEvalBridges'],
+  ],
+  'server/init.server.luau': [
+    ['EvalBridges', 'InspectorEvalBridges'],
+    ['BreakpointHandlers', 'InspectorBreakpointHandlers'],
+  ],
+  // ClientBroker serves the play-mode DataModel and is packaged in both
+  // variants, so its three mutation handlers need redirecting too. Without
+  // this it requires modules the Inspector deliberately leaves out, and the
+  // plugin dies on the first require rather than refusing an endpoint.
+  'ClientBroker.luau': [
+    ['InputHandlers', 'InspectorInputHandlers'],
+    ['EvalRuntimeHandlers', 'InspectorEvalRuntimeHandlers'],
+    ['BreakpointHandlers', 'InspectorBreakpointHandlers'],
+  ],
+};
+
+// A rewrite that silently matches nothing packages an Inspector whose requires
+// point at modules that were deliberately excluded, and Studio only reports that
+// at load time. The packaging assertions cannot see it either: the module is
+// absent from the asset for the same reason it should be. So a miss fails here.
+function redirectModule(source, from, to, key) {
+  const reference = `"${from}"`;
+  if (!source.includes(reference)) {
+    throw new Error(
+      `Inspector build could not redirect ${from} to ${to}: compiled ${key} contains no ${reference} `
+      + 'module reference. Check how roblox-ts now emits the import, then update INSPECTOR_REDIRECTS '
+      + 'and MAIN_ONLY_MODULES together.',
+    );
+  }
+  return source.replaceAll(reference, `"${to}"`);
+}
+
 function transformCompiledSource(filePath, source) {
   if (variantName !== 'inspector') return source;
   const key = filePath === serverInitPath ? 'server/init.server.luau' : moduleKey(filePath);
-  if (key === 'Communication.luau') {
-    return source
-      .replaceAll('"PluginRoutes"', '"InspectorRoutes"')
-      .replaceAll('"EvalBridges"', '"InspectorEvalBridges"');
-  }
-  if (key === 'server/init.server.luau') {
-    return source
-      .replaceAll('"EvalBridges"', '"InspectorEvalBridges"')
-      .replaceAll('"BreakpointHandlers"', '"InspectorBreakpointHandlers"');
-  }
-  return source;
+  const redirects = INSPECTOR_REDIRECTS[key];
+  if (!redirects) return source;
+  return redirects.reduce((text, [from, to]) => redirectModule(text, from, to, key), source);
 }
 
 const mainSource = injectVersion(transformCompiledSource(
@@ -130,6 +163,11 @@ const mainSource = injectVersion(transformCompiledSource(
 ));
 
 let refId = 1;
+
+// Every module the asset will contain, under the name a require chain reaches it
+// by, and every packaged source that does the requiring.
+const packagedNames = new Set();
+const packagedSources = [mainSource];
 
 function findInitFile(dir) {
   for (const name of ['init.luau', 'init.lua']) {
@@ -172,6 +210,8 @@ function buildModuleItems(dir, depth = 0) {
 
       if (initFile) {
         const moduleSource = injectVersion(readFileSync(initFile, 'utf8'));
+        packagedNames.add(entry.name);
+        packagedSources.push(moduleSource);
         const childItems = buildModuleItems(fullPath, depth + 1);
         items += `
       ${'  '.repeat(depth)}<Item class="ModuleScript" referent="${currentRef}">
@@ -194,6 +234,8 @@ function buildModuleItems(dir, depth = 0) {
       const ext = entry.name.endsWith('.luau') ? '.luau' : '.lua';
       const moduleName = basename(entry.name, ext);
       const moduleSource = injectVersion(transformCompiledSource(fullPath, readFileSync(fullPath, 'utf8')));
+      packagedNames.add(moduleName);
+      packagedSources.push(moduleSource);
       refId++;
       items += `
       ${'  '.repeat(depth)}<Item class="ModuleScript" referent="${refId}">
@@ -213,6 +255,38 @@ const moduleItems = buildModuleItems(modulesDir);
 const includeItems = buildModuleItems(includeDir);
 
 const rbxtsItems = buildModuleItems(nodeModulesRbxtsDir);
+
+// A module may be left out of a variant only once nothing packaged still
+// requires it. roblox-ts emits each reference as a quoted chain ending in the
+// module's own name, so an unresolved name here is a plugin that dies on its
+// first require — and no assertion about the finished asset can see it, because
+// the module is missing for exactly the reason it is supposed to be missing.
+const missingModules = new Set();
+for (const source of packagedSources) {
+  for (const call of source.matchAll(/TS\.import\(([^)]*)\)/g)) {
+    // The argument list stops at the first `)`, which is every one of the calls
+    // roblox-ts emits here. A nested call would truncate it, and the last quoted
+    // name would then come from the inner call rather than the import — a guard
+    // that quietly checks the wrong name is worse than no guard, so refuse.
+    if (call[1].includes('(')) {
+      throw new Error(
+        `Cannot read the module reference in ${call[0]}: roblox-ts now nests a call inside `
+        + 'TS.import, so this check no longer sees the imported name. Teach it the new shape '
+        + 'before trusting the build again.',
+      );
+    }
+    const names = [...call[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+    const target = names[names.length - 1];
+    if (target !== undefined && !packagedNames.has(target)) missingModules.add(target);
+  }
+}
+if (missingModules.size > 0) {
+  throw new Error(
+    `The ${variantName} plugin requires modules it does not package: `
+    + `${[...missingModules].sort().join(', ')}. Package them, or redirect the requires to a `
+    + 'variant stub in INSPECTOR_REDIRECTS.',
+  );
+}
 
 function countModules(dir) {
   if (!existsSync(dir)) return 0;

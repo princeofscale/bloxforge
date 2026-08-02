@@ -32,6 +32,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schema-validated legacy dispatch boundary is documented and locally scoped.
 
 ### Fixed
+- The Inspector plugin could not load. `ClientBroker` is packaged in both
+  variants and requires `InputHandlers`, `EvalRuntimeHandlers` and
+  `BreakpointHandlers`, which the reduced Inspector build omits, so the first
+  require failed and the plugin never started. Those three now redirect to
+  Inspector stubs that refuse the endpoint, keeping runtime Luau execution out
+  of the read-only package. `build-plugin.mjs` refuses to package a variant that
+  requires a module it does not ship, which is the check the assertions on the
+  finished asset cannot make: an omitted module is missing from the asset for
+  exactly the reason it is supposed to be missing.
+- `InspectorBreakpointHandlers` exported a default object, but its callers are
+  compiled against the real module's `export =` and index the module table
+  directly, so `BreakpointHandlers.init(plugin)` would have been nil even once
+  the module resolved. The stubs now mirror the surface they stand in for.
+- The Inspector source rewrite fails the build when it matches nothing. It is
+  the only thing pointing the Inspector at its own modules, and a silent miss —
+  a rename, or roblox-ts emitting an import differently — shipped a plugin that
+  only reported the problem in Studio.
+- The pinned Lune bootstrap caches under the user's home instead of the system
+  temp directory. A cache hit skips the checksum, and `/tmp` is writable by
+  every local account, so the previous path let anyone with an account on the
+  machine have the release gate execute their binary. `BLOXFORGE_TOOL_CACHE`
+  still overrides it.
+- `shapeListResponse` no longer promises a `pagination` block it does not always
+  attach. Four of its five paths return the caller's object untouched, so a
+  caller reading `.pagination` type-checked and got `undefined`.
 - Protocol policy freshness checks now normalize line endings, so a Windows
   checkout using CRLF does not report generated TypeScript as stale. The check
   still rejects actual content drift and has a cross-platform regression test.

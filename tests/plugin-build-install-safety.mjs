@@ -46,6 +46,9 @@ try {
   }
   assert.match(inspector, /InspectorRoutes/);
   assert.match(inspector, /\/api\/file-tree/);
+  // Requiring a module the variant omits is checked inside build-plugin.mjs,
+  // which the two builds above run: the finished asset cannot show it, because
+  // an omitted module is missing for exactly the reason it should be missing.
   assert.ok(statSync(inspectorPath).size < statSync(mainPath).size, 'inspector asset must be smaller than main');
   console.error('plugin-build-install-safety: build did not modify a default Studio plugin directory.');
 } finally {
