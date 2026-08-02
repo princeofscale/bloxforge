@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.3] - 2026-08-02
+
 ### Added
 - `project_reconcile_plan`, `project_reconcile_apply` and
   `project_reconcile_status`. Every individual operation was already safe; what
@@ -1160,7 +1162,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.2...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.3...HEAD
+[4.0.3]: https://github.com/princeofscale/bloxforge/compare/v4.0.2...v4.0.3
 [4.0.2]: https://github.com/princeofscale/bloxforge/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/princeofscale/bloxforge/compare/v4.0.0...v4.0.1
 [4.0.0]: https://github.com/princeofscale/bloxforge/compare/v3.0.0...v4.0.0
