@@ -52,9 +52,9 @@ describe('server config', () => {
     const byName = new Map(TOOL_DEFINITIONS.map((tool) => [tool.name, tool]));
     const inspectorNames = new Set(getReadOnlyTools().map((tool) => tool.name));
 
-    expect(byName.get('sync_pull')).toMatchObject({
-      effects: expect.arrayContaining(['studio.read', 'local.files.write']),
-    });
+    expect(byName.has('sync_pull')).toBe(false);
+    expect(byName.has('sync_status')).toBe(false);
+    expect(byName.has('sync_push')).toBe(false);
     expect(inspectorNames).not.toContain('sync_pull');
     expect(inspectorNames).not.toContain('validate_script_source');
     expect(inspectorNames).not.toContain('run_quality_gate');

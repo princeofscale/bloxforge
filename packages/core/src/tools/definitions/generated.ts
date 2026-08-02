@@ -344,51 +344,6 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
 
-  // === Local sync ===
-  {
-    name: 'sync_pull',
-    category: 'write',
-    effects: ['studio.read', 'local.files.write'],
-    description: 'Deprecated compatibility wrapper. Preview Studio-to-files changes safely, then require confirm=true before atomic writes. ModuleScripts use the Rojo .lua convention and state stores hashes, not source.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        syncDir: { type: 'string', description: 'Target directory (default ./roblox-src or $ROBLOX_SYNC_DIR).' },
-        dryRun: { type: 'boolean', description: 'Preview only. This is the default unless confirm=true.' },
-        confirm: { type: 'boolean', description: 'Required before writing local files.' },
-        instance_id: INSTANCE_ID_PROP,
-      },
-    },
-  },
-  {
-    name: 'sync_status',
-    category: 'read',
-    effects: ['studio.read', 'local.files.read'],
-    description: 'Deprecated compatibility wrapper. Compare local files with bounded Studio script pages and hash-only local state.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        syncDir: { type: 'string', description: 'Sync directory (default ./roblox-src or $ROBLOX_SYNC_DIR).' },
-        instance_id: INSTANCE_ID_PROP,
-      },
-    },
-  },
-  {
-    name: 'sync_push',
-    category: 'write',
-    effects: ['studio.write', 'local.files.read', 'local.files.write'],
-    description: 'Deprecated compatibility wrapper. Preview existing-script updates and require confirm=true. Prefer editing local files and using managed rojo serve.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        syncDir: { type: 'string', description: 'Sync directory (default ./roblox-src or $ROBLOX_SYNC_DIR).' },
-        dryRun: { type: 'boolean', description: 'Preview which files would be pushed without writing to Studio.' },
-        confirm: { type: 'boolean', description: 'Required before updating Studio scripts.' },
-        instance_id: INSTANCE_ID_PROP,
-      },
-    },
-  },
-
   // === Free marketplace (no Open Cloud key) ===
   {
     name: 'marketplace_search',

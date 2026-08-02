@@ -41,7 +41,7 @@ jobs:
         run: |
           echo "::error::This workflow only rehearses when dispatched. Publish by creating a GitHub Release."
           exit 1
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
           persist-credentials: false
@@ -49,7 +49,7 @@ jobs:
       # keyed by lockfile and shared with less-trusted workflows: a run that only
       # holds a default GITHUB_TOKEN can seed an entry that `npm ci` would then
       # restore and execute here.
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
       - run: npm ci
@@ -72,13 +72,13 @@ jobs:
       contents: read
       id-token: write # enables npm provenance
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.release.tag_name || github.ref }}
           persist-credentials: false
 
       - name: Set up Node 20
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
@@ -153,7 +153,7 @@ jobs:
 
       - name: Stage plugin assets for the upload job
         if: env.DRY_RUN != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: studio-plugins
           path: |
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload the rehearsal output for inspection
         if: env.DRY_RUN == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-rehearsal
           path: |
@@ -183,7 +183,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: studio-plugins
           path: plugins

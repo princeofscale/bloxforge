@@ -47,25 +47,32 @@ export interface ShapeOptions extends PageOptions {
   fields?: string[];
 }
 
+export interface ResponsePagination {
+  total: number;
+  offset: number;
+  returned: number;
+  hasMore: boolean;
+}
+
 /**
  * Shape the array under `listKey` of a plugin response: paginate, project fields,
  * and attach a `pagination` block. Returns the original object unchanged for error
  * responses, missing lists, or when no shaping options are supplied.
  */
-export function shapeListResponse(
-  response: unknown,
+export function shapeListResponse<T>(
+  response: T,
   listKey: string,
   opts: ShapeOptions,
-): any {
-  if (!response || typeof response !== 'object') return response;
+): T & { pagination: ResponsePagination } {
+  if (!response || typeof response !== 'object') return response as T & { pagination: ResponsePagination };
   const r = response as Record<string, unknown>;
-  if (typeof r.error === 'string') return response;
+  if (typeof r.error === 'string') return response as T & { pagination: ResponsePagination };
   const list = r[listKey];
-  if (!Array.isArray(list)) return response;
+  if (!Array.isArray(list)) return response as T & { pagination: ResponsePagination };
 
   const wantsPage = opts.limit !== undefined || opts.offset !== undefined;
   const wantsFields = !!opts.fields && opts.fields.length > 0;
-  if (!wantsPage && !wantsFields) return response;
+  if (!wantsPage && !wantsFields) return response as T & { pagination: ResponsePagination };
 
   const page = paginateList(list as Array<Record<string, unknown>>, opts);
   const items = wantsFields ? page.items.map((it) => pickFields(it, opts.fields)) : page.items;
@@ -74,5 +81,5 @@ export function shapeListResponse(
     ...r,
     [listKey]: items,
     pagination: { total: page.total, offset: page.offset, returned: page.returned, hasMore: page.hasMore },
-  };
+  } as T & { pagination: ResponsePagination };
 }

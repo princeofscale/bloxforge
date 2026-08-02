@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- A canonical `protocol-endpoints.json` source and generated Studio policy, with
+  a check that fails builds when the TypeScript and Luau protocol surfaces
+  drift apart.
+- A reduced Inspector plugin build with read-only routes and mutation-only
+  handler modules excluded from the package.
+- Regression coverage for Open Cloud and cookie clients, build sandboxing,
+  Studio process identity checks, mutation confirmation, protocol policy and
+  Inspector package boundaries.
+- A checksum-verified Lune 0.10.5 bootstrap for local and CI runtime smoke
+  tests, so a clean checkout can run the release gate without manual setup.
+
+### Changed
+- Split Studio route policy into main and Inspector modules and moved the
+  diagnostics dashboard out of the 1,200-line HTTP server module.
+- Removed deprecated `sync_pull`, `sync_status` and `sync_push` from the public
+  tool catalog and registry. Hashed `rojo_syncback_plan` →
+  `rojo_syncback_apply` is now the only advertised sync mutation path.
+- Pinned every third-party GitHub Action to a full commit SHA and added one
+  stable `Required` CI aggregation job for branch rulesets.
+- Replaced 43 explicit-`any` lint warnings with typed transport, health,
+  process-failure, sourcemap and Express application boundaries. The single
+  schema-validated legacy dispatch boundary is documented and locally scoped.
+
 ## [4.0.2] - 2026-08-02
 
 ### Added

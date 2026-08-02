@@ -15,7 +15,9 @@
   ],
   "scripts": {
     "build": "npm run build -w packages/core && npm run build -w packages/robloxstudio-mcp && npm run build -w packages/robloxstudio-mcp-inspector",
-    "compile:plugin": "npm --prefix studio-plugin ci && npm --prefix studio-plugin run build",
+    "protocol:generate": "node scripts/generate-protocol-policy.mjs",
+    "protocol:check": "node scripts/generate-protocol-policy.mjs --check",
+    "compile:plugin": "npm run protocol:check && npm --prefix studio-plugin ci && npm --prefix studio-plugin run build",
     "build:plugin": "npm run compile:plugin && node scripts/build-plugin.mjs",
     "build:plugin:inspector": "npm run compile:plugin && node scripts/build-plugin.mjs --variant inspector",
     "build:plugins": "npm run compile:plugin && node scripts/build-plugin.mjs && node scripts/build-plugin.mjs --variant inspector",
@@ -49,7 +51,7 @@
     "publish:all": "node scripts/publish.mjs",
     "test:plugin:smoke": "node tests/plugin-compiled-smoke.mjs && node tests/plugin-build-install-safety.mjs",
     "test:plugin:installer": "node tests/plugin-installer-smoke.mjs",
-    "test:plugin:runtime": "lune run tests/plugin-runtime-smoke.luau",
+    "test:plugin:runtime": "node scripts/run-lune.mjs run tests/plugin-runtime-smoke.luau",
     "test:rojo:integration": "node scripts/test-rojo-integration.mjs",
     "test:toolchain:integration": "npm run build -w packages/core && node scripts/test-toolchain-integration.mjs",
     "tools:legacy-report": "node scripts/report-legacy-tools.mjs",
@@ -57,7 +59,7 @@
     "docs:check": "node scripts/generate-tool-docs.mjs --check",
     "metadata:check": "node scripts/check-package-metadata.mjs",
     "verify-package": "node scripts/verify-package.mjs",
-    "release:check": "npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run verify-package",
+    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run verify-package",
     "release:check:full": "npm run release:check && npm run test:fault-injection:10k"
   },
   "devDependencies": {

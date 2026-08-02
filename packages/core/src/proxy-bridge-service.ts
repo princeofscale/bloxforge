@@ -101,10 +101,10 @@ export class ProxyBridgeService extends BridgeService {
 
   override async sendRequest(
     endpoint: string,
-    data: any,
+    data: unknown,
     targetInstanceId: string,
     targetRole: string,
-  ): Promise<any> {
+  ): Promise<unknown> {
     const requestId = randomUUID();
     const controller = new AbortController();
     const timeoutId = setTimeout(
@@ -141,14 +141,17 @@ export class ProxyBridgeService extends BridgeService {
         throw new Error(`Proxy request failed (${response.status}): ${body?.error ?? 'Unknown error'}`);
       }
 
-      const result = await response.json() as { response?: any; error?: string };
+      const result = await response.json() as { response?: unknown; error?: string };
       if (result.error) {
         throw new Error(result.error);
       }
       return result.response;
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
+      const errorName = typeof err === 'object' && err !== null && 'name' in err
+        ? String(err.name)
+        : undefined;
+      if (errorName === 'AbortError') {
         if (protocolPolicy(endpoint).mode === 'mutation') {
           throw new RequestOutcomeUnknownError(
             requestId,

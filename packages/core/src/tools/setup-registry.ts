@@ -223,9 +223,6 @@ function registerLocalTools(registry: ToolRegistry): void {
     validate_with_luau_lsp: (tools, args) => tools.validateWithLuauLsp(args.root, args.files),
     generate_rojo_sourcemap: (tools, args) => tools.generateRojoSourcemap(args.root, args.output),
     build_rojo_project: (tools, args) => tools.buildRojoProject(args.root, args.output),
-    sync_pull: (tools, args) => tools.syncPull(args.syncDir, args.instance_id, { dryRun: args.dryRun, confirm: args.confirm }),
-    sync_status: (tools, args) => tools.syncStatus(args.syncDir, args.instance_id),
-    sync_push: (tools, args) => tools.syncPush(args.syncDir, args.instance_id, { dryRun: args.dryRun, confirm: args.confirm }),
   };
   const names = new Set(Object.keys(handlers));
   const definitions = [...META_TOOL_DEFINITIONS, ...GENERATED_TOOL_DEFINITIONS]

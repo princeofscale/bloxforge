@@ -58,6 +58,22 @@ export interface QualityCheck {
   exitCode?: number;
 }
 
+interface CommandFailure extends Error {
+  code?: string;
+  stdout?: string | Buffer;
+  stderr?: string | Buffer;
+}
+
+interface SourcemapNode {
+  name?: string;
+  children?: SourcemapNode[];
+  [key: string]: unknown;
+}
+
+function commandFailure(error: unknown): CommandFailure {
+  return error instanceof Error ? error as CommandFailure : new Error(String(error));
+}
+
 export interface RobloxProject {
   root: string;
   files: Record<string, string>;
@@ -84,8 +100,8 @@ export function hasCommand(command: QualityCommand, root?: string): boolean {
       windowsHide: true,
     });
     return true;
-  } catch (error: any) {
-    return error?.code !== 'ENOENT';
+  } catch (error: unknown) {
+    return commandFailure(error).code !== 'ENOENT';
   }
 }
 
@@ -135,22 +151,25 @@ export function run(command: QualityCommand, args: string[], options: { cwd?: st
       windowsHide: true,
     });
     return { tool: command, available: true, ok: true, output: output.trim() };
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') {
+  } catch (error: unknown) {
+    const failure = commandFailure(error);
+    if (failure.code === 'ENOENT') {
       return { tool: command, available: false, ok: false, error: `${command} is not installed` };
     }
     return {
       tool: command,
       available: true,
       ok: false,
-      output: [error?.stdout, error?.stderr].filter(Boolean).join('\n').slice(0, MAX_OUTPUT_BYTES).trim(),
+      output: [failure.stdout, failure.stderr].filter(Boolean).join('\n').slice(0, MAX_OUTPUT_BYTES).trim(),
       error:
-        error?.code === 'ETIMEDOUT'
+        failure.code === 'ETIMEDOUT'
           ? `${command} timed out after 120000ms`
-          : error?.code === 'ENOBUFS'
+          : failure.code === 'ENOBUFS'
             ? `${command} exceeded the ${MAX_OUTPUT_BYTES}-byte output limit`
-            : error?.message ?? String(error),
-      exitCode: typeof error?.status === 'number' ? error.status : undefined,
+            : failure.message,
+      exitCode: typeof (failure as CommandFailure & { status?: unknown }).status === 'number'
+        ? (failure as CommandFailure & { status: number }).status
+        : undefined,
     };
   }
 }
@@ -215,13 +234,13 @@ export class QualityTools {
     const project = this.detectRobloxProject(root);
     const sourcemapPath = project.files['sourcemap.json'];
     if (!sourcemapPath) return { resolved: false, reason: 'sourcemap.json not found', instancePath };
-    let sourcemap: any;
-    try { sourcemap = JSON.parse(fs.readFileSync(sourcemapPath, 'utf8')); } catch (error) {
+    let sourcemap: SourcemapNode;
+    try { sourcemap = JSON.parse(fs.readFileSync(sourcemapPath, 'utf8')) as SourcemapNode; } catch (error) {
       return { resolved: false, reason: `invalid sourcemap: ${error instanceof Error ? error.message : String(error)}`, instancePath };
     }
-    const target = instancePath.split('.').filter(Boolean).reduce((node, segment) => {
+    const target = instancePath.split('.').filter(Boolean).reduce<SourcemapNode | undefined>((node, segment) => {
       if (!node || typeof node !== 'object') return undefined;
-      return (node as any).children?.find((child: any) => child.name === segment);
+      return node.children?.find((child) => child.name === segment);
     }, sourcemap);
     return target ? { resolved: true, instancePath, node: target } : { resolved: false, instancePath, reason: 'instance not found' };
   }

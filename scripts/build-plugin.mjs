@@ -2,7 +2,7 @@
 
 import { readFileSync, readdirSync, writeFileSync, copyFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join, basename } from 'path';
+import { dirname, join, basename, relative, sep } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = join(__dirname, '..');
@@ -83,7 +83,51 @@ if (!existsSync(serverInitPath)) {
   process.exit(1);
 }
 
-const mainSource = injectVersion(readFileSync(serverInitPath, 'utf8'));
+const MAIN_ONLY_MODULES = new Set([
+  'PluginRoutes.luau',
+  'EvalBridges.luau',
+  'handlers/BreakpointHandlers.luau',
+  'handlers/EvalRuntimeHandlers.luau',
+  'handlers/InputHandlers.luau',
+  'handlers/InstanceHandlers.luau',
+]);
+const INSPECTOR_ONLY_MODULES = new Set([
+  'InspectorRoutes.luau',
+  'InspectorEvalBridges.luau',
+  'handlers/InspectorBreakpointHandlers.luau',
+]);
+
+function moduleKey(filePath) {
+  return relative(modulesDir, filePath).split(sep).join('/');
+}
+
+function shouldPackageModule(filePath) {
+  const key = moduleKey(filePath);
+  return variantName === 'inspector'
+    ? !MAIN_ONLY_MODULES.has(key)
+    : !INSPECTOR_ONLY_MODULES.has(key);
+}
+
+function transformCompiledSource(filePath, source) {
+  if (variantName !== 'inspector') return source;
+  const key = filePath === serverInitPath ? 'server/init.server.luau' : moduleKey(filePath);
+  if (key === 'Communication.luau') {
+    return source
+      .replaceAll('"PluginRoutes"', '"InspectorRoutes"')
+      .replaceAll('"EvalBridges"', '"InspectorEvalBridges"');
+  }
+  if (key === 'server/init.server.luau') {
+    return source
+      .replaceAll('"EvalBridges"', '"InspectorEvalBridges"')
+      .replaceAll('"BreakpointHandlers"', '"InspectorBreakpointHandlers"');
+  }
+  return source;
+}
+
+const mainSource = injectVersion(transformCompiledSource(
+  serverInitPath,
+  readFileSync(serverInitPath, 'utf8'),
+));
 
 let refId = 1;
 
@@ -104,7 +148,7 @@ function isLuaFile(name) {
 function dirHasLuaContent(dir) {
   const entries = readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.isFile() && isLuaFile(entry.name)) return true;
+    if (entry.isFile() && isLuaFile(entry.name) && shouldPackageModule(join(dir, entry.name))) return true;
     if (entry.isDirectory() && dirHasLuaContent(join(dir, entry.name))) return true;
   }
   return false;
@@ -146,9 +190,10 @@ function buildModuleItems(dir, depth = 0) {
       ${'  '.repeat(depth)}</Item>`;
       }
     } else if (isLuaFile(entry.name) && !INIT_FILENAMES.has(entry.name)) {
+      if (!shouldPackageModule(fullPath)) continue;
       const ext = entry.name.endsWith('.luau') ? '.luau' : '.lua';
       const moduleName = basename(entry.name, ext);
-      const moduleSource = injectVersion(readFileSync(fullPath, 'utf8'));
+      const moduleSource = injectVersion(transformCompiledSource(fullPath, readFileSync(fullPath, 'utf8')));
       refId++;
       items += `
       ${'  '.repeat(depth)}<Item class="ModuleScript" referent="${refId}">
@@ -177,7 +222,7 @@ function countModules(dir) {
     if (entry.isDirectory()) {
       count += countModules(join(dir, entry.name));
       if (findInitFile(join(dir, entry.name))) count++;
-    } else if (isLuaFile(entry.name) && !INIT_FILENAMES.has(entry.name)) {
+    } else if (isLuaFile(entry.name) && !INIT_FILENAMES.has(entry.name) && shouldPackageModule(join(dir, entry.name))) {
       count++;
     }
   }

@@ -14,8 +14,9 @@ describe('capability policy', () => {
   });
 
   test('requires every declared local and Studio effect capability', () => {
-    const syncPull = TOOL_DEFINITIONS.find((tool) => tool.name === 'sync_pull')!;
-    expect(requiredCapabilities(syncPull)).toEqual(['read.scene', 'local.files.write']);
+    expect(TOOL_DEFINITIONS.some((tool) => tool.name === 'sync_pull')).toBe(false);
+    expect(TOOL_DEFINITIONS.some((tool) => tool.name === 'sync_status')).toBe(false);
+    expect(TOOL_DEFINITIONS.some((tool) => tool.name === 'sync_push')).toBe(false);
 
     const rojoPatch = TOOL_DEFINITIONS.find((tool) => tool.name === 'rojo_patch_source')!;
     expect(requiredCapabilities(rojoPatch)).toEqual([

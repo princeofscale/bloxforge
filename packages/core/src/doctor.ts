@@ -172,6 +172,37 @@ export interface DoctorOptions {
   json?: boolean;
 }
 
+interface HealthInstance {
+  role?: string;
+  pluginVariant?: string;
+  pluginVersion?: string;
+  pluginProtocolVersion?: number;
+}
+
+interface HealthResponse {
+  uptime?: number;
+  lazyTools?: boolean;
+  activeToolCount?: number;
+  loadedToolsets?: string[];
+  instanceCount?: number;
+  instances?: HealthInstance[];
+  recentDisconnects?: Array<{
+    disconnectedAt: number;
+    role: string;
+    reason: string;
+  }>;
+  session?: {
+    totalCalls?: number;
+    failures?: number;
+    byTool?: Array<{
+      toolName: string;
+      calls: number;
+      failures: number;
+      averageDurationMs?: number;
+    }>;
+  };
+}
+
 const HEALTH_TIMEOUT_MS = 3_000;
 
 function fetchHealth(fetchImpl: typeof fetch, port: number): Promise<Response> {
@@ -386,7 +417,7 @@ export async function generateDiagnosticReport(options: DoctorOptions = {}): Pro
   try {
     const res = await fetchHealth(doFetch, port);
     if (res.ok) {
-      const health = await res.json() as any;
+      const health = await res.json() as HealthResponse;
       lines.push('--- Running Server Status ---');
       lines.push(`Server Uptime: ${Math.round((health.uptime ?? 0) / 1000)}s`);
       lines.push(`Lazy Tools Enabled: ${health.lazyTools ?? 'unknown'}`);

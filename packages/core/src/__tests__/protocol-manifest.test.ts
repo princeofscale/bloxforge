@@ -25,7 +25,7 @@ describe('protocol manifest', () => {
 
   test('classifies every compiled plugin endpoint exactly once', () => {
     const source = fs.readFileSync(
-      path.resolve(process.cwd(), '../../studio-plugin/src/modules/Communication.ts'),
+      path.resolve(process.cwd(), '../../studio-plugin/src/modules/PluginRoutes.ts'),
       'utf8',
     );
     const pluginEndpoints = [...source.matchAll(/^\s*"(?<endpoint>\/api\/[^"]+)":/gm)]
@@ -38,14 +38,10 @@ describe('protocol manifest', () => {
 
   test('keeps the plugin-side inspector allowlist synchronized with the manifest', () => {
     const source = fs.readFileSync(
-      path.resolve(process.cwd(), '../../studio-plugin/src/modules/Communication.ts'),
+      path.resolve(process.cwd(), '../../studio-plugin/src/modules/InspectorRoutes.ts'),
       'utf8',
     );
-    const allowlist = source.match(
-      /const inspectorAllowedEndpoints = new Set<string>\(\[([\s\S]*?)\]\);/,
-    );
-    expect(allowlist).not.toBeNull();
-    const pluginEndpoints = [...allowlist![1].matchAll(/"(?<endpoint>\/api\/[^"]+)"/g)]
+    const pluginEndpoints = [...source.matchAll(/^\s*"(?<endpoint>\/api\/[^"]+)":/gm)]
       .map((match) => match.groups!.endpoint)
       .sort();
     const manifestEndpoints = PROTOCOL_MANIFEST
@@ -54,6 +50,21 @@ describe('protocol manifest', () => {
       .sort();
 
     expect(pluginEndpoints).toEqual(manifestEndpoints);
+  });
+
+  test('committed generated policy matches the canonical endpoint source', () => {
+    const generated = fs.readFileSync(
+      path.resolve(process.cwd(), '../../studio-plugin/src/modules/generated/ProtocolPolicy.ts'),
+      'utf8',
+    );
+    const generatedEndpoints = [...generated.matchAll(/"(?<endpoint>\/api\/[^"]+)"/g)]
+      .map((match) => match.groups!.endpoint)
+      .sort();
+    const inspectorEndpoints = PROTOCOL_MANIFEST
+      .filter((entry) => entry.pluginVariants.includes('inspector'))
+      .map((entry) => entry.endpoint)
+      .sort();
+    expect(generatedEndpoints).toEqual(inspectorEndpoints);
   });
 
   test('normalizes the historical full name but denies inspector mutations', () => {

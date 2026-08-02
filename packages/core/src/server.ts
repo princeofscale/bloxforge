@@ -355,7 +355,7 @@ export class BloxForgeServer {
           boundPort = result.port;
           primaryApp = candidateApp;
           bridgeMode = 'primary';
-          (primaryApp as any).setMCPServerActive(true);
+          primaryApp.setMCPServerActive(true);
           console.error(`Promoted from proxy to primary on port ${boundPort}`);
           if (promotionInterval) clearInterval(promotionInterval);
         } catch (error) {
@@ -382,7 +382,7 @@ export class BloxForgeServer {
         const result = await listenWithRetry(legacyApp, host, LEGACY_PORT, 1);
         legacyHandle = result.server;
         console.error(`Legacy HTTP server also listening on ${host}:${LEGACY_PORT} for old plugins`);
-        (legacyApp as any).setMCPServerActive(true);
+        legacyApp.setMCPServerActive(true);
       } catch {
         console.error(`Legacy port ${LEGACY_PORT} in use, skipping backward-compat listener`);
       }
@@ -394,7 +394,7 @@ export class BloxForgeServer {
     console.error(`${this.config.name} v${this.config.version} running on stdio`);
 
     if (primaryApp) {
-      (primaryApp as any).setMCPServerActive(true);
+      primaryApp.setMCPServerActive(true);
     }
 
     console.error(bridgeMode === 'primary'
@@ -405,12 +405,12 @@ export class BloxForgeServer {
     let lastConnectionState = bridgeMode === 'primary' ? 'waiting-studio' : 'proxy';
 
     const activityInterval = setInterval(() => {
-      if (primaryApp) (primaryApp as any).trackMCPActivity();
-      if (legacyApp) (legacyApp as any).trackMCPActivity();
+      if (primaryApp) primaryApp.trackMCPActivity();
+      if (legacyApp) legacyApp.trackMCPActivity();
 
       if (bridgeMode === 'primary' && primaryApp) {
-        const pluginConnected = (primaryApp as any).isPluginConnected();
-        const mcpActive = (primaryApp as any).isMCPServerActive();
+        const pluginConnected = primaryApp.isPluginConnected();
+        const mcpActive = primaryApp.isMCPServerActive();
 
         const connectionState = pluginConnected && mcpActive
           ? 'connected'
@@ -454,8 +454,8 @@ export class BloxForgeServer {
       if (this.bridge instanceof ProxyBridgeService) {
         this.bridge.stop();
       }
-      if (primaryApp) (primaryApp as any).setMCPServerActive(false);
-      if (legacyApp) (legacyApp as any).setMCPServerActive(false);
+      if (primaryApp) primaryApp.setMCPServerActive(false);
+      if (legacyApp) legacyApp.setMCPServerActive(false);
       this.bridge.clearAllPendingRequests();
       await this.tools.stopManagedRojoProcesses().catch(() => {});
       await this.server.close().catch(() => {});

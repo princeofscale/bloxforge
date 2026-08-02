@@ -12,6 +12,15 @@ import {
   protocolPolicy,
 } from './protocol-manifest.js';
 
+/**
+ * Transport values are validated by the endpoint schema before they reach the
+ * bridge. Keeping the recursive shape opaque avoids an unsafe `any` boundary
+ * while still allowing callers to inspect a decoded response.
+ */
+export interface ProtocolValue {
+  readonly [key: string]: ProtocolValue;
+}
+
 export interface PluginInstance {
   // Internal: per-plugin GUID, regenerated on every plugin load.
   // Used as the /poll URL parameter so the server can identify which plugin
@@ -42,7 +51,7 @@ export interface PluginInstance {
 interface PendingRequest {
   id: string;
   endpoint: string;
-  data: any;
+  data: ProtocolValue;
   targetInstanceId: string;
   targetRole: string;
   timestamp: number;
@@ -50,8 +59,8 @@ interface PendingRequest {
   assignedPluginSessionId?: string;
   cancellationRequested?: boolean;
   deliveryAttempt?: number;
-  resolve: (value: any) => void;
-  reject: (error: any) => void;
+  resolve: (value: ProtocolValue) => void;
+  reject: (error: unknown) => void;
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
@@ -122,8 +131,8 @@ export interface RequestStatus {
   deliveryAttempt: number;
   leaseToken?: string;
   updatedAt: number;
-  response?: any;
-  error?: any;
+  response?: unknown;
+  error?: unknown;
 }
 
 interface InternalRequestStatus extends RequestStatus {
@@ -328,7 +337,7 @@ export class BridgeService {
               deliveryAttempt: p.deliveryAttempt,
               resolve: () => {},
               reject: () => {},
-              timeoutId: setTimeout(() => {}, 0) as any,
+              timeoutId: setTimeout(() => {}, 0),
             } as PendingRequest);
           }
           this.pruneTerminalStatuses();
@@ -971,11 +980,11 @@ export class BridgeService {
 
   async sendRequest(
     endpoint: string,
-    data: any,
+    data: unknown,
     targetInstanceId: string,
     targetRole: string,
     requestId = randomUUID(),
-  ): Promise<any> {
+  ): Promise<unknown> {
     const effectiveTimeout = resolveRequestTimeout(endpoint, this.requestTimeout);
     const targetInstance = Array.from(this.instances.values()).find(
       (instance) => instance.instanceId === targetInstanceId && instance.role === targetRole,
@@ -991,14 +1000,14 @@ export class BridgeService {
       throw new PluginVariantPolicyError(endpoint, targetInstance.pluginVariant);
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<ProtocolValue>((resolve, reject) => {
       const timeoutId = setTimeout(() => this.expireRequest(requestId), effectiveTimeout);
       const createdAt = Date.now();
 
       const request: PendingRequest = {
         id: requestId,
         endpoint,
-        data,
+        data: data as ProtocolValue,
         targetInstanceId,
         targetRole,
         timestamp: createdAt,
@@ -1027,7 +1036,7 @@ export class BridgeService {
 
   getPendingRequestForSession(
     pluginSessionId: string,
-  ): ({ requestId: string; request: { endpoint: string; data: any } } & RequestFence) | null {
+  ): ({ requestId: string; request: { endpoint: string; data: ProtocolValue } } & RequestFence) | null {
     const instance = this.instances.get(pluginSessionId);
     if (!instance) return null;
     this.updateInstanceActivity(pluginSessionId);
@@ -1038,7 +1047,7 @@ export class BridgeService {
     callerInstanceId: string,
     callerRole: string,
     pluginSessionId?: string,
-  ): ({ requestId: string; request: { endpoint: string; data: any } } & RequestFence) | null {
+  ): ({ requestId: string; request: { endpoint: string; data: ProtocolValue } } & RequestFence) | null {
     const callerInstance = pluginSessionId ? this.instances.get(pluginSessionId) : undefined;
     let inFlightMutations = 0;
     let inFlightReads = 0;
@@ -1193,19 +1202,19 @@ export class BridgeService {
     return true;
   }
 
-  resolveRequest(requestId: string, response: any): boolean {
+  resolveRequest(requestId: string, response: unknown): boolean {
     const request = this.pendingRequests.get(requestId);
     if (!this.transitionRequestStatus(requestId, 'completed', { response, error: undefined })) return false;
     if (request) {
       clearTimeout(request.timeoutId);
       this.pendingRequests.delete(requestId);
-      request.resolve(response);
+      request.resolve(response as ProtocolValue);
     }
     this.persistJournal();
     return true;
   }
 
-  rejectRequest(requestId: string, error: any): boolean {
+  rejectRequest(requestId: string, error: unknown): boolean {
     const request = this.pendingRequests.get(requestId);
     if (!this.transitionRequestStatus(requestId, 'failed', { error })) return false;
     if (request) {
@@ -1217,13 +1226,13 @@ export class BridgeService {
     return true;
   }
 
-  resolveFencedRequest(requestId: string, response: any, fence: RequestFence): boolean {
+  resolveFencedRequest(requestId: string, response: unknown, fence: RequestFence): boolean {
     const status = this.requestStatuses.get(requestId);
     if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.assignedPluginSessionId !== fence.pluginSessionId) return false;
     return this.resolveRequest(requestId, response);
   }
 
-  rejectFencedRequest(requestId: string, error: any, fence: RequestFence): boolean {
+  rejectFencedRequest(requestId: string, error: unknown, fence: RequestFence): boolean {
     const status = this.requestStatuses.get(requestId);
     if (!status || status.serverEpoch !== fence.serverEpoch || status.deliveryAttempt !== fence.deliveryAttempt || status.leaseToken !== fence.leaseToken || status.assignedPluginSessionId !== fence.pluginSessionId) return false;
     return this.rejectRequest(requestId, error);

@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 209
+## Total Tools: 206
 
 ### `get_file_tree` (Read-only)
 
@@ -2089,49 +2089,6 @@ Scaffold a round-based game: a lobby with spawn, an arena with teleport points, 
 | `roundSeconds` | `number` | No | Round length in seconds (default 90). |
 | `intermissionSeconds` | `number` | No | Intermission length in seconds (default 15). |
 | `teleportPoints` | `number` | No | Number of arena teleport points (default 4). |
-| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
-
----
-
-### `sync_pull` (Write)
-
-Deprecated compatibility wrapper. Preview Studio-to-files changes safely, then require confirm=true before atomic writes. ModuleScripts use the Rojo .lua convention and state stores hashes, not source.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `syncDir` | `string` | No | Target directory (default ./roblox-src or $ROBLOX_SYNC_DIR). |
-| `dryRun` | `boolean` | No | Preview only. This is the default unless confirm=true. |
-| `confirm` | `boolean` | No | Required before writing local files. |
-| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
-
----
-
-### `sync_status` (Read-only)
-
-Deprecated compatibility wrapper. Compare local files with bounded Studio script pages and hash-only local state.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `syncDir` | `string` | No | Sync directory (default ./roblox-src or $ROBLOX_SYNC_DIR). |
-| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
-
----
-
-### `sync_push` (Write)
-
-Deprecated compatibility wrapper. Preview existing-script updates and require confirm=true. Prefer editing local files and using managed rojo serve.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `syncDir` | `string` | No | Sync directory (default ./roblox-src or $ROBLOX_SYNC_DIR). |
-| `dryRun` | `boolean` | No | Preview which files would be pushed without writing to Studio. |
-| `confirm` | `boolean` | No | Required before updating Studio scripts. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---

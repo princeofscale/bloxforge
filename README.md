@@ -204,10 +204,11 @@ Profiles keep tool discovery focused and reduce context use:
 | `full` | Every available BloxForge tool |
 | `inspector` | Studio/local read authorization only; local writes, process execution, network access, and Studio mutation/execute tools are omitted |
 
-Some pre-4.0 tools (`install_wally_packages`, `generate_rojo_sourcemap`,
-`build_rojo_project`, `sync_pull`/`sync_push`) are still discoverable but do not
-apply the newer lock policy, output-path checks, or plan hashes. Prefer the
-`rojo_*`, `wally_*` and `rokit_*` tools; see
+Some pre-4.0 toolchain wrappers (`install_wally_packages`,
+`generate_rojo_sourcemap`, `build_rojo_project`) remain discoverable for
+compatibility. The unsafe `sync_pull`, `sync_status`, and `sync_push` wrappers
+have been removed from MCP discovery; use the hashed `rojo_syncback_plan` →
+`rojo_syncback_apply` flow. See
 [Known limitations](docs/known-limitations.md#legacy-tools-bypass-the-newer-guarantees)
 for the mapping.
 

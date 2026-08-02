@@ -112,7 +112,7 @@ const ASSERTIONS = [
       src.includes('leaseToken'),
   },
   {
-    file: 'Communication.luau',
+    file: 'PluginRoutes.luau',
     label: 'bounded managed-script reads are routed without arbitrary Luau execution',
     test: (src) => src.includes('/api/read-managed-scripts') && src.includes('readManagedScripts'),
   },

@@ -29,10 +29,10 @@ jobs:
       matrix:
         node: [20, 22]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node ${{ matrix.node }}
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -87,10 +87,10 @@ jobs:
     name: Studio plugin (roblox-ts compile)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Node 20
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -108,14 +108,6 @@ jobs:
       - name: Smoke-check compiled plugin output
         run: npm run test:plugin:smoke
 
-      - name: Install pinned Lune runtime
-        run: |
-          curl -fsSL https://github.com/lune-org/lune/releases/download/v0.10.5/lune-0.10.5-linux-x86_64.zip -o "${RUNNER_TEMP}/lune.zip"
-          echo "1fb5dee6a1afa1d300092805c6e660fe06144d29dd68c45cf6956f040667f791  ${RUNNER_TEMP}/lune.zip" | sha256sum --check -
-          unzip -q "${RUNNER_TEMP}/lune.zip" -d "${RUNNER_TEMP}/lune"
-          chmod +x "${RUNNER_TEMP}/lune/lune"
-          echo "${RUNNER_TEMP}/lune" >> "$GITHUB_PATH"
-
       - name: Runtime-check compiled Luau helpers
         run: npm run test:plugin:runtime
 
@@ -125,10 +117,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -152,10 +144,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -199,10 +191,10 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -256,8 +248,8 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 20
           cache: npm
@@ -272,3 +264,25 @@ jobs:
       - run: npm run test:plugin:smoke
       - run: npm run test:plugin:installer
       - run: npm run verify-package
+
+  required:
+    name: Required
+    if: always()
+    needs: [node, plugin, rojo, toolchain, toolchain-cross-platform, cross-platform]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required job results
+        env:
+          NODE_RESULT: ${{ needs.node.result }}
+          PLUGIN_RESULT: ${{ needs.plugin.result }}
+          ROJO_RESULT: ${{ needs.rojo.result }}
+          TOOLCHAIN_RESULT: ${{ needs.toolchain.result }}
+          TOOLCHAIN_MATRIX_RESULT: ${{ needs.toolchain-cross-platform.result }}
+          CROSS_PLATFORM_RESULT: ${{ needs.cross-platform.result }}
+        run: |
+          for result in "$NODE_RESULT" "$PLUGIN_RESULT" "$ROJO_RESULT" "$TOOLCHAIN_RESULT" "$TOOLCHAIN_MATRIX_RESULT" "$CROSS_PLATFORM_RESULT"; do
+            if [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "A required CI job finished with result: $result"
+              exit 1
+            fi
+          done

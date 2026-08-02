@@ -26,6 +26,7 @@ import { parseClientCapabilities, requiredCapabilities } from './capability-poli
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
 import { CORE_TOOLS } from './tools/tool-catalog.js';
+import { DASHBOARD_HTML } from './dashboard.js';
 
 interface StreamableHttpConfig {
   name: string;
@@ -33,7 +34,18 @@ interface StreamableHttpConfig {
   tools: ToolDefinition[];
 }
 
+// Tool inputs and outputs are heterogeneous by design and have already passed
+// their per-tool JSON schema before this legacy dispatch compatibility layer.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ToolHandler = (tools: RobloxStudioTools, body: any) => Promise<any>;
+
+export type BloxForgeHttpApp = express.Express & {
+  bridge: BridgeService;
+  isPluginConnected: () => boolean;
+  setMCPServerActive: (active: boolean) => void;
+  isMCPServerActive: () => boolean;
+  trackMCPActivity: () => void;
+};
 
 export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_roblox_docs: (tools, body) => tools.getRobloxDocs(body.name, body.doc_type, body.section),
@@ -241,73 +253,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   image_generate_and_upload: (tools, body) => tools.imageGenerateAndUpload(body.prompt, body, body.assetType, body.displayName),
 };
 
-// Self-contained diagnostics page (no external assets) served at /dashboard.
-const DASHBOARD_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>BloxForge dashboard</title>
-<style>
-  body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #14161c; color: #e6e6ea; margin: 0; padding: 24px; }
-  h1 { font-size: 18px; margin: 0 0 16px; }
-  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-  .card { background: #1d2029; border: 1px solid #2a2e3a; border-radius: 8px; padding: 12px 16px; min-width: 160px; }
-  .label { font-size: 11px; text-transform: uppercase; color: #8a8f9c; }
-  .value { font-size: 18px; margin-top: 4px; }
-  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
-  .ok { background: #4ade80; } .bad { background: #f87171; }
-  button { background: #2a2e3a; color: #e6e6ea; border: 1px solid #3a3f4d; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; }
-  button:hover { background: #343a48; }
-  pre { background: #1d2029; border: 1px solid #2a2e3a; border-radius: 8px; padding: 12px; overflow: auto; max-height: 50vh; white-space: pre-wrap; }
-</style>
-</head>
-<body>
-<h1>BloxForge dashboard</h1>
-<div class="row">
-  <div class="card"><div class="label">Studio</div><div class="value" id="conn"><span class="dot bad"></span>—</div></div>
-  <div class="card"><div class="label">Places connected</div><div class="value" id="count">—</div></div>
-  <div class="card"><div class="label">Server version</div><div class="value" id="ver">—</div></div>
-  <div class="card"><div class="label">Pending requests</div><div class="value" id="pending">—</div></div>
-</div>
-<div class="row">
-  <button onclick="refresh()">Reconnect / Refresh</button>
-  <button onclick="document.getElementById('ops').textContent=''">Clear logs</button>
-  <button onclick="exportDiag()">Export diagnostics</button>
-</div>
-<div class="label">Recent operations</div>
-<pre id="ops">loading…</pre>
-<script>
-let last = {};
-async function refresh() {
-  try {
-    const r = await fetch('/dashboard/data');
-    const d = await r.json();
-    last = d;
-    document.getElementById('conn').innerHTML = '<span class="dot ' + (d.pluginConnected ? 'ok' : 'bad') + '"></span>' + (d.pluginConnected ? 'Connected' : 'Disconnected');
-    document.getElementById('count').textContent = d.instanceCount;
-    document.getElementById('ver').textContent = d.serverVersion || '—';
-    document.getElementById('pending').textContent = d.pendingRequests;
-    document.getElementById('ops').textContent = d.operations || 'none';
-  } catch (e) {
-    document.getElementById('ops').textContent = 'Failed to reach server: ' + e;
-  }
-}
-function exportDiag() {
-  const blob = new Blob([JSON.stringify(last, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'bloxforge-diagnostics.json';
-  a.click();
-}
-refresh();
-setInterval(refresh, 3000);
-</script>
-</body>
-</html>`;
-
-export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig, registry?: ToolRegistry) {
-  const app = express();
+export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService, allowedTools?: Set<string>, serverConfig?: StreamableHttpConfig, registry?: ToolRegistry): BloxForgeHttpApp {
+  const app = express() as BloxForgeHttpApp;
   const requirePluginAuth = process.env.NODE_ENV !== 'test';
   const bearerToken = (req: express.Request): string | undefined => {
     const value = req.header('authorization');
@@ -833,9 +780,9 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     try {
       const response = await bridge.sendRequest(endpoint, data, targetInstanceId, targetRole, requestId);
       res.json({ response });
-    } catch (err: any) {
+    } catch (err: unknown) {
       res.status(500).json({
-        error: err.message || 'Proxy request failed',
+        error: err instanceof Error ? err.message : 'Proxy request failed',
         ...(err instanceof RequestOutcomeUnknownError
           ? { outcome: err.outcome, requestId: err.requestId }
           : {}),
@@ -1041,11 +988,11 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
   }
 
 
-  (app as any).isPluginConnected = isPluginConnected;
-  (app as any).bridge = bridge;
-  (app as any).setMCPServerActive = setMCPServerActive;
-  (app as any).isMCPServerActive = isMCPServerActive;
-  (app as any).trackMCPActivity = trackMCPActivity;
+  app.isPluginConnected = isPluginConnected;
+  app.bridge = bridge;
+  app.setMCPServerActive = setMCPServerActive;
+  app.isMCPServerActive = isMCPServerActive;
+  app.trackMCPActivity = trackMCPActivity;
 
   return app;
 }
@@ -1055,7 +1002,7 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
  * so that EADDRINUSE errors are properly caught.
  */
 export function listenWithRetry(
-  app: express.Express,
+  app: BloxForgeHttpApp,
   host: string,
   startPort: number,
   maxAttempts: number = 5
@@ -1086,10 +1033,10 @@ export function listenWithRetry(
   })();
 }
 
-function bindPort(app: express.Express, host: string, port: number): Promise<http.Server> {
+function bindPort(app: BloxForgeHttpApp, host: string, port: number): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
-    attachBridgeWebSocket(server, (app as any).bridge);
+    attachBridgeWebSocket(server, app.bridge);
     const onError = (err: NodeJS.ErrnoException) => {
       server.removeListener('error', onError);
       reject(err);

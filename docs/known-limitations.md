@@ -212,9 +212,9 @@ implementations. They apply the same lock policy, output-path validation and
 project selection, and every response carries `deprecated: true` with the tool
 to use instead. They are no longer in the always-on core set.
 
-`sync_pull`, `sync_status` and `sync_push` remain deprecated and still take only
-`dryRun`/`confirm`; they do not require the `expectedPlanHash` that
-`rojo_syncback_apply` enforces.
+`sync_pull`, `sync_status` and `sync_push` are no longer advertised or
+dispatchable through MCP. They lacked the immutable `expectedPlanHash` contract
+enforced by `rojo_syncback_apply`; clients must migrate to the canonical pair.
 
 | Legacy | Use instead |
 |---|---|
@@ -222,7 +222,7 @@ to use instead. They are no longer in the always-on core set.
 | `generate_rojo_sourcemap` | `rojo_generate_sourcemap` |
 | `build_rojo_project` | `rojo_build_project` |
 | `resolve_instance_source_file` | `rojo_resolve_instance_source` |
-| `sync_pull` / `sync_push` | `rojo_syncback_plan` → `rojo_syncback_apply` |
+| removed `sync_pull` / `sync_status` / `sync_push` | `rojo_syncback_plan` → `rojo_syncback_apply` |
 
 ## Script diagnostics and output
 
