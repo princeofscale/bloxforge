@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `docs:check` compares generated tool docs by content rather than by bytes. The
+  generator writes LF and a Windows checkout rewrites the working copy to CRLF,
+  so the gate reported "out of date" on a file that had not changed, and
+  regenerating produced a whitespace-only diff to commit. Real content drift
+  still fails. `scripts/generate-protocol-policy.mjs` already normalized for
+  this; the tool-docs generator did not.
+
 ## [4.0.3] - 2026-08-02
 
 ### Added
