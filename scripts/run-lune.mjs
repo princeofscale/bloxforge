@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -23,8 +23,11 @@ async function provisionLinuxX64() {
     throw new Error(`Lune ${VERSION} is not on PATH and automatic provisioning currently supports linux-x64 only.`);
   }
 
+  // Under the user's home, not the system temp directory. A cache hit below
+  // skips the checksum, and /tmp is writable by every local account: anyone
+  // could pre-create this path and have the release gate execute their binary.
   const cacheRoot = process.env.BLOXFORGE_TOOL_CACHE?.trim()
-    || path.join(tmpdir(), 'bloxforge-tools');
+    || path.join(homedir(), '.cache', 'bloxforge-tools');
   const installDir = path.join(cacheRoot, `lune-${VERSION}-linux-x64`);
   const binary = path.join(installDir, 'lune');
   if (existsSync(binary)) return binary;

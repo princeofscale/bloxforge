@@ -55,6 +55,13 @@ export interface ResponsePagination {
 }
 
 /**
+ * A shaped response carries `pagination` only when shaping actually happened;
+ * the four pass-through cases below return the caller's object untouched, so the
+ * block is optional rather than guaranteed.
+ */
+export type ShapedListResponse<T> = T & { pagination?: ResponsePagination };
+
+/**
  * Shape the array under `listKey` of a plugin response: paginate, project fields,
  * and attach a `pagination` block. Returns the original object unchanged for error
  * responses, missing lists, or when no shaping options are supplied.
@@ -63,16 +70,16 @@ export function shapeListResponse<T>(
   response: T,
   listKey: string,
   opts: ShapeOptions,
-): T & { pagination: ResponsePagination } {
-  if (!response || typeof response !== 'object') return response as T & { pagination: ResponsePagination };
+): ShapedListResponse<T> {
+  if (!response || typeof response !== 'object') return response as ShapedListResponse<T>;
   const r = response as Record<string, unknown>;
-  if (typeof r.error === 'string') return response as T & { pagination: ResponsePagination };
+  if (typeof r.error === 'string') return response as ShapedListResponse<T>;
   const list = r[listKey];
-  if (!Array.isArray(list)) return response as T & { pagination: ResponsePagination };
+  if (!Array.isArray(list)) return response as ShapedListResponse<T>;
 
   const wantsPage = opts.limit !== undefined || opts.offset !== undefined;
   const wantsFields = !!opts.fields && opts.fields.length > 0;
-  if (!wantsPage && !wantsFields) return response as T & { pagination: ResponsePagination };
+  if (!wantsPage && !wantsFields) return response as ShapedListResponse<T>;
 
   const page = paginateList(list as Array<Record<string, unknown>>, opts);
   const items = wantsFields ? page.items.map((it) => pickFields(it, opts.fields)) : page.items;
@@ -81,5 +88,5 @@ export function shapeListResponse<T>(
     ...r,
     [listKey]: items,
     pagination: { total: page.total, offset: page.offset, returned: page.returned, hasMore: page.hasMore },
-  } as T & { pagination: ResponsePagination };
+  } as ShapedListResponse<T>;
 }
