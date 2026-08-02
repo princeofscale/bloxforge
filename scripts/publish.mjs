@@ -36,13 +36,24 @@ const viewVersion = (name, wanted) => {
   }
 };
 
-/** Retries the transient states; `present`/`absent` are answers, not attempts. */
-const viewVersionWithRetry = async (name, wanted, attempts = 4) => {
+/**
+ * Retries until `settled` accepts the state. Which states are transient depends
+ * on what the caller is asking, and conflating the two broke the v4.0.3 release:
+ *
+ *  - *Before* publishing, `absent` is a definitive answer — go ahead — so only
+ *    `unknown` is worth retrying.
+ *  - *After* publishing, `absent` is the expected first answer. A just-published
+ *    version takes seconds to become visible to `npm view`, so the wait is for
+ *    `present`. With the old predicate the post-publish check returned on its
+ *    very first 404 and failed a release whose publish had in fact succeeded.
+ */
+const SETTLED_UNLESS_UNKNOWN = (state) => state !== 'unknown';
+const viewVersionWithRetry = async (name, wanted, attempts = 4, settled = SETTLED_UNLESS_UNKNOWN) => {
   let last = { state: 'unknown' };
   for (let attempt = 0; attempt < attempts; attempt++) {
     if (attempt > 0) await sleep(2000 * attempt);
     last = viewVersion(name, wanted);
-    if (last.state !== 'unknown') return last;
+    if (settled(last.state)) return last;
   }
   return last;
 };
@@ -72,9 +83,14 @@ const publishIfMissing = async (workspace, name) => {
   // few seconds to become visible to `npm view` (registry replication, and
   // publish-time scanning), and failing a release that actually succeeded is
   // the more expensive mistake.
-  const after = await viewVersionWithRetry(name, version, 5);
+  const after = await viewVersionWithRetry(name, version, 6, (state) => state === 'present');
   if (after.state !== 'present') {
-    throw new Error(`${name}@${version} did not appear on the registry after publishing (${after.state}${after.detail ? `: ${after.detail}` : ''})`);
+    throw new Error(
+      `${name}@${version} did not appear on the registry within 30s of publishing (${after.state}`
+      + `${after.detail ? `: ${after.detail}` : ''}). npm publish itself reported success, so the version `
+      + 'may well be there — re-run this workflow: an already-published version is skipped, and the '
+      + 'remaining packages continue.',
+    );
   }
   return 'published';
 };

@@ -190,6 +190,12 @@ jobs:
       - name: Attach plugin assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # This job deliberately has no checkout — it is the only one with
+          # `contents: write` and it must not also carry the repository. Without
+          # a working tree `gh` cannot infer the repository from a git remote,
+          # and on v4.0.3 it failed with "not a git repository". GH_REPO tells it
+          # directly. Do not "fix" a future failure here by adding a checkout.
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           gh release upload "$RELEASE_TAG" \
