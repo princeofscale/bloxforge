@@ -48,7 +48,15 @@ async function main() {
     if (process.argv.includes('--check')) {
       assert.equal(schemaType({ anyOf: [{ type: 'string' }, { type: 'number' }] }), 'string | number');
       assert.equal(tableCell('one|two\nthree'), 'one\\|two<br>three');
-      if (readFileSync(outputPath, 'utf8') !== markdown) throw new Error('Generated tool docs are out of date.');
+      // Compare content, not line endings. The generator writes LF; on a
+      // Windows checkout git rewrites the working copy to CRLF, so a raw
+      // comparison reported "out of date" on a file that had not changed —
+      // regenerating then produced a whitespace-only diff to commit. Real
+      // content drift still fails, exactly as before.
+      const normalize = (value) => value.replace(/\r\n?/g, '\n');
+      if (normalize(readFileSync(outputPath, 'utf8')) !== normalize(markdown)) {
+        throw new Error('Generated tool docs are out of date.');
+      }
       console.log(`Tools reference is up to date: ${outputPath}`);
       return;
     }
