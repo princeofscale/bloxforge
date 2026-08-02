@@ -143,6 +143,37 @@ Codex / Claude → BloxForge MCP tools → local Luau files → rojo serve → S
 
 ### Getting a project running
 
+`project_reconcile_plan` reads all of it at once — Rojo project, toolchain pins,
+Wally lock, package mounts, sourcemap, `rojo serve` — and returns the ordered
+steps that would make the project ready, each marked `automatic` or `blocked`.
+`project_reconcile_apply` runs them under a single-writer lease, re-reading the
+state after every step, and finishes with a strict verify.
+
+It restores declared state and never invents new state: installing the exact
+version `rokit.toml` pins and the packages `wally.lock` already resolved is a
+repair; choosing a *new* version or resolving a new lock is a decision, and
+those steps come back blocked with the `[automation]` flag that would permit
+them. Defaults, overridable in `bloxforge.toml`:
+
+```toml
+[automation]
+installPinnedTools    = true     # restore what the manifest already pins
+installLockedPackages = true     # restore what the lock already resolved
+generateSourcemap     = true
+startRojo             = true
+restartManagedRojo    = true
+
+updateToolPins        = false    # each of these decides new state
+updateWallyLock       = false
+editRojoProject       = false
+migrateAftmanToRokit  = false
+```
+
+Each run journals to `.bloxforge/reconcile/<runId>.json`, so passing the same
+`runId` resumes an interrupted run instead of repeating finished steps.
+
+The individual steps stay available, and doing it by hand is the same order:
+
 1. Pin your tools in `rokit.toml`, then `rokit_status` → `rokit_install`.
    A project pinned to a version whose shim is not installed **fails with the
    install command**; it never quietly runs a different global Rojo.

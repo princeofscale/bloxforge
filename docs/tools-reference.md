@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 206
+## Total Tools: 209
 
 ### `get_file_tree` (Read-only)
 
@@ -3091,5 +3091,47 @@ Update Wally packages after confirm=true and an expectedPlanHash match; rewrites
 | `packages` | `array` | No |  |
 | `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
 | `expectedPlanHash` | `string` | Yes | planHash returned by wally_update_plan; required for every apply. Covers the manifest and lockfile content at plan time. |
+
+---
+
+### `project_reconcile_plan` (Read-only)
+
+Read the whole project — Rojo project, toolchain pins, Wally lock, package mounts, sourcemap, rojo serve — and return the ordered steps that would make it ready, each marked automatic or blocked by the [automation] policy. Writes nothing and makes no network request.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `projectFile` | `string` | No | Explicit *.project.json(c) path. Required when discovery finds more than one. |
+
+---
+
+### `project_reconcile_apply` (Write)
+
+Run the planned steps in order under a single-writer lease, re-reading state after each one, then finish with a strict project verify. Restores declared state only: installing pinned tools and locked packages is permitted, resolving new versions is not. Pass the same runId to resume an interrupted run from its journal.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `projectFile` | `string` | No |  |
+| `confirm` | `boolean` | Yes | Required to execute; downloads from the network and writes local files. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by project_reconcile_plan; required for every apply. Covers the manifest and lockfile content at plan time. |
+| `runId` | `string` | No | Resume the journal at .bloxforge/reconcile/<runId>.json instead of starting a new run. |
+
+---
+
+### `project_reconcile_status` (Read-only)
+
+The current plan plus the reconcile lease holder and the most recent run journals, for checking whether another agent is mid-reconcile or why the last one stopped.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
+| `projectFile` | `string` | No |  |
 
 ---
