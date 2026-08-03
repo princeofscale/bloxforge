@@ -79,10 +79,17 @@ export function buildSetTimeOfDayLuau(time: number | string): string {
     'local Lighting = game:GetService("Lighting")',
     'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
   ];
-  if (typeof time === 'number') {
-    lines.push(`Lighting.ClockTime = ${luaNumber(clampClock(time))}`);
+  // A bare number that arrived as a string is still a ClockTime — a TimeOfDay
+  // string always carries colons. Without this, a client that sends 14.75 as
+  // "14.75" reached Lighting.TimeOfDay, which reads it as 14 hours and 75
+  // minutes and sets 15:15, an hour and a half off what was asked for.
+  const clock = typeof time === 'number'
+    ? time
+    : (/^\s*-?\d+(\.\d+)?\s*$/.test(time) ? Number(time) : undefined);
+  if (clock !== undefined) {
+    lines.push(`Lighting.ClockTime = ${luaNumber(clampClock(clock))}`);
   } else {
-    lines.push(`Lighting.TimeOfDay = ${luaString(time)}`);
+    lines.push(`Lighting.TimeOfDay = ${luaString(time as string)}`);
   }
   lines.push('return { clockTime = Lighting.ClockTime, timeOfDay = Lighting.TimeOfDay, success = true }');
   return lines.join('\n');

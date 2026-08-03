@@ -19,6 +19,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Property name'
         },
         propertyValue: {
+          type: ['string', 'number', 'boolean', 'object', 'array'],
           description: 'Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string.'
         },
         instance_id: {
@@ -47,6 +48,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Property name'
         },
         propertyValue: {
+          type: ['string', 'number', 'boolean', 'object', 'array'],
           description: 'Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string.'
         },
         instance_id: {

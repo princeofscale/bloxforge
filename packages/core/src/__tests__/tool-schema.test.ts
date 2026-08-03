@@ -139,6 +139,28 @@ describe('Tool schema compatibility', () => {
     expect(missing).toEqual([]);
   });
 
+  // A property with no type is not "accepts anything" to an MCP client — it is
+  // a property the client cannot validate, and the value arrives as a string.
+  // environment_set_time_of_day.time was untyped, so a client sent 14.75 as
+  // "14.75", Lighting.TimeOfDay read that as 14 hours 75 minutes, and the tool
+  // set 15:15 while reporting success. Polymorphic parameters must spell the
+  // union out: type: ['number', 'string'].
+  test('every input property declares a type', () => {
+    const untyped: string[] = [];
+    for (const tool of TOOL_DEFINITIONS) {
+      const properties = (tool.inputSchema as JsonSchema)?.properties;
+      if (!properties || typeof properties !== 'object') continue;
+      for (const [name, schema] of Object.entries(properties as Record<string, unknown>)) {
+        if (!schema || typeof schema !== 'object') continue;
+        const node = schema as JsonSchema;
+        const declared = ['type', 'enum', 'oneOf', 'anyOf', 'allOf', '$ref', 'const']
+          .some((keyword) => node[keyword] !== undefined);
+        if (!declared) untyped.push(`${tool.name}.${name}`);
+      }
+    }
+    expect(untyped).toEqual([]);
+  });
+
   test('MCP tool shape includes outputSchema only when the tool publishes one', () => {
     const noOutput = toolDefinitionToMcpTool({
       name: 'example_no_output',
