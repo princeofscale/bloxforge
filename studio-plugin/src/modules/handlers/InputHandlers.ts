@@ -144,7 +144,7 @@ function simulateKeyboardInput(requestData: Record<string, unknown>) {
 			task.wait(duration);
 			vi.SendKey(false, keyCode);
 		} else {
-			error(`Unknown action: ${action}`);
+			error(`Unknown action: ${action}`, 0);
 		}
 	});
 

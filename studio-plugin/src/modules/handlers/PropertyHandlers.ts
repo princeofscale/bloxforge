@@ -152,7 +152,7 @@ function setProperties(requestData: Record<string, unknown>) {
 			if (propName === "Parent" || propName === "PrimaryPart") {
 				if (typeIs(propValue, "string")) {
 					const refInstance = getInstanceByPath(propValue as string);
-					if (!refInstance) error(`${propName} reference not found: ${propValue}`);
+					if (!refInstance) error(`${propName} reference not found: ${propValue}`, 0);
 					inst[propName as string] = refInstance;
 				}
 			} else if (propName === "Name") {
