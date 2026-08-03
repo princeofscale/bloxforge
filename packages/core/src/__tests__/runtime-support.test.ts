@@ -39,4 +39,19 @@ describe('runtime support helpers', () => {
       output: 'raw',
     });
   });
+
+  it('keeps a reported failure even when returnValue parses', () => {
+    // The unwrap used to run first, so a partial payload alongside
+    // success: false was returned as the whole answer and the error vanished.
+    expect(normalizeExecuteLuauToolResult({
+      success: false,
+      error: 'user_code:2: attempt to index nil',
+      returnValue: JSON.stringify({ partial: true }),
+      output: [],
+    })).toEqual({
+      success: false,
+      error: 'user_code:2: attempt to index nil',
+      output: [],
+    });
+  });
 });

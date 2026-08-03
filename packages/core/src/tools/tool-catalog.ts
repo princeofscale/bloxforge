@@ -269,9 +269,11 @@ export function searchCatalog(catalog: CatalogEntry[], params: CatalogSearchPara
   return catalog
     .map((e) => ({ e, s: score(e), tokens: e.name.split('_').length }))
     .filter((x) => x.s >= 0 && (q === '' || x.s > 0))
-    // Equal scores: the shorter name is the more general tool, and a general
-    // tool is the better guess for a vague query (create_object over
-    // environment_create_day_night_cycle_script).
+    // Equal scores: fewer name segments means the more general tool, and a
+    // general tool is the better guess for a vague query (create_object over
+    // environment_create_day_night_cycle_script). Segments rather than raw
+    // character count — `mass_set_property` is more specific than
+    // `set_properties` despite being one character shorter.
     .sort((a, b) => b.s - a.s || a.tokens - b.tokens || a.e.name.localeCompare(b.e.name))
     .slice(0, limit)
     .map((x) => x.e);
