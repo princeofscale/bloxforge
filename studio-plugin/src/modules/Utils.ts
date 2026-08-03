@@ -303,7 +303,7 @@ function evaluateFormula(
 			}
 		}
 
-		error(`Unsupported formula pattern: ${value}`);
+		error(`Unsupported formula pattern: ${value}`, 0);
 	});
 
 	if (success && typeIs(evalResult, "number")) {

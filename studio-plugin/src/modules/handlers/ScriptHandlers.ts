@@ -14,7 +14,7 @@ function normalizeEscapes(s: string): string {
 function updateScriptSourceVerified(instance: LuaSourceContainer, newSource: string) {
 	ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
 	if (readScriptSource(instance) !== newSource) {
-		error("UpdateSourceAsync completed without updating the live script draft");
+		error("UpdateSourceAsync completed without updating the live script draft", 0);
 	}
 }
 
@@ -172,7 +172,7 @@ function createManagedScriptSnapshot(rootPath: string, root: Instance): LuaTuple
 	for (const candidate of candidates) {
 		if (candidate.IsA("LuaSourceContainer")) {
 			if (scripts.size() >= MAX_MANAGED_SCRIPTS) {
-				error(`Managed script read exceeds ${MAX_MANAGED_SCRIPTS} items`);
+				error(`Managed script read exceeds ${MAX_MANAGED_SCRIPTS} items`, 0);
 			}
 			scripts.push({ instance: candidate, path: getInstancePath(candidate) });
 		}
@@ -345,14 +345,14 @@ function editScriptLines(requestData: Record<string, unknown>) {
 		let matchStart: number;
 
 		if (startLine !== undefined) {
-			if (startLine < 1) error(`startLine must be >= 1 (got ${startLine})`);
+			if (startLine < 1) error(`startLine must be >= 1 (got ${startLine})`, 0);
 
 			let lineStartByte = 1;
 			let currentLine = 1;
 			while (currentLine < startLine) {
 				const [nlPos] = string.find(source, "\n", lineStartByte, true);
 				if (nlPos === undefined) {
-					error(`startLine ${startLine} is past end of script (${currentLine} lines)`);
+					error(`startLine ${startLine} is past end of script (${currentLine} lines)`, 0);
 				}
 				lineStartByte = (nlPos as number) + 1;
 				currentLine++;
@@ -360,7 +360,7 @@ function editScriptLines(requestData: Record<string, unknown>) {
 
 			const candidate = string.sub(source, lineStartByte, lineStartByte + searchLen - 1);
 			if (candidate !== oldString) {
-				error(`old_string does not match at line ${startLine}. Use get_script_source to verify the exact text at that line.`);
+				error(`old_string does not match at line ${startLine}. Use get_script_source to verify the exact text at that line.`, 0);
 			}
 			matchStart = lineStartByte;
 		} else {
@@ -375,8 +375,8 @@ function editScriptLines(requestData: Record<string, unknown>) {
 				if (count > 1) break;
 				searchPos = foundStart + searchLen;
 			}
-			if (count === 0) error("old_string not found in script. If old_string contains repeated patterns (e.g. closing braces), pass startLine to anchor the edit.");
-			if (count > 1) error("old_string matches multiple locations. Provide more surrounding context, or pass startLine to anchor the edit to a specific line.");
+			if (count === 0) error("old_string not found in script. If old_string contains repeated patterns (e.g. closing braces), pass startLine to anchor the edit.", 0);
+			if (count > 1) error("old_string matches multiple locations. Provide more surrounding context, or pass startLine to anchor the edit to a specific line.", 0);
 			matchStart = firstMatch as number;
 		}
 
@@ -421,7 +421,7 @@ function insertScriptLines(requestData: Record<string, unknown>) {
 		const [lines, hadTrailingNewline] = splitLines(readScriptSource(instance));
 		const totalLines = lines.size();
 
-		if (afterLine < 0 || afterLine > totalLines) error(`afterLine out of range (0-${totalLines})`);
+		if (afterLine < 0 || afterLine > totalLines) error(`afterLine out of range (0-${totalLines})`, 0);
 
 		const [newLines] = splitLines(newContent);
 		const resultLines: string[] = [];
@@ -471,8 +471,8 @@ function deleteScriptLines(requestData: Record<string, unknown>) {
 		const [lines, hadTrailingNewline] = splitLines(readScriptSource(instance));
 		const totalLines = lines.size();
 
-		if (startLine < 1 || startLine > totalLines) error(`startLine out of range (1-${totalLines})`);
-		if (endLine < startLine || endLine > totalLines) error(`endLine out of range (${startLine}-${totalLines})`);
+		if (startLine < 1 || startLine > totalLines) error(`startLine out of range (1-${totalLines})`, 0);
+		if (endLine < startLine || endLine > totalLines) error(`endLine out of range (${startLine}-${totalLines})`, 0);
 
 		const resultLines: string[] = [];
 		for (let i = 0; i < startLine - 1; i++) resultLines.push(lines[i]);

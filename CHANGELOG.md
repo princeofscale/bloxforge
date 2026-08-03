@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `get_world_snapshot` counts the place, not Studio. At `game` level it walked
+  the whole DataModel, which also holds Studio's own plumbing: on an empty
+  baseplate 1677 of 1713 descendants were `Stats`, `StylingService`,
+  `MemStorageService`, `PluginGuiService` and `CoreGui`. The tool whose job is
+  answering "is the scene heavy" reported 1713 for a place containing 36
+  instances, and its top classes were `StatsItem` and `StyleRule`. It now scans
+  the services a place stores, names that in a `scope` field rather than quietly
+  returning different numbers, and leaves any explicitly requested path
+  unfiltered. The existing code already skipped *empty* services for the same
+  reason; this extends that to the non-empty internal ones.
+- Plugin validation errors no longer carry the plugin's own source location.
+  Ten `error(...)` calls omitted the level argument, so a caller asking for an
+  ambiguous `edit_script_lines` got
+  `user_MCPPlugin.rbxmx.MCPPlugin.modules.handlers.ScriptHandlers:484: old_string
+  matches multiple locations...` instead of the guidance alone. `LuauExec`
+  already passed `0` at its three sites; the handlers now do too.
 - Every tool input property declares a JSON-Schema type. Thirteen polymorphic
   parameters had no `type` at all, and an untyped property is not "accepts
   anything" to an MCP client — it is one the client cannot validate, so the
