@@ -586,7 +586,14 @@ export class RobloxStudioTools {
 
   private async _runGeneratedLuau(code: string, instance_id?: string) {
     const response = await this._callSingle('/api/execute-luau', { code }, 'edit', instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] as ToolContent[] };
+    // Normalize like every other execute-luau caller (world-model, mutation,
+    // runtime tools). The plugin JSON-*encodes* a Luau table return into the
+    // `returnValue` string, so handing the raw envelope back meant callers got
+    // double-encoded JSON, and a Luau `{ error = ... }` result still arrived
+    // wrapped in `success: true, message: "Code executed successfully"` — an
+    // agent branching on that read a failed build as a successful one. Every
+    // builder here returns a table, so the normalizer always has an object.
+    return wrapToolJsonText(normalizeExecuteLuauToolResult(response)) as { content: ToolContent[] };
   }
 
   // --- Generated-Luau builder domain facade ---
@@ -1889,12 +1896,12 @@ export class RobloxStudioTools {
     }
   }
 
-  /** Extract the Luau `returnValue` table from a _runGeneratedLuau result. */
+  /** The Luau return table from a _runGeneratedLuau result, already normalized. */
   private _returnValueOf(result: { content?: ToolContent[] }): unknown {
     const first = result.content?.[0];
     const text = first && 'text' in first ? (first as { text?: string }).text : undefined;
     if (!text) return null;
-    try { return (JSON.parse(text) as { returnValue?: unknown }).returnValue ?? null; }
+    try { return JSON.parse(text); }
     catch { return null; }
   }
 

@@ -8,6 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `create_object` and `mass_create_objects` no longer report success while
+  silently dropping properties. Both create paths assigned each property inside
+  a bare `pcall(...)` whose result was discarded, so a Part asked for with a
+  given Size and Position came back at the default 4x1.2x2 at the origin with
+  `success: true` and "Object created successfully". Failures now come back as
+  `propertyErrors`, the way `set_properties` already reported them; the instance
+  is still created.
+- Vector3 and Color3 values are accepted under either key casing. The plugin's
+  property conversion only recognized `{X, Y, Z}` and `{R, G, B}`, so the
+  equally natural `{x, y, z}` fell through unconverted and the engine rejected
+  the raw table — which is what the swallowed `pcall` above was hiding. Colour
+  components above 1 are read as 0-255: `Color3.new(255, 80, 40)` neither errors
+  nor clamps, it just renders wrong. The accepted value shapes are now spelled
+  out in the tool schemas instead of "object for Vector3/Color3/UDim2".
+- Generated-Luau tools return the decoded Luau table and report Luau-level
+  errors. The plugin JSON-*encodes* a table return into the `returnValue`
+  string, and this one funnel handed the raw envelope back, so scene summary,
+  the UI/environment/terrain builders, media, `design_lint` and `apply_theme`
+  all produced double-encoded JSON, and a Luau `{ error = ... }` still arrived
+  as `success: true` with "Code executed successfully". `design_review` read
+  `.returnValue.newPath` off that string, always got `undefined`, and could
+  never get past staging. They now use `normalizeExecuteLuauToolResult`, the
+  normalizer the world-model, mutation and runtime tools already share.
+- `tool_catalog_search` ranks the obvious tool first for a plain-English task. A
+  name hit was a plain substring test, so "a" scored on "cre[a]te_build" and
+  "an" on "m[an]age_instance", and filler outweighed the one word that mattered:
+  "create a part and set its color" returned `environment_set_atmosphere`,
+  `animation_create` and `asset_source_search`, and recommended loading
+  media/environment/assets/build — never `mutation`. Filler words are dropped
+  and a name hit has to land on a whole `_`-separated token.
 - The release workflow's asset upload can find the repository. That job has no
   checkout on purpose — it is the only one holding `contents: write` — so `gh`
   had no git remote to infer from and failed with "not a git repository". It now

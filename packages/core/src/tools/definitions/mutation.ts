@@ -6,7 +6,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'set_property',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Set a property on an instance',
+    description: 'Set a property on an instance — position, size, color, material, transparency, anchored, and the rest',
     inputSchema: {
       type: 'object',
       properties: {
@@ -19,7 +19,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Property name'
         },
         propertyValue: {
-          description: 'Value to set (string, number, boolean, or object for Vector3/Color3/UDim2)'
+          description: 'Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string.'
         },
         instance_id: {
           type: 'string',
@@ -33,7 +33,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_set_property',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Set a property on multiple instances',
+    description: 'Set a property on multiple instances at once — color, material, anchored, and the rest',
     inputSchema: {
       type: 'object',
       properties: {
@@ -47,7 +47,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Property name'
         },
         propertyValue: {
-          description: 'Value to set (string, number, boolean, or object for Vector3/Color3/UDim2)'
+          description: 'Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string.'
         },
         instance_id: {
           type: 'string',
@@ -112,7 +112,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'create_object',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Create a new instance. Optionally set properties on creation.',
+    description: 'Create a new instance — a part, model, folder, GUI object, or any other class. Optionally set properties on creation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -130,7 +130,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         properties: {
           type: 'object',
-          description: 'Properties to set on creation'
+          description: 'Properties to set on creation. Same value forms as set_property: {x,y,z} or [x,y,z] for Vector3, {r,g,b} or [r,g,b] for Color3 (0-255 and 0-1 both accepted). Any property the engine rejects comes back in propertyErrors — the instance is still created.'
         },
         instance_id: {
           type: 'string',
@@ -144,7 +144,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_create_objects',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Create multiple instances. Each can have optional properties.',
+    description: 'Create multiple instances at once — parts, models, folders. Each can have optional properties.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -167,7 +167,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
               },
               properties: {
                 type: 'object',
-                description: 'Properties to set on creation'
+                description: 'Properties to set on creation. Same value forms as set_property: {x,y,z} or [x,y,z] for Vector3, {r,g,b} or [r,g,b] for Color3 (0-255 and 0-1 both accepted). Any property the engine rejects comes back in propertyErrors — the instance is still created.'
               }
             },
             required: ['className', 'parent']
@@ -194,7 +194,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'delete_object',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Delete an instance. Deleting a protected service/root (e.g. Workspace, ServerScriptService) requires confirm:true. Use dryRun:true to preview.',
+    description: 'Delete an instance — a part, model, or any other object. Deleting a protected service/root (e.g. Workspace, ServerScriptService) requires confirm:true. Use dryRun:true to preview.',
     inputSchema: {
       type: 'object',
       properties: {

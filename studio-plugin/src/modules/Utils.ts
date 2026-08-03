@@ -96,6 +96,29 @@ function readScriptSource(instance: LuaSourceContainer): string {
 	return (instance as unknown as { Source: string }).Source;
 }
 
+/**
+ * Read a component under either casing. Only `{X, Y, Z}` / `{R, G, B}` used to
+ * be recognized, so the equally natural `{x, y, z}` fell through unconverted and
+ * the engine rejected the raw table — "Vector3 expected, got table".
+ */
+function component(tbl: Record<string, unknown>, upper: string, lower: string): unknown {
+	return tbl[upper] !== undefined ? tbl[upper] : tbl[lower];
+}
+
+/**
+ * Color3 components are 0-1, but callers reach for 0-255 constantly and the
+ * engine neither errors nor clamps: Color3.new(255, 80, 40) keeps 255, so the
+ * instance simply renders wrong with nothing to indicate why. A component above
+ * 1 can only have been meant as 0-255.
+ *
+ * ponytail: a 0-255 colour whose every component is 0 or 1 (so, near-black)
+ * still reads as 0-1. Take an explicit format field if that ever matters.
+ */
+function toColor3(r: number, g: number, b: number): Color3 {
+	if (r > 1 || g > 1 || b > 1) return Color3.fromRGB(r, g, b);
+	return new Color3(r, g, b);
+}
+
 function convertPropertyValue(instance: Instance, propertyName: string, propertyValue: unknown): unknown {
 	if (propertyValue === undefined) return undefined;
 
@@ -120,7 +143,7 @@ function convertPropertyValue(instance: Instance, propertyName: string, property
 						(arr[2] as number) ?? 0,
 					);
 				} else if (prop === "color" || prop === "color3") {
-					return new Color3(
+					return toColor3(
 						(arr[0] as number) ?? 0,
 						(arr[1] as number) ?? 0,
 						(arr[2] as number) ?? 0,
@@ -135,7 +158,7 @@ function convertPropertyValue(instance: Instance, propertyName: string, property
 								(arr[2] as number) ?? 0,
 							);
 						} else if (typeOf(currentVal) === "Color3") {
-							return new Color3(
+							return toColor3(
 								(arr[0] as number) ?? 0,
 								(arr[1] as number) ?? 0,
 								(arr[2] as number) ?? 0,
@@ -161,28 +184,34 @@ function convertPropertyValue(instance: Instance, propertyName: string, property
 			}
 		}
 
-		if (tbl.X !== undefined || tbl.Y !== undefined || tbl.Z !== undefined) {
+		const x = component(tbl, "X", "x");
+		const y = component(tbl, "Y", "y");
+		const z = component(tbl, "Z", "z");
+		if (x !== undefined || y !== undefined || z !== undefined) {
 
-			if (typeIs(tbl.X, "table") && typeIs(tbl.Y, "table")) {
-				const xTbl = tbl.X as unknown as Record<string, number>;
-				const yTbl = tbl.Y as unknown as Record<string, number>;
+			if (typeIs(x, "table") && typeIs(y, "table")) {
+				const xTbl = x as unknown as Record<string, unknown>;
+				const yTbl = y as unknown as Record<string, unknown>;
 				return new UDim2(
-					xTbl.Scale ?? 0, xTbl.Offset ?? 0,
-					yTbl.Scale ?? 0, yTbl.Offset ?? 0,
+					(component(xTbl, "Scale", "scale") as number) ?? 0, (component(xTbl, "Offset", "offset") as number) ?? 0,
+					(component(yTbl, "Scale", "scale") as number) ?? 0, (component(yTbl, "Offset", "offset") as number) ?? 0,
 				);
 			}
 			return new Vector3(
-				(tbl.X as number) ?? 0,
-				(tbl.Y as number) ?? 0,
-				(tbl.Z as number) ?? 0,
+				(x as number) ?? 0,
+				(y as number) ?? 0,
+				(z as number) ?? 0,
 			);
 		}
 
-		if (tbl.R !== undefined || tbl.G !== undefined || tbl.B !== undefined) {
-			return new Color3(
-				(tbl.R as number) ?? 0,
-				(tbl.G as number) ?? 0,
-				(tbl.B as number) ?? 0,
+		const r = component(tbl, "R", "r");
+		const g = component(tbl, "G", "g");
+		const b = component(tbl, "B", "b");
+		if (r !== undefined || g !== undefined || b !== undefined) {
+			return toColor3(
+				(r as number) ?? 0,
+				(g as number) ?? 0,
+				(b as number) ?? 0,
 			);
 		}
 	}

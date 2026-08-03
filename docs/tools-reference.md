@@ -145,7 +145,7 @@ Get full game hierarchy tree. Increase maxDepth (default 3) for deeper traversal
 
 ### `set_property` (Write)
 
-Set a property on an instance
+Set a property on an instance — position, size, color, material, transparency, anchored, and the rest
 
 **Parameters:**
 
@@ -153,14 +153,14 @@ Set a property on an instance
 |---|---|---|---|
 | `instancePath` | `string` | Yes | Instance path (dot notation) |
 | `propertyName` | `string` | Yes | Property name |
-| `propertyValue` | `any` | Yes | Value to set (string, number, boolean, or object for Vector3/Color3/UDim2) |
+| `propertyValue` | `any` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
 
 ### `mass_set_property` (Write)
 
-Set a property on multiple instances
+Set a property on multiple instances at once — color, material, anchored, and the rest
 
 **Parameters:**
 
@@ -168,7 +168,7 @@ Set a property on multiple instances
 |---|---|---|---|
 | `paths` | `array` | Yes | Instance paths |
 | `propertyName` | `string` | Yes | Property name |
-| `propertyValue` | `any` | Yes | Value to set (string, number, boolean, or object for Vector3/Color3/UDim2) |
+| `propertyValue` | `any` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -203,7 +203,7 @@ Set multiple properties on a single instance in one call.
 
 ### `create_object` (Write)
 
-Create a new instance. Optionally set properties on creation.
+Create a new instance — a part, model, folder, GUI object, or any other class. Optionally set properties on creation.
 
 **Parameters:**
 
@@ -212,14 +212,14 @@ Create a new instance. Optionally set properties on creation.
 | `className` | `string` | Yes | Roblox class name |
 | `parent` | `string` | Yes | Parent instance path |
 | `name` | `string` | No | Optional name |
-| `properties` | `object` | No | Properties to set on creation |
+| `properties` | `object` | No | Properties to set on creation. Same value forms as set_property: {x,y,z} or [x,y,z] for Vector3, {r,g,b} or [r,g,b] for Color3 (0-255 and 0-1 both accepted). Any property the engine rejects comes back in propertyErrors — the instance is still created. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
 
 ### `mass_create_objects` (Write)
 
-Create multiple instances. Each can have optional properties.
+Create multiple instances at once — parts, models, folders. Each can have optional properties.
 
 **Parameters:**
 
@@ -234,7 +234,7 @@ Create multiple instances. Each can have optional properties.
 
 ### `delete_object` (Write)
 
-Delete an instance. Deleting a protected service/root (e.g. Workspace, ServerScriptService) requires confirm:true. Use dryRun:true to preview.
+Delete an instance — a part, model, or any other object. Deleting a protected service/root (e.g. Workspace, ServerScriptService) requires confirm:true. Use dryRun:true to preview.
 
 **Parameters:**
 
