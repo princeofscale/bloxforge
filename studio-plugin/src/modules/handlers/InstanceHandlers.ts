@@ -9,12 +9,34 @@ type ProcessedCreateResult =
 		instance: Instance;
 		className: string;
 		parentPath: string;
+		propertyErrors?: Record<string, unknown>[];
 	}
 	| {
 		error: string;
 		className?: string;
 		parentPath?: string;
 	};
+
+/**
+ * Assign `properties`, collecting per-property failures instead of discarding
+ * them. Both create paths wrapped this in a bare `pcall(...)` whose result was
+ * thrown away, so create_object answered "Object created successfully" while
+ * every property the engine refused — a `{x, y, z}` table where a Vector3 was
+ * expected, say — was dropped without a trace, and the caller believed it had
+ * positioned and sized the instance.
+ */
+function applyProperties(instance: Instance, properties: Record<string, unknown>): Record<string, unknown>[] {
+	const failures: Record<string, unknown>[] = [];
+	for (const [propertyName, propertyValue] of pairs(properties)) {
+		const [ok, err] = pcall(() => {
+			const converted = convertPropertyValue(instance, propertyName as string, propertyValue);
+			(instance as unknown as { [key: string]: unknown })[propertyName as string] =
+				converted !== undefined ? converted : propertyValue;
+		});
+		if (!ok) failures.push({ property: propertyName, error: tostring(err) });
+	}
+	return failures;
+}
 
 type ProcessedBatchResult = {
 	results: Record<string, unknown>[];
@@ -57,13 +79,17 @@ function processObjectEntries(
 
 			if ("instance" in entryResult) {
 				successCount++;
-				results.push({
+				const entry: Record<string, unknown> = {
 					success: true,
 					className: entryResult.className,
 					parent: entryResult.parentPath,
 					instancePath: getInstancePath(entryResult.instance),
 					name: entryResult.instance.Name,
-				});
+				};
+				if (entryResult.propertyErrors && entryResult.propertyErrors.size() > 0) {
+					entry.propertyErrors = entryResult.propertyErrors;
+				}
+				results.push(entry);
 			} else {
 				failureCount++;
 				results.push({
@@ -98,17 +124,12 @@ function createObject(requestData: Record<string, unknown>) {
 	if (!parentInstance) return { error: `Parent instance not found: ${parentPath}` };
 	const recordingId = beginRecording(`Create ${className}`);
 
+	let propertyErrors: Record<string, unknown>[] = [];
 	const [success, newInstance] = pcall(() => {
 		const instance = new Instance(className as keyof CreatableInstances);
 		if (name) instance.Name = name;
 
-		for (const [propertyName, propertyValue] of pairs(properties)) {
-			pcall(() => {
-				const converted = convertPropertyValue(instance, propertyName as string, propertyValue);
-				(instance as unknown as { [key: string]: unknown })[propertyName as string] =
-					converted !== undefined ? converted : propertyValue;
-			});
-		}
+		propertyErrors = applyProperties(instance, properties);
 
 		instance.Parent = parentInstance;
 		return instance;
@@ -116,7 +137,7 @@ function createObject(requestData: Record<string, unknown>) {
 
 	if (success && newInstance) {
 		finishRecording(recordingId, true);
-		return {
+		const result: Record<string, unknown> = {
 			success: true,
 			className,
 			parent: parentPath,
@@ -124,6 +145,11 @@ function createObject(requestData: Record<string, unknown>) {
 			name: (newInstance as Instance).Name,
 			message: "Object created successfully",
 		};
+		if (propertyErrors.size() > 0) {
+			result.propertyErrors = propertyErrors;
+			result.message = `Object created, but ${propertyErrors.size()} property/properties could not be applied — see propertyErrors`;
+		}
+		return result;
 	} else {
 		finishRecording(recordingId, false);
 		return { error: `Failed to create object: ${newInstance}`, className, parent: parentPath };
@@ -171,17 +197,12 @@ function massCreateObjects(requestData: Record<string, unknown>) {
 			return { error: "Parent instance not found", className, parentPath };
 		}
 
+		let propertyErrors: Record<string, unknown>[] = [];
 		const [success, newInstance] = pcall(() => {
 			const instance = new Instance(className as keyof CreatableInstances);
 			if (name) instance.Name = name;
 
-			for (const [propertyName, propertyValue] of pairs(properties)) {
-				pcall(() => {
-					const converted = convertPropertyValue(instance, propertyName as string, propertyValue);
-					(instance as unknown as { [key: string]: unknown })[propertyName as string] =
-						converted !== undefined ? converted : propertyValue;
-				});
-			}
+			propertyErrors = applyProperties(instance, properties);
 
 			instance.Parent = parentInstance;
 			return instance;
@@ -191,7 +212,7 @@ function massCreateObjects(requestData: Record<string, unknown>) {
 			return { error: tostring(newInstance), className, parentPath };
 		}
 
-		return { instance: newInstance as Instance, className, parentPath };
+		return { instance: newInstance as Instance, className, parentPath, propertyErrors };
 	});
 
 	finishRecording(recordingId, successCount > 0);

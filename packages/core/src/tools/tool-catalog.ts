@@ -220,37 +220,61 @@ export interface CatalogSearchParams {
   limit?: number;
 }
 
+// Filler words carry no signal but used to score like any other word. Since a
+// name hit was a plain substring test, "a" matched "cre[a]te_build" and "an"
+// matched "m[an]age_instance" for a full name-level score, so a query's filler
+// outweighed the one word that mattered.
+const STOPWORDS: ReadonlySet<string> = new Set([
+  'a', 'an', 'and', 'any', 'are', 'as', 'at', 'be', 'by', 'can', 'do', 'for', 'from',
+  'how', 'i', 'in', 'into', 'is', 'it', 'its', 'me', 'my', 'of', 'on', 'or', 'our',
+  'out', 'please', 'so', 'some', 'that', 'the', 'their', 'then', 'this', 'to', 'want',
+  'was', 'we', 'what', 'when', 'which', 'with', 'you', 'your',
+]);
+
 /**
  * Rank catalog entries against a free-text task query. Scores name and
  * whenToUse matches, biases toward the requested domains, and returns a short,
  * compact list so an agent can pick a tool (then load_toolset to get its schema).
+ *
+ * A name hit has to land on a whole `_`-separated token, so "create a part and
+ * set its color" no longer ranks environment_set_atmosphere and animation_create
+ * above create_object and set_property.
  */
 export function searchCatalog(catalog: CatalogEntry[], params: CatalogSearchParams): CatalogEntry[] {
   const q = String(params.query ?? '').trim().toLowerCase();
-  const words = q.split(/\s+/).filter(Boolean);
+  const words = [...new Set(q.split(/[^a-z0-9]+/).filter((w) => w && !STOPWORDS.has(w)))];
   const domainSet = params.domains && params.domains.length ? new Set(params.domains) : undefined;
   const limit = Math.max(1, Math.min(20, Math.floor(params.limit ?? 8)));
 
   const score = (e: CatalogEntry): number => {
     if (domainSet && !domainSet.has(e.domain)) return -1;
     if (params.readOnly === true && e.mode !== 'read') return -1;
-    const name = e.name.toLowerCase();
-    const haystack = `${name} ${e.domain} ${e.whenToUse.toLowerCase()}`;
     if (!q) return 0;
+    const name = e.name.toLowerCase();
+    const nameTokens = new Set(name.split('_'));
+    const haystack = `${e.domain} ${e.whenToUse.toLowerCase()}`;
     let s = 0;
     if (name === q) s += 100;
-    if (name.includes(q)) s += 30;
+    else if (name.includes(q)) s += 30;
     for (const w of words) {
-      if (name.includes(w)) s += 10;
-      else if (haystack.includes(w)) s += 4;
+      if (nameTokens.has(w)) s += 12;
+      // Long enough to be a stem rather than a coincidence ("script" in
+      // get_script_source), which the token test alone would miss.
+      else if (w.length >= 4 && name.includes(w)) s += 6;
+      else if (haystack.includes(w)) s += 3;
     }
     return s;
   };
 
   return catalog
-    .map((e) => ({ e, s: score(e) }))
+    .map((e) => ({ e, s: score(e), tokens: e.name.split('_').length }))
     .filter((x) => x.s >= 0 && (q === '' || x.s > 0))
-    .sort((a, b) => b.s - a.s || a.e.name.localeCompare(b.e.name))
+    // Equal scores: fewer name segments means the more general tool, and a
+    // general tool is the better guess for a vague query (create_object over
+    // environment_create_day_night_cycle_script). Segments rather than raw
+    // character count — `mass_set_property` is more specific than
+    // `set_properties` despite being one character shorter.
+    .sort((a, b) => b.s - a.s || a.tokens - b.tokens || a.e.name.localeCompare(b.e.name))
     .slice(0, limit)
     .map((x) => x.e);
 }

@@ -106,6 +106,31 @@ describe('searchCatalog', () => {
     const hits = searchCatalog(catalog, { query: 'get', limit: 3 });
     expect(hits.length).toBeLessThanOrEqual(3);
   });
+
+  // tool_catalog_search is the entry point an agent uses before it has loaded
+  // any schemas, so a plain-English task has to reach the obvious tool. It did
+  // not: a name hit was a substring test, so "a" scored on "cre[a]te_build" and
+  // "an" on "m[an]age_instance", and filler outweighed the real word —
+  // "create a part and set its color" returned environment_set_atmosphere,
+  // animation_create and asset_source_search, with no mutation tool at all.
+  it.each([
+    ['create a part', 'create_object'],
+    ['set the color of a part', 'set_property'],
+    ['delete an instance', 'delete_object'],
+    ['read a script source', 'get_script_source'],
+    ['play a sound', 'audio_play_sound'],
+  ])('ranks %s first for "%s"', (query, expected) => {
+    expect(searchCatalog(catalog, { query, limit: 5 })[0]?.name).toBe(expected);
+  });
+
+  it('recommends the mutation toolset for a build-a-part task', () => {
+    const hits = searchCatalog(catalog, { query: 'create a part and set its color', limit: 8 });
+    expect(hits.map((h) => h.name)).toEqual(expect.arrayContaining(['create_object', 'set_property']));
+  });
+
+  it('ignores filler words entirely', () => {
+    expect(searchCatalog(catalog, { query: 'a an the of to' })).toEqual([]);
+  });
 });
 
 describe('expandToolsets', () => {

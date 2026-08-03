@@ -113,7 +113,11 @@ export function normalizeExecuteLuauToolResult(
 ): Record<string, unknown> {
   const bridgeResponse = response as ExecuteLuauBridgeResponse | undefined;
 
-  if (typeof bridgeResponse?.returnValue === 'string') {
+  // A reported failure outranks a parseable returnValue. The plugin sets only
+  // one or the other today — LuauExec returns `error` and omits `returnValue` on
+  // both failure paths — but unwrapping first would hand back a partial result
+  // as the whole answer, with no trace of the error, if that ever changed.
+  if (bridgeResponse?.success !== false && typeof bridgeResponse?.returnValue === 'string') {
     try {
       const parsed = JSON.parse(bridgeResponse.returnValue);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
