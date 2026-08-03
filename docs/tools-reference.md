@@ -1613,7 +1613,7 @@ Restore a script to the source captured before the most recent set_script_source
 
 ### `get_world_snapshot` (Read-only)
 
-Token-lean world model for reasoning before drill-down. Returns place info, descendant counts (total, distinct classes, tagged, sounds + playing/looped, scripts/localScripts/moduleScripts), top classes, notable subtree roots, and an environment summary (clock time, lighting technology, atmosphere/sky/terrain presence). Use this first to answer "where is the UI", "is there music", "is the scene heavy" without dumping the tree.
+Token-lean world model for reasoning before drill-down. Returns place info, descendant counts (total, distinct classes, tagged, sounds + playing/looped, scripts/localScripts/moduleScripts), top classes, notable subtree roots, and an environment summary (clock time, lighting technology, atmosphere/sky/terrain presence). Use this first to answer "where is the UI", "is there music", "is the scene heavy" without dumping the tree. At game level the counts cover the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to snapshot anything else verbatim.
 
 **Parameters:**
 

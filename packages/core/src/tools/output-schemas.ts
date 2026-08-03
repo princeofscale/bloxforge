@@ -108,6 +108,9 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
     properties: {
       root: { type: 'string' },
       level: { type: 'string', enum: ['overview', 'standard'] },
+      // What the counts cover. At game level they are place services only, so a
+      // reader knows totalDescendants is not the whole DataModel.
+      scope: { type: 'string' },
       place: { type: 'object', additionalProperties: true },
       counts: { type: 'object', additionalProperties: true },
       topClasses: { type: 'array', items: { type: 'object', additionalProperties: true } },
