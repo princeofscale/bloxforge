@@ -153,7 +153,7 @@ Set a property on an instance — position, size, color, material, transparency,
 |---|---|---|---|
 | `instancePath` | `string` | Yes | Instance path (dot notation) |
 | `propertyName` | `string` | Yes | Property name |
-| `propertyValue` | `any` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
+| `propertyValue` | `string \| number \| boolean \| object \| array` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -168,7 +168,7 @@ Set a property on multiple instances at once — color, material, anchored, and 
 |---|---|---|---|
 | `paths` | `array` | Yes | Instance paths |
 | `propertyName` | `string` | Yes | Property name |
-| `propertyValue` | `any` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
+| `propertyValue` | `string \| number \| boolean \| object \| array` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -378,7 +378,7 @@ Set an attribute. Supports primitives, Vector3, Color3, UDim2, BrickColor.
 |---|---|---|---|
 | `instancePath` | `string` | Yes | Instance path (dot notation) |
 | `attributeName` | `string` | Yes | Attribute name |
-| `attributeValue` | `any` | Yes | Value (string, number, boolean, or object for Vector3/Color3/UDim2) |
+| `attributeValue` | `string \| number \| boolean \| object \| array` | Yes | Value (string, number, boolean, or object for Vector3/Color3/UDim2). Attributes are strongly typed — a number sent as "42" is stored as a string. |
 | `valueType` | `string` | No | Type hint if needed |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -567,8 +567,8 @@ Compatibility wrapper for multiplayer_test_* tools. Supports action="start", "st
 | `action` | `string` | Yes | Lifecycle action. |
 | `numPlayers` | `number` | No | Required for start/add_players. |
 | `target` | `string` | No | Client target for leave_client. |
-| `testArgs` | `any` | No | JSON-compatible test args for start. |
-| `value` | `any` | No | Value passed to end. |
+| `testArgs` | `object \| array \| string \| number \| boolean` | No | JSON-compatible test args for start. |
+| `value` | `object \| array \| string \| number \| boolean` | No | Value passed to end. |
 | `timeout` | `number` | No | Max seconds to wait. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -705,7 +705,7 @@ Start a StudioTestService multiplayer test and wait for the server plus requeste
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `numPlayers` | `number` | Yes | Number of client players to start (1-8). |
-| `testArgs` | `any` | No | JSON-compatible table passed to StudioTestService:GetTestArgs() on server and clients. |
+| `testArgs` | `object \| array \| string \| number \| boolean` | No | JSON-compatible table passed to StudioTestService:GetTestArgs() on server and clients. |
 | `timeout` | `number` | No | Max seconds to wait for server + clients to register (default 30). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -759,7 +759,7 @@ End a running StudioTestService multiplayer test with an optional return value, 
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `value` | `any` | No | JSON-compatible value returned to the edit-side ExecuteMultiplayerTestAsync call. |
+| `value` | `object \| array \| string \| number \| boolean` | No | JSON-compatible value returned to the edit-side ExecuteMultiplayerTestAsync call. |
 | `timeout` | `number` | No | Max seconds to wait for runtime peers to disconnect (default 30). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -1138,7 +1138,7 @@ Import a build into Roblox Studio. Accepts either a full build data object OR a 
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `buildData` | `any` | Yes | Either a build data object (with palette, parts, etc.) OR a library ID string (e.g. "medieval/church_01") to load from the build library |
+| `buildData` | `object \| string` | Yes | Either a build data object (with palette, parts, etc.) OR a library ID string (e.g. "medieval/church_01") to load from the build library |
 | `targetPath` | `string` | Yes | Parent instance path where the model will be created |
 | `position` | `array` | No | World position offset [X, Y, Z] |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
@@ -1863,7 +1863,7 @@ Set Lighting time. Pass a number (0-24 ClockTime) or an "HH:MM:SS" string.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `time` | `any` | Yes | Number 0-24 (ClockTime) or "HH:MM:SS" string. |
+| `time` | `number \| string` | Yes | Number 0-24 (ClockTime) or "HH:MM:SS" string. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -2133,7 +2133,7 @@ Create a Sound under a parent with a SoundId (number or rbxassetid://). Configur
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `parentPath` | `string` | Yes | Where to create the Sound (e.g. "Workspace" or a Part path). |
-| `soundId` | `any` | Yes | Audio asset id (number) or full rbxassetid:// URI. |
+| `soundId` | `number \| string` | Yes | Audio asset id (number) or full rbxassetid:// URI. |
 | `name` | `string` | No | Name for the Sound. |
 | `volume` | `number` | No | Volume 0-10 (default Roblox value). |
 | `looped` | `boolean` | No | Loop the sound. |
@@ -2165,7 +2165,7 @@ Create an Animation instance with an AnimationId (number or rbxassetid://) under
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `parentPath` | `string` | Yes | Where to create the Animation. |
-| `animationId` | `any` | Yes | Animation asset id (number) or rbxassetid:// URI. |
+| `animationId` | `number \| string` | Yes | Animation asset id (number) or rbxassetid:// URI. |
 | `name` | `string` | No | Name for the Animation (default "Animation"). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -2180,7 +2180,7 @@ Load and play an animation on a rig (finds/creates an Animator under its Humanoi
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `rigPath` | `string` | Yes | Path to the rig model (with a Humanoid or AnimationController). |
-| `animationId` | `any` | Yes | Animation asset id (number) or rbxassetid:// URI. |
+| `animationId` | `number \| string` | Yes | Animation asset id (number) or rbxassetid:// URI. |
 | `looped` | `boolean` | No | Loop the track. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
@@ -2195,7 +2195,7 @@ Apply an image/texture asset to a target, choosing the right property by class (
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `targetPath` | `string` | Yes | Path to the instance to texture. |
-| `assetId` | `any` | Yes | Image asset id (number) or rbxassetid:// URI. |
+| `assetId` | `number \| string` | Yes | Image asset id (number) or rbxassetid:// URI. |
 | `property` | `string` | No | Force a specific property instead of inferring from class. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 

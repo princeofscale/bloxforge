@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Every tool input property declares a JSON-Schema type. Thirteen polymorphic
+  parameters had no `type` at all, and an untyped property is not "accepts
+  anything" to an MCP client — it is one the client cannot validate, so the
+  value arrives as a string. `environment_set_time_of_day` was the worst case:
+  `time: 14.75` reached the plugin as `"14.75"`, `Lighting.TimeOfDay` read that
+  as 14 hours 75 minutes, and the tool set **15:15** while reporting success.
+  The same call over the HTTP endpoint, where the number stays a number, was
+  always correct. `set_attribute` was silently storing numbers as string
+  attributes. A schema test now fails on any untyped property.
+- `environment_set_time_of_day` reads a bare numeric string as a ClockTime. A
+  TimeOfDay string always carries colons, so `"14.75"` is unambiguous, and the
+  tool no longer depends on the client preserving the number.
+- `set_attribute` honours its own `valueType` hint for scalars. The parameter is
+  documented as "type hint if needed", but the plugin only consulted it for
+  table values and returned scalars untouched — so it did nothing in exactly the
+  case that needs a hint.
 - `create_object` and `mass_create_objects` no longer report success while
   silently dropping properties. Both create paths assigned each property inside
   a bare `pcall(...)` whose result was discarded, so a Part asked for with a

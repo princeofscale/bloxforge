@@ -35,7 +35,17 @@ function serializeValue(value: unknown): unknown {
 }
 
 function deserializeValue(attributeValue: unknown, valueType?: string): unknown {
-	if (!typeIs(attributeValue, "table")) return attributeValue;
+	// Scalars used to return unchanged, so `valueType` — advertised as "type hint
+	// if needed" — did nothing in the one case that needs a hint: a client that
+	// sends 42 as the string "42" stored a *string* attribute, silently, because
+	// attributes are strongly typed. Honour the hint for scalars too.
+	if (!typeIs(attributeValue, "table")) {
+		if (typeIs(attributeValue, "string")) {
+			if (valueType === "number") return tonumber(attributeValue) ?? attributeValue;
+			if (valueType === "boolean") return attributeValue === "true";
+		}
+		return attributeValue;
+	}
 
 	const tbl = attributeValue as Record<string, unknown>;
 	const t = (tbl._type as string) ?? valueType;

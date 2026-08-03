@@ -29,8 +29,8 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
         action: { type: 'string', enum: ['start', 'status', 'add_players', 'leave_client', 'end'], description: 'Lifecycle action.' },
         numPlayers: { type: 'number', description: 'Required for start/add_players.' },
         target: { type: 'string', description: 'Client target for leave_client.' },
-        testArgs: { description: 'JSON-compatible test args for start.' },
-        value: { description: 'Value passed to end.' },
+        testArgs: { type: ['object', 'array', 'string', 'number', 'boolean'], description: 'JSON-compatible test args for start.' },
+        value: { type: ['object', 'array', 'string', 'number', 'boolean'], description: 'Value passed to end.' },
         timeout: { type: 'number', description: 'Max seconds to wait.' },
         instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' },
       },
@@ -370,6 +370,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Number of client players to start (1-8).'
         },
         testArgs: {
+          type: ['object', 'array', 'string', 'number', 'boolean'],
           description: 'JSON-compatible table passed to StudioTestService:GetTestArgs() on server and clients.'
         },
         timeout: {
@@ -455,6 +456,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         value: {
+          type: ['object', 'array', 'string', 'number', 'boolean'],
           description: 'JSON-compatible value returned to the edit-side ExecuteMultiplayerTestAsync call.'
         },
         timeout: {

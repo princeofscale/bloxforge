@@ -168,6 +168,7 @@ part(0,2,0,2,1,1,"b")`,
       type: 'object',
       properties: {
         buildData: {
+          type: ['object', 'string'],
           description: 'Either a build data object (with palette, parts, etc.) OR a library ID string (e.g. "medieval/church_01") to load from the build library'
         },
         targetPath: {

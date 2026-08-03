@@ -101,7 +101,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        time: { description: 'Number 0-24 (ClockTime) or "HH:MM:SS" string.' },
+        time: { type: ['number', 'string'], description: 'Number 0-24 (ClockTime) or "HH:MM:SS" string.' },
         instance_id: INSTANCE_ID_PROP,
       },
       required: ['time'],
@@ -393,7 +393,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         parentPath: { type: 'string', description: 'Where to create the Sound (e.g. "Workspace" or a Part path).' },
-        soundId: { description: 'Audio asset id (number) or full rbxassetid:// URI.' },
+        soundId: { type: ['number', 'string'], description: 'Audio asset id (number) or full rbxassetid:// URI.' },
         name: { type: 'string', description: 'Name for the Sound.' },
         volume: { type: 'number', description: 'Volume 0-10 (default Roblox value).' },
         looped: { type: 'boolean', description: 'Loop the sound.' },
@@ -427,7 +427,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         parentPath: { type: 'string', description: 'Where to create the Animation.' },
-        animationId: { description: 'Animation asset id (number) or rbxassetid:// URI.' },
+        animationId: { type: ['number', 'string'], description: 'Animation asset id (number) or rbxassetid:// URI.' },
         name: { type: 'string', description: 'Name for the Animation (default "Animation").' },
         instance_id: INSTANCE_ID_PROP,
       },
@@ -443,7 +443,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         rigPath: { type: 'string', description: 'Path to the rig model (with a Humanoid or AnimationController).' },
-        animationId: { description: 'Animation asset id (number) or rbxassetid:// URI.' },
+        animationId: { type: ['number', 'string'], description: 'Animation asset id (number) or rbxassetid:// URI.' },
         looped: { type: 'boolean', description: 'Loop the track.' },
         instance_id: INSTANCE_ID_PROP,
       },
@@ -459,7 +459,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         targetPath: { type: 'string', description: 'Path to the instance to texture.' },
-        assetId: { description: 'Image asset id (number) or rbxassetid:// URI.' },
+        assetId: { type: ['number', 'string'], description: 'Image asset id (number) or rbxassetid:// URI.' },
         property: { type: 'string', description: 'Force a specific property instead of inferring from class.' },
         instance_id: INSTANCE_ID_PROP,
       },

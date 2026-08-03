@@ -169,7 +169,8 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'Attribute name'
         },
         attributeValue: {
-          description: 'Value (string, number, boolean, or object for Vector3/Color3/UDim2)'
+          type: ['string', 'number', 'boolean', 'object', 'array'],
+          description: 'Value (string, number, boolean, or object for Vector3/Color3/UDim2). Attributes are strongly typed — a number sent as "42" is stored as a string.'
         },
         valueType: {
           type: 'string',

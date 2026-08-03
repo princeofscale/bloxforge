@@ -25,9 +25,14 @@ type ProcessedCreateResult =
  * expected, say — was dropped without a trace, and the caller believed it had
  * positioned and sized the instance.
  */
-function applyProperties(instance: Instance, properties: Record<string, unknown>): Record<string, unknown>[] {
+function applyProperties(
+	instance: Instance,
+	properties: Record<string, unknown>,
+): { failures: Record<string, unknown>[]; total: number } {
 	const failures: Record<string, unknown>[] = [];
+	let total = 0;
 	for (const [propertyName, propertyValue] of pairs(properties)) {
+		total++;
 		const [ok, err] = pcall(() => {
 			const converted = convertPropertyValue(instance, propertyName as string, propertyValue);
 			(instance as unknown as { [key: string]: unknown })[propertyName as string] =
@@ -35,7 +40,7 @@ function applyProperties(instance: Instance, properties: Record<string, unknown>
 		});
 		if (!ok) failures.push({ property: propertyName, error: tostring(err) });
 	}
-	return failures;
+	return { failures, total };
 }
 
 type ProcessedBatchResult = {
@@ -125,11 +130,14 @@ function createObject(requestData: Record<string, unknown>) {
 	const recordingId = beginRecording(`Create ${className}`);
 
 	let propertyErrors: Record<string, unknown>[] = [];
+	let propertyCount = 0;
 	const [success, newInstance] = pcall(() => {
 		const instance = new Instance(className as keyof CreatableInstances);
 		if (name) instance.Name = name;
 
-		propertyErrors = applyProperties(instance, properties);
+		const applied = applyProperties(instance, properties);
+		propertyErrors = applied.failures;
+		propertyCount = applied.total;
 
 		instance.Parent = parentInstance;
 		return instance;
@@ -147,7 +155,7 @@ function createObject(requestData: Record<string, unknown>) {
 		};
 		if (propertyErrors.size() > 0) {
 			result.propertyErrors = propertyErrors;
-			result.message = `Object created, but ${propertyErrors.size()} property/properties could not be applied — see propertyErrors`;
+			result.message = `Object created, but ${propertyErrors.size()} of ${propertyCount} properties could not be applied — see propertyErrors`;
 		}
 		return result;
 	} else {
@@ -202,7 +210,7 @@ function massCreateObjects(requestData: Record<string, unknown>) {
 			const instance = new Instance(className as keyof CreatableInstances);
 			if (name) instance.Name = name;
 
-			propertyErrors = applyProperties(instance, properties);
+			propertyErrors = applyProperties(instance, properties).failures;
 
 			instance.Parent = parentInstance;
 			return instance;

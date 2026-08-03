@@ -26,6 +26,14 @@ describe('buildSetTimeOfDayLuau', () => {
     const code = buildSetTimeOfDayLuau('06:30:00');
     expect(code).toContain('TimeOfDay = "06:30:00"');
   });
+  it('reads a bare numeric string as ClockTime, not TimeOfDay', () => {
+    // The schema declared no type for `time`, so an MCP client sent 14.75 as
+    // "14.75"; Lighting.TimeOfDay parsed that as 14 hours 75 minutes and set
+    // 15:15. A TimeOfDay string always has colons, so a bare number is a clock.
+    expect(buildSetTimeOfDayLuau('14.75')).toContain('ClockTime = 14.75');
+    expect(buildSetTimeOfDayLuau('14.75')).not.toContain('TimeOfDay =');
+    expect(buildSetTimeOfDayLuau(' 8 ')).toContain('ClockTime = 8');
+  });
   it('clamps numeric hours into 0-24', () => {
     expect(buildSetTimeOfDayLuau(30)).toContain('ClockTime = 24');
     expect(buildSetTimeOfDayLuau(-3)).toContain('ClockTime = 0');
