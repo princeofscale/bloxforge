@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `scene_search` no longer scores single-character tokens. `"BF_M"` split into
+  `bf` and `m`, and the one-character `m` matched `Camera` alongside the parts
+  actually wanted — ranking buried it on a small place, but on a real one a stray
+  letter drags in enough chaff to eat the result limit before the real hits are
+  reached. Dropped only when a longer term survives, so a deliberate one-character
+  search still works. Tokenizing moved out of the emitted Luau into
+  `sceneSearchTerms`, where it is directly testable.
 - `load_toolset` says that "loaded" means *advertised*. It answered with 70+ tools
   loaded while every one stayed absent from the client's callable surface, and
   nothing in the response indicated that was possible. The server expands its

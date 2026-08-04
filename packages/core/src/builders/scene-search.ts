@@ -7,9 +7,27 @@
 
 import { luaString, luaNumber, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
 
+/**
+ * Split a query into scoring terms.
+ *
+ * A one-character token matches almost everything, so `"BF_M"` — which splits
+ * into `bf` and `m` — pulled in `Camera` alongside the parts actually wanted.
+ * Ranking buried it there, but on a real place a stray single letter drags in
+ * enough chaff to eat the result limit before the real hits are reached.
+ *
+ * Dropped only when a longer term survives: a deliberate one-character search
+ * still has to work.
+ */
+export function sceneSearchTerms(query: string): string[] {
+	const all = query.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+	const longer = all.filter((t) => t.length > 1);
+	return [...new Set(longer.length > 0 ? longer : all)];
+}
+
 export function buildSceneSearchLuau(query: string, path = 'game', limit = 10): string {
 	const safePath = luaString(path);
 	const safeQuery = luaString(query.toLowerCase());
+	const termList = sceneSearchTerms(query).map((t) => luaString(t)).join(', ');
 	const safeLimit = luaNumber(Math.max(1, Math.min(50, Math.floor(limit))));
 	return `${PATH_RESOLVER_LUA}
 ${PLACE_SCOPE_LUA}
@@ -17,8 +35,9 @@ local root = resolvePath(${safePath})
 if not root then return { error = "Path not found: " .. ${safePath} } end
 
 local query = ${safeQuery}
-local terms = {}
-for w in string.gmatch(query, "[%w]+") do table.insert(terms, w) end
+-- Terms are tokenized server-side (see sceneSearchTerms) so single-character
+-- noise is dropped before it can outrank real hits.
+local terms = { ${termList} }
 if #terms == 0 then return { error = "query must contain a search term" } end
 
 local function lc(s) return string.lower(tostring(s)) end
