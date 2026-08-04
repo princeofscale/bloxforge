@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- Argument errors in the script tools name the parameters instead of describing
+  them. `edit_script_lines` is the worst case: the name promises a line range,
+  the tool is a string replace, and the natural first call —
+  `startLine`/`endLine`/`newText` — came back with "Instance path, old_string,
+  and new_string are required" without saying what to send instead. It now
+  states that the tool replaces exact text, that `startLine` only anchors an
+  ambiguous match, and which sibling tools do work by line number. The same
+  correction went into its description, where the name is read first.
 - `validate_script_source` compile-checks through the connected Studio, so it works
   without any optional binaries installed. It shelled out to luau-analyze, Selene
   and StyLua only — on a machine with none of them it answered with three "is not
