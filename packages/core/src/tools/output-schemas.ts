@@ -99,8 +99,11 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       loaded: stringArray,
       tools: stringArray,
       count: { type: 'number' },
+      // "Loaded" means advertised. Whether the host then makes them callable is
+      // the host's step, and this says so where the caller actually looks.
+      client_hint: { type: 'string' },
     },
-    required: ['loaded', 'tools', 'count'],
+    required: ['loaded', 'tools', 'count', 'client_hint'],
   },
   get_world_snapshot: {
     type: 'object',

@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `load_toolset` says that "loaded" means *advertised*. It answered with 70+ tools
+  loaded while every one stayed absent from the client's callable surface, and
+  nothing in the response indicated that was possible. The server expands its
+  advertised list and emits `tools/list_changed`; a host that does not act on that
+  notification leaves the tools uncallable, and the server cannot take that step for
+  it. The caveat lived in the tool description only — the response now carries a
+  `client_hint` naming the host's step and the `ROBLOX_MCP_LAZY_TOOLS=0` escape.
 - `project_reconcile_plan` reports where its time went. A healthy two-tool project
   was reported taking about 160 seconds to return a one-step plan, "without timeout
   diagnostics". Every phase of the inspection is synchronous and individually
