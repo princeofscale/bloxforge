@@ -4,8 +4,7 @@
 // agent can grok a scene's shape for a handful of tokens. Runs via execute-luau, so
 // no plugin rebuild is needed.
 
-import { luaString, luaNumber } from './luau-emit.js';
-import { PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
+import { luaString, luaNumber, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
 
 export function buildSceneSummaryLuau(path = 'game.Workspace', topN = 20): string {
   const safePath = luaString(path);
