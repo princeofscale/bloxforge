@@ -44,6 +44,15 @@ same ground is not re-reported.
   for it. The caveat lived in the tool description only; the response now carries a
   `client_hint`. Not a server-side defect — the honest fix is saying so where the
   caller actually looks. (#60)
+- 2026-08-04 (found verifying the log-severity fix live) — `run_playtest_episode`
+  collected zero log entries on every run. It passed `startedAt`, a millisecond
+  epoch, as `since` — but `since` is a sequence cursor (`entry.seq > since`), so the
+  filter was never satisfiable. `errorCount`/`warningCount` were structurally 0 and
+  no runtime error could reach the verdict. A second, independent defect stacked on
+  the same path as the severity mismatch: fixing the classifier could not help while
+  its input was zeroed first, which is exactly why the first live check still showed
+  `verdict: pass` for a place whose buffer held
+  `ServerScriptService.BF_Boom:2: attempt to index nil with 'field'`. (#61)
 - 2026-08-04 (found while investigating the CoreGui item) — Runtime log severity was
   matched against the wrong vocabulary, blinding two subsystems. The plugin tags
   entries `level: "ERR" | "WARN" | "INFO" | "OUT"` and sends no `messageType`.

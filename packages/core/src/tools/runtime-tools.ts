@@ -1938,8 +1938,29 @@ export class RuntimeTools {
     if (sampleDomains && sampleDomains.length > 0) {
       state = this._parseToolEnvelope(await this.playtestSampleState(sampleDomains, 'server', instance_id));
     }
-    const logs = this._parseToolEnvelope(await this.getRuntimeLogs(undefined, startedAt, 200, undefined, instance_id));
-    const entries = Array.isArray(logs.entries) ? (logs.entries as Array<Record<string, unknown>>) : [];
+    // `since` is a *sequence cursor* — the plugin filters `entry.seq > since` and
+    // hands back nextSince to poll with. This passed startedAt, a millisecond
+    // epoch (~1.78e12), so `seq > 1785836093502` was never true for a seq that
+    // starts at 1: the episode collected **zero entries, always**. errorCount and
+    // warningCount were both structurally 0, which is why fixing the severity
+    // classifier alone could not make a runtime error fail an episode — this
+    // zeroed its input first. Verified live: the same run whose buffer held
+    // "ServerScriptService.BF_Boom:2: attempt to index nil with 'field'"
+    // reported errorCount 0.
+    //
+    // Fetch the window instead, then bound it by wall clock. Entries carry `ts`
+    // in seconds (DateTime.now().UnixTimestampMillis / 1000). A seq cursor would
+    // not work here anyway: seq is per-buffer, and the runtime peers do not exist
+    // yet when the episode starts.
+    const logs = this._parseToolEnvelope(await this.getRuntimeLogs(undefined, undefined, 200, undefined, instance_id));
+    const allEntries = Array.isArray(logs.entries) ? (logs.entries as Array<Record<string, unknown>>) : [];
+    const startedAtSec = startedAt / 1000;
+    const entries = allEntries.filter((e) => {
+      const ts = Number(e.ts);
+      // An entry with no usable timestamp is kept: dropping a real error because
+      // its clock field was missing is the worse failure.
+      return !Number.isFinite(ts) || ts >= startedAtSec;
+    });
     // Shared with diagnose_scripts. The old inline test was
     // `String(e.level).includes('error')`, and the plugin's tag is "ERR" — which
     // does not contain "error" — so no runtime error was ever counted and the
