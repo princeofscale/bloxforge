@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- Argument errors in the script tools name the parameters instead of describing
+  them. `edit_script_lines` is the worst case: the name promises a line range,
+  the tool is a string replace, and the natural first call —
+  `startLine`/`endLine`/`newText` — came back with "Instance path, old_string,
+  and new_string are required" without saying what to send instead. It now
+  states that the tool replaces exact text, that `startLine` only anchors an
+  ambiguous match, and which sibling tools do work by line number. The same
+  correction went into its description, where the name is read first.
 - `load_toolset` no longer reports a toolset it does not have. `loaded` echoed the
   request back verbatim, so asking for `"scripting"` (the domain is `"scripts"`)
   answered with success and no script tools — and `client_hint`'s

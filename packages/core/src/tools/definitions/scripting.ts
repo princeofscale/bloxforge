@@ -66,7 +66,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'edit_script_lines',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Replace exact text in a script. Without startLine, old_string must match exactly once in the script. Pass startLine (1-indexed, from get_script_source) to anchor the edit to a specific line when old_string is ambiguous (e.g. repeated closing braces). NOTE for ModuleScripts: editing Source does NOT invalidate Roblox\'s per-instance require() cache, so a subsequent require() in execute_luau returns the stale pre-edit copy — re-verify with fresh_require(module) or a playtest instead of plain require().',
+    description: 'Replace exact text in a script (not a line range, despite the name). Without startLine, old_string must match exactly once in the script. Pass startLine (1-indexed, from get_script_source) to anchor the edit to a specific line when old_string is ambiguous (e.g. repeated closing braces). NOTE for ModuleScripts: editing Source does NOT invalidate Roblox\'s per-instance require() cache, so a subsequent require() in execute_luau returns the stale pre-edit copy — re-verify with fresh_require(module) or a playtest instead of plain require().',
     inputSchema: {
       type: 'object',
       properties: {

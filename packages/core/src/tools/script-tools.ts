@@ -90,7 +90,7 @@ export class ScriptTools {
 
   async setScriptSource(instancePath: string, source: string, instance_id?: string, options?: SafetyOptions) {
     if (!instancePath || typeof source !== 'string') {
-      throw new Error('Instance path and source code string are required for set_script_source');
+      throw new Error('instancePath and source (a string) are required for set_script_source');
     }
     const gated = this.runtime.safetyGate('set_script_source', `overwrite ${instancePath} (${source.length} chars)`, { scriptSize: source.length }, options);
     if (gated) return gated;
@@ -122,7 +122,16 @@ export class ScriptTools {
 
   async editScriptLines(instancePath: string, oldString: string, newString: string, startLine?: number, instance_id?: string) {
     if (!instancePath || typeof oldString !== 'string' || typeof newString !== 'string') {
-      throw new Error('Instance path, old_string, and new_string are required for edit_script_lines');
+      // The name promises a line range and the tool takes a string replace, so the
+      // natural first call is startLine/endLine/newText — which fails, and the old
+      // message did not say what to send instead. Renaming would break the tool
+      // surface; correcting the mental model in the one place the caller is
+      // already looking costs nothing.
+      throw new Error(
+        'instancePath, old_string and new_string are required for edit_script_lines. '
+        + 'Despite the name this replaces exact text, not a line range: startLine is optional and only anchors an ambiguous old_string. '
+        + 'To work by line number use insert_script_lines (afterLine) or delete_script_lines (startLine/endLine).',
+      );
     }
     const payload: Record<string, unknown> = { instancePath, old_string: oldString, new_string: newString };
     if (startLine !== undefined) payload.startLine = startLine;
@@ -132,7 +141,7 @@ export class ScriptTools {
 
   async insertScriptLines(instancePath: string, afterLine: number, newContent: string, instance_id?: string) {
     if (!instancePath || typeof newContent !== 'string') {
-      throw new Error('Instance path and newContent are required for insert_script_lines');
+      throw new Error('instancePath and newContent are required for insert_script_lines (position is afterLine, 0 = beginning)');
     }
     const response = await this.runtime.callSingle('/api/insert-script-lines', { instancePath, afterLine: afterLine || 0, newContent }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -140,7 +149,7 @@ export class ScriptTools {
 
   async deleteScriptLines(instancePath: string, startLine: number, endLine: number, instance_id?: string) {
     if (!instancePath || !startLine || !endLine) {
-      throw new Error('Instance path, startLine, and endLine are required for delete_script_lines');
+      throw new Error('instancePath, startLine and endLine are required for delete_script_lines');
     }
     const response = await this.runtime.callSingle('/api/delete-script-lines', { instancePath, startLine, endLine }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
