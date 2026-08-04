@@ -38,6 +38,33 @@ Record confirmed bugs, inaccuracies, and reproducible anomalies found during dev
 - 2026-08-02 — With Roblox Studio already running, a freshly started primary MCP server initially reports no connected instances: `get_connected_instances` is empty and Studio tools cannot run until the plugin reconnects (observed within 15 seconds). Reproduce by starting `packages/robloxstudio-mcp/dist/index.js` while Studio is open, completing MCP `initialize`, then immediately calling `get_connected_instances`.
 ## Fixed
 
+Found and fixed 2026-08-04 by building a real feature in a live place (coins +
+leaderstats + HUD) rather than by reading code — each of these cost a wasted
+round-trip or a wrong diagnosis first.
+
+- 2026-08-04 — `run_gameplay_assertions` could not evaluate anything on a runtime
+  peer. It compiled each `expr` with `loadstring`, which works in the plugin's
+  edit context but throws `loadstring() is not available` on a runtime peer
+  (`LoadStringEnabled` is off by default) — so `target: "server"`, the pairing the
+  tool's own description recommends, evaluated nothing. Worse, the failure was
+  reported as `failed: 3` and the episode verdict as `fail`, so an infrastructure
+  gap looked exactly like a game regression. (#64)
+- 2026-08-04 — One assertion ending in a `--` comment killed the whole batch: the
+  closing `) end)` sat on the same line and the comment ate it. (#64)
+- 2026-08-04 — `validate_script_source` was useless without optional binaries. On a
+  machine with none installed it answered with three "is not installed" lines, so a
+  typo could only be found by writing the script into the place and burning a
+  playtest cycle. Studio's own `loadstring` parses without executing and was
+  available the whole time. (#63)
+- 2026-08-04 — `load_toolset` reported a toolset it does not have. `loaded` echoed
+  the request back, so `"scripting"` (the domain is `"scripts"`) came back as
+  success with no script tools — and `client_hint`'s schema-refresh caveat read as
+  the explanation, pointing at a client restart instead of a one-word typo. (#65)
+- 2026-08-04 — Argument errors described parameters in prose while the schema keys
+  differ. `edit_script_lines` is the worst: the name promises a line range, the tool
+  is a string replace, and the natural first call came back with "Instance path,
+  old_string, and new_string are required" without saying what to send. (#65, #66)
+
 Found and fixed 2026-08-03/04 in a separate pass (PRs #48–#60). Recorded so the
 same ground is not re-reported.
 
