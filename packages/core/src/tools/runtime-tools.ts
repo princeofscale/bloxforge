@@ -19,6 +19,7 @@ import type { OperationKind } from '../safety/safety-manager.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
 import { buildGameplayAssertionsLuau, type GameplayAssertion } from '../builders/gameplay-assertions.js';
 import type { EpisodeStore } from './episode-store.js';
+import { logSeverity } from '../diagnostics.js';
 import {
   diffEpisodes,
   proposeNextAction,
@@ -1788,9 +1789,12 @@ export class RuntimeTools {
     }
     const logs = this._parseToolEnvelope(await this.getRuntimeLogs(undefined, startedAt, 200, undefined, instance_id));
     const entries = Array.isArray(logs.entries) ? (logs.entries as Array<Record<string, unknown>>) : [];
-    const levelOf = (e: Record<string, unknown>) => String(e.level ?? e.type ?? '').toLowerCase();
-    const errorEntries = entries.filter((e) => levelOf(e).includes('error'));
-    const warnEntries = entries.filter((e) => levelOf(e).includes('warn'));
+    // Shared with diagnose_scripts. The old inline test was
+    // `String(e.level).includes('error')`, and the plugin's tag is "ERR" — which
+    // does not contain "error" — so no runtime error was ever counted and the
+    // verdict below could only ever fail on an assertion.
+    const errorEntries = entries.filter((e) => logSeverity(e) === 'error');
+    const warnEntries = entries.filter((e) => logSeverity(e) === 'warning');
 
     // 4. Stop the playtest.
     const stop = this._parseToolEnvelope(await this.stopPlaytest(instance_id));

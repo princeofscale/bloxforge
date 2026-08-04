@@ -5,7 +5,10 @@
 
 export interface LogEntry {
   message: string;
-  messageType: string;
+  /** Roblox `Enum.MessageType` name, when the producer sends one. */
+  messageType?: string;
+  /** The plugin's own tag: "ERR" | "WARN" | "INFO" | "OUT". */
+  level?: string;
   timestamp?: number;
 }
 
@@ -24,10 +27,28 @@ export interface DiagnosticsResult {
 // Roblox errors typically prefix the location as "Path.To.Script:LINE: message".
 const LOCATION_RE = /([A-Za-z_][\w.]*):(\d+):/;
 
-function classify(messageType: string): 'error' | 'warning' | 'other' {
-  const t = messageType.toLowerCase();
-  if (t.includes('error')) return 'error';
-  if (t.includes('warning')) return 'warning';
+export type LogSeverity = 'error' | 'warning' | 'other';
+
+/**
+ * Classify a runtime-log entry, accepting either vocabulary.
+ *
+ * The plugin tags entries with `level` from RuntimeLogBuffer — "ERR" | "WARN" |
+ * "INFO" | "OUT" — and sends no `messageType` at all. Both readers had been
+ * written against Roblox's `Enum.MessageType` names, and the mismatch was silent
+ * and total:
+ *
+ *   - `parseLogErrors` skipped every entry whose `messageType` was not a string,
+ *     so `diagnose_scripts` answered "Looks clean" for a buffer holding seven
+ *     warnings (verified live).
+ *   - `run_playtest_episode` tested `level.includes('error')` — and "err" does
+ *     not contain "error" — so `errorCount` was always 0 and a runtime error
+ *     could never fail an episode. "warn" happened to match, which is why
+ *     warnings worked and hid the problem.
+ */
+export function logSeverity(entry: { level?: unknown; messageType?: unknown; type?: unknown }): LogSeverity {
+  const raw = String(entry?.level ?? entry?.messageType ?? entry?.type ?? '').toLowerCase();
+  if (raw.startsWith('err') || raw.includes('error')) return 'error';
+  if (raw.startsWith('warn') || raw.includes('warning')) return 'warning';
   return 'other';
 }
 
@@ -35,10 +56,10 @@ export function parseLogErrors(entries: LogEntry[]): DiagnosticsResult {
   const errors: DiagnosticItem[] = [];
   const warnings: DiagnosticItem[] = [];
   for (const entry of entries ?? []) {
-    if (!entry || typeof entry.message !== 'string' || typeof entry.messageType !== 'string') continue;
-    const kind = classify(entry.messageType);
+    if (!entry || typeof entry.message !== 'string') continue;
+    const kind = logSeverity(entry);
     if (kind === 'other') continue;
-    const item: DiagnosticItem = { message: entry.message, messageType: entry.messageType };
+    const item: DiagnosticItem = { message: entry.message, messageType: entry.messageType ?? entry.level ?? kind };
     const match = LOCATION_RE.exec(entry.message);
     if (match) {
       item.scriptPath = match[1];
