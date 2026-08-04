@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `scene_search`, `get_changes_since` and `get_scene_summary` now scope to the
+  place too. Only `get_world_snapshot` was fixed; its three sibling generators
+  still started from `game` and walked all 1714 DataModel descendants of an empty
+  baseplate, 1676 of them Studio's own. `scene_search` was the damaging one: on
+  that place `"button"` returned 58 hits and every single one was Studio's
+  viewport widget (`CoreGui.ViewSelectorScreenGui.Panel.ArrowButtons...`), so the
+  tool for "where is the shop UI" answered with the editor's own chrome and would
+  bury real content under it. `get_changes_since` spent 202KB of fingerprint
+  payload on that noise to carry 3KB of real content. The scoping rule now lives
+  in one shared Luau prelude (`PLACE_SCOPE_LUA`) that all four generators use,
+  each reporting a `scope` field; an explicit path is still never filtered.
+  Idle Studio produced no phantom diffs, so this is cost and relevance, not
+  correctness, for `get_changes_since`.
 - `get_world_snapshot` counts the place, not Studio. At `game` level it walked
   the whole DataModel, which also holds Studio's own plumbing: on an empty
   baseplate 1677 of 1713 descendants were `Stats`, `StylingService`,

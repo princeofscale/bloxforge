@@ -181,7 +181,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_scene_summary',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Token-lean scene overview: counts descendants by ClassName under a path and returns totals + the top-N classes, instead of dumping the whole tree. Use before get_descendants to understand a scene cheaply.',
+    description: 'Token-lean scene overview: counts descendants by ClassName under a path and returns totals + the top-N classes, instead of dumping the whole tree. Use before get_descendants to understand a scene cheaply. At game level the counts cover the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to count anything else verbatim.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -535,7 +535,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_changes_since',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now).',
+    description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now). At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -558,7 +558,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'scene_search',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths.',
+    description: 'Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths. At game level it searches the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to search anything else verbatim.',
     inputSchema: {
       type: 'object',
       properties: {

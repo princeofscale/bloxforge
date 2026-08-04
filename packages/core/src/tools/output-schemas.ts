@@ -150,6 +150,7 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       snapshotId: { type: 'string' },
       baseline: { type: 'boolean' },
       path: { type: 'string' },
+      scope: { type: 'string' },
       added: { type: 'array', items: { type: 'object', additionalProperties: true } },
       removed: { type: 'array', items: { type: 'object', additionalProperties: true } },
       changed: { type: 'array', items: { type: 'object', additionalProperties: true } },
@@ -165,6 +166,7 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       query: { type: 'string' },
       total: { type: 'number' },
       returned: { type: 'number' },
+      scope: { type: 'string' },
       results: {
         type: 'array',
         items: {

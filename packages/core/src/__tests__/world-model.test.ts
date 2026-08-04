@@ -50,17 +50,17 @@ describe('buildWorldSnapshotLuau', () => {
     // "is the scene heavy" answered 1713 and topClasses led with StatsItem.
     const code = buildWorldSnapshotLuau();
     expect(code).toContain('DEVELOPER_SERVICES');
-    expect(code).toContain('scopedToPlace = root == game');
     expect(code).toContain('ServerScriptService = true');
-    expect(code).toContain('scope =');
+    expect(code).toContain('local descendants = scopedDescendants(root)');
+    expect(code).toContain('scope = scopeLabel(root)');
   });
 
   it('never filters an explicitly requested subtree', () => {
     const code = buildWorldSnapshotLuau('game.CoreGui');
     expect(code).toContain('resolvePath("game.CoreGui")');
-    // scopedToPlace is false for any root that is not the DataModel, so the
-    // scan walks the requested subtree whole.
-    expect(code).toContain('scanRoots = { root }');
+    // scopedDescendants short-circuits to a plain GetDescendants for any root
+    // that is not the DataModel, so the scan walks the requested subtree whole.
+    expect(code).toContain('if root ~= game then return root:GetDescendants() end');
   });
 
   it('summarizes the environment from Lighting and Workspace', () => {
@@ -76,7 +76,7 @@ describe('buildWorldSnapshotLuau', () => {
     // dumping them all defeats the purpose. Caught live during verification.
     const code = buildWorldSnapshotLuau();
     expect(code).toContain('local ROOT_LIMIT = 30');
-    expect(code).toContain('if childCount > 0 and inScope(c) then');
+    expect(code).toContain('if childCount > 0 and inPlaceScope(root, c) then');
     expect(code).toContain('if #roots >= ROOT_LIMIT then break end');
   });
 
