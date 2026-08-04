@@ -147,6 +147,18 @@ const ASSERTIONS = [
     test: (src) => src.includes('CFrame.lookAt') && src.includes('priorType') && src.includes('priorCFrame'),
   },
   {
+    // delete_object wrapped Destroy() in a ChangeHistoryService recording, but
+    // Destroy() tears the instance down irreversibly — so `undo` reported success
+    // while the object stayed gone. Unparenting is what Studio's own Delete does
+    // and it restores cleanly. Verified live: unparent undoes, Destroy does not.
+    file: 'handlers/InstanceHandlers.luau',
+    label: 'deletes unparent (undoable) instead of Destroy()',
+    test: (src) =>
+      src.includes('function removeInstance') &&
+      /function removeInstance\([^)]*\)\s*\n\s*\w+\.Parent = nil/.test(src) &&
+      !/\bfunction deleteObject\b[\s\S]{0,400}?:Destroy\(\)/.test(src),
+  },
+  {
     // smart_duplicate assigned variation values raw inside a discarded pcall, so
     // the documented [255, 0, 0] / {x,y,z} forms never converted and the tool
     // reported "succeeded: 2, failed: 0" with nothing applied.

@@ -22,6 +22,7 @@ export interface McpToolShape {
 // safety gate already guards them server-side; this is the client-facing hint.)
 const DESTRUCTIVE_TOOLS = new Set([
   'delete_object',
+  'mass_delete_objects',
   'delete_attribute',
   'delete_script_lines',
   'set_script_source',

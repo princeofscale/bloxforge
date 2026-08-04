@@ -403,6 +403,7 @@ describe('Tool schema compatibility', () => {
       create_object: 'createObject',
       mass_create_objects: 'massCreateObjects',
       delete_object: 'deleteObject',
+      mass_delete_objects: 'massDeleteObjects',
       smart_duplicate: 'smartDuplicate',
       mass_duplicate: 'massDuplicate',
       apply_mutation_plan: 'applyMutationPlan',

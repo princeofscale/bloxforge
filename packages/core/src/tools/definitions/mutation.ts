@@ -220,6 +220,35 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['instancePath']
     }
   },
+  {
+    name: 'mass_delete_objects',
+    category: 'write',
+    effects: ['studio.write'],
+    description: 'Delete many instances in one round-trip, the bulk counterpart to mass_create_objects. The whole batch is one Studio undo step, so a single Ctrl+Z (or the undo tool) puts everything back. Missing paths are reported per-path rather than failing the batch. Large batches and any protected service/root in the list require confirm:true; use dryRun:true to preview.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Instance paths to delete (dot notation).'
+        },
+        dryRun: {
+          type: 'boolean',
+          description: 'Preview the deletion without removing anything (default false).'
+        },
+        confirm: {
+          type: 'boolean',
+          description: 'Approve a deletion the safety layer would otherwise gate — a large batch, or a protected service/root in the list (default false).'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      },
+      required: ['paths']
+    }
+  },
 
   // === Duplication ===
   {

@@ -42,6 +42,7 @@ const routes: Record<string, PluginHandler> = {
 	"/api/mass-create-objects": InstanceHandlers.massCreateObjects,
 	"/api/mass-create-objects-with-properties": InstanceHandlers.massCreateObjects,
 	"/api/delete-object": InstanceHandlers.deleteObject,
+	"/api/mass-delete-objects": InstanceHandlers.massDeleteObjects,
 	"/api/smart-duplicate": InstanceHandlers.smartDuplicate,
 	"/api/mass-duplicate": InstanceHandlers.massDuplicate,
 	"/api/clone-object": InstanceHandlers.cloneObject,

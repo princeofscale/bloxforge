@@ -47,6 +47,7 @@ export const ENDPOINT_SOURCE = {
     "/api/mass-create-objects",
     "/api/mass-create-objects-with-properties",
     "/api/delete-object",
+    "/api/mass-delete-objects",
     "/api/smart-duplicate",
     "/api/mass-duplicate",
     "/api/clone-object",

@@ -116,6 +116,7 @@ describe('mutation safety gates', () => {
       callSingle: jest.fn(async () => ({ ok: true })),
       safetyGate: jest.fn(() => gateResult),
       recordOperation: jest.fn(),
+      isProtectedPath: jest.fn((_path: string) => false),
     };
   }
 
@@ -133,7 +134,35 @@ describe('mutation safety gates', () => {
     const tools = new MutationTools(adapter);
     await expect(tools.applyMutationPlan([])).rejects.toThrow(/non-empty array/);
     await expect(tools.massCreateObjects([])).rejects.toThrow(/Objects array/);
+    await expect(tools.massDeleteObjects([])).rejects.toThrow(/Paths array/);
     await expect(tools.setProperty('', 'Name', 'x')).rejects.toThrow(/required/);
     expect(adapter.callSingle).not.toHaveBeenCalled();
+  });
+
+  test('mass delete gates on a protected path anywhere in the batch', async () => {
+    // assess() takes a single path, so passing paths[0] blindly would let a
+    // batch ending in ServerScriptService through the protected-path check.
+    const adapter = runtime();
+    adapter.isProtectedPath = jest.fn((p: string) => p === 'game.ServerScriptService');
+    await new MutationTools(adapter).massDeleteObjects([
+      'game.Workspace.A',
+      'game.Workspace.B',
+      'game.ServerScriptService',
+    ]);
+    expect(adapter.safetyGate).toHaveBeenCalledWith(
+      'bulk_delete',
+      expect.stringContaining('3 objects'),
+      { count: 3, path: 'game.ServerScriptService' },
+      undefined,
+    );
+  });
+
+  test('mass delete does not dispatch when the gate blocks it', async () => {
+    const blocked = { content: [{ type: 'text' as const, text: 'confirmation required' }] };
+    const adapter = runtime(blocked);
+    const result = await new MutationTools(adapter).massDeleteObjects(['game.Workspace.A']);
+    expect(result).toBe(blocked);
+    expect(adapter.callSingle).not.toHaveBeenCalled();
+    expect(adapter.recordOperation).not.toHaveBeenCalled();
   });
 });

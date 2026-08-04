@@ -43,6 +43,25 @@ function applyProperties(
 	return { failures, total };
 }
 
+/**
+ * Remove an instance so that Studio's undo can bring it back.
+ *
+ * `Destroy()` tears the instance down irreversibly — it locks Parent and marks
+ * the object for collection — so ChangeHistoryService has nothing left to
+ * restore. delete_object wrapped Destroy in a recording, which made `undo`
+ * report "Undo executed successfully" while the object stayed gone; undoing a
+ * *creation* worked, so the plumbing looked fine and only deletes were lost.
+ * Unparenting is what Studio's own Delete does, and it undoes cleanly (verified
+ * live: unparent restores, Destroy does not).
+ *
+ * Safe here because these handlers only ever run in the edit DataModel, where
+ * scripts are not running, so the connections `Destroy()` would have severed
+ * are not live to begin with.
+ */
+function removeInstance(instance: Instance): void {
+	instance.Parent = undefined;
+}
+
 type ProcessedBatchResult = {
 	results: Record<string, unknown>[];
 	successCount: number;
@@ -174,7 +193,7 @@ function deleteObject(requestData: Record<string, unknown>) {
 	const recordingId = beginRecording(`Delete ${instance.ClassName} (${instance.Name})`);
 
 	const [success, result] = pcall(() => {
-		instance.Destroy();
+		removeInstance(instance);
 		return true;
 	});
 
@@ -185,6 +204,50 @@ function deleteObject(requestData: Record<string, unknown>) {
 		finishRecording(recordingId, false);
 		return { error: `Failed to delete object: ${result}`, instancePath };
 	}
+}
+
+function massDeleteObjects(requestData: Record<string, unknown>) {
+	const paths = requestData.paths as string[];
+	if (!paths || !typeIs(paths, "table") || (paths as defined[]).size() === 0) {
+		return { error: "Paths array is required" };
+	}
+
+	// One recording for the whole batch, so a single Ctrl+Z puts everything back
+	// rather than making the user undo N times.
+	const recordingId = beginRecording(`Delete ${(paths as defined[]).size()} objects`);
+
+	const results: Record<string, unknown>[] = [];
+	let successCount = 0;
+	let failureCount = 0;
+
+	for (const path of paths) {
+		const instance = getInstanceByPath(path);
+		if (!instance) {
+			failureCount++;
+			results.push({ path, success: false, error: `Instance not found: ${path}` });
+			continue;
+		}
+		if (instance === game) {
+			failureCount++;
+			results.push({ path, success: false, error: "Cannot delete the game instance" });
+			continue;
+		}
+
+		const [ok, err] = pcall(() => removeInstance(instance));
+		if (ok) {
+			successCount++;
+			results.push({ path, success: true, className: instance.ClassName, name: instance.Name });
+		} else {
+			failureCount++;
+			results.push({ path, success: false, error: tostring(err) });
+		}
+	}
+
+	finishRecording(recordingId, successCount > 0);
+	return {
+		results,
+		summary: { total: (paths as defined[]).size(), succeeded: successCount, failed: failureCount },
+	};
 }
 
 function massCreateObjects(requestData: Record<string, unknown>) {
@@ -420,6 +483,7 @@ export = {
 	createObject,
 	deleteObject,
 	massCreateObjects,
+	massDeleteObjects,
 	smartDuplicate,
 	massDuplicate,
 	cloneObject,
