@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `get_changes_since` actually returns the `scope` field it advertises. The
+  scoping change added `scope` to the emitted Luau, the output schema and the
+  tool description, but `_captureFingerprint` parsed only
+  `fingerprint`/`count`/`truncated` and dropped it — so the one tool of the four
+  that reshapes its payload in TypeScript promised a field that never arrived.
+  The sibling tools pass the Luau result straight through and were unaffected.
 - `scene_search`, `get_changes_since` and `get_scene_summary` now scope to the
   place too. Only `get_world_snapshot` was fixed; its three sibling generators
   still started from `game` and walked all 1714 DataModel descendants of an empty
