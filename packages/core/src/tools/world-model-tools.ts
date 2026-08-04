@@ -64,14 +64,14 @@ export class WorldModelTools {
     }));
   }
 
-  private async _captureFingerprint(path: string, instance_id?: string): Promise<{ fp: Fingerprint; count: number; truncated: boolean; error?: string }> {
+  private async _captureFingerprint(path: string, instance_id?: string): Promise<{ fp: Fingerprint; count: number; truncated: boolean; scope?: string; error?: string }> {
     const response = await this.runtime.callSingle('/api/execute-luau', { code: buildWorldFingerprintLuau(path) }, 'edit', instance_id);
     try {
       const rv = (response as { returnValue?: unknown })?.returnValue;
       if (typeof rv === 'string') {
-        const parsed = JSON.parse(rv) as { fingerprint?: Fingerprint; count?: number; truncated?: boolean; error?: string };
+        const parsed = JSON.parse(rv) as { fingerprint?: Fingerprint; count?: number; truncated?: boolean; scope?: string; error?: string };
         if (parsed.error) return { fp: {}, count: 0, truncated: false, error: parsed.error };
-        return { fp: parsed.fingerprint ?? {}, count: parsed.count ?? 0, truncated: parsed.truncated ?? false };
+        return { fp: parsed.fingerprint ?? {}, count: parsed.count ?? 0, truncated: parsed.truncated ?? false, scope: parsed.scope };
       }
     } catch { /* fall through */ }
     return { fp: {}, count: 0, truncated: false, error: 'Could not parse world fingerprint' };
@@ -84,13 +84,13 @@ export class WorldModelTools {
     if (cur.error) return wrap({ error: cur.error, path: p });
     if (!snapshotId) {
       const id = this.snapshots.put(p, cur.fp);
-      return wrap({ snapshotId: id, baseline: true, count: cur.count, truncated: cur.truncated, path: p });
+      return wrap({ snapshotId: id, baseline: true, count: cur.count, truncated: cur.truncated, path: p, scope: cur.scope });
     }
     const prev = this.snapshots.get(snapshotId);
     if (!prev) return wrap({ error: 'Unknown or expired snapshotId — call get_changes_since with no snapshotId to start a new baseline.', snapshotId });
     const diff = diffFingerprints(prev.fingerprint, cur.fp);
     this.snapshots.update(snapshotId, cur.fp); // rolling baseline
-    return wrap({ snapshotId, path: p, ...diff, count: cur.count, truncated: cur.truncated });
+    return wrap({ snapshotId, path: p, ...diff, count: cur.count, truncated: cur.truncated, scope: cur.scope });
   }
 
   async assetPreflightInsert(assetId: number, instance_id?: string) {

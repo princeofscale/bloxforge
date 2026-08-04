@@ -1,7 +1,46 @@
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
 import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
+import { WorldModelTools } from '../tools/world-model-tools.js';
 
 const node = (p: string, st: string, se = '', me = '') => ({ p, st, se, me });
+
+const SCOPE = 'place services only (…)';
+
+/** A plugin execute-luau envelope carrying a one-node fingerprint. */
+const fingerprintEnvelope = (st: string) => ({
+  success: true,
+  returnValue: JSON.stringify({
+    fingerprint: { a: node('Workspace.A', st) },
+    count: 1,
+    truncated: false,
+    scope: SCOPE,
+  }),
+});
+
+const readJson = (result: { content?: unknown[] }) =>
+  JSON.parse((result.content?.[0] as { text?: string })?.text ?? '{}');
+
+describe('get_changes_since scope reporting', () => {
+  // The Luau has emitted `scope` since the place-scoping change, but
+  // _captureFingerprint parsed only fingerprint/count/truncated and dropped it —
+  // so the tool description and output schema advertised a field that never
+  // arrived. Caught by calling the live tool and reading the payload.
+  it('surfaces the scope on both the baseline and the diff', async () => {
+    let st = 'Part|r|A|0';
+    const tools = new WorldModelTools({
+      callSingle: async () => fingerprintEnvelope(st),
+    } as never);
+
+    const baseline = readJson(await tools.getChangesSince());
+    expect(baseline.baseline).toBe(true);
+    expect(baseline.scope).toBe(SCOPE);
+
+    st = 'Part|r|Renamed|0';
+    const diff = readJson(await tools.getChangesSince(baseline.snapshotId));
+    expect(diff.changedCount).toBe(1);
+    expect(diff.scope).toBe(SCOPE);
+  });
+});
 
 describe('diffFingerprints', () => {
   it('detects added, removed, and per-channel changes', () => {
