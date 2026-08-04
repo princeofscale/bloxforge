@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `project_reconcile_plan` reports where its time went. A healthy two-tool project
+  was reported taking about 160 seconds to return a one-step plan, "without timeout
+  diagnostics". Every phase of the inspection is synchronous and individually
+  bounded — the toolchain shim probes cap at 5s each — so the code alone does not
+  explain it, and I could not reproduce it without that project's toolchain. The
+  plan now carries a `timingsMs` breakdown per phase plus a total, so the next
+  occurrence names its own culprit instead of being opaque. Excluded from
+  `planHash`: timings are observation, not plan content.
 - Roblox's own CoreScript errors no longer read as a game regression. Multiplayer
   QA on an unpublished place (`PlaceId = 0`) repeatably logs `Invalid value for enum
   CreatorType` from `CoreGui.RobloxGui.Modules.PlayerPermissionsModule` and its
