@@ -21,7 +21,19 @@ export class DiscoveryTools {
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ loaded: selectors, tools: names, count: names.length }),
+        text: JSON.stringify({
+          loaded: selectors,
+          tools: names,
+          count: names.length,
+          // Reported: load_toolset answered with 70+ tools "loaded" while every
+          // one of them stayed absent from the client's callable surface, and
+          // nothing in the response said that could happen. The server expands
+          // its advertised list and emits tools/list_changed; a host that does
+          // not act on that notification leaves the tools uncallable, and the
+          // server cannot do that step for it. The caveat lives in the tool
+          // description, but a caller reads the response.
+          client_hint: 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.',
+        }),
       }] as ToolContent[],
     };
   }

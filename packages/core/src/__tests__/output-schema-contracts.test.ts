@@ -90,6 +90,9 @@ const samples: Record<string, unknown> = {
     loaded: ['ui'],
     tools: ['tool_catalog_search', 'load_toolset', 'ui_create_frame'],
     count: 3,
+    // "Loaded" means advertised; making them callable is the host's step, and a
+    // caller reads the response rather than the tool description.
+    client_hint: 'Advertised, not guaranteed callable: …',
   },
   get_world_snapshot: {
     root: 'game',

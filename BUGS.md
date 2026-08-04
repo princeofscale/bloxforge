@@ -14,22 +14,46 @@ Record confirmed bugs, inaccuracies, and reproducible anomalies found during dev
   or the tool saying plainly that its effects are outside undo. Impact: the undo
   safety net silently does not cover the most powerful tool in the set.
 
-- 2026-08-03 — Runtime log buffers become unreadable once a StudioTestService peer disappears. Reproduce: start a play/multiplayer test, observe `server`/`client-N`, allow the test to end, then call `get_runtime_logs` for that peer. Expected: the bounded captured buffer remains queryable for a short retention window or is merged into edit history. Actual: `target_role_not_present_on_instance`; the edit buffer contains none of the peer's gameplay logs. Impact: post-test QA cannot inspect terminal cleanup/errors and must poll logs before peer teardown.
 - 2026-08-03 — `project_reconcile_plan` took about 160 seconds to return for a healthy two-tool Rokit project whose only proposed action was `start-rojo`. Reproduce: call it with root `/Users/princeofscale/Roblox/WouldYouRather` and explicit `default.project.json` while Rojo serve is stopped. Expected: a read-only local manifest/status plan returns within a few seconds. Actual: the call remained pending for roughly 2.5 minutes, then returned a normal one-step plan without timeout diagnostics. Impact: routine pre-mutation inspection stalls agent workflows and exceeds the expected progress-update interval.
 - 2026-08-03 — An unsandboxed `project_reconcile_apply` starts the pinned Rojo process and captures `Rojo server listening ... Port: 34872`, but `rojo_serve_start` still fails after 10 seconds with `Rojo serve did not become ready within 10000ms`. Expected: readiness succeeds once the loopback endpoint is listening, or the error reports the failing readiness probe. Impact: reconcile cannot reach `ready:true` even though process startup itself succeeds.
 - 2026-08-03 — `project_reconcile_apply` can generate the sourcemap and then fail its automatic `start-rojo` step with `listen EPERM: operation not permitted 127.0.0.1:34872`. Reproduce from a valid Rojo/Rokit project in a sandboxed MCP session: run `project_reconcile_plan`, then apply the returned hash. Expected: managed Rojo serve starts or the capability preflight reports that local port binding requires host approval before partially applying the plan. Impact: reconcile remains not-ready after a partially completed run and requires manually starting the pinned Rojo shim.
-- 2026-08-02 — `StudioTestService` multiplayer QA on an unpublished place (`PlaceId=0`) produces repeatable Roblox CoreGui errors beginning with `Invalid value for enum CreatorType` in `CoreGui.RobloxGui.Modules.PlayerPermissionsModule`, followed by PlayerList/TopBar module failures. User game scripts continue normally. BloxForge runtime-log/episode verdicts should classify or clearly annotate this engine-generated noise so it is not mistaken for a game regression; reproduce with a 1–2 client multiplayer test in a blank unpublished place.
-- 2026-08-02 — Lazy toolset loading is not usable from the current Codex MCP session. `load_toolset({toolsets:["runtime","ui"]})` succeeds and reports `start_playtest`, `multiplayer_test_start`, `capture_device_matrix`, and 70+ other tools as loaded, but those tools are still absent from the client's callable tool surface (`typeof tools.mcp__bloxforge__start_playtest === "undefined"`). Expected: loaded tools become callable or the response clearly reports that the client cannot refresh `tools/list`. This blocks the documented load-then-call workflow and live QA without restarting BloxForge with lazy tools disabled.
 - 2026-08-02 — After a secondary server enters proxy mode, mutation calls can receive `unrecognized_instance_id` / `No Studio plugin is connected` even though the primary had an edit instance earlier. The proxy must wait for or preserve the primary bridge connection before accepting routed Studio tool calls.
 - 2026-08-02 — A second BloxForge launch intermittently fails with `listen EPERM: operation not permitted 127.0.0.1:58741` instead of entering proxy mode. The port was held by the existing Codex-owned BloxForge child (`dist/index.js`); a subsequent launch did enter proxy mode. Investigate the startup race/error classification.
 - 2026-08-02 — With Roblox Studio already running, a freshly started primary MCP server initially reports no connected instances: `get_connected_instances` is empty and Studio tools cannot run until the plugin reconnects (observed within 15 seconds). Reproduce by starting `packages/robloxstudio-mcp/dist/index.js` while Studio is open, completing MCP `initialize`, then immediately calling `get_connected_instances`.
-- 2026-08-02 — Git emits `fsmonitor_ipc__send_query: unspecified error on '.git/fsmonitor--daemon.ipc'` on `git status`. Status output still completes, but the configured fsmonitor daemon/socket is unavailable. Reproduce with `git status --short` at the repository root.
-
 ## Fixed
 
-Found and fixed 2026-08-03/04 in a separate pass (PRs #48–#54). Recorded so the
+Found and fixed 2026-08-03/04 in a separate pass (PRs #48–#60). Recorded so the
 same ground is not re-reported.
 
+- 2026-08-03 (reported here) — Runtime log buffers became unreadable once a
+  StudioTestService peer disappeared. Reproduced exactly, then fixed: the teardown
+  paths snapshot each runtime peer's buffer on the way out and `get_runtime_logs`
+  serves it afterwards, marked `retained` with the capture time, for ten minutes.
+  `since` / `tail` / `filter` apply to a retained read exactly as the live path
+  applies them. (#57, #59)
+- 2026-08-02 (reported here) — CoreGui noise on an unpublished place read as a game
+  regression. Split out of the episode verdict by origin container and reported
+  under `logs.engineNoise` — set aside, never dropped — and kept out of
+  `implicatedScripts`. Note the ordering: until log severity was fixed no error
+  counted at all, so this could not actually reach a verdict; that fix is what made
+  it reachable. (#56)
+- 2026-08-02 (reported here) — `load_toolset` reported success while the tools
+  stayed uncallable, with nothing in the response saying that could happen. The
+  server expands its advertised list and emits `tools/list_changed`; a host that
+  does not act on that leaves them uncallable, and the server cannot take that step
+  for it. The caveat lived in the tool description only; the response now carries a
+  `client_hint`. Not a server-side defect — the honest fix is saying so where the
+  caller actually looks. (#60)
+- 2026-08-04 (found while investigating the CoreGui item) — Runtime log severity was
+  matched against the wrong vocabulary, blinding two subsystems. The plugin tags
+  entries `level: "ERR" | "WARN" | "INFO" | "OUT"` and sends no `messageType`.
+  `diagnose_scripts` skipped every entry whose `messageType` was not a string, so it
+  answered "Looks clean" for a buffer holding seven warnings (verified live).
+  `run_playtest_episode` tested `level.includes('error')` — and `"err"` does not
+  contain `"error"` — so `errorCount` was always 0 and **no runtime error could fail
+  an episode verdict**; only a failed assertion could. `"warn"` matched by luck,
+  which is why warnings worked and hid it. Both now share one `logSeverity`
+  classifier. (#56)
 - 2026-08-03 (reported here) — `execute_luau` safety scanning flagged destructive
   calls that appear only inside a string assigned to `Script.Source`, so Rojo-style
   source sync demanded confirmation for text that never runs. Reproduced, then fixed:
@@ -40,7 +64,6 @@ same ground is not re-reported.
   could not survive the strip, so it was removed — obtaining a service handle mutates
   nothing, and `:SetAsync` / `:RemoveAsync` are call-shaped and still gated (asserted
   by test).
-
 - `scene_search`, `get_changes_since`, `get_scene_summary` and `get_world_snapshot`
   walked the whole DataModel from `game`, so they answered about Studio rather than
   the place. On an empty baseplate 1676 of 1714 descendants were Studio's own
@@ -69,6 +92,32 @@ same ground is not re-reported.
 - Plugin validation errors carried the plugin's own source location, e.g.
   `user_MCPPlugin.rbxmx.MCPPlugin.modules.handlers.ScriptHandlers:484: old_string
   matches multiple locations`. (#50)
+
+## Investigated, not reproducible here
+
+Checked against the code and, where possible, measured. Left open above; recording
+what was ruled out so the next attempt does not repeat it.
+
+- **`project_reconcile_plan` taking ~160s.** `plan()` is fully synchronous and every
+  phase is bounded — the toolchain shim probes use `execFileSync` with
+  `timeout: 5000`, so two tools cap at ~10s. I tested the one way that bound could
+  be defeated (a shim leaving a grandchild holding the inherited stdio, which is a
+  Rokit trampoline's exact shape) and measured the timeout enforced at 2015ms with
+  and without an explicit `killSignal`. That hypothesis is dead; 160s is still
+  unexplained from the code. `project_reconcile_plan` now returns a `timingsMs`
+  breakdown per phase so the next occurrence names its own culprit. (#58)
+- **`rojo_serve_start` readiness, and the reconcile EPERM items.** Neither `rojo`
+  nor `rokit` is installed in this environment, and both reports are against a
+  specific project, so I could not reproduce or safely change them. One hypothesis
+  ruled out by reading: the readiness probe and the spawned server both use
+  `127.0.0.1` explicitly, so this is not the usual `localhost` → IPv6 mismatch.
+- **Proxy-mode `unrecognized_instance_id`, and the second-launch EPERM.** Need two
+  concurrently launched servers racing for port 58741; not attempted.
+- **Fresh server reporting no connected instances for ~15s.** A plugin reconnect
+  poll interval rather than a defect, but not measured here.
+- **`git fsmonitor_ipc__send_query`.** Does not reproduce: `core.fsmonitor` is unset
+  in this repository and `git status --short` completes cleanly. This is local git
+  configuration on the reporting machine, not a BloxForge issue — removed from Open.
 
 ## Verification log
 
