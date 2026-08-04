@@ -321,7 +321,7 @@ npm run test:toolchain:integration  # pinned Rokit, plus Wally's actual --locked
 - [Tool reference](docs/tools-reference.md)
 - [Architecture](docs/architecture.md)
 - [Known limitations](docs/known-limitations.md)
-- [Agent guide (working on BloxForge)](AGENTS.md)
+- [Agent guide (working on BloxForge)](CLAUDE.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Security policy](SECURITY.md)
 - [Changelog](CHANGELOG.md)

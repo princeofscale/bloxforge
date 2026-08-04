@@ -20,7 +20,7 @@ This directory is the user-facing handbook for BloxForge. The
   request lifecycle, the edit/server/client peer model, and lazy tool loading.
 - [**Tools reference**](./tools-reference.md) — generated schemas for every MCP tool.
 
-Working *on* BloxForge rather than with it? [AGENTS.md](../AGENTS.md) is the
+Working *on* BloxForge rather than with it? [CLAUDE.md](../CLAUDE.md) is the
 operating guide for agents editing this repository: invariants, validation
 gates, and the traps that have cost real debugging time.
 

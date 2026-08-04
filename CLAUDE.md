@@ -191,3 +191,15 @@ information fits none of these.
    calling the release done. The release workflow runs its own quality gate
    after the GitHub Release already exists — a failure there leaves a published
    release with no packages, so check it rather than assuming.
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **bloxforge**. Before editing a symbol, run
+`impact({target, direction: "upstream"})`; before committing, run `detect_changes()`.
+Full workflow, tool reference, and skill-file map:
+[docs/gitnexus-agent-guide.md](docs/gitnexus-agent-guide.md).
+
+Note: `node .gitnexus/run.cjs analyze` regenerates this block on every re-index — edits
+here don't persist, keep the expanded/maintained version in the linked doc instead.
+<!-- gitnexus:end -->

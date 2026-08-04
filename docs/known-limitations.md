@@ -197,12 +197,19 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
 
 ## Orchestration
 
-There is no single "get this project into a working state" tool. Detecting the
-project, installing the toolchain, installing Wally packages, starting `rojo
-serve`, and reconciling Studio against the filesystem are separate tools that an
-agent sequences itself, and there is no policy block that says which of those
-steps may run unattended. `verify --project <dir> --json` reports `nextAction`
-to drive that sequence, but it does not perform it.
+`project_reconcile_plan`/`project_reconcile_apply`/`project_reconcile_status` bring a
+project from "declared" to "running" in one flow: detecting the project, installing the
+pinned toolchain, installing the locked Wally packages, generating the sourcemap, and
+starting `rojo serve` — in the order that makes each step valid. The policy is narrow on
+purpose: reconcile only *restores* declared state (installs versions or packages a
+manifest/lock already pins) and never *invents* it. Choosing a new tool version,
+resolving a new Wally lock, editing the Rojo project, or migrating Aftman to Rokit are
+gated behind explicit `[automation]` flags in `bloxforge.toml` and come back as a blocked
+step naming the flag that would permit them — left for a human.
+
+This does not cover reconciling Studio's live state against the filesystem; that remains
+`rojo_syncback_plan`/`_apply` (see "Legacy tools" below for the deprecated `sync_*`
+aliases).
 
 ## Legacy tools
 

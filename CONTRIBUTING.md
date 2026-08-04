@@ -7,7 +7,7 @@ Thanks for your interest in contributing to BloxForge! Every contribution — co
 - **Bug reports:** Open a GitHub issue with OS, Node version, Studio version, AI client, `--doctor` output, and reproduction steps.
 - **Feature ideas:** Open a GitHub issue describing the problem and your proposed solution.
 - **Documentation:** The `docs/` directory and README always need proofreading, examples, and clarification.
-- **Code:** Check [todo.md](todo.md) for current priorities, or pick a tool domain that interests you.
+- **Code:** Check open GitHub issues for current priorities, or pick a tool domain that interests you.
 
 ## Code contribution workflow
 
