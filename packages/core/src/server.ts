@@ -76,7 +76,10 @@ export function assertSecureBridgeBinding(
 }
 
 function isAddressInUseError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
+  // macOS may report a duplicate loopback bind as EPERM under a sandboxed
+  // parent process. Either result means a primary already owns the bridge.
+  const code = typeof error === 'object' && error !== null && (error as NodeJS.ErrnoException).code;
+  return code === 'EADDRINUSE' || code === 'EPERM';
 }
 
 export class BloxForgeServer {
