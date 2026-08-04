@@ -9,9 +9,14 @@
 
 import { luaString } from './luau-emit.js';
 
+// Name the chunk instead of letting it default to the source text. Otherwise the
+// script under test appears inside its own error prefix, and a source containing
+// `"]:9:` gives the location parser a second, earlier thing to match.
+const CHUNK_NAME = 'bloxforge_syntax_check';
+
 /** `loadstring` compiles only; nothing in `source` is executed. */
 export function buildSyntaxCheckLuau(source: string): string {
-  return `local fn, err = loadstring(${luaString(source)})
+  return `local fn, err = loadstring(${luaString(source)}, ${luaString(CHUNK_NAME)})
 if fn then return { ok = true } end
 return { ok = false, error = tostring(err) }`;
 }
@@ -24,10 +29,12 @@ export interface SyntaxCheck {
   line?: number;
 }
 
-// Luau reports `[string "local a = ..."]:2: Expected identifier ...`. The chunk
-// name is our own throwaway literal, so it is noise to the caller — keep the
-// line and the message, drop the prefix.
-const LOCATION_RE = /^\[string "[^]*?"\]:(\d+):\s*/;
+// Luau reports `[string "bloxforge_syntax_check"]:2: Expected identifier ...`.
+// The chunk name is ours, so it is noise to the caller — keep the line and the
+// message, drop the prefix. Anchored on the fixed name, so nothing in the source
+// can pose as a location; both the decorated and bare spellings are accepted
+// because that decoration is the host's choice, not ours.
+const LOCATION_RE = new RegExp(`^(?:\\[string "${CHUNK_NAME}"\\]|${CHUNK_NAME}):(\\d+):\\s*`);
 
 export function parseSyntaxError(raw: string): { message: string; line?: number } {
   const match = LOCATION_RE.exec(raw);

@@ -2452,7 +2452,7 @@ Detect Rojo, Wally, Rokit, Selene, StyLua, and sourcemap files and report which 
 
 ### `validate_script_source` (Read-only)
 
-Check Luau source without writing it to the DataModel. Always compile-checks through the connected Studio (loadstring, which parses without executing) and reports the Luau parser message and line under "syntax" — so a typo is caught in one round-trip instead of a playtest cycle. Additionally runs luau-analyze, Selene and StyLua when those optional binaries are installed; missing ones are reported explicitly rather than skipped.
+Check Luau source without writing it to the DataModel. Compile-checks through a connected Studio (loadstring, which parses without executing) and reports the Luau parser message and line under "syntax" — so a typo is caught in one round-trip instead of a playtest cycle. Read "syntax.available" first: false means no compile check ran (no Studio connected, or the request failed), so "syntax.ok" is absent and the source is unverified, NOT valid. Additionally runs luau-analyze, Selene and StyLua when those optional binaries are installed; missing ones are reported explicitly rather than skipped.
 
 **Parameters:**
 
