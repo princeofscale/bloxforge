@@ -56,11 +56,17 @@ describe('run_playtest_episode log window', () => {
       { seq: 2, ts: (now + 500) / 1000, level: 'ERR', message: 'ServerScriptService.Boom:2: attempt to index nil' },
       { seq: 3, ts: (now + 600) / 1000, level: 'WARN', message: 'during the run' },
       // No usable timestamp: kept, because dropping a real error over a missing
-      // clock field is the worse failure.
+      // clock field is the worse failure. null / '' / '  ' are the trap here —
+      // Number() turns all three into 0, which is finite and older than any
+      // start time, so a naive coercion discards exactly these.
       { seq: 4, level: 'ERR', message: 'no timestamp' },
+      { seq: 5, level: 'ERR', ts: null, message: 'null timestamp' },
+      { seq: 6, level: 'ERR', ts: '', message: 'blank timestamp' },
+      { seq: 7, level: 'ERR', ts: '   ', message: 'whitespace timestamp' },
+      { seq: 8, level: 'ERR', ts: 'abc', message: 'unparsable timestamp' },
     ]);
     const out = readJson(await tools.runPlaytestEpisode('run', undefined, undefined, 0));
-    expect(out.logs.errorCount).toBe(2);
+    expect(out.logs.errorCount).toBe(6);
     expect(out.logs.warningCount).toBe(1);
     expect(out.logs.errors.map((e: { message: string }) => e.message))
       .not.toContain('stale error from before the run');

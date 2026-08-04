@@ -1956,9 +1956,15 @@ export class RuntimeTools {
     const allEntries = Array.isArray(logs.entries) ? (logs.entries as Array<Record<string, unknown>>) : [];
     const startedAtSec = startedAt / 1000;
     const entries = allEntries.filter((e) => {
-      const ts = Number(e.ts);
       // An entry with no usable timestamp is kept: dropping a real error because
-      // its clock field was missing is the worse failure.
+      // its clock field was missing is the worse failure. Coercing with Number()
+      // alone did the opposite — Number(null) and Number('') are 0, which is
+      // finite and older than any start time, so exactly the undated entries this
+      // guard exists for were the ones discarded.
+      const raw = e.ts;
+      const ts = typeof raw === 'number'
+        ? raw
+        : (typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN);
       return !Number.isFinite(ts) || ts >= startedAtSec;
     });
     // Shared with diagnose_scripts. The old inline test was
