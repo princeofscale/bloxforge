@@ -146,6 +146,17 @@ const ASSERTIONS = [
     label: 'temporary camera framing restores CameraType and CFrame',
     test: (src) => src.includes('CFrame.lookAt') && src.includes('priorType') && src.includes('priorCFrame'),
   },
+  {
+    // smart_duplicate assigned variation values raw inside a discarded pcall, so
+    // the documented [255, 0, 0] / {x,y,z} forms never converted and the tool
+    // reported "succeeded: 2, failed: 0" with nothing applied.
+    file: 'handlers/InstanceHandlers.luau',
+    label: 'smart_duplicate converts property variations and reports the ones that fail',
+    test: (src) =>
+      src.includes('applyProperties(clone, variation)') &&
+      src.includes('variationErrors') &&
+      src.includes('row.propertyErrors = variationErrors'),
+  },
 ];
 
 let failures = 0;

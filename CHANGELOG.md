@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `smart_duplicate` actually applies its property variations. The option is the
+  tool's headline feature, but the values were assigned raw inside a discarded
+  `pcall`: no `convertPropertyValue`, so the documented forms (`Color` as
+  `[255, 0, 0]`, `Position` as `{x, y, z}`) arrived as Lua tables the engine
+  rejects, and the swallowed error meant the tool reported `succeeded: 2,
+  failed: 0` with **no variation applied at all** — verified live, both clones
+  kept the source colour. It now routes through the same `applyProperties`
+  helper `create_object` uses, so values convert and any that still fail come
+  back in `propertyErrors` instead of vanishing.
 - `get_world_snapshot` counts the place, not Studio. At `game` level it walked
   the whole DataModel, which also holds Studio's own plumbing: on an empty
   baseplate 1677 of 1713 descendants were `Stats`, `StylingService`,
