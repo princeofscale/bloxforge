@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   states that the tool replaces exact text, that `startLine` only anchors an
   ambiguous match, and which sibling tools do work by line number. The same
   correction went into its description, where the name is read first.
+- `run_gameplay_assertions` works against a running playtest. It compiled each
+  `expr` with `loadstring`, which is fine in the plugin's edit context but throws
+  `loadstring() is not available` on a *runtime* peer, because
+  `ServerScriptService.LoadStringEnabled` is off by default. So `target: "server"`
+  — the pairing this tool's own description recommends, and the only one that can
+  see live state — evaluated nothing on a default place. The expressions are now
+  emitted inline into the chunk being sent, which reaches the runtime peer through
+  the plugin's existing ModuleScript fallback. Verified live: 0/3 with
+  `"error":"loadstring() is not available"` before, 3/3 after.
+- A batch that never ran no longer reports every assertion as failed.
+  `run_gameplay_assertions` returns `evaluated: false` with the underlying error,
+  and re-runs the assertions one at a time to name the expression that broke the
+  batch. `run_playtest_episode` grades that as `verdict: "error"` rather than
+  `"fail"` — the game may be perfectly healthy and the harness simply unable to
+  look at it, and sending an agent to fix three working things is the worse
+  outcome.
 - `validate_script_source` compile-checks through the connected Studio, so it works
   without any optional binaries installed. It shelled out to luau-analyze, Selene
   and StyLua only — on a machine with none of them it answered with three "is not
