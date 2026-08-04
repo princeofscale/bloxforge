@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- Runtime log severity is matched against the level the plugin actually sends.
+  `RuntimeLogBuffer` tags entries `ERR` / `WARN` / `INFO` / `OUT` and sends no
+  `messageType`, but both readers were written against Roblox's `Enum.MessageType`
+  names. `diagnose_scripts` required `messageType` to be a string and skipped every
+  entry, so it answered "Looks clean" for a buffer holding seven warnings.
+  `run_playtest_episode` tested `level.includes('error')` — and `"err"` does not
+  contain `"error"` — so `errorCount` was always 0 and **no runtime error could fail
+  an episode verdict**; only a failed assertion could. `"warn"` matched by luck,
+  which is why warnings worked and hid the problem. Both now share one `logSeverity`
+  classifier that understands either vocabulary.
 - Deleting an instance can be undone. `delete_object` wrapped `Destroy()` in a
   ChangeHistoryService recording, but `Destroy()` tears an instance down
   irreversibly, so there was nothing left to restore: `undo` answered "Undo
