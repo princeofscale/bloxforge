@@ -231,7 +231,7 @@ export function registerContractedTools(
 function registerLocalTools(registry: ToolRegistry): void {
   const handlers: Record<string, (tools: RobloxStudioTools, args: Record<string, any>) => Promise<unknown>> = {
     detect_roblox_project: (tools, args) => tools.detectRobloxProject(args.root),
-    validate_script_source: (tools, args) => tools.validateScriptSource(args.source, args.fileName),
+    validate_script_source: (tools, args) => tools.validateScriptSource(args.source, args.fileName, args.instance_id),
     format_script_preview: (tools, args) => tools.formatScriptPreview(args.source, args.fileName),
     resolve_instance_source_file: (tools, args) => tools.resolveInstanceSourceFile(args.instancePath, args.root),
     run_project_tests: (tools, args) => tools.runProjectTests(args.root, args.script),
