@@ -2452,7 +2452,7 @@ Detect Rojo, Wally, Rokit, Selene, StyLua, and sourcemap files and report which 
 
 ### `validate_script_source` (Read-only)
 
-Run available luau-analyze, Selene, and StyLua checks on source without writing it to the Roblox DataModel. Missing binaries are reported explicitly.
+Check Luau source without writing it to the DataModel. Always compile-checks through the connected Studio (loadstring, which parses without executing) and reports the Luau parser message and line under "syntax" — so a typo is caught in one round-trip instead of a playtest cycle. Additionally runs luau-analyze, Selene and StyLua when those optional binaries are installed; missing ones are reported explicitly rather than skipped.
 
 **Parameters:**
 
@@ -2460,6 +2460,7 @@ Run available luau-analyze, Selene, and StyLua checks on source without writing 
 |---|---|---|---|
 | `source` | `string` | Yes |  |
 | `fileName` | `string` | No |  |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
 

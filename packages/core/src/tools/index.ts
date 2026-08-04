@@ -57,6 +57,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { buildSyntaxCheckLuau, parseSyntaxError } from '../builders/syntax-check.js';
 import {
   errorMessage,
   normalizeExecuteLuauToolResult,
@@ -379,7 +380,40 @@ export class RobloxStudioTools {
   }
 
   async detectRobloxProject(root?: string) { return wrapToolJsonText(this.qualityTools.detectRobloxProject(root)); }
-  async validateScriptSource(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.validateScriptSource(source, fileName)); }
+  async validateScriptSource(source: string, fileName?: string, instance_id?: string) {
+    const local = this.qualityTools.validateScriptSource(source, fileName);
+    return wrapToolJsonText({ ...local, syntax: await this._studioSyntaxCheck(source, instance_id) });
+  }
+
+  /**
+   * Compile-check through the Studio that will run the code.
+   *
+   * The three CLI checks are all optional installs, so on a bare machine
+   * validate_script_source answered with nothing but "is not installed" and a
+   * typo could only be found by writing the script into the place and burning a
+   * playtest on it. `loadstring` in the plugin compiles without executing, and
+   * is the authoritative parser for the target runtime.
+   */
+  private async _studioSyntaxCheck(source: string, instance_id?: string): Promise<Record<string, unknown>> {
+    if (typeof source !== 'string' || source === '') {
+      return { checkedBy: 'roblox-studio', available: false, reason: 'no source to check' };
+    }
+    try {
+      const response = await this._callSingle('/api/execute-luau', { code: buildSyntaxCheckLuau(source) }, 'edit', instance_id);
+      const raw = (response as { returnValue?: unknown })?.returnValue;
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) as { ok?: boolean; error?: string } : undefined;
+      if (!parsed || typeof parsed.ok !== 'boolean') {
+        return { checkedBy: 'roblox-studio', available: false, reason: 'Studio returned no verdict' };
+      }
+      if (parsed.ok) return { checkedBy: 'roblox-studio', available: true, ok: true };
+      const { message, line } = parseSyntaxError(String(parsed.error ?? ''));
+      return { checkedBy: 'roblox-studio', available: true, ok: false, error: message, line };
+    } catch (error) {
+      // No place connected, or the bridge is down. Say so rather than implying
+      // the source passed a check that never ran.
+      return { checkedBy: 'roblox-studio', available: false, reason: errorMessage(error) };
+    }
+  }
   async formatScriptPreview(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.formatScriptPreview(source, fileName)); }
   async runProjectTests(root?: string, script?: string) { return wrapToolJsonText(this.qualityTools.runProjectTests(root, script)); }
   async getDependencyGraph(root?: string) { return wrapToolJsonText(this.qualityTools.getDependencyGraph(root)); }

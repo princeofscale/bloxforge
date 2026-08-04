@@ -111,8 +111,8 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'validate_script_source', category: 'read',
     effects: ['local.files.write', 'local.process.execute'],
-    description: 'Run available luau-analyze, Selene, and StyLua checks on source without writing it to the Roblox DataModel. Missing binaries are reported explicitly.',
-    inputSchema: { type: 'object', properties: { source: { type: 'string' }, fileName: { type: 'string' } }, required: ['source'] },
+    description: 'Check Luau source without writing it to the DataModel. Always compile-checks through the connected Studio (loadstring, which parses without executing) and reports the Luau parser message and line under "syntax" — so a typo is caught in one round-trip instead of a playtest cycle. Additionally runs luau-analyze, Selene and StyLua when those optional binaries are installed; missing ones are reported explicitly rather than skipped.',
+    inputSchema: { type: 'object', properties: { source: { type: 'string' }, fileName: { type: 'string' }, instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' } }, required: ['source'] },
   },
   {
     name: 'format_script_preview', category: 'read',

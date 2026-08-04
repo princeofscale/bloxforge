@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `validate_script_source` compile-checks through the connected Studio, so it works
+  without any optional binaries installed. It shelled out to luau-analyze, Selene
+  and StyLua only — on a machine with none of them it answered with three "is not
+  installed" lines and nothing else, which meant a typo could only be found by
+  writing the script into the place and burning a playtest cycle on it. The plugin
+  context has `loadstring`, which parses without executing and returns the Luau
+  parser's own message, so the authoritative checker for the target runtime was
+  available the whole time. Results arrive under `syntax` with the blamed line, the
+  chunk-name noise stripped; the CLI checks still run when present.
 - `scene_search` no longer scores single-character tokens. `"BF_M"` split into
   `bf` and `m`, and the one-character `m` matched `Camera` alongside the parts
   actually wanted — ranking buried it on a small place, but on a real one a stray
