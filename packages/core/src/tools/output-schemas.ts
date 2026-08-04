@@ -228,11 +228,14 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
           additionalProperties: true,
           properties: {
             name: { type: 'string' },
+            // Absent when `evaluated` is false — a check that never ran has no
+            // verdict, and defaulting it to false would invent a failure.
             passed: { type: 'boolean' },
+            evaluated: { type: 'boolean' },
             value: { type: 'string' },
             error: { type: 'string' },
           },
-          required: ['name', 'passed'],
+          required: ['name'],
         },
       },
       summary: {
@@ -246,6 +249,7 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
         required: ['total', 'passed', 'failed'],
       },
       allPassed: { type: 'boolean' },
+      evaluated: { type: 'boolean' },
     },
     required: ['results', 'summary', 'allPassed'],
   },
