@@ -35,7 +35,7 @@ describe('run_gameplay_assertions when the chunk does not run', () => {
   it('re-runs each assertion alone to name the one that broke the batch', async () => {
     // Regression: an empty `results: []` in the fallback made the batch look like
     // it had run, so this isolation pass was unreachable dead code.
-    const { tools, codes } = harness((code) => code.includes('(bad)')
+    const { tools, codes } = harness((code) => code.includes('\nbad\n')
       ? { success: false, error: 'Incomplete statement' }
       : { success: true, returnValue: JSON.stringify({
         results: [{ name: 'ok', passed: true }],

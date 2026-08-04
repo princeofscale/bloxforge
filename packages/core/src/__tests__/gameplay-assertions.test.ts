@@ -18,9 +18,21 @@ describe('buildGameplayAssertionsLuau', () => {
 
   it('emits each expression as an inline function evaluated under pcall', () => {
     const code = buildGameplayAssertionsLuau(asserts);
-    expect(code).toContain('check(1, function() return (workspace:FindFirstChildOfClass("Terrain") ~= nil) end)');
-    expect(code).toContain('check(2, function() return (#game:GetService("Players"):GetPlayers() > 0) end)');
+    expect(code).toContain('check(1, function() return (\nworkspace:FindFirstChildOfClass("Terrain") ~= nil\n) end)');
+    expect(code).toContain('check(2, function() return (\n#game:GetService("Players"):GetPlayers() > 0\n) end)');
     expect(code).toContain('local ok, val = pcall(fn)');
+  });
+
+  it('closes on its own line, so a trailing comment cannot eat the closing tokens', () => {
+    // Verified live before the fix: `true -- explanation` produced
+    // "Expected ')' (to close '(' at line 131), got 'check'" and killed the whole
+    // batch, so one commented assertion failed every other assertion with it.
+    const code = buildGameplayAssertionsLuau([
+      { name: 'commented', expr: 'true -- explanation' },
+      { name: 'innocent', expr: '2 == 2' },
+    ]);
+    expect(code).toContain('true -- explanation\n) end)');
+    expect(code).not.toMatch(/--[^\n]*\) end\)/);
   });
 
   it('defines the checker before the checks run', () => {
@@ -44,6 +56,6 @@ describe('buildGameplayAssertionsLuau', () => {
   it('wraps each expression in parentheses so an operator cannot leak out', () => {
     // `false or true` must stay one value rather than splitting the statement.
     const code = buildGameplayAssertionsLuau([{ name: 'either', expr: 'false or true' }]);
-    expect(code).toContain('function() return (false or true) end');
+    expect(code).toContain('function() return (\nfalse or true\n) end');
   });
 });

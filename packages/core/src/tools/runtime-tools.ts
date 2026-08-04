@@ -1902,6 +1902,8 @@ export class RuntimeTools {
     // path still costs one round-trip.
     parsed.evaluated = false;
     parsed.results = [];
+    // ponytail: isolate at most 20 assertions, sequentially — a bounded-concurrency
+    // pass is the upgrade if larger batches ever need naming the culprit.
     if (assertions.length > 1 && assertions.length <= 20) {
       const perAssertion: Array<Record<string, unknown>> = [];
       for (const spec of assertions) {
@@ -1910,7 +1912,9 @@ export class RuntimeTools {
         perAssertion.push(rows?.[0] ?? { name: spec.name, evaluated: false, error: String(single.error ?? 'did not evaluate') });
       }
       parsed.results = perAssertion;
-      parsed.note = 'The batch did not compile; each assertion was re-run alone to isolate the cause.';
+      // Not necessarily a compile error — the peer may have refused the chunk, or
+      // returned something unparseable. Say what is known: it did not evaluate.
+      parsed.note = 'The batch did not evaluate; each assertion was re-run alone to isolate the cause.';
     }
     return wrapToolJsonText(parsed) as { content: ToolContent[] };
   }

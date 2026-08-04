@@ -31,8 +31,12 @@ export interface GameplayAssertion {
  */
 export function buildGameplayAssertionsLuau(assertions: GameplayAssertion[]): string {
   const names = JSON.stringify(JSON.stringify(assertions.map((a) => a.name)));
+  // The closing `) end)` goes on its own line. On one line, an expr ending in a
+  // `--` comment eats them and takes the whole batch with it — verified live:
+  // `true -- explanation` gave "Expected ')' (to close '(' at line 131), got
+  // 'check'", so one commented assertion failed every other assertion too.
   const checks = assertions
-    .map((a, index) => `check(${index + 1}, function() return (${a.expr}) end)`)
+    .map((a, index) => `check(${index + 1}, function() return (\n${a.expr}\n) end)`)
     .join('\n');
   return `local HttpService = game:GetService("HttpService")
 local names = HttpService:JSONDecode(${names})
