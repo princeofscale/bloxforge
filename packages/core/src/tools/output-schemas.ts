@@ -96,9 +96,13 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
     type: 'object',
     additionalProperties: false,
     properties: {
+      // Only the selectors that named a real domain — an unrecognized one lands
+      // in unknownToolsets rather than being echoed back as a success.
       loaded: stringArray,
       tools: stringArray,
       count: { type: 'number' },
+      unknownToolsets: stringArray,
+      validToolsets: stringArray,
       // "Loaded" means advertised. Whether the host then makes them callable is
       // the host's step, and this says so where the caller actually looks.
       client_hint: { type: 'string' },

@@ -19,6 +19,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `load_toolset` no longer reports a toolset it does not have. `loaded` echoed the
+  request back verbatim, so asking for `"scripting"` (the domain is `"scripts"`)
+  answered with success and no script tools — and `client_hint`'s
+  schema-refresh caveat read as the explanation, sending the caller to restart
+  their client over a one-word typo. Unrecognized selectors now come back under
+  `unknownToolsets` with `validToolsets`, and the hint names the miss.
+- Seven "Instance path is required" errors now say `instancePath`, the actual
+  parameter name. The message described the argument in prose while neighbouring
+  tools take `path` or `paths`, so it confirmed something was missing without
+  saying what to write.
 - `scene_search` no longer scores single-character tokens. `"BF_M"` split into
   `bf` and `m`, and the one-character `m` matched `Camera` alongside the parts
   actually wanted — ranking buried it on a small place, but on a real one a stray

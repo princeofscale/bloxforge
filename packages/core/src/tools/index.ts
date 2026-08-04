@@ -1009,7 +1009,7 @@ export class RobloxStudioTools {
 
   async exportBuild(instancePath: string, outputId?: string, style: string = 'misc', instance_id?: string) {
     if (!instancePath) {
-      throw new Error('Instance path is required for export_build');
+      throw new Error('instancePath is required for export_build');
     }
     const response = await this._callSingle('/api/export-build', {
       instancePath,
