@@ -35,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `"fail"` — the game may be perfectly healthy and the harness simply unable to
   look at it, and sending an agent to fix three working things is the worse
   outcome.
+- `validate_script_source` compile-checks through the connected Studio, so it works
+  without any optional binaries installed. It shelled out to luau-analyze, Selene
+  and StyLua only — on a machine with none of them it answered with three "is not
+  installed" lines and nothing else, which meant a typo could only be found by
+  writing the script into the place and burning a playtest cycle on it. The plugin
+  context has `loadstring`, which parses without executing and returns the Luau
+  parser's own message, so the authoritative checker for the target runtime was
+  available the whole time. Results arrive under `syntax` with the blamed line, the
+  chunk-name noise stripped; the CLI checks still run when present.
 - `scene_search` no longer scores single-character tokens. `"BF_M"` split into
   `bf` and `m`, and the one-character `m` matched `Camera` alongside the parts
   actually wanted — ranking buried it on a small place, but on a real one a stray
@@ -214,6 +223,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regenerating produced a whitespace-only diff to commit. Real content drift
   still fails. `scripts/generate-protocol-policy.mjs` already normalized for
   this; the tool-docs generator did not.
+- `isAddressInUseError` also treats `EPERM` as a duplicate-bridge signal, not
+  just `EADDRINUSE`. A second BloxForge launch could intermittently fail with
+  `listen EPERM: operation not permitted 127.0.0.1:<port>` instead of entering
+  proxy mode, because macOS can report a duplicate loopback bind as `EPERM`
+  under a sandboxed parent process rather than the `EADDRINUSE` Node normally
+  uses to signal it. Either code now means the same thing: a primary already
+  owns the bridge.
+
+### Documentation
+- Renamed `AGENTS.md` to `CLAUDE.md` so Claude Code reads the repository's
+  actual operating guide instead of the GitNexus stub that previously lived
+  under that name; the `.gitignore` split flips accordingly, so the
+  GitNexus-generated `AGENTS.md` duplicate is now the ignored one. Fixed the
+  two dangling `AGENTS.md` links this left in `README.md` and `docs/README.md`.
+- Extracted the GitNexus `<!-- gitnexus:start -->` block into
+  `docs/gitnexus-agent-guide.md` and expanded it with the tools the inline
+  block omitted (`trace`, `rename`, `cypher`, `check`, `route_map`,
+  `shape_check`, `api_impact`, `tool_map`, `group_list`/`group_sync`,
+  `list_repos`), leaving a short pointer behind the markers in `CLAUDE.md`.
+  `gitnexus analyze` still rewrites that inline block on every re-index, so
+  the extracted doc — not the marked block — is the one to keep current.
+- Un-ignored `.claude/skills/` (carved out of the blanket `.claude/`
+  credential rule): those are plain generated skill docs that `CLAUDE.md`
+  links to, and a fresh clone had no way to get them without re-running
+  GitNexus locally first.
+- Fixed `CONTRIBUTING.md`'s dead `todo.md` link and updated
+  `docs/known-limitations.md`'s Orchestration section, which still claimed
+  there was no unified "get this project running" tool after
+  `project_reconcile_plan`/`_apply`/`_status` had already shipped.
 
 ## [4.0.3] - 2026-08-02
 

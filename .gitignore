@@ -26,9 +26,12 @@ studio-plugin/MCPInspectorPlugin.rbxmx
 *.swp
 *.swo
 
-# Agent configs (may contain credentials)
+# Agent configs (may contain credentials) — except the shared GitNexus skill
+# files under .claude/skills/, which are plain generated docs and need to
+# ship with the repo so a fresh clone's agent context isn't broken links.
 .claude.json
-.claude/
+.claude/*
+!.claude/skills/
 .codex.json
 .codex/
 
@@ -41,11 +44,14 @@ docs/superpowers/
 research-prompt.*
 
 # Development files (keep local only)
-CLAUDE.md
+AGENTS.md
 MCP_Server_Plan.md
 test-*.js
 example-*.json
 mcp.json
+
+# GitNexus local indexer config (per-machine, not shared)
+.gitnexusrc
 
 # OS files
 .DS_Store
