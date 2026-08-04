@@ -26,7 +26,7 @@ export class ScriptTools {
 
   async getScriptSource(instancePath: string, startLine?: number, endLine?: number, instance_id?: string) {
     if (!instancePath) {
-      throw new Error('Instance path is required for get_script_source');
+      throw new Error('instancePath is required for get_script_source');
     }
     const response = await this.runtime.callSingle('/api/get-script-source', { instancePath, startLine, endLine }, undefined, instance_id);
 

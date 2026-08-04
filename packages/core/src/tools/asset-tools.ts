@@ -205,7 +205,7 @@ export class AssetTools {
   // ─── Build library CRUD ──────────────────────────────────────────
 
   async exportBuild(instancePath: string, outputId?: string, style: string = 'misc', instance_id?: string) {
-    if (!instancePath) throw new Error('Instance path is required for export_build');
+    if (!instancePath) throw new Error('instancePath is required for export_build');
     const response = await this.runtime.callSingle('/api/export-build', {
       instancePath, outputId, style,
     }, undefined, instance_id) as any;

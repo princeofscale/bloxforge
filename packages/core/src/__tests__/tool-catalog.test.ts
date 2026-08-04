@@ -187,6 +187,28 @@ describe('RobloxStudioTools.loadToolset', () => {
     expect(payload.tools).toContain('tool_catalog_search'); // core always present
     expect(payload.count).toBe(payload.tools.length);
   });
+
+  it('names a selector that is not a domain instead of echoing it as loaded', async () => {
+    // Live: asked for "scripting" (the domain is "scripts"), got loaded:
+    // ["scripting"] and no script tools — and client_hint's schema-refresh story
+    // read as the explanation, so the wrong thing got debugged.
+    const res = await tools.loadToolset({ toolsets: ['scene', 'scripting'] });
+    const payload = JSON.parse((res.content[0] as { text: string }).text) as {
+      loaded: string[]; unknownToolsets: string[]; validToolsets: string[]; client_hint: string;
+    };
+    expect(payload.loaded).toEqual(['scene']);
+    expect(payload.unknownToolsets).toEqual(['scripting']);
+    expect(payload.validToolsets).toContain('scripts');
+    expect(payload.client_hint).toContain('Not a toolset: scripting');
+  });
+
+  it('says nothing about unknown toolsets when every selector resolved', async () => {
+    const res = await tools.loadToolset({ toolsets: ['scripts'] });
+    const payload = JSON.parse((res.content[0] as { text: string }).text) as Record<string, unknown>;
+    expect(payload.unknownToolsets).toBeUndefined();
+    expect(payload.client_hint).toContain('Advertised, not guaranteed callable');
+    expect(payload.tools).toContain('get_script_source');
+  });
 });
 
 describe('core tool set and toolchain domains', () => {

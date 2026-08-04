@@ -50,7 +50,7 @@ export class SceneReadTools {
 
   async getInstanceProperties(instancePath: string, excludeSource?: boolean, instance_id?: string) {
     if (!instancePath) {
-      throw new Error('Instance path is required for get_instance_properties');
+      throw new Error('instancePath is required for get_instance_properties');
     }
     // Default to excluding Source: a script's Source can be thousands of tokens and
     // there's a dedicated get_script_source for reading it. Callers can opt back in
@@ -61,7 +61,7 @@ export class SceneReadTools {
 
   async getInstanceChildren(instancePath: string, instance_id?: string) {
     if (!instancePath) {
-      throw new Error('Instance path is required for get_instance_children');
+      throw new Error('instancePath is required for get_instance_children');
     }
     // The plugin's file watcher debounces ~500ms behind edits, so a path that was
     // just created can briefly read back as NOT_FOUND (bug B3/B5). Retry once after

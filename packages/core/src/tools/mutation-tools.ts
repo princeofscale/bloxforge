@@ -80,7 +80,7 @@ export class MutationTools {
 
   async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) {
     if (!instancePath) {
-      throw new Error('Instance path is required for delete_object');
+      throw new Error('instancePath is required for delete_object');
     }
     const gated = this.runtime.safetyGate('delete', `delete ${instancePath}`, { path: instancePath }, options);
     if (gated) return gated;
@@ -181,7 +181,7 @@ export class MutationTools {
 
   async getAttributes(instancePath: string, instance_id?: string) {
     if (!instancePath) {
-      throw new Error('Instance path is required for get_attributes');
+      throw new Error('instancePath is required for get_attributes');
     }
     const response = await this.runtime.callSingle('/api/get-attributes', { instancePath }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -205,7 +205,7 @@ export class MutationTools {
 
   async getTags(instancePath: string, instance_id?: string) {
     if (!instancePath) {
-      throw new Error('Instance path is required for get_tags');
+      throw new Error('instancePath is required for get_tags');
     }
     const response = await this.runtime.callSingle('/api/get-tags', { instancePath }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
