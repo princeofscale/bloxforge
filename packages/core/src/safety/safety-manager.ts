@@ -68,7 +68,12 @@ export const DEFAULT_SAFETY_CONFIG: SafetyConfig = {
     /ClearAllChildren\s*\(/,
     /:Destroy\s*\(/,
     /:Remove\s*\(/,
-    /game:GetService\(["']DataStoreService["']\)/,
+    // Acquiring the DataStore service used to be listed here, but that pattern
+    // matched only its *string argument* — so once the scan stopped reading
+    // string literals it could never fire again, and leaving it in would be a
+    // dead rule pretending to guard something. Nothing is lost: obtaining a
+    // service handle mutates no data, and the writes that do (:SetAsync,
+    // :RemoveAsync, below) are call-shaped and still caught.
     /\bos\.execute\b/,
     /\bos\.remove\b/,
     /\bos\.exit\b/,
@@ -79,6 +84,83 @@ export const DEFAULT_SAFETY_CONFIG: SafetyConfig = {
     /\bClear\s*\(/,
   ],
 };
+
+/**
+ * Blank out Luau string literals and comments so the destructive-pattern scan
+ * reads executable code only.
+ *
+ * The patterns are regexes over raw source, so any `:Destroy()` *mentioned* in a
+ * string counted as a call. Writing a module through `script.Source = "..."` —
+ * exactly what Rojo-style source sync does — therefore demanded confirmation for
+ * text that never runs, on every sync.
+ *
+ * A lexer-lite pass, not a parser: it only needs to know where strings and
+ * comments start and end. Anything unterminated returns the original source, so
+ * a mis-scan can only ever over-report, never hide a real destructive call.
+ *
+ * ponytail: no Luau parser dependency for this. If the scan ever needs to reason
+ * about *what* is being destroyed rather than whether a call appears, parse.
+ */
+export function stripLuauStringsAndComments(source: string): string {
+  const out: string[] = [];
+  let i = 0;
+
+  /** `[[`, `[=[`, ... at `from`; returns the level, or -1 when it is not one. */
+  const longBracketLevel = (from: number): number => {
+    if (source[from] !== '[') return -1;
+    let level = 0;
+    let j = from + 1;
+    while (source[j] === '=') { level++; j++; }
+    return source[j] === '[' ? level : -1;
+  };
+
+  const skipLongBracket = (from: number, level: number): number => {
+    const close = `]${'='.repeat(level)}]`;
+    const end = source.indexOf(close, from);
+    return end === -1 ? -1 : end + close.length;
+  };
+
+  while (i < source.length) {
+    const c = source[i];
+
+    if (c === '-' && source[i + 1] === '-') {
+      const level = longBracketLevel(i + 2);
+      if (level >= 0) {
+        const end = skipLongBracket(i + 2, level);
+        if (end === -1) return source; // unterminated long comment
+        i = end;
+      } else {
+        while (i < source.length && source[i] !== '\n') i++;
+      }
+      continue;
+    }
+
+    if (c === '"' || c === "'") {
+      i++;
+      while (i < source.length && source[i] !== c) {
+        if (source[i] === '\\') i++;
+        else if (source[i] === '\n') return source; // unterminated short string
+        i++;
+      }
+      if (i >= source.length) return source;
+      i++; // closing quote
+      continue;
+    }
+
+    const level = longBracketLevel(i);
+    if (level >= 0) {
+      const end = skipLongBracket(i, level);
+      if (end === -1) return source; // unterminated long string
+      i = end;
+      continue;
+    }
+
+    out.push(c);
+    i++;
+  }
+
+  return out.join('');
+}
 
 export interface AssessmentInput {
   kind: OperationKind;
@@ -184,9 +266,12 @@ export class SafetyManager {
       reasons.push(`Script source is ${input.scriptSize} chars, over the safety limit of ${this.config.maxScriptSize}.`);
     }
 
-    // Dangerous Luau scanning.
+    // Dangerous Luau scanning — over executable code only, so a destructive call
+    // quoted inside a string (a module being written through script.Source) does
+    // not demand confirmation for text that never runs.
     if (input.code) {
-      const hits = this.config.dangerousLuauPatterns.filter((re) => re.test(input.code as string));
+      const executable = stripLuauStringsAndComments(input.code);
+      const hits = this.config.dangerousLuauPatterns.filter((re) => re.test(executable));
       if (hits.length > 0) {
         requiresConfirmation = true;
         matchedPatterns.push(...hits.map((re) => re.toString()));
