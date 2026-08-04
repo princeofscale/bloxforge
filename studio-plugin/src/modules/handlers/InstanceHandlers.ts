@@ -212,6 +212,16 @@ function massDeleteObjects(requestData: Record<string, unknown>) {
 		return { error: "Paths array is required" };
 	}
 
+	// Validate the whole batch before opening a recording. getInstanceByPath calls
+	// path.gsub, which throws on a non-string — and thrown from inside the loop it
+	// would escape before finishRecording, leaving the change-history recording
+	// open and the already-removed items stranded in a half-applied batch.
+	for (const path of paths) {
+		if (!typeIs(path, "string") || (path as string) === "") {
+			return { error: "Every entry in paths must be a non-empty instance path string" };
+		}
+	}
+
 	// One recording for the whole batch, so a single Ctrl+Z puts everything back
 	// rather than making the user undo N times.
 	const recordingId = beginRecording(`Delete ${(paths as defined[]).size()} objects`);
@@ -221,7 +231,12 @@ function massDeleteObjects(requestData: Record<string, unknown>) {
 	let failureCount = 0;
 
 	for (const path of paths) {
-		const instance = getInstanceByPath(path);
+		const [resolved, instance] = pcall(() => getInstanceByPath(path));
+		if (!resolved) {
+			failureCount++;
+			results.push({ path, success: false, error: tostring(instance) });
+			continue;
+		}
 		if (!instance) {
 			failureCount++;
 			results.push({ path, success: false, error: `Instance not found: ${path}` });

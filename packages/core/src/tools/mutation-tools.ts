@@ -106,7 +106,18 @@ export class MutationTools {
     );
     if (gated) return gated;
     const response = await this.runtime.callSingle('/api/mass-delete-objects', { paths }, undefined, instance_id);
-    this.runtime.recordOperation('bulk_delete', `deleted ${paths.length} objects`);
+    // Report what the batch actually did, not what it was asked to do: a batch
+    // where every path was already gone completes with zero removals, and an
+    // operation history claiming N deletions is worse than no entry at all.
+    const summary = (response as { summary?: { succeeded?: number; failed?: number } })?.summary;
+    const succeeded = summary?.succeeded ?? paths.length;
+    if (succeeded > 0) {
+      const failed = summary?.failed ?? 0;
+      this.runtime.recordOperation(
+        'bulk_delete',
+        failed > 0 ? `deleted ${succeeded} of ${paths.length} objects` : `deleted ${succeeded} objects`,
+      );
+    }
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 

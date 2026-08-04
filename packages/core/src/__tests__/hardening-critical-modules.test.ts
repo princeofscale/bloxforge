@@ -157,6 +157,20 @@ describe('mutation safety gates', () => {
     );
   });
 
+  test('mass delete records what was removed, not what was asked for', async () => {
+    // Every path already gone => zero removals. Recording "deleted 2 objects"
+    // would put deletions that never happened into the operation history.
+    const adapter = runtime();
+    adapter.callSingle = jest.fn(async () => ({ summary: { total: 2, succeeded: 0, failed: 2 } })) as never;
+    await new MutationTools(adapter).massDeleteObjects(['game.Workspace.Gone', 'game.Workspace.AlsoGone']);
+    expect(adapter.recordOperation).not.toHaveBeenCalled();
+
+    const partial = runtime();
+    partial.callSingle = jest.fn(async () => ({ summary: { total: 2, succeeded: 1, failed: 1 } })) as never;
+    await new MutationTools(partial).massDeleteObjects(['game.Workspace.A', 'game.Workspace.Gone']);
+    expect(partial.recordOperation).toHaveBeenCalledWith('bulk_delete', 'deleted 1 of 2 objects');
+  });
+
   test('mass delete does not dispatch when the gate blocks it', async () => {
     const blocked = { content: [{ type: 'text' as const, text: 'confirmation required' }] };
     const adapter = runtime(blocked);

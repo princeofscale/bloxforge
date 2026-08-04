@@ -147,6 +147,21 @@ const ASSERTIONS = [
     test: (src) => src.includes('CFrame.lookAt') && src.includes('priorType') && src.includes('priorCFrame'),
   },
   {
+    // getInstanceByPath calls path.gsub, which throws on a non-string entry.
+    // Thrown from inside the delete loop it would escape before finishRecording,
+    // leaving the change-history recording open and the batch half-applied.
+    file: 'handlers/InstanceHandlers.luau',
+    label: 'mass delete validates paths before opening a recording, and resolves inside pcall',
+    test: (src) => {
+      const fn = src.slice(src.indexOf('function massDeleteObjects'));
+      const body = fn.slice(0, fn.indexOf('\nend\n') + 5);
+      const validateAt = body.indexOf('must be a non-empty instance path string');
+      const recordAt = body.indexOf('beginRecording');
+      return validateAt > -1 && recordAt > -1 && validateAt < recordAt
+        && body.includes('pcall(function()') && /getInstanceByPath/.test(body);
+    },
+  },
+  {
     // delete_object wrapped Destroy() in a ChangeHistoryService recording, but
     // Destroy() tears the instance down irreversibly — so `undo` reported success
     // while the object stayed gone. Unparenting is what Studio's own Delete does
