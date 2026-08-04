@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `run_playtest_episode` actually reads the run's logs. It passed `startedAt` — a
+  millisecond epoch — as `since`, but `since` is a *sequence cursor*: the plugin
+  filters `entry.seq > since`, and `seq > 1.78e12` is never true for a seq that
+  starts at 1. The episode collected **zero entries, always**, so `errorCount` and
+  `warningCount` were structurally 0 and no runtime error could reach the verdict.
+  This sat underneath the log-severity bug: fixing the classifier could not help
+  while its input was being zeroed first. It now fetches the window and bounds it
+  by wall clock against each entry's `ts`; an entry with no usable timestamp is
+  kept, because dropping a real error over a missing clock field is worse.
 - `load_toolset` says that "loaded" means *advertised*. It answered with 70+ tools
   loaded while every one stayed absent from the client's callable surface, and
   nothing in the response indicated that was possible. The server expands its
