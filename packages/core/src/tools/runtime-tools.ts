@@ -19,6 +19,7 @@ import type { OperationKind } from '../safety/safety-manager.js';
 import { buildPlaytestSampleLuau, type TelemetryDomain } from '../builders/playtest-telemetry.js';
 import { buildGameplayAssertionsLuau, type GameplayAssertion } from '../builders/gameplay-assertions.js';
 import type { EpisodeStore } from './episode-store.js';
+import { logSeverity, isEngineNoise } from '../diagnostics.js';
 import {
   diffEpisodes,
   proposeNextAction,
@@ -1788,9 +1789,17 @@ export class RuntimeTools {
     }
     const logs = this._parseToolEnvelope(await this.getRuntimeLogs(undefined, startedAt, 200, undefined, instance_id));
     const entries = Array.isArray(logs.entries) ? (logs.entries as Array<Record<string, unknown>>) : [];
-    const levelOf = (e: Record<string, unknown>) => String(e.level ?? e.type ?? '').toLowerCase();
-    const errorEntries = entries.filter((e) => levelOf(e).includes('error'));
-    const warnEntries = entries.filter((e) => levelOf(e).includes('warn'));
+    // Shared with diagnose_scripts. The old inline test was
+    // `String(e.level).includes('error')`, and the plugin's tag is "ERR" — which
+    // does not contain "error" — so no runtime error was ever counted and the
+    // verdict below could only ever fail on an assertion.
+    const allErrors = entries.filter((e) => logSeverity(e) === 'error');
+    const warnEntries = entries.filter((e) => logSeverity(e) === 'warning');
+    // Roblox's own CoreScripts log into the same buffer. On an unpublished place
+    // (PlaceId = 0) they reliably do, and those lines must not read as a game
+    // regression. Split rather than drop: the count and the lines stay visible.
+    const errorEntries = allErrors.filter((e) => !isEngineNoise(e.message));
+    const engineNoise = allErrors.filter((e) => isEngineNoise(e.message));
 
     // 4. Stop the playtest.
     const stop = this._parseToolEnvelope(await this.stopPlaytest(instance_id));
@@ -1800,6 +1809,9 @@ export class RuntimeTools {
     const hadErrors = errorEntries.length > 0;
     const verdict = assertionsFailed || hadErrors ? 'fail' : 'pass';
 
+    const noiseNote = engineNoise.length > 0
+      ? ` ${engineNoise.length} engine/CoreScript line(s) were excluded from the verdict — see "logs.engineNoise".`
+      : '';
     const episode = {
       episodeId, episodeUri, mode: m, durationS: holdMs / 1000, runtimeReady: true, verdict,
       assertions: assertionsResult,
@@ -1809,13 +1821,15 @@ export class RuntimeTools {
         warningCount: warnEntries.length,
         errors: errorEntries.slice(0, 20),
         warnings: warnEntries.slice(0, 10),
+        engineNoiseCount: engineNoise.length,
+        engineNoise: engineNoise.slice(0, 10),
       },
       stopped: stop.success !== false,
-      hint: verdict === 'pass'
+      hint: (verdict === 'pass'
         ? 'Episode passed — no runtime errors and all assertions held.'
         : assertionsFailed
           ? 'Assertions failed — inspect "assertions.results" for the failing checks, fix, then re-run run_playtest_episode to confirm.'
-          : 'Runtime errors were logged — inspect "logs.errors", fix, then re-run run_playtest_episode to confirm.',
+          : 'Runtime errors were logged — inspect "logs.errors", fix, then re-run run_playtest_episode to confirm.') + noiseNote,
     };
     // Persist so the agent can re-read / compare it across turns via the resource
     // plane (roblox://playtest/episode/{id}) and summarize_episode without re-running.
