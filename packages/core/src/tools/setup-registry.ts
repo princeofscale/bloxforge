@@ -183,6 +183,24 @@ export function registerContractedTools(
     }),
   );
 
+  // Bulk delete — registered here rather than added to the legacy dispatch map,
+  // so it arrives with the pipeline's structuredContent and error envelope.
+  registry.register(
+    defineTool({
+      name: 'mass_delete_objects',
+      description: findDef(MUTATION_TOOL_DEFINITIONS, 'mass_delete_objects')?.description ?? 'Delete many instances in one round-trip.',
+      category: 'write',
+      effects: ['studio.write'],
+      inputSchema: findDef(MUTATION_TOOL_DEFINITIONS, 'mass_delete_objects')?.inputSchema ?? {},
+      outputSchema: OUTPUT_SCHEMAS.mass_delete_objects,
+      handler: (runtime, args) => asTools(runtime).massDeleteObjects(
+        (args as any).paths,
+        (args as any).instance_id,
+        { dryRun: (args as any).dryRun, confirm: (args as any).confirm },
+      ),
+    }),
+  );
+
   // Recipes
   registry.register(
     defineTool({

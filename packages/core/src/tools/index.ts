@@ -329,6 +329,7 @@ export class RobloxStudioTools {
       callSingle: this._callSingle.bind(this),
       safetyGate: this._safetyGate.bind(this),
       recordOperation: (kind, summary) => this.safety.recordOperation({ kind: kind as OperationKind, summary }),
+      isProtectedPath: (path) => this.safety.isProtectedPath(path),
     });
     this.assetTools = new AssetTools({
       callSingle: this._callSingle.bind(this),
@@ -745,6 +746,7 @@ export class RobloxStudioTools {
   async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) { return this.mutationTools.createObject(className, parent, name, properties, instance_id); }
 
   async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) { return this.mutationTools.massCreateObjects(objects, instance_id, options); }
+  async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions) { return this.mutationTools.massDeleteObjects(paths, instance_id, options); }
 
   async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) { return this.mutationTools.deleteObject(instancePath, instance_id, options); }
 

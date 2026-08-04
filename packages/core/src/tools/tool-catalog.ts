@@ -159,7 +159,7 @@ const PREFIX_RULES: Array<[RegExp, ToolDomain]> = [
   [/script_source|script_lines|^get_script|^set_script|^edit_script|^insert_script|^delete_script/, 'scripts'],
   [/^export_build|^create_build|^generate_build|^import_build|^get_build/, 'build'],
   [/^set_attribute|^get_attributes|^delete_attribute|_tag$|^get_tags|^add_tag|^remove_tag|^get_tagged/, 'mutation'],
-  [/^set_propert|^mass_set|^mass_get|^create_object|^mass_create|^delete_object/, 'mutation'],
+  [/^set_propert|^mass_set|^mass_get|^create_object|^mass_create|^delete_object|^mass_delete/, 'mutation'],
   [/^get_|^search_|^compare_/, 'scene'],
 ];
 

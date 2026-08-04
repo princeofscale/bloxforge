@@ -20,6 +20,8 @@ type MutationToolRuntime = {
     options?: SafetyOptions,
   ): { content: ToolContent[] } | null;
   recordOperation(kind: string, summary: string): void;
+  /** Bulk deletes must gate on any protected path in the batch, not just the first. */
+  isProtectedPath(path: string): boolean;
 };
 
 export class MutationTools {
@@ -84,6 +86,38 @@ export class MutationTools {
     if (gated) return gated;
     const response = await this.runtime.callSingle('/api/delete-object', { instancePath }, undefined, instance_id);
     this.runtime.recordOperation('delete', `deleted ${instancePath}`);
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+  }
+
+  async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions) {
+    if (!paths || paths.length === 0) {
+      throw new Error('Paths array is required for mass_delete_objects');
+    }
+    // The safety manager has carried a `bulk_delete` kind (protected-path check
+    // plus count gating) since it was written; nothing had ever wired a tool to it.
+    // assess() takes one path, so surface a protected one if the batch has any —
+    // otherwise a list ending in ServerScriptService would slip the gate.
+    const protectedPath = paths.find((p) => this.runtime.isProtectedPath(p));
+    const gated = this.runtime.safetyGate(
+      'bulk_delete',
+      `delete ${paths.length} objects`,
+      { count: paths.length, path: protectedPath ?? paths[0] },
+      options,
+    );
+    if (gated) return gated;
+    const response = await this.runtime.callSingle('/api/mass-delete-objects', { paths }, undefined, instance_id);
+    // Report what the batch actually did, not what it was asked to do: a batch
+    // where every path was already gone completes with zero removals, and an
+    // operation history claiming N deletions is worse than no entry at all.
+    const summary = (response as { summary?: { succeeded?: number; failed?: number } })?.summary;
+    const succeeded = summary?.succeeded ?? paths.length;
+    if (succeeded > 0) {
+      const failed = summary?.failed ?? 0;
+      this.runtime.recordOperation(
+        'bulk_delete',
+        failed > 0 ? `deleted ${succeeded} of ${paths.length} objects` : `deleted ${succeeded} objects`,
+      );
+    }
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 

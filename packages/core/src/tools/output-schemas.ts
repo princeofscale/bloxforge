@@ -267,6 +267,39 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
     },
     required: ['applied', 'dryRun', 'results', 'rollback', 'summary'],
   },
+  mass_delete_objects: {
+    type: 'object',
+    additionalProperties: true,
+    properties: {
+      results: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            path: { type: 'string' },
+            success: { type: 'boolean' },
+            className: { type: 'string' },
+            name: { type: 'string' },
+            // A path that was already gone is reported here, not raised — one
+            // missing entry must not fail the rest of the batch.
+            error: { type: 'string' },
+          },
+          required: ['path', 'success'],
+        },
+      },
+      summary: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          total: { type: 'number' },
+          succeeded: { type: 'number' },
+          failed: { type: 'number' },
+        },
+        required: ['total', 'succeeded', 'failed'],
+      },
+    },
+  },
   list_recipes: {
     type: 'object',
     additionalProperties: false,

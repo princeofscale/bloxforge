@@ -90,6 +90,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   create_object: (tools, body) => tools.createObject(body.className, body.parent, body.name, body.properties, body.instance_id),
   mass_create_objects: (tools, body) => tools.massCreateObjects(body.objects, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   delete_object: (tools, body) => tools.deleteObject(body.instancePath, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
+  mass_delete_objects: (tools, body) => tools.massDeleteObjects(body.paths, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),
   smart_duplicate: (tools, body) => tools.smartDuplicate(body.instancePath, body.count, body.options, body.instance_id),
   mass_duplicate: (tools, body) => tools.massDuplicate(body.duplications, body.instance_id),
   grep_scripts: (tools, body) => tools.grepScripts(body.pattern, {

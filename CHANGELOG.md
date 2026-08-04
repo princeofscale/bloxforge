@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `mass_delete_objects` — the bulk counterpart to `mass_create_objects`, and the
+  one CRUD verb that had no bulk form (create, duplicate, get and set all did).
+  The whole batch is a single Studio undo step, so one Ctrl+Z puts it all back,
+  and missing paths are reported per-path rather than failing the batch. It is
+  wired to the safety manager's `bulk_delete` kind, which had been implemented —
+  protected-path check plus count gating — but never connected to any tool.
+  Because `assess()` takes one path, the tool surfaces a protected path from
+  anywhere in the batch, so a list ending in `ServerScriptService` cannot slip
+  the gate.
+
 ### Fixed
+- Deleting an instance can be undone. `delete_object` wrapped `Destroy()` in a
+  ChangeHistoryService recording, but `Destroy()` tears an instance down
+  irreversibly, so there was nothing left to restore: `undo` answered "Undo
+  executed successfully" while the object stayed gone. Undoing a *creation* and
+  a *property change* both worked, which is why the plumbing looked healthy and
+  only deletes were silently unrecoverable — the one case undo exists for.
+  Deletes now unparent, which is what Studio's own Delete does (verified live:
+  unparent restores, `Destroy()` does not). Safe because these handlers only run
+  in the edit DataModel, where the connections `Destroy()` would sever are not
+  live anyway.
 - `get_changes_since` actually returns the `scope` field it advertises. The
   scoping change added `scope` to the emitted Luau, the output schema and the
   tool description, but `_captureFingerprint` parsed only

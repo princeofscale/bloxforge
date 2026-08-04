@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 209
+## Total Tools: 210
 
 ### `get_file_tree` (Read-only)
 
@@ -243,6 +243,21 @@ Delete an instance — a part, model, or any other object. Deleting a protected 
 | `instancePath` | `string` | Yes | Instance path (dot notation) |
 | `dryRun` | `boolean` | No | Preview the deletion without removing anything (default false). |
 | `confirm` | `boolean` | No | Approve a deletion the safety layer would otherwise gate, such as a protected service/root (default false). |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `mass_delete_objects` (Write)
+
+Delete many instances in one round-trip, the bulk counterpart to mass_create_objects. The whole batch is one Studio undo step, so a single Ctrl+Z (or the undo tool) puts everything back. Missing paths are reported per-path rather than failing the batch. Large batches and any protected service/root in the list require confirm:true; use dryRun:true to preview.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `paths` | `array` | Yes | Instance paths to delete (dot notation). |
+| `dryRun` | `boolean` | No | Preview the deletion without removing anything (default false). |
+| `confirm` | `boolean` | No | Approve a deletion the safety layer would otherwise gate — a large batch, or a protected service/root in the list (default false). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
