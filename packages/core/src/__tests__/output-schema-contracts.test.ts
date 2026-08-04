@@ -158,6 +158,15 @@ const samples: Record<string, unknown> = {
     rollback: [{ op: 'set_property', target: 'Workspace.Part', property: 'Anchored', value: false }],
     summary: { total: 1, succeeded: 0, failed: 0 },
   },
+  mass_delete_objects: {
+    // A path that was already gone rides back in results rather than failing
+    // the batch, so the sample carries both outcomes.
+    results: [
+      { path: 'Workspace.Crate', success: true, className: 'Part', name: 'Crate' },
+      { path: 'Workspace.Gone', success: false, error: 'Instance not found: Workspace.Gone' },
+    ],
+    summary: { total: 2, succeeded: 1, failed: 1 },
+  },
   list_recipes: {
     recipes: [{
       id: 'proximity_door',
