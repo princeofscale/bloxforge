@@ -73,6 +73,17 @@ export interface ReconcilePlan {
   notes: string[];
   planHash: string;
   confirmationRequired: true;
+  /**
+   * Wall-clock milliseconds per inspection phase.
+   *
+   * Reported after a healthy two-tool project took about 160 seconds to return a
+   * one-step plan "without timeout diagnostics". Every step here is synchronous
+   * and individually bounded — the toolchain shim probes cap at 5s each — so the
+   * code alone does not explain it, and without a breakdown the next occurrence
+   * is just as opaque. This makes it answerable: whichever phase ate the time
+   * says so. Excluded from planHash: timings are observation, not plan content.
+   */
+  timingsMs: Record<string, number>;
 }
 
 interface Journal {
@@ -257,8 +268,21 @@ export class ProjectReconciler {
     const files: Array<string | undefined> = [];
     if (policySource) files.push(policySource);
 
+    const timingsMs: Record<string, number> = {};
+    const startedAt = Date.now();
+    /** Run a phase and record what it cost, whether it succeeds or throws. */
+    const timed = <T>(phase: string, run: () => T): T => {
+      const began = Date.now();
+      try {
+        return run();
+      } finally {
+        timingsMs[phase] = Date.now() - began;
+      }
+    };
+
     const finish = (selected?: string): ReconcilePlan => {
       const planHash = planHashOf('project_reconcile', { steps, policy }, files);
+      timingsMs.total = Date.now() - startedAt;
       return {
         // Not "nothing runnable": a step the policy withholds still means the
         // project is not ready, and reporting it as ready would hide the one
@@ -272,6 +296,7 @@ export class ProjectReconciler {
         notes,
         planHash,
         confirmationRequired: true,
+        timingsMs,
       };
     };
 
@@ -279,7 +304,7 @@ export class ProjectReconciler {
     //    the wrong game is worse than asking which one.
     let project;
     try {
-      project = selectRojoProject(projectRoot, projectFile);
+      project = timed('selectProject', () => selectRojoProject(projectRoot, projectFile));
     } catch (error) {
       blockers.push(errorText(error));
       return finish();
@@ -288,7 +313,7 @@ export class ProjectReconciler {
 
     // 2-4. The toolchain manifest, its pins, and the shims they name.
     try {
-      const status = this.rokit.status(projectRoot);
+      const status = timed('rokitStatus', () => this.rokit.status(projectRoot));
       files.push(status.manifestPath);
       if (status.legacy && !policy.migrateAftmanToRokit) {
         notes.push('aftman.toml is read as-is; migrating it to rokit.toml is a decision, not a repair.');
@@ -316,7 +341,7 @@ export class ProjectReconciler {
 
     // 5-7. The lockfile, the packages it resolved, and their Rojo mounts.
     try {
-      const validation = this.wally.validateLock(projectRoot);
+      const validation = timed('wallyValidateLock', () => this.wally.validateLock(projectRoot));
       files.push(path.join(validation.root, 'wally.toml'), validation.lockPath);
       if (!validation.present) {
         steps.push({
@@ -342,7 +367,7 @@ export class ProjectReconciler {
           requires: 'updateWallyLock',
         });
       } else if ((validation.declared ?? 0) > 0) {
-        const mapping = this.wally.verifyRojoMapping(projectRoot, project.projectFile);
+        const mapping = timed('wallyRojoMapping', () => this.wally.verifyRojoMapping(projectRoot, project.projectFile));
         if (mapping.packageDirectories.length === 0) {
           steps.push({
             id: 'install-packages',
@@ -383,7 +408,7 @@ export class ProjectReconciler {
     }
 
     // 10. `rojo serve`.
-    const serve = this.rojo.serveStatus(projectRoot, project.projectFile);
+    const serve = timed('rojoServeStatus', () => this.rojo.serveStatus(projectRoot, project.projectFile));
     if (serve.status !== 'running') {
       const restart = serve.status !== 'stopped';
       const permitted = restart ? policy.restartManagedRojo : policy.startRojo;

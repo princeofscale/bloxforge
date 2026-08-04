@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `project_reconcile_plan` reports where its time went. A healthy two-tool project
+  was reported taking about 160 seconds to return a one-step plan, "without timeout
+  diagnostics". Every phase of the inspection is synchronous and individually
+  bounded — the toolchain shim probes cap at 5s each — so the code alone does not
+  explain it, and I could not reproduce it without that project's toolchain. The
+  plan now carries a `timingsMs` breakdown per phase plus a total, so the next
+  occurrence names its own culprit instead of being opaque. Excluded from
+  `planHash`: timings are observation, not plan content.
 - A playtest peer's runtime logs survive the end of the test. The log buffer lives
   inside the runtime DataModel, so it died with the peer: once a play/multiplayer
   test ended, `get_runtime_logs` for `server` / `client-N` answered

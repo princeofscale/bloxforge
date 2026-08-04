@@ -189,6 +189,28 @@ describe('project_reconcile', () => {
     ]);
   });
 
+  // Reported: a healthy two-tool project took ~160s to return a one-step plan
+  // "without timeout diagnostics". Every phase here is synchronous and bounded,
+  // so the code alone does not explain it — the breakdown is what makes the next
+  // occurrence answerable instead of opaque.
+  test('reports how long each inspection phase took, without disturbing the plan hash', () => {
+    const reconciler = fixture.reconciler();
+    const plan = reconciler.plan(fixture.root);
+
+    expect(Object.keys(plan.timingsMs)).toEqual(
+      expect.arrayContaining(['selectProject', 'rokitStatus', 'total']),
+    );
+    for (const [phase, ms] of Object.entries(plan.timingsMs)) {
+      expect(typeof ms).toBe('number');
+      expect(ms).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(ms)).toBe(true);
+      expect(phase).not.toBe('');
+    }
+    // Timings are observation, not plan content: two runs of the same project
+    // must still agree on the hash even though the numbers differ.
+    expect(reconciler.plan(fixture.root).planHash).toBe(plan.planHash);
+  });
+
   // 2. Running it again changes nothing.
   test('a second apply is a no-op', async () => {
     const reconciler = fixture.reconciler();
