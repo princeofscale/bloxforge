@@ -207,6 +207,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   regenerating produced a whitespace-only diff to commit. Real content drift
   still fails. `scripts/generate-protocol-policy.mjs` already normalized for
   this; the tool-docs generator did not.
+- `isAddressInUseError` also treats `EPERM` as a duplicate-bridge signal, not
+  just `EADDRINUSE`. A second BloxForge launch could intermittently fail with
+  `listen EPERM: operation not permitted 127.0.0.1:<port>` instead of entering
+  proxy mode, because macOS can report a duplicate loopback bind as `EPERM`
+  under a sandboxed parent process rather than the `EADDRINUSE` Node normally
+  uses to signal it. Either code now means the same thing: a primary already
+  owns the bridge.
+
+### Documentation
+- Renamed `AGENTS.md` to `CLAUDE.md` so Claude Code reads the repository's
+  actual operating guide instead of the GitNexus stub that previously lived
+  under that name; the `.gitignore` split flips accordingly, so the
+  GitNexus-generated `AGENTS.md` duplicate is now the ignored one. Fixed the
+  two dangling `AGENTS.md` links this left in `README.md` and `docs/README.md`.
+- Extracted the GitNexus `<!-- gitnexus:start -->` block into
+  `docs/gitnexus-agent-guide.md` and expanded it with the tools the inline
+  block omitted (`trace`, `rename`, `cypher`, `check`, `route_map`,
+  `shape_check`, `api_impact`, `tool_map`, `group_list`/`group_sync`,
+  `list_repos`), leaving a short pointer behind the markers in `CLAUDE.md`.
+  `gitnexus analyze` still rewrites that inline block on every re-index, so
+  the extracted doc — not the marked block — is the one to keep current.
+- Un-ignored `.claude/skills/` (carved out of the blanket `.claude/`
+  credential rule): those are plain generated skill docs that `CLAUDE.md`
+  links to, and a fresh clone had no way to get them without re-running
+  GitNexus locally first.
+- Fixed `CONTRIBUTING.md`'s dead `todo.md` link and updated
+  `docs/known-limitations.md`'s Orchestration section, which still claimed
+  there was no unified "get this project running" tool after
+  `project_reconcile_plan`/`_apply`/`_status` had already shipped.
 
 ## [4.0.3] - 2026-08-02
 

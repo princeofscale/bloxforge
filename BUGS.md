@@ -3,6 +3,22 @@
 Record confirmed bugs, inaccuracies, and reproducible anomalies found during development here.
 
 ## Open
+- 2026-08-04 — `run_playtest_episode`'s `assertions` option cannot pass, ever: every
+  assertion fails with `"loadstring() is not available"` regardless of the
+  expression given, including a trivial always-true one. Reproduce: call
+  `run_playtest_episode` with `assertions: [{name: "x", expr: "workspace:GetAttribute('ChaosPhase') ~= nil"}]`
+  against any running place — the episode returns `verdict: "fail"`,
+  `assertions.error: "loadstring() is not available"`, `assertions.results: []`.
+  The rest of the episode (runtime peer, logs, state sample) works fine; only
+  assertion evaluation is broken, apparently because it compiles the expression
+  with `loadstring` inside the live game, which Roblox disables outside Studio's
+  command bar. Expected: assertion expressions evaluate through a path that
+  works in a real playtest (e.g. a bundled interpreter, or documented that
+  `loadstring` must be enabled). Impact: the entire assertions feature of
+  `run_playtest_episode`/`run_gameplay_assertions` is unusable as shipped, not
+  just unreliable — the verdict is always "fail" the moment any assertion is
+  supplied, silently discouraging correct code by reporting a false failure.
+
 - 2026-08-04 — `execute_luau` creates no undo waypoint, so nothing an agent builds
   or changes through it can be reversed. Reproduce: call `create_object`, read
   `ChangeHistoryService:GetCanUndo()` (top waypoint `MCP: Create Part`), then run
@@ -15,7 +31,7 @@ Record confirmed bugs, inaccuracies, and reproducible anomalies found during dev
   safety net silently does not cover the most powerful tool in the set.
 
 - 2026-08-03 — `project_reconcile_plan` took about 160 seconds to return for a healthy two-tool Rokit project whose only proposed action was `start-rojo`. Reproduce: call it with root `/Users/princeofscale/Roblox/WouldYouRather` and explicit `default.project.json` while Rojo serve is stopped. Expected: a read-only local manifest/status plan returns within a few seconds. Actual: the call remained pending for roughly 2.5 minutes, then returned a normal one-step plan without timeout diagnostics. Impact: routine pre-mutation inspection stalls agent workflows and exceeds the expected progress-update interval.
-- 2026-08-03 — An unsandboxed `project_reconcile_apply` starts the pinned Rojo process and captures `Rojo server listening ... Port: 34872`, but `rojo_serve_start` still fails after 10 seconds with `Rojo serve did not become ready within 10000ms`. Expected: readiness succeeds once the loopback endpoint is listening, or the error reports the failing readiness probe. Impact: reconcile cannot reach `ready:true` even though process startup itself succeeds.
+- 2026-08-03 — An unsandboxed `project_reconcile_apply` starts the pinned Rojo process and captures `Rojo server listening ... Port: 34872`, but `rojo_serve_start` still fails after 10 seconds with `Rojo serve did not become ready within 10000ms`. Expected: readiness succeeds once the loopback endpoint is listening, or the error reports the failing readiness probe. Impact: reconcile cannot reach `ready:true` even though process startup itself succeeds. Reconfirmed 2026-08-04 on the same project against a freshly rebuilt server (same-day `npm run build`): `rojo_serve_start` returns the identical stdout/timeout error, and a follow-up `rojo_serve_status` reports `"status":"stopped"` — the failed start does not leave an orphaned process, it is torn down, which rules out "process running but status tracking wrong" as the cause.
 - 2026-08-03 — `project_reconcile_apply` can generate the sourcemap and then fail its automatic `start-rojo` step with `listen EPERM: operation not permitted 127.0.0.1:34872`. Reproduce from a valid Rojo/Rokit project in a sandboxed MCP session: run `project_reconcile_plan`, then apply the returned hash. Expected: managed Rojo serve starts or the capability preflight reports that local port binding requires host approval before partially applying the plan. Impact: reconcile remains not-ready after a partially completed run and requires manually starting the pinned Rojo shim.
 - 2026-08-02 — After a secondary server enters proxy mode, mutation calls can receive `unrecognized_instance_id` / `No Studio plugin is connected` even though the primary had an edit instance earlier. The proxy must wait for or preserve the primary bridge connection before accepting routed Studio tool calls.
 - 2026-08-02 — A second BloxForge launch intermittently fails with `listen EPERM: operation not permitted 127.0.0.1:58741` instead of entering proxy mode. The port was held by the existing Codex-owned BloxForge child (`dist/index.js`); a subsequent launch did enter proxy mode. Investigate the startup race/error classification.
