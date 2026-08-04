@@ -247,6 +247,10 @@ function performSmartDuplicate(requestData: Record<string, unknown>, useRecordin
 	let failureCount = 0;
 
 	for (let i = 1; i <= count; i++) {
+		// Declared outside the pcall so a failed variation survives into the result
+		// instead of vanishing with the closure — same reason createObject does it.
+		let variationErrors: Record<string, unknown>[] = [];
+		let variationCount = 0;
 		const [success, newInstance] = pcall(() => {
 			const clone = instance.Clone();
 
@@ -286,14 +290,22 @@ function performSmartDuplicate(requestData: Record<string, unknown>, useRecordin
 			}
 
 			if (options.propertyVariations) {
+				// Was: a raw assignment inside a bare pcall. That skipped
+				// convertPropertyValue, so the documented forms — Color as
+				// [255, 0, 0], Position as {x,y,z} — arrived as Lua tables the
+				// engine rejects, and the discarded pcall meant the tool reported
+				// "succeeded: 2, failed: 0" with no variation applied at all.
+				// applyProperties (used by create_object) converts and reports.
+				const variation: Record<string, unknown> = {};
 				for (const [propName, values] of pairs(options.propertyVariations as Record<string, unknown[]>)) {
 					if (values && (values as defined[]).size() > 0) {
 						const valueIndex = ((i - 1) % (values as defined[]).size());
-						pcall(() => {
-							(clone as unknown as { [key: string]: unknown })[propName as string] = (values as unknown[])[valueIndex];
-						});
+						variation[propName as string] = (values as unknown[])[valueIndex];
 					}
 				}
+				const applied = applyProperties(clone, variation);
+				variationErrors = applied.failures;
+				variationCount = applied.total;
 			}
 
 			const targetParents = options.targetParents as string[] | undefined;
@@ -309,12 +321,17 @@ function performSmartDuplicate(requestData: Record<string, unknown>, useRecordin
 
 		if (success && newInstance) {
 			successCount++;
-			results.push({
+			const row: Record<string, unknown> = {
 				success: true,
 				instancePath: getInstancePath(newInstance as Instance),
 				name: (newInstance as Instance).Name,
 				index: i,
-			});
+			};
+			if (variationErrors.size() > 0) {
+				row.propertyErrors = variationErrors;
+				row.message = `Duplicate created, but ${variationErrors.size()} of ${variationCount} property variations could not be applied — see propertyErrors`;
+			}
+			results.push(row);
 		} else {
 			failureCount++;
 			results.push({ success: false, index: i, error: tostring(newInstance) });
