@@ -6,6 +6,8 @@
 // edit→playtest→observe→fix loop doesn't burn an LLM turn just to pick the
 // obvious next step. ponytail: heuristics over error/assertion text, not a model.
 
+import { isEngineNoise } from '../diagnostics.js';
+
 export interface EpisodeLike {
   episodeId?: unknown;
   verdict?: unknown;
@@ -43,7 +45,9 @@ function errorLinesOf(ep: EpisodeLike): string[] {
   const logs = (ep.logs ?? {}) as { errors?: Array<{ message?: unknown }> };
   return (logs.errors ?? [])
     .map((e) => String(e?.message ?? '').trim())
-    .filter((m) => m.length > 0);
+    // Episodes recorded before engine noise was split out still carry it inline,
+    // and it would otherwise become an "implicated script" the agent goes to fix.
+    .filter((m) => m.length > 0 && !isEngineNoise(m));
 }
 
 function errorCountOf(ep: EpisodeLike): number {

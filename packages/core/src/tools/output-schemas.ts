@@ -367,6 +367,10 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
           warningCount: { type: 'number' },
           errors: { type: 'array', items: { type: 'object', additionalProperties: true } },
           warnings: { type: 'array', items: { type: 'object', additionalProperties: true } },
+          // Roblox CoreScript lines, kept out of errorCount and the verdict but
+          // reported so a reader can see what was set aside and why.
+          engineNoiseCount: { type: 'number' },
+          engineNoise: { type: 'array', items: { type: 'object', additionalProperties: true } },
         },
       },
       stopped: { type: 'boolean' },

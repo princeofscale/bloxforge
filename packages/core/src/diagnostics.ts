@@ -52,6 +52,29 @@ export function logSeverity(entry: { level?: unknown; messageType?: unknown; typ
   return 'other';
 }
 
+// Roblox's own CoreScripts live under these containers. A place's code is never
+// parented there, so naming one is a reliable origin marker.
+const ENGINE_SOURCE_RE = /\b(CoreGui\.RobloxGui|CorePackages|RobloxReplicatedStorage)\b/;
+
+/**
+ * True when a log line came from Roblox's own CoreScripts rather than the place.
+ *
+ * Reported against multiplayer QA on an unpublished place (`PlaceId = 0`), which
+ * repeatably emits `Invalid value for enum CreatorType` from
+ * `CoreGui.RobloxGui.Modules.PlayerPermissionsModule` followed by PlayerList and
+ * TopBar failures, while the game's own scripts run fine. Those lines are the
+ * engine reacting to the place having no creator, not a regression in the game.
+ *
+ * This became load-bearing the moment log severity started working: before that
+ * no error was counted at all, so engine noise could not reach a verdict. Now it
+ * can, hence the split. Deliberately narrow — matching the container rather than
+ * message text — so a real error is never mistaken for noise. Noise is reported,
+ * never dropped.
+ */
+export function isEngineNoise(message: unknown): boolean {
+  return typeof message === 'string' && ENGINE_SOURCE_RE.test(message);
+}
+
 export function parseLogErrors(entries: LogEntry[]): DiagnosticsResult {
   const errors: DiagnosticItem[] = [];
   const warnings: DiagnosticItem[] = [];
