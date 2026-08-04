@@ -19,6 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- A playtest peer's runtime logs survive the end of the test. The log buffer lives
+  inside the runtime DataModel, so it died with the peer: once a play/multiplayer
+  test ended, `get_runtime_logs` for `server` / `client-N` answered
+  `target_role_not_present_on_instance` and the whole session's gameplay output was
+  gone — precisely when post-test QA wants it. The teardown paths now snapshot each
+  runtime peer's buffer on the way out and serve it afterwards, marked `retained`
+  with the capture time and a note, for ten minutes. A peer that never answers costs
+  the retention, never the shutdown: each fetch is capped at two seconds, and the
+  snapshot never delays the stop signal itself.
 - Roblox's own CoreScript errors no longer read as a game regression. Multiplayer
   QA on an unpublished place (`PlaceId = 0`) repeatably logs `Invalid value for enum
   CreatorType` from `CoreGui.RobloxGui.Modules.PlayerPermissionsModule` and its
