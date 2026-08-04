@@ -117,6 +117,11 @@ export class RuntimeTools {
         && (p.role === 'server' || /^client-\d+$/.test(p.role)),
     );
     await Promise.all(peers.map(async (peer) => {
+      // Drop the previous session's snapshot first. Skipping the write on an
+      // empty capture used to leave the *earlier* test's buffer in place, and
+      // get_runtime_logs would then serve it as if it belonged to the run that
+      // just finished — worse than returning nothing.
+      for (const id of equivalent) this.retainedLogs.delete(this._retentionKey(id, peer.role));
       try {
         const response = await Promise.race([
           this.client.request('/api/get-runtime-logs', { tail: 500 }, peer.instanceId, peer.role),
@@ -124,16 +129,46 @@ export class RuntimeTools {
         ]) as { entries?: unknown[]; totalDropped?: number } | undefined;
         const entries = Array.isArray(response?.entries) ? response.entries : [];
         if (entries.length === 0) return;
-        this.retainedLogs.set(this._retentionKey(instanceId, peer.role), {
+        const key = this._retentionKey(instanceId, peer.role);
+        const record: RetainedLogs = {
           entries,
           totalDropped: Number(response?.totalDropped ?? 0),
           retainedAt: Date.now(),
           role: peer.role,
-        });
+        };
+        this.retainedLogs.set(key, record);
+        // Expire on a timer as well as on read: a record nobody ever asks for
+        // would otherwise sit in the Map for the life of the process, and each
+        // distinct instance id can hold up to 500 entries. Guarded so a newer
+        // snapshot under the same key is never the one evicted.
+        setTimeout(() => {
+          if (this.retainedLogs.get(key) === record) this.retainedLogs.delete(key);
+        }, LOG_RETENTION_MS).unref?.();
       } catch {
         // The peer may already be gone; nothing to retain and nothing to report.
       }
     }));
+  }
+
+  /**
+   * Apply the same selection the plugin would have applied, so a retained read
+   * answers the caller's question rather than dumping the whole snapshot.
+   * Mirrors RuntimeLogBuffer.query's order exactly: since, then filter, then tail.
+   */
+  private static _selectRetained(
+    entries: unknown[],
+    since?: number,
+    tail?: number,
+    filter?: string,
+  ): unknown[] {
+    type Entry = { seq?: number; message?: unknown };
+    let result = entries as Entry[];
+    if (since !== undefined) result = result.filter((e) => Number(e?.seq ?? 0) > since);
+    if (filter !== undefined) {
+      result = result.filter((e) => String(e?.message ?? '').includes(filter));
+    }
+    if (tail !== undefined && result.length > tail) result = result.slice(result.length - tail);
+    return result;
   }
 
   /** Retained buffer for a departed role, or undefined when there is none/it aged out. */
@@ -1113,13 +1148,16 @@ export class RuntimeTools {
         tgt,
       );
       if (retained) {
+        const selected = RuntimeTools._selectRetained(retained.entries, since, tail, filter);
+        const last = retained.entries[retained.entries.length - 1] as { seq?: number } | undefined;
         return {
           content: [{
             type: 'text',
             text: JSON.stringify({
               capturedBy: retained.role,
-              entries: retained.entries,
+              entries: selected,
               totalDropped: retained.totalDropped,
+              nextSince: Number(last?.seq ?? since ?? 0),
               retained: true,
               retainedAt: retained.retainedAt,
               note: `"${tgt}" is no longer connected; these are the entries captured when the test ended.`,
