@@ -9,7 +9,7 @@
 // Runs via execute-luau. All reads are pcall-guarded (some props throw under
 // PluginSecurity).
 
-import { luaString, luaNumber, PATH_RESOLVER_LUA } from './luau-emit.js';
+import { luaString, luaNumber, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
 
 // Shared Luau helpers: stable id + the three channel signatures.
 const FINGERPRINT_HELPERS_LUA = `local function nid(d)
@@ -69,13 +69,14 @@ export function buildWorldFingerprintLuau(path = 'game', maxNodes = 8000): strin
 	const safePath = luaString(path);
 	const safeMax = luaNumber(Math.max(1, Math.floor(maxNodes)));
 	return `${PATH_RESOLVER_LUA}
+${PLACE_SCOPE_LUA}
 ${FINGERPRINT_HELPERS_LUA}
 local root = resolvePath(${safePath})
 if not root then return { error = "Path not found: " .. ${safePath} } end
 local fp = {}
 local count = 0
 local truncated = false
-for _, d in ipairs(root:GetDescendants()) do
+for _, d in ipairs(scopedDescendants(root)) do
 		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tif count >= ${safeMax} then truncated = true break end
@@ -88,5 +89,5 @@ for _, d in ipairs(root:GetDescendants()) do
 \t}
 \tcount = count + 1
 end
-return { fingerprint = fp, count = count, truncated = truncated, root = ${safePath} }`;
+return { fingerprint = fp, count = count, truncated = truncated, root = ${safePath}, scope = scopeLabel(root) }`;
 }

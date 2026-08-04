@@ -4,7 +4,7 @@
 // per-instance calls or one giant get_descendants. Both run via execute-luau, so
 // no plugin rebuild is needed.
 
-import { luaString, luaNumber, luaBool, PATH_RESOLVER_LUA } from './luau-emit.js';
+import { luaString, luaNumber, luaBool, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
 
 // Shared Luau: serialize a Roblox value into a compact JSON-friendly shape so the
 // agent gets [x,y,z] / [r,g,b] / names instead of opaque tostring() blobs.
@@ -74,41 +74,11 @@ export function buildWorldSnapshotLuau(
   const safePath = luaString(path);
   const safeTopN = luaNumber(Math.max(1, Math.floor(topNPerClass)));
   return `${PATH_RESOLVER_LUA}
+${PLACE_SCOPE_LUA}
 local root = resolvePath(${safePath})
 if not root then return { error = "Path not found: " .. ${safePath} } end
 
--- At game level, walk only the services a place actually stores. Studio's own
--- plumbing lives in the DataModel too, and it dwarfs the developer's content:
--- on an empty baseplate 1677 of 1713 descendants were Stats, StylingService,
--- MemStorageService, PluginGuiService and CoreGui, so "is the scene heavy"
--- answered 1713 and the top classes came back as StatsItem and StyleRule. An
--- explicit path is never filtered, so CoreGui stays reachable on request.
-local DEVELOPER_SERVICES = {
-\tWorkspace = true, Players = true, Lighting = true, MaterialService = true,
-\tReplicatedFirst = true, ReplicatedStorage = true, ServerScriptService = true,
-\tServerStorage = true, StarterGui = true, StarterPack = true, StarterPlayer = true,
-\tSoundService = true, Teams = true, Chat = true, TextChatService = true,
-\tLocalizationService = true, TestService = true,
-}
-local scopedToPlace = root == game
-local function inScope(child)
-\treturn (not scopedToPlace) or DEVELOPER_SERVICES[child.Name] == true
-end
-
-local scanRoots = {}
-if scopedToPlace then
-\tfor _, c in ipairs(root:GetChildren()) do
-\t\tif DEVELOPER_SERVICES[c.Name] then table.insert(scanRoots, c) end
-\tend
-else
-\tscanRoots = { root }
-end
-
-local descendants = {}
-for _, r in ipairs(scanRoots) do
-\tif scopedToPlace then table.insert(descendants, r) end
-\tfor _, d in ipairs(r:GetDescendants()) do table.insert(descendants, d) end
-end
+local descendants = scopedDescendants(root)
 
 local byClass = {}
 local total = 0
@@ -147,7 +117,7 @@ local roots = {}
 local ROOT_LIMIT = 30
 for _, c in ipairs(root:GetChildren()) do
 \tlocal childCount = #c:GetChildren()
-\tif childCount > 0 and inScope(c) then
+\tif childCount > 0 and inPlaceScope(root, c) then
 \t\ttable.insert(roots, { name = c.Name, className = c.ClassName, path = c:GetFullName(), childCount = childCount })
 \tend
 \tif #roots >= ROOT_LIMIT then break end
@@ -177,7 +147,7 @@ local snapshot = {
 \troot = ${safePath},
 \tlevel = ${luaString(level)},
 \t-- Say so rather than quietly returning different numbers than the DataModel holds.
-\tscope = scopedToPlace and "place services only (Studio internals such as CoreGui and Stats excluded; pass an explicit path to include them)" or "exact subtree",
+\tscope = scopeLabel(root),
 \tplace = { placeId = game.PlaceId, name = game.Name },
 \tcounts = {
 \t\ttotalDescendants = total,

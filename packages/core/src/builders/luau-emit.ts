@@ -47,6 +47,42 @@ export function vector3(x: number, y: number, z: number): string {
   return `Vector3.new(${luaNumber(x)}, ${luaNumber(y)}, ${luaNumber(z)})`;
 }
 
+// A reusable Lua prelude for walking "the place" rather than "the DataModel".
+// Studio's own plumbing is parented into the DataModel alongside the developer's
+// content and dwarfs it: on an empty baseplate 1676 of 1714 descendants were
+// Stats, StylingService, MemStorageService, PluginGuiService and CoreGui. Any
+// generator that starts from `game` therefore answers about Studio, not the game
+// — scene_search("button") returned 29 hits, every one of them Studio's own UI,
+// and a world fingerprint spent 202KB of its payload on noise to carry 3KB of
+// content. An explicit path is never filtered, so CoreGui stays reachable.
+export const PLACE_SCOPE_LUA = `local DEVELOPER_SERVICES = {
+\tWorkspace = true, Players = true, Lighting = true, MaterialService = true,
+\tReplicatedFirst = true, ReplicatedStorage = true, ServerScriptService = true,
+\tServerStorage = true, StarterGui = true, StarterPack = true, StarterPlayer = true,
+\tSoundService = true, Teams = true, Chat = true, TextChatService = true,
+\tLocalizationService = true, TestService = true,
+}
+local function scopedDescendants(root)
+\tif root ~= game then return root:GetDescendants() end
+\tlocal out = {}
+\tfor _, c in ipairs(root:GetChildren()) do
+\t\tif DEVELOPER_SERVICES[c.Name] then
+\t\t\ttable.insert(out, c)
+\t\t\tfor _, d in ipairs(c:GetDescendants()) do table.insert(out, d) end
+\t\tend
+\tend
+\treturn out
+end
+local function inPlaceScope(root, child)
+\treturn root ~= game or DEVELOPER_SERVICES[child.Name] == true
+end
+local function scopeLabel(root)
+\tif root == game then
+\t\treturn "place services only (Studio internals such as CoreGui and Stats excluded; pass an explicit path to include them)"
+\tend
+\treturn "exact subtree"
+end`;
+
 // A reusable Lua prelude that resolves a dot-notation DataModel path (e.g.
 // "StarterGui.MainGui.Panel" or "game.Workspace.Model") to an Instance. The
 // first non-"game" segment is treated as a service; remaining segments are

@@ -4,18 +4,18 @@
 // agent can grok a scene's shape for a handful of tokens. Runs via execute-luau, so
 // no plugin rebuild is needed.
 
-import { luaString, luaNumber } from './luau-emit.js';
-import { PATH_RESOLVER_LUA } from './luau-emit.js';
+import { luaString, luaNumber, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
 
 export function buildSceneSummaryLuau(path = 'game.Workspace', topN = 20): string {
   const safePath = luaString(path);
   const safeTopN = luaNumber(Math.max(1, Math.floor(topN)));
   return `${PATH_RESOLVER_LUA}
+${PLACE_SCOPE_LUA}
 local root = resolvePath(${safePath})
 if not root then return { error = "Path not found: " .. ${safePath} } end
 local byClass = {}
 local total = 0
-for _, d in ipairs(root:GetDescendants()) do
+for _, d in ipairs(scopedDescendants(root)) do
 \ttotal = total + 1
 \tbyClass[d.ClassName] = (byClass[d.ClassName] or 0) + 1
 end
@@ -24,10 +24,15 @@ for cls, n in pairs(byClass) do table.insert(arr, { className = cls, count = n }
 table.sort(arr, function(a, b) return a.count > b.count end)
 local top = {}
 for i = 1, math.min(${safeTopN}, #arr) do top[i] = arr[i] end
+local childCount = 0
+for _, c in ipairs(root:GetChildren()) do
+\tif inPlaceScope(root, c) then childCount = childCount + 1 end
+end
 return {
 \troot = ${safePath},
 \tclassName = root.ClassName,
-\tchildCount = #root:GetChildren(),
+\tscope = scopeLabel(root),
+\tchildCount = childCount,
 \ttotalDescendants = total,
 \tdistinctClasses = #arr,
 \ttopClasses = top,

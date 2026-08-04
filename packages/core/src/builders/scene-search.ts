@@ -5,13 +5,14 @@
 // only the ranked top-N (with a per-hit reason), so it stays token-lean. Runs via
 // execute-luau.
 
-import { luaString, luaNumber, PATH_RESOLVER_LUA } from './luau-emit.js';
+import { luaString, luaNumber, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } from './luau-emit.js';
 
 export function buildSceneSearchLuau(query: string, path = 'game', limit = 10): string {
 	const safePath = luaString(path);
 	const safeQuery = luaString(query.toLowerCase());
 	const safeLimit = luaNumber(Math.max(1, Math.min(50, Math.floor(limit))));
 	return `${PATH_RESOLVER_LUA}
+${PLACE_SCOPE_LUA}
 local root = resolvePath(${safePath})
 if not root then return { error = "Path not found: " .. ${safePath} } end
 
@@ -27,7 +28,7 @@ local function countHits(haystack, term, weight)
 end
 
 local scored = {}
-for _, d in ipairs(root:GetDescendants()) do
+for _, d in ipairs(scopedDescendants(root)) do
 		if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tlocal name = lc(d.Name)
@@ -66,5 +67,5 @@ end
 table.sort(scored, function(a, b) return a.score > b.score end)
 local top = {}
 for i = 1, math.min(${safeLimit}, #scored) do top[i] = scored[i] end
-return { query = query, total = #scored, returned = #top, results = top }`;
+return { query = query, total = #scored, returned = #top, results = top, scope = scopeLabel(root) }`;
 }

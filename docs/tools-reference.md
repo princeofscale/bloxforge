@@ -1460,7 +1460,7 @@ Get all descendants of an instance recursively with depth info. More efficient t
 
 ### `get_scene_summary` (Read-only)
 
-Token-lean scene overview: counts descendants by ClassName under a path and returns totals + the top-N classes, instead of dumping the whole tree. Use before get_descendants to understand a scene cheaply.
+Token-lean scene overview: counts descendants by ClassName under a path and returns totals + the top-N classes, instead of dumping the whole tree. Use before get_descendants to understand a scene cheaply. At game level the counts cover the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to count anything else verbatim.
 
 **Parameters:**
 
@@ -1643,7 +1643,7 @@ Read several instances in one round-trip, returning only the requested fields pe
 
 ### `get_changes_since` (Read-only)
 
-Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now).
+Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now). At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.
 
 **Parameters:**
 
@@ -1657,7 +1657,7 @@ Incremental changefeed: returns which instances were added, removed, or changed 
 
 ### `scene_search` (Read-only)
 
-Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths.
+Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths. At game level it searches the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to search anything else verbatim.
 
 **Parameters:**
 
