@@ -1873,13 +1873,50 @@ export class RuntimeTools {
     if (!Array.isArray(assertions) || assertions.length === 0) {
       throw new Error('assertions (a non-empty array) is required for run_gameplay_assertions');
     }
-    const response = await this._callSingle('/api/execute-luau', { code: buildGameplayAssertionsLuau(assertions) }, target || 'edit', instance_id);
-    return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
-      results: [],
-      summary: { total: assertions.length, passed: 0, failed: assertions.length },
+    const evaluate = async (specs: GameplayAssertion[]) => this._callSingle(
+      '/api/execute-luau',
+      { code: buildGameplayAssertionsLuau(specs) },
+      target || 'edit',
+      instance_id,
+    );
+
+    const response = await evaluate(assertions);
+    // "Could not evaluate" is not "every assertion failed". The old fallback
+    // claimed failed: N, so a runtime peer that could not run the chunk at all
+    // was indistinguishable from a genuine regression — and run_playtest_episode
+    // turned that into verdict: fail. Say what actually happened instead.
+    // No `results` in the fallback: its presence is how we tell "the chunk ran"
+    // from "the chunk never ran", and an empty array would read as the former.
+    const parsed = normalizeExecuteLuauToolResult(response, {
+      summary: { total: assertions.length, passed: 0, failed: 0 },
       allPassed: false,
+      evaluated: false,
       error: 'run_gameplay_assertions returned non-object execute-luau output',
-    })) as { content: ToolContent[] };
+    }) as Record<string, unknown>;
+
+    if (Array.isArray(parsed.results)) return wrapToolJsonText(parsed) as { content: ToolContent[] };
+
+    // The whole chunk failed — one malformed expression takes the batch with it
+    // now that they are compiled together rather than one loadstring at a time.
+    // Re-run them singly to name the culprit; only on this path, so the happy
+    // path still costs one round-trip.
+    parsed.evaluated = false;
+    parsed.results = [];
+    // ponytail: isolate at most 20 assertions, sequentially — a bounded-concurrency
+    // pass is the upgrade if larger batches ever need naming the culprit.
+    if (assertions.length > 1 && assertions.length <= 20) {
+      const perAssertion: Array<Record<string, unknown>> = [];
+      for (const spec of assertions) {
+        const single = normalizeExecuteLuauToolResult(await evaluate([spec]), {}) as Record<string, unknown>;
+        const rows = Array.isArray(single.results) ? single.results as Array<Record<string, unknown>> : undefined;
+        perAssertion.push(rows?.[0] ?? { name: spec.name, evaluated: false, error: String(single.error ?? 'did not evaluate') });
+      }
+      parsed.results = perAssertion;
+      // Not necessarily a compile error — the peer may have refused the chunk, or
+      // returned something unparseable. Say what is known: it did not evaluate.
+      parsed.note = 'The batch did not evaluate; each assertion was re-run alone to isolate the cause.';
+    }
+    return wrapToolJsonText(parsed) as { content: ToolContent[] };
   }
 
   // Pull the JSON object back out of a {content:[{text}]} tool envelope (our sibling
@@ -1983,9 +2020,15 @@ export class RuntimeTools {
     const stop = this._parseToolEnvelope(await this.stopPlaytest(instance_id));
 
     // 5. Verdict: fail on any failed assertion or any logged runtime error.
-    const assertionsFailed = assertionsResult ? assertionsResult.allPassed === false : false;
+    // Assertions that could not be evaluated are "error", not "fail": the game
+    // may be perfectly fine and the harness simply could not look at it, and
+    // sending an agent to fix three healthy things is the worse outcome.
+    const assertionsUnevaluated = assertionsResult?.evaluated === false;
+    const assertionsFailed = !assertionsUnevaluated && assertionsResult
+      ? assertionsResult.allPassed === false
+      : false;
     const hadErrors = errorEntries.length > 0;
-    const verdict = assertionsFailed || hadErrors ? 'fail' : 'pass';
+    const verdict = assertionsUnevaluated ? 'error' : (assertionsFailed || hadErrors ? 'fail' : 'pass');
 
     const noiseNote = engineNoise.length > 0
       ? ` ${engineNoise.length} engine/CoreScript line(s) were excluded from the verdict — see "logs.engineNoise".`
@@ -2005,9 +2048,11 @@ export class RuntimeTools {
       stopped: stop.success !== false,
       hint: (verdict === 'pass'
         ? 'Episode passed — no runtime errors and all assertions held.'
-        : assertionsFailed
-          ? 'Assertions failed — inspect "assertions.results" for the failing checks, fix, then re-run run_playtest_episode to confirm.'
-          : 'Runtime errors were logged — inspect "logs.errors", fix, then re-run run_playtest_episode to confirm.') + noiseNote,
+        : assertionsUnevaluated
+          ? 'The assertions could not be evaluated, so this says nothing about the game — inspect "assertions.error" (and "assertions.results" if the batch was isolated) before treating anything as a regression.'
+          : assertionsFailed
+            ? 'Assertions failed — inspect "assertions.results" for the failing checks, fix, then re-run run_playtest_episode to confirm.'
+            : 'Runtime errors were logged — inspect "logs.errors", fix, then re-run run_playtest_episode to confirm.') + noiseNote,
     };
     // Persist so the agent can re-read / compare it across turns via the resource
     // plane (roblox://playtest/episode/{id}) and summarize_episode without re-running.
