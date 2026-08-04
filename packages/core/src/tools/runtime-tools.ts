@@ -70,8 +70,86 @@ function isEndTestAlreadyCalledError(value: unknown): boolean {
   return /EndTest.*can only be called once|can only be called once/i.test(errorMessage(value));
 }
 
+/** A runtime peer's last log buffer, kept after the peer is torn down. */
+type RetainedLogs = {
+  entries: unknown[];
+  totalDropped: number;
+  retainedAt: number;
+  role: string;
+};
+
+// The log buffer lives inside the runtime DataModel, so it dies with the peer:
+// once a play/multiplayer test ends, get_runtime_logs for "server"/"client-N"
+// answered target_role_not_present_on_instance and the whole session's gameplay
+// output was simply gone. Post-test QA is exactly when that output matters, so
+// the teardown paths now snapshot each runtime peer's buffer on the way out and
+// serve it from here afterwards, clearly marked as retained.
+//
+// ponytail: one session deep, per instance+role, in memory. If cross-session
+// history is ever wanted, persist it — this only has to survive the teardown.
+const LOG_RETENTION_MS = 10 * 60 * 1000;
+// Hard ceiling on how long teardown will wait for a peer to hand over its buffer.
+// A wedged peer must cost the retention, never the shutdown.
+const LOG_RETENTION_TIMEOUT_MS = 2_000;
+
 export class RuntimeTools {
   constructor(private readonly runtime: RuntimeToolRuntime) {}
+
+  private readonly retainedLogs = new Map<string, RetainedLogs>();
+
+  private _retentionKey(instanceId: string, role: string): string {
+    return `${instanceId}::${role}`;
+  }
+
+  /**
+   * Snapshot every runtime peer's log buffer while the peers are still up.
+   *
+   * Deliberately NOT awaited before the stop signal goes out: teardown must not
+   * wait on a log round-trip, and a wedged peer must not be able to hang it. The
+   * peers survive the stop handshake (the edit DM writes a setting the runtime DM
+   * polls), so reading concurrently still catches the buffer. Callers await the
+   * returned promise once the stop request is already in flight.
+   */
+  private async _retainRuntimeLogsBeforeTeardown(instanceId: string): Promise<void> {
+    const equivalent = this.bridge.getEquivalentInstanceIds(instanceId);
+    const peers = this.bridge.getPublicInstances().filter(
+      (p) => equivalent.includes(p.instanceId)
+        && (p.role === 'server' || /^client-\d+$/.test(p.role)),
+    );
+    await Promise.all(peers.map(async (peer) => {
+      try {
+        const response = await Promise.race([
+          this.client.request('/api/get-runtime-logs', { tail: 500 }, peer.instanceId, peer.role),
+          new Promise((resolve) => setTimeout(() => resolve(undefined), LOG_RETENTION_TIMEOUT_MS).unref?.()),
+        ]) as { entries?: unknown[]; totalDropped?: number } | undefined;
+        const entries = Array.isArray(response?.entries) ? response.entries : [];
+        if (entries.length === 0) return;
+        this.retainedLogs.set(this._retentionKey(instanceId, peer.role), {
+          entries,
+          totalDropped: Number(response?.totalDropped ?? 0),
+          retainedAt: Date.now(),
+          role: peer.role,
+        });
+      } catch {
+        // The peer may already be gone; nothing to retain and nothing to report.
+      }
+    }));
+  }
+
+  /** Retained buffer for a departed role, or undefined when there is none/it aged out. */
+  private _readRetainedLogs(instanceId: string | undefined, role: string): RetainedLogs | undefined {
+    if (!instanceId) return undefined;
+    for (const id of this.bridge.getEquivalentInstanceIds(instanceId)) {
+      const hit = this.retainedLogs.get(this._retentionKey(id, role));
+      if (!hit) continue;
+      if (Date.now() - hit.retainedAt > LOG_RETENTION_MS) {
+        this.retainedLogs.delete(this._retentionKey(id, role));
+        return undefined;
+      }
+      return hit;
+    }
+    return undefined;
+  }
 
   private get bridge(): BridgeService { return this.runtime.bridge; }
   private get client(): StudioHttpClient { return this.runtime.client; }
@@ -1027,7 +1105,30 @@ export class RuntimeTools {
     // by role within the selected instance, so duplicate roles across
     // different places no longer collapse (the v2.11.x bug).
     const resolved = this.bridge.resolveTarget({ instance_id, target: tgt });
-    if (!resolved.ok) throw new RoutingFailure(resolved.error);
+    if (!resolved.ok) {
+      // The peer is gone — a play/multiplayer test that has ended. Serve the
+      // buffer captured on the way out rather than losing the session's output.
+      const retained = this._readRetainedLogs(
+        instance_id ?? this.bridge.getPublicInstances()[0]?.instanceId,
+        tgt,
+      );
+      if (retained) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              capturedBy: retained.role,
+              entries: retained.entries,
+              totalDropped: retained.totalDropped,
+              retained: true,
+              retainedAt: retained.retainedAt,
+              note: `"${tgt}" is no longer connected; these are the entries captured when the test ended.`,
+            }),
+          }],
+        };
+      }
+      throw new RoutingFailure(resolved.error);
+    }
 
     if (resolved.mode === 'single') {
       const originPeerReliable = await this._isMultiplayerTestRunning(resolved.targetInstanceId);
@@ -1320,6 +1421,10 @@ export class RuntimeTools {
         }],
       };
     }
+    // Capture the runtime buffers before the peers disappear with them — started
+    // here, awaited after the stop request is in flight so teardown is not delayed.
+    const retention = this._retainRuntimeLogsBeforeTeardown(instanceId);
+
     let response: Record<string, unknown>;
     let stopRequestError: string | undefined;
     try {
@@ -1332,6 +1437,7 @@ export class RuntimeTools {
         detail: stopRequestError,
       };
     }
+    await retention; // never rejects; see _retainRuntimeLogsBeforeTeardown
     let wait: { ok: boolean; roles: string[]; timedOut: boolean } | undefined;
     if (response?.success === true) {
       wait = await this._waitForRuntimeRoles(instanceId, { noRuntime: true }, 15, true);
@@ -1600,6 +1706,13 @@ export class RuntimeTools {
       serverTarget.instanceId,
       serverTarget.role,
     );
+    // Same reason as stopPlaytest: the buffers die with the peers. Unlike there,
+    // this must run *after* the end request rather than alongside it — both target
+    // the server peer, so starting first would put the log fetch ahead of the end
+    // request in that peer's queue. EndTest only acknowledges the request; the
+    // peers stay up through _waitForMultiplayerEditDone below, so the buffers are
+    // still readable here.
+    await this._retainRuntimeLogsBeforeTeardown(serverTarget.instanceId);
     const endResponse = response?.error && isEndTestAlreadyCalledError(response.error)
       ? {
         ...response,
