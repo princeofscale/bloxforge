@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the gate.
 
 ### Fixed
+- `scene_search` no longer scores single-character tokens. `"BF_M"` split into
+  `bf` and `m`, and the one-character `m` matched `Camera` alongside the parts
+  actually wanted — ranking buried it on a small place, but on a real one a stray
+  letter drags in enough chaff to eat the result limit before the real hits are
+  reached. Dropped only when a longer term survives, so a deliberate one-character
+  search still works. Tokenizing moved out of the emitted Luau into
+  `sceneSearchTerms`, where it is directly testable.
 - `run_playtest_episode` actually reads the run's logs. It passed `startedAt` — a
   millisecond epoch — as `since`, but `since` is a *sequence cursor*: the plugin
   filters `entry.seq > since`, and `seq > 1.78e12` is never true for a seq that
