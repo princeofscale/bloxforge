@@ -43,6 +43,7 @@ export const CORE_TOOLS: ReadonlySet<string> = new Set([
   'format_script_preview',
   'run_project_tests',
   'get_dependency_graph',
+  'asset_manifest_status',
   'run_quality_gate',
   'validate_with_luau_lsp',
   // Read-only toolchain checks. An agent needs to see *whether* the project is

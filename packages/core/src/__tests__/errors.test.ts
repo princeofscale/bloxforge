@@ -38,6 +38,15 @@ describe('extended classifyError codes', () => {
     ['Requires Studio Debugger beta enabled', 'BETA_FEATURE_REQUIRED'],
     ['ClassName is not creatable', 'UNSUPPORTED_CLASS'],
     ['assetId is required', 'INVALID_ARGUMENT'],
+    // Handlers write both voices, and only "required" used to classify — so
+    // "get_roblox_docs requires a name" came back UNKNOWN with no recovery
+    // hint. Both spellings are pinned because a \b-anchored fix for one of
+    // them silently broke the other.
+    ['get_roblox_docs requires a name', 'INVALID_ARGUMENT'],
+    ['instancePath is required for get_script_source', 'INVALID_ARGUMENT'],
+    // These stay with the more specific rules that precede INVALID_ARGUMENT.
+    ['This action requires confirmation', 'CONFIRMATION_REQUIRED'],
+    ['This tool requires the Studio beta feature', 'BETA_FEATURE_REQUIRED'],
   ];
   it.each(cases)('classifies %j as %s', (msg, code) => {
     expect(classifyError(msg)).toBe(code);

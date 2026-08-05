@@ -115,7 +115,31 @@ describe('ToolRegistry', () => {
     registry.register(toolA);
     const result = await registry.callTool('tool_a', null, {});
     expect(result).toBeDefined();
-    expect((result as any).structuredContent).toEqual({ ok: true });
+    expect((result as any).content[0].text).toBe('{"ok":true}');
+  });
+
+  // The structured copy is the same bytes as the text block, so it is sent only
+  // where an outputSchema gives a client something to validate it against.
+  it('sends structuredContent only for a tool that declares an outputSchema', async () => {
+    const contracted = defineTool({
+      name: 'tool_contracted',
+      description: 'Declares a contract',
+      category: 'read',
+      effects: ['studio.read'],
+      inputSchema: {},
+      outputSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+      handler: async () => ({ ok: true }),
+    });
+    const registry = new ToolRegistry();
+    registry.register(toolA, contracted);
+
+    const bare = await registry.callTool('tool_a', null, {});
+    expect((bare as any).structuredContent).toBeUndefined();
+    expect((bare as any).content[0].text).toBe('{"ok":true}');
+
+    const withSchema = await registry.callTool('tool_contracted', null, {});
+    expect((withSchema as any).structuredContent).toEqual({ ok: true });
+    expect((withSchema as any).content[0].text).toBe('{"ok":true}');
   });
 
   it('callTool returns undefined for unknown tools', async () => {

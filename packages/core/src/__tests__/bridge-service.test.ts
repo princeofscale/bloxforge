@@ -53,7 +53,7 @@ describe('persistent request journal', () => {
 
     try {
       const bridge = new BridgeService(path.join(blocker, 'journal.json'));
-      bridge.registerInstance({
+      bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'plugin',
         instanceId: 'place:1',
         role: 'edit',
@@ -204,7 +204,7 @@ class MirroredBridgeService extends BridgeService {
 }
 
 function register(b: BridgeService, opts: { pluginSessionId: string; instanceId: string; role: string; placeId?: number; placeName?: string; pluginVariant?: string }) {
-  const res = b.registerInstance({
+  const res = b.registerInstance({ protocolVersion: 3,
     pluginSessionId: opts.pluginSessionId,
     instanceId: opts.instanceId,
     role: opts.role,
@@ -578,7 +578,7 @@ describe('BridgeService', () => {
 
   describe('registerInstance', () => {
     test('issues a per-plugin session token and rejects mismatches', () => {
-      const registration = bridge.registerInstance({ pluginSessionId: 'auth', instanceId: 'place:auth', role: 'edit' });
+      const registration = bridge.registerInstance({ protocolVersion: 3, pluginSessionId: 'auth', instanceId: 'place:auth', role: 'edit' });
       if (!registration.ok) throw new Error('expected registration');
       expect(registration.sessionToken).toEqual(expect.any(String));
       expect(bridge.authenticatePlugin('auth', registration.sessionToken)).toBe(true);
@@ -586,14 +586,14 @@ describe('BridgeService', () => {
     });
 
     test('rotates the session token on refresh and revokes it on disconnect', () => {
-      const first = bridge.registerInstance({
+      const first = bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'auth',
         instanceId: 'place:auth',
         role: 'edit',
       });
       if (!first.ok) throw new Error('expected first registration');
 
-      const refreshed = bridge.registerInstance({
+      const refreshed = bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'auth',
         instanceId: 'place:auth',
         role: 'edit',
@@ -734,7 +734,7 @@ describe('BridgeService', () => {
 
     test('replaces a stale edit session for the same instance', () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      const replacement = bridge.registerInstance({
+      const replacement = bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'p2',
         instanceId: 'place:1',
         role: 'edit',
@@ -746,7 +746,7 @@ describe('BridgeService', () => {
 
     test('rejects duplicate explicit client role within the same instance_id', () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'client' });
-      const dup = bridge.registerInstance({
+      const dup = bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'p2',
         instanceId: 'place:1',
         role: 'client-1',
@@ -754,12 +754,12 @@ describe('BridgeService', () => {
       expect(dup.ok).toBe(false);
       if (dup.ok) return;
       expect(dup.error.code).toBe('duplicate_instance_role');
-      expect(dup.error.existing.role).toBe('client-1');
+      expect(dup.error.existing?.role).toBe('client-1');
     });
 
     test('re-registering same pluginSessionId is allowed (refresh)', () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      const refresh = bridge.registerInstance({
+      const refresh = bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'p1',
         instanceId: 'place:1',
         role: 'edit',
@@ -770,7 +770,7 @@ describe('BridgeService', () => {
 
     test('two edit plugins of different places coexist', () => {
       register(bridge, { pluginSessionId: 'p1', instanceId: 'place:1', role: 'edit' });
-      const r = bridge.registerInstance({
+      const r = bridge.registerInstance({ protocolVersion: 3,
         pluginSessionId: 'p2',
         instanceId: 'place:2',
         role: 'edit',

@@ -12,6 +12,7 @@ const READY = (overrides: Partial<{ pluginSessionId: string; instanceId: string;
   placeName: 'TestPlace',
   dataModelName: 'TestPlace',
   isRunning: false,
+  protocolVersion: 3,
   ...overrides,
 });
 

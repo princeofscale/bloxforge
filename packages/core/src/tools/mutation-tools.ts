@@ -29,7 +29,7 @@ export class MutationTools {
 
   async setProperty(instancePath: string, propertyName: string, propertyValue: any, instance_id?: string) {
     if (!instancePath || !propertyName) {
-      throw new Error('Instance path and property name are required for set_property');
+      throw new Error('instancePath and propertyName are required for set_property');
     }
     const response = await this.runtime.callSingle('/api/set-property', { instancePath, propertyName, propertyValue }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -45,7 +45,7 @@ export class MutationTools {
 
   async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) {
     if (!paths || paths.length === 0 || !propertyName) {
-      throw new Error('Paths array and property name are required for mass_set_property');
+      throw new Error('paths (non-empty) and propertyName are required for mass_set_property');
     }
     const response = await this.runtime.callSingle('/api/mass-set-property', { paths, propertyName, propertyValue }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -53,7 +53,7 @@ export class MutationTools {
 
   async massGetProperty(paths: string[], propertyName: string, instance_id?: string) {
     if (!paths || paths.length === 0 || !propertyName) {
-      throw new Error('Paths array and property name are required for mass_get_property');
+      throw new Error('paths (non-empty) and propertyName are required for mass_get_property');
     }
     const response = await this.runtime.callSingle('/api/mass-get-property', { paths, propertyName }, undefined, instance_id);
     return compactText(response);
@@ -61,7 +61,7 @@ export class MutationTools {
 
   async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) {
     if (!className || !parent) {
-      throw new Error('Class name and parent are required for create_object');
+      throw new Error('className and parent are required for create_object');
     }
     const response = await this.runtime.callSingle('/api/create-object', { className, parent, name, properties }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -69,7 +69,7 @@ export class MutationTools {
 
   async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) {
     if (!objects || objects.length === 0) {
-      throw new Error('Objects array is required for mass_create_objects');
+      throw new Error('objects (non-empty array) is required for mass_create_objects');
     }
     const gated = this.runtime.safetyGate('bulk_create', `create ${objects.length} objects`, { count: objects.length }, options);
     if (gated) return gated;
@@ -91,7 +91,7 @@ export class MutationTools {
 
   async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions) {
     if (!paths || paths.length === 0) {
-      throw new Error('Paths array is required for mass_delete_objects');
+      throw new Error('paths (non-empty array) is required for mass_delete_objects');
     }
     // The safety manager has carried a `bulk_delete` kind (protected-path check
     // plus count gating) since it was written; nothing had ever wired a tool to it.
@@ -143,7 +143,7 @@ export class MutationTools {
     instance_id?: string
   ) {
     if (!instancePath || count < 1) {
-      throw new Error('Instance path and count > 0 are required for smart_duplicate');
+      throw new Error('instancePath and count (> 0) are required for smart_duplicate');
     }
     const response = await this.runtime.callSingle('/api/smart-duplicate', { instancePath, count, options }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -165,7 +165,7 @@ export class MutationTools {
     instance_id?: string
   ) {
     if (!duplications || duplications.length === 0) {
-      throw new Error('Duplications array is required for mass_duplicate');
+      throw new Error('duplications (non-empty array) is required for mass_duplicate');
     }
     const response = await this.runtime.callSingle('/api/mass-duplicate', { duplications }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -173,7 +173,7 @@ export class MutationTools {
 
   async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) {
     if (!instancePath || !attributeName) {
-      throw new Error('Instance path and attribute name are required for set_attribute');
+      throw new Error('instancePath and attributeName are required for set_attribute');
     }
     const response = await this.runtime.callSingle('/api/set-attribute', { instancePath, attributeName, attributeValue, valueType }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -189,7 +189,7 @@ export class MutationTools {
 
   async deleteAttribute(instancePath: string, attributeName: string, instance_id?: string) {
     if (!instancePath || !attributeName) {
-      throw new Error('Instance path and attribute name are required for delete_attribute');
+      throw new Error('instancePath and attributeName are required for delete_attribute');
     }
     const response = await this.runtime.callSingle('/api/delete-attribute', { instancePath, attributeName }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -213,7 +213,7 @@ export class MutationTools {
 
   async addTag(instancePath: string, tagName: string, instance_id?: string) {
     if (!instancePath || !tagName) {
-      throw new Error('Instance path and tag name are required for add_tag');
+      throw new Error('instancePath and tagName are required for add_tag');
     }
     const response = await this.runtime.callSingle('/api/add-tag', { instancePath, tagName }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -221,7 +221,7 @@ export class MutationTools {
 
   async removeTag(instancePath: string, tagName: string, instance_id?: string) {
     if (!instancePath || !tagName) {
-      throw new Error('Instance path and tag name are required for remove_tag');
+      throw new Error('instancePath and tagName are required for remove_tag');
     }
     const response = await this.runtime.callSingle('/api/remove-tag', { instancePath, tagName }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -229,7 +229,7 @@ export class MutationTools {
 
   async getTagged(tagName: string, instance_id?: string) {
     if (!tagName) {
-      throw new Error('Tag name is required for get_tagged');
+      throw new Error('tagName is required for get_tagged');
     }
     const response = await this.runtime.callSingle('/api/get-tagged', { tagName }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
@@ -246,7 +246,16 @@ export class MutationTools {
       const gated = this.runtime.safetyGate('bulk_mutate', `apply ${operations.length} mutation(s)`, { count: operations.length }, { confirm });
       if (gated) return gated;
     }
-    const response = await this.runtime.callSingle('/api/execute-luau', { code: buildMutationPlanLuau(operations, !!dryRun, atomic) }, 'edit', instance_id);
+    // A dry run reports what would change without touching the DataModel, so it
+    // takes no undo label — only the apply becomes a waypoint.
+    const response = await this.runtime.callSingle(
+      '/api/execute-luau',
+      dryRun
+        ? { code: buildMutationPlanLuau(operations, true, atomic) }
+        : { code: buildMutationPlanLuau(operations, false, atomic), undoLabel: `mutation plan (${operations.length} ops)` },
+      'edit',
+      instance_id,
+    );
     if (!dryRun) this.runtime.recordOperation('bulk_mutate', `mutation plan: ${operations.length} ops`);
     return wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
       applied: !dryRun,

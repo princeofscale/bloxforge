@@ -61,6 +61,11 @@ export type SafetyOptions = {
 };
 
 export const MAX_INLINE_IMAGE_BYTES = 6_000_000;
+
+// Long-edge width past which vision models downscale anyway, so anything larger
+// is transferred and paid for only to be discarded. Callers that need to read
+// fine text pass maxWidth: 0 for the native capture.
+export const DEFAULT_SCREENSHOT_MAX_WIDTH = 1568;
 export const MAX_DEVICE_MATRIX_ENTRIES = 6;
 export const MAX_NETWORK_PACKET_LOSS_PERCENT = 0.5;
 
@@ -69,21 +74,75 @@ export const MAX_NETWORK_PACKET_LOSS_PERCENT = 0.5;
 // - 'jpeg': default; quality 92 with 4:4:4 chroma (no subsampling) keeps text
 //   crisp at ~1/3 the size. The image rides back inline as an MCP tool result,
 //   so JPEG is the safe default for staying under client result-size caps.
+/**
+ * Box-filter downscale of a raw RGBA buffer. Returns the input untouched when
+ * it is already at or below `maxWidth`, so the common path costs nothing.
+ *
+ * A Retina Studio window captures at physical resolution — 3130x1760 for a
+ * 1365x768 logical viewport — and every one of those pixels is carried to the
+ * model. Vision models resize past roughly 1568px on the long edge anyway, so
+ * the extra pixels are paid for and then discarded.
+ */
+export function downscaleRgba(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  maxWidth: number,
+): { data: Buffer; width: number; height: number } {
+  if (maxWidth <= 0 || width <= maxWidth) return { data: rgba, width, height };
+  const outW = maxWidth;
+  const outH = Math.max(1, Math.round((height * maxWidth) / width));
+  const out = Buffer.allocUnsafe(outW * outH * 4);
+  const xRatio = width / outW;
+  const yRatio = height / outH;
+
+  for (let y = 0; y < outH; y++) {
+    const srcY0 = Math.floor(y * yRatio);
+    const srcY1 = Math.min(height, Math.max(srcY0 + 1, Math.floor((y + 1) * yRatio)));
+    for (let x = 0; x < outW; x++) {
+      const srcX0 = Math.floor(x * xRatio);
+      const srcX1 = Math.min(width, Math.max(srcX0 + 1, Math.floor((x + 1) * xRatio)));
+      let r = 0, g = 0, b = 0, a = 0, n = 0;
+      for (let sy = srcY0; sy < srcY1; sy++) {
+        for (let sx = srcX0; sx < srcX1; sx++) {
+          const i = (sy * width + sx) * 4;
+          r += rgba[i]; g += rgba[i + 1]; b += rgba[i + 2]; a += rgba[i + 3];
+          n++;
+        }
+      }
+      const o = (y * outW + x) * 4;
+      out[o] = Math.round(r / n);
+      out[o + 1] = Math.round(g / n);
+      out[o + 2] = Math.round(b / n);
+      out[o + 3] = Math.round(a / n);
+    }
+  }
+  return { data: out, width: outW, height: outH };
+}
+
 export function encodeImageFromRgbaResponse(
   response: RawImageCaptureResponse,
   format: 'jpeg' | 'png',
   quality: number,
-): { buffer: Buffer; mimeType: string } {
+  maxWidth = 0,
+): { buffer: Buffer; mimeType: string; width: number; height: number } {
   if (!response.data || response.width === undefined || response.height === undefined) {
     throw new Error('Render response missing data, width, or height');
   }
-  const rgbaBuffer = Buffer.from(response.data, 'base64');
+  const scaled = downscaleRgba(Buffer.from(response.data, 'base64'), response.width, response.height, maxWidth);
   if (format === 'png') {
-    return { buffer: rgbaToPng(rgbaBuffer, response.width, response.height), mimeType: 'image/png' };
+    return {
+      buffer: rgbaToPng(scaled.data, scaled.width, scaled.height),
+      mimeType: 'image/png',
+      width: scaled.width,
+      height: scaled.height,
+    };
   }
   return {
-    buffer: rgbaToJpeg(rgbaBuffer, response.width, response.height, quality),
+    buffer: rgbaToJpeg(scaled.data, scaled.width, scaled.height, quality),
     mimeType: 'image/jpeg',
+    width: scaled.width,
+    height: scaled.height,
   };
 }
 

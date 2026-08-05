@@ -338,6 +338,11 @@ describe('Tool schema compatibility', () => {
     'summarize_episode',
     // Deterministic next-action reasons over the in-memory episode store.
     'propose_next_action',
+    // The asset manifest is a local file describing local art sources; reading
+    // and planning against it involves no place at all.
+    'asset_manifest_status',
+    'asset_manifest_plan',
+    'asset_manifest_scan',
   ]);
 
   function toolHandlerBody(toolName: string): string {

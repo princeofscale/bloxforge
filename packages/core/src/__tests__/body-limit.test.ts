@@ -27,6 +27,7 @@ describe('HTTP Body Limit', () => {
       placeName: 'TestPlace',
       dataModelName: 'TestPlace',
       isRunning: false,
+      protocolVersion: 3,
     };
 
     await request(app)
@@ -64,6 +65,7 @@ describe('HTTP Body Limit', () => {
       pluginSessionId: 'session-1',
       instanceId: 'place:test',
       role: 'edit',
+      protocolVersion: 3,
       largeData: largeString
     };
 

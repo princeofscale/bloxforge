@@ -133,6 +133,30 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
     inputSchema: { type: 'object', properties: { root: { type: 'string' }, script: { type: 'string' } }, required: ['script'] },
   },
   {
+    name: 'asset_manifest_status', category: 'read',
+    effects: ['local.files.read'],
+    description: 'Report the declared identity of every art asset in bloxforge.assets.json: which local file it comes from, whether that file still hashes to what was published, the import recipe it was produced with, its Roblox assetId/version, and any declared material map that is missing or over the texture budget. Answers "can this asset be rebuilt from source?" without touching Studio or the network. A damaged manifest is an error, never an empty result.',
+    inputSchema: { type: 'object', properties: { root: { type: 'string', description: 'Project directory (defaults to the server working directory).' } } },
+  },
+  {
+    name: 'asset_manifest_scan', category: 'read',
+    effects: ['local.files.read'],
+    description: 'Scan an art directory for 3D sources (.glb/.gltf/.fbx/.obj) and propose bloxforge.assets.json entries, binding sibling PBR textures to Color/Normal/Roughness/Metalness by filename suffix (_color, _basecolor, _albedo, _normal, _roughness, _metalness, …). A texture whose suffix matches no slot is reported as unclassified rather than guessed at. Also reports which sources the manifest already declares and which manifest entries point at a source that no longer exists. Read-only: it proposes entries, it never writes the manifest.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        root: { type: 'string', description: 'Project directory (defaults to the server working directory).' },
+        directory: { type: 'string', description: 'Directory to scan, project-relative (default: "art").' },
+      },
+    },
+  },
+  {
+    name: 'asset_manifest_plan', category: 'read',
+    effects: ['local.files.read'],
+    description: 'Preview what reconciling bloxforge.assets.json would do: which assets need a first publish, which need republishing because their source changed, and which need repair before they can be published. Returns an immutable planHash covering the manifest and the current content of every file it references, so an apply refuses a plan whose inputs moved. Assets whose source file is missing come back as blocked rather than as no-ops.',
+    inputSchema: { type: 'object', properties: { root: { type: 'string', description: 'Project directory (defaults to the server working directory).' } } },
+  },
+  {
     name: 'get_dependency_graph', category: 'read',
     effects: ['local.files.read'],
     description: 'Read Wally manifest/lockfile metadata into a compact dependency list without installing packages.',
@@ -178,6 +202,7 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         toolsets: {
           type: 'array',
+          minItems: 1,
           items: {
             type: 'string',
             enum: [

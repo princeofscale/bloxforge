@@ -30,5 +30,19 @@ export default {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
+  // A ratchet, not a target. These are the numbers this suite actually reached
+  // (61.58 / 51.33 / 54.46 / 63.25) with a small margin, so the gate says
+  // "coverage may not fall", which is enforceable today, rather than picking an
+  // aspirational percentage that would have to be disabled to merge anything.
+  // Raise the floor when a change raises the measurement; never lower it to
+  // make a red build green.
+  coverageThreshold: {
+    global: {
+      statements: 61,
+      branches: 51,
+      functions: 54,
+      lines: 62.8,
+    },
+  },
   testTimeout: 30000,
 };

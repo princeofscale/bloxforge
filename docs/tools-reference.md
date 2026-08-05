@@ -2,17 +2,18 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 210
+## Total Tools: 213
 
 ### `get_file_tree` (Read-only)
 
-Get instance hierarchy tree from Studio
+Get instance hierarchy tree from Studio. From the game root, engine-internal services (Stats, CoreGui, StylingService and similar) and services with no children are omitted, and the response reports how many; pass a path or include_internal to see them.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `path` | `string` | No | Root path (default: game root) |
+| `include_internal` | `boolean` | No | Include engine-internal and empty services when reading from the game root. Off by default: they were 96% of the response and hold no authored content. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -1309,6 +1310,7 @@ Capture the Roblox Studio viewport at native resolution and return it as an imag
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `format` | `string` | No | Image format. "jpeg" (default) is compact and crisp at high quality. "png" is lossless — best for reading dense text/UI, but larger (a busy 3D scene may be big). |
+| `maxWidth` | `integer` | No | Downscale the image to at most this width in pixels (default 1568, the point past which vision models resize anyway). 0 returns the native capture — use it to read fine text. The response states the resulting size and the simulate_mouse_input coordinate conversion for it. |
 | `quality` | `number` | No | JPEG quality 1-100 (default 92). Higher = sharper text, larger size. Ignored for png. |
 | `cameraPosition` | `object` | No | Optional temporary edit-camera position. Requires lookAt; the prior camera type/CFrame are restored after capture. |
 | `lookAt` | `object` | No | World point the temporary camera faces. Requires cameraPosition. |
@@ -2500,6 +2502,43 @@ Run an explicitly selected Lune project test script; no test script is guessed.
 |---|---|---|---|
 | `root` | `string` | No |  |
 | `script` | `string` | Yes |  |
+
+---
+
+### `asset_manifest_status` (Read-only)
+
+Report the declared identity of every art asset in bloxforge.assets.json: which local file it comes from, whether that file still hashes to what was published, the import recipe it was produced with, its Roblox assetId/version, and any declared material map that is missing or over the texture budget. Answers "can this asset be rebuilt from source?" without touching Studio or the network. A damaged manifest is an error, never an empty result.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Project directory (defaults to the server working directory). |
+
+---
+
+### `asset_manifest_scan` (Read-only)
+
+Scan an art directory for 3D sources (.glb/.gltf/.fbx/.obj) and propose bloxforge.assets.json entries, binding sibling PBR textures to Color/Normal/Roughness/Metalness by filename suffix (_color, _basecolor, _albedo, _normal, _roughness, _metalness, …). A texture whose suffix matches no slot is reported as unclassified rather than guessed at. Also reports which sources the manifest already declares and which manifest entries point at a source that no longer exists. Read-only: it proposes entries, it never writes the manifest.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Project directory (defaults to the server working directory). |
+| `directory` | `string` | No | Directory to scan, project-relative (default: "art"). |
+
+---
+
+### `asset_manifest_plan` (Read-only)
+
+Preview what reconciling bloxforge.assets.json would do: which assets need a first publish, which need republishing because their source changed, and which need repair before they can be published. Returns an immutable planHash covering the manifest and the current content of every file it references, so an apply refuses a plan whose inputs moved. Assets whose source file is missing come back as blocked rather than as no-ops.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `root` | `string` | No | Project directory (defaults to the server working directory). |
 
 ---
 

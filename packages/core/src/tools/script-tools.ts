@@ -170,7 +170,7 @@ export class ScriptTools {
     instance_id?: string
   ) {
     if (!pattern) {
-      throw new Error('Pattern is required for grep_scripts');
+      throw new Error('pattern is required for grep_scripts');
     }
     const response = await this.runtime.callSingle('/api/grep-scripts', {
       pattern,

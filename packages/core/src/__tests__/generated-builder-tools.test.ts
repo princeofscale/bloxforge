@@ -12,7 +12,9 @@ describe('GeneratedBuilderTools', () => {
 
     await tools.uiCreateScreenGui({ name: 'MainGui' }, 'place-1');
 
-    expect(runGeneratedLuau).toHaveBeenCalledWith(expect.stringContaining('ScreenGui'), 'place-1');
+    // The third argument is the undo label: it is what makes the build one
+    // Undo waypoint in Studio rather than an unrecorded DataModel edit.
+    expect(runGeneratedLuau).toHaveBeenCalledWith(expect.stringContaining('ScreenGui'), 'place-1', 'screen gui');
     expect(recordOperation).toHaveBeenCalledWith('ui_create', 'ScreenGui MainGui');
   });
 

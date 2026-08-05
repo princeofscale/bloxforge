@@ -31,6 +31,7 @@ import * as path from 'path';
 import {
   MAX_DEVICE_MATRIX_ENTRIES,
   MAX_INLINE_IMAGE_BYTES,
+  DEFAULT_SCREENSHOT_MAX_WIDTH,
   SIMULATION_PERSISTENCE_NOTES,
   buildDeviceSimulatorLuau,
   buildNetworkProfileLuau,
@@ -582,7 +583,7 @@ export class RuntimeTools {
 
   async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
     if (!code) {
-      throw new Error('Code is required for execute_luau');
+      throw new Error('code is required for execute_luau');
     }
     const gated = this.runtime.safetyGate('execute_luau', 'run Luau in Studio', { code }, options);
     if (gated) return gated;
@@ -602,7 +603,7 @@ export class RuntimeTools {
   // Same safety gate as execute_luau, since arbitrary code still runs.
   async executeLuauAsync(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
     if (!code) {
-      throw new Error('Code is required for execute_luau_async');
+      throw new Error('code is required for execute_luau_async');
     }
     const gated = this.runtime.safetyGate('execute_luau', 'run Luau in Studio (async)', { code }, options);
     if (gated) return gated;
@@ -631,7 +632,7 @@ export class RuntimeTools {
 
   async evalServerRuntime(code: string, instance_id?: string) {
     if (!code) {
-      throw new Error('Code is required for eval_server_runtime');
+      throw new Error('code is required for eval_server_runtime');
     }
     const response = await this._callSingle('/api/eval-runtime', { code }, 'server', instance_id);
     return {
@@ -646,7 +647,7 @@ export class RuntimeTools {
 
   async evalClientRuntime(code: string, target?: string, instance_id?: string) {
     if (!code) {
-      throw new Error('Code is required for eval_client_runtime');
+      throw new Error('code is required for eval_client_runtime');
     }
     const clientTarget = target || 'client-1';
     if (!clientTarget.startsWith('client-')) {
@@ -1844,7 +1845,7 @@ export class RuntimeTools {
 
   async characterNavigation(position?: number[], instancePath?: string, waitForCompletion?: boolean, timeout?: number, target?: string, instance_id?: string) {
     if (!position && !instancePath) {
-      throw new Error('Either position or instancePath is required for character_navigation');
+      throw new Error('position or instancePath is required for character_navigation');
     }
     const response = await this._callSingle('/api/character-navigation', {
       position, instancePath, waitForCompletion, timeout
@@ -2150,6 +2151,7 @@ export class RuntimeTools {
     quality?: number,
     cameraPosition?: { x: number; y: number; z: number },
     lookAt?: { x: number; y: number; z: number },
+    maxWidth?: number,
   ): Promise<EncodedViewportCapture> {
     let response: RawImageCaptureResponse;
     if (targetRole.startsWith('client-')) {
@@ -2196,14 +2198,17 @@ export class RuntimeTools {
       return { success: false, error: text };
     }
 
-    const w = response.width;
-    const h = response.height;
-    if (w === undefined || h === undefined) {
+    if (response.width === undefined || response.height === undefined) {
       return { success: false, error: 'Screenshot response missing dimensions.' };
     }
 
     const fmt: 'jpeg' | 'png' = format === 'png' ? 'png' : 'jpeg';
     const q = quality === undefined ? 92 : Math.max(1, Math.min(100, Math.floor(quality)));
+    // A Retina window captures at 3130x1760 for a 1365x768 logical viewport,
+    // and vision models resize past ~1568px on the long edge regardless — so
+    // those pixels are transferred, paid for, and then thrown away. 0 restores
+    // the native capture for a caller who needs to read fine text.
+    const cap = maxWidth === undefined ? DEFAULT_SCREENSHOT_MAX_WIDTH : Math.max(0, Math.floor(maxWidth));
 
     // Cap the inline image size. Measured empirically: an ~8MB image (11MB
     // base64) returns fine, but ~16MB (22MB base64) CLOSES the MCP connection
@@ -2212,11 +2217,19 @@ export class RuntimeTools {
     // For PNG we refuse (rather than silently dropping the lossless guarantee
     // the caller asked for); for JPEG we step quality down so the call still
     // succeeds.
-    const encoded = encodeImageFromRgbaResponse(response, fmt, q);
+    const encoded = encodeImageFromRgbaResponse(response, fmt, q, cap);
     let { buffer } = encoded;
     const { mimeType } = encoded;
+    // Every downstream number — the coordinate conversion simulate_mouse_input
+    // relies on, the reported size, the returned width/height — must describe
+    // the image actually sent, not the one the plugin captured.
+    const w = encoded.width;
+    const h = encoded.height;
+    const downscaled = w !== response.width;
     let usedQ = q;
-    let note = '';
+    let note = downscaled
+      ? ` — downscaled from ${response.width}x${response.height}px (maxWidth ${cap}); pass maxWidth:0 for the native capture`
+      : '';
 
     if (buffer.length > MAX_INLINE_IMAGE_BYTES) {
       if (fmt === 'png') {
@@ -2230,9 +2243,9 @@ export class RuntimeTools {
       }
       while (buffer.length > MAX_INLINE_IMAGE_BYTES && usedQ > 25) {
         usedQ = Math.max(25, usedQ - 20);
-        buffer = encodeImageFromRgbaResponse(response, 'jpeg', usedQ).buffer;
+        buffer = encodeImageFromRgbaResponse(response, 'jpeg', usedQ, cap).buffer;
       }
-      note = ` — auto-reduced to q${usedQ} to fit the inline size limit; enlarge the Studio window or capture a smaller region for finer detail`;
+      note += ` — auto-reduced to q${usedQ} to fit the inline size limit; enlarge the Studio window or capture a smaller region for finer detail`;
     }
 
     const viewportW = response.viewportW;
@@ -2240,7 +2253,7 @@ export class RuntimeTools {
     const hasViewport = viewportW !== undefined && viewportH !== undefined && viewportW > 0 && viewportH > 0;
     let coordinateText =
       `For simulate_mouse_input, x/y are pixel coordinates in this exact image with (0,0) at the ` +
-      `top-left; it is not downscaled, so use coordinates as you read them off the image.`;
+      `top-left; this image matches the logical viewport, so use coordinates as you read them off it.`;
     if (hasViewport && (viewportW !== w || viewportH !== h)) {
       const scaleX = w / viewportW;
       const scaleY = h / viewportH;
@@ -2270,13 +2283,13 @@ export class RuntimeTools {
     };
   }
 
-  async captureScreenshot(instance_id?: string, format?: string, quality?: number, cameraPosition?: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }) {
+  async captureScreenshot(instance_id?: string, format?: string, quality?: number, cameraPosition?: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }, maxWidth?: number) {
     if ((cameraPosition === undefined) !== (lookAt === undefined)) {
       throw new Error('capture_screenshot cameraPosition and lookAt must be provided together');
     }
     const { instanceId, clientRole } = this._resolveRuntime(instance_id);
     if (cameraPosition && clientRole) throw new Error('Temporary camera framing is only supported in Edit mode');
-    const capture = await this._captureViewportImage(instanceId, clientRole ?? 'edit', format, quality, cameraPosition, lookAt);
+    const capture = await this._captureViewportImage(instanceId, clientRole ?? 'edit', format, quality, cameraPosition, lookAt, maxWidth);
     if (!capture.success) {
       return { content: [{ type: 'text', text: capture.error }] };
     }

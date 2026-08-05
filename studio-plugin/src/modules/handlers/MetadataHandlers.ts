@@ -277,7 +277,22 @@ function executeLuau(requestData: Record<string, unknown>) {
 	// of table returns, and parse-error recovery live in LuauExec so the
 	// edit/server (this handler) and the play-client (ClientBroker) take
 	// the same code path and produce identical output shapes.
-	return LuauExec.execute(code);
+	//
+	// Callers that mutate the DataModel declare an undoLabel, which turns the
+	// whole script into one Undo waypoint. Reads (world snapshot, fingerprint,
+	// syntax check) send none: the recording is opt-in rather than inferred,
+	// because a read must not open an empty recording and a runtime peer has
+	// no edit history to record into.
+	const undoLabel = requestData.undoLabel;
+	if (!typeIs(undoLabel, "string") || undoLabel === "") {
+		return LuauExec.execute(code);
+	}
+	const recordingId = beginRecording(undoLabel);
+	const result = LuauExec.execute(code);
+	// Cancel on failure so a script that died halfway does not leave a
+	// committed waypoint the user has to undo separately.
+	finishRecording(recordingId, result.success === true);
+	return result;
 }
 
 function undo(_requestData: Record<string, unknown>) {

@@ -199,9 +199,11 @@ export interface RegisterInstanceInput {
   serverProtocolVersion?: number;
 }
 
+export type RegisterInstanceErrorCode = 'duplicate_instance_role' | 'unsupported_plugin_protocol';
+
 export type RegisterInstanceResult =
   | { ok: true; assignedRole: string; instanceId: string; sessionToken: string }
-  | { ok: false; error: { code: 'duplicate_instance_role'; message: string; existing: PublicPluginInstance } };
+  | { ok: false; error: { code: RegisterInstanceErrorCode; message: string; existing?: PublicPluginInstance } };
 
 export function toPublic(inst: PluginInstance): PublicPluginInstance {
   return {
@@ -224,6 +226,15 @@ export function toPublic(inst: PluginInstance): PublicPluginInstance {
 }
 
 export const MCP_PROTOCOL_VERSION = 3;
+
+// The oldest plugin protocol the bridge will serve. Below v3 a plugin cannot
+// carry the stale-response fence — server epoch, plugin session binding,
+// delivery attempt and lease token — so `/ack` and `/response` fall back to the
+// unfenced path and the server can accept a result it is unable to prove
+// belongs to the request it is answering. That is the silent downgrade the
+// fail-closed invariant forbids, so an older plugin is refused at `/ready`
+// with the command that fixes it rather than served a weaker guarantee.
+export const MIN_SUPPORTED_PLUGIN_PROTOCOL_VERSION = 3;
 
 // Grace period before a silent plugin (no /poll) is reaped. Polls run every
 // ~0.5s, so 30s was the historical floor, but Roblox Studio throttles
@@ -578,6 +589,21 @@ export class BridgeService {
     const serverProtocolVersion = Number.isFinite(input.serverProtocolVersion) ? Number(input.serverProtocolVersion) : MCP_PROTOCOL_VERSION;
     const versionMismatch = pluginVersion !== '' && serverVersion !== '' && pluginVersion !== serverVersion;
     const protocolMismatch = pluginProtocolVersion !== serverProtocolVersion;
+
+    // Refuse before touching any registration state, so a rejected plugin
+    // leaves no alias, no migrated requests and no half-registered instance.
+    if (pluginProtocolVersion < MIN_SUPPORTED_PLUGIN_PROTOCOL_VERSION) {
+      return {
+        ok: false,
+        error: {
+          code: 'unsupported_plugin_protocol',
+          message:
+            `Studio plugin protocol v${pluginProtocolVersion || 'unknown'} is older than the minimum supported ` +
+            `v${MIN_SUPPORTED_PLUGIN_PROTOCOL_VERSION} (server speaks v${serverProtocolVersion}). ` +
+            'Run: npx -y @princeofscale/bloxforge@latest --install-plugin, then restart Studio.',
+        },
+      };
+    }
 
     this.rememberInstanceAlias(rawInstanceId, instanceId);
     if (prior && prior.instanceId !== instanceId) {

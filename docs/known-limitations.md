@@ -270,6 +270,24 @@ enforced by `rojo_syncback_apply`; clients must migrate to the canonical pair.
   the exact matched patterns so false positives can be reviewed rather than
   silently bypassed.
 
+## Asset manifest
+
+- `bloxforge.assets.json` covers declaration, inspection and planning only.
+  `asset_manifest_status` and `asset_manifest_plan` are local reads; there is no
+  apply step yet, so publishing, importing and package updates are still driven
+  by the existing Studio and Open Cloud tools, and `roblox.assetId` /
+  `assetVersion` are recorded by hand after publishing.
+- `policy.maxTextureSize` is enforced for PNG maps only. Dimensions are read
+  from the PNG header; any other format reports no dimensions rather than
+  passing a budget it was never measured against.
+- `policy.maxTriangles` is declared but not enforced. Counting triangles means
+  parsing the mesh, which the manifest layer deliberately does not do — it is
+  reported by the Studio-side preflight instead.
+- Triangle counts, pivot and axis correctness are properties of the imported
+  asset, so they cannot be verified from the source file alone. The manifest
+  records what was *declared*; verifying it against what Studio actually
+  produced is a separate post-import audit.
+
 ---
 
 ## See also

@@ -9,6 +9,7 @@ const READY = {
   placeName: 'TestPlace',
   dataModelName: 'TestPlace',
   isRunning: false,
+  protocolVersion: 3,
 };
 
 describe('contracted execute-luau tool normalization', () => {

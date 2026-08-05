@@ -21,7 +21,7 @@ import * as path from 'path';
 
 type AssetToolRuntime = {
   callSingle(endpoint: string, data: unknown, target: string | undefined, instance_id: string | undefined): Promise<any>;
-  runGeneratedLuau(code: string, instance_id?: string): Promise<{ content: ToolContent[] }>;
+  runGeneratedLuau(code: string, instance_id?: string, undoLabel?: string): Promise<{ content: ToolContent[] }>;
   recordOperation(kind: string, summary: string): void;
   openCloudClient: OpenCloudClient;
   cookieClient: RobloxCookieClient;
@@ -451,7 +451,7 @@ export class AssetTools {
   }
 
   async getAssetDetails(assetId: number) {
-    if (!assetId) throw new Error('Asset ID is required for get_asset_details');
+    if (!assetId) throw new Error('assetId is required for get_asset_details');
     const oc = this.runtime.openCloudClient;
     const cc = this.runtime.cookieClient;
 
@@ -503,7 +503,7 @@ export class AssetTools {
   }
 
   async getAssetThumbnail(assetId: number, size?: string) {
-    if (!assetId) throw new Error('Asset ID is required for get_asset_thumbnail');
+    if (!assetId) throw new Error('assetId is required for get_asset_thumbnail');
     const oc = this.runtime.openCloudClient;
     if (!oc.hasApiKey()) return toolErrorResult('Set ROBLOX_OPEN_CLOUD_API_KEY env var for asset thumbnails.');
     const thumbnail = await oc.getAssetThumbnail(assetId, size as '150x150' | '420x420' | '768x432' | undefined);
@@ -513,7 +513,7 @@ export class AssetTools {
   // ─── Insert / preview ────────────────────────────────────────────
 
   async insertAsset(assetId: number, parentPath?: string, position?: { x: number; y: number; z: number }, instance_id?: string) {
-    if (!assetId) throw new Error('Asset ID is required for insert_asset');
+    if (!assetId) throw new Error('assetId is required for insert_asset');
     const response = await this.runtime.callSingle('/api/insert-asset', {
       assetId, parentPath, position,
     }, undefined, instance_id) as Record<string, unknown>;
@@ -521,7 +521,7 @@ export class AssetTools {
   }
 
   async previewAsset(assetId: number, includeProperties: boolean = true, maxDepth: number = 10, instance_id?: string) {
-    if (!assetId) throw new Error('Asset ID is required for preview_asset');
+    if (!assetId) throw new Error('assetId is required for preview_asset');
     const response = await this.runtime.callSingle('/api/preview-asset', {
       assetId, includeProperties, maxDepth,
     }, undefined, instance_id);

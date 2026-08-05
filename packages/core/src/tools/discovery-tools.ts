@@ -16,7 +16,21 @@ export class DiscoveryTools {
   }
 
   async loadToolset(body: { toolsets?: string[] }) {
-    const selectors = Array.isArray(body?.toolsets) ? body.toolsets : [];
+    // Coercing a bad shape to [] answered "loaded nothing, your host probably
+    // needs a schema refresh" for a request that never named a toolset —
+    // `{"toolset":"scene"}` and `{"toolsets":"scene"}` both read as success.
+    // The unknown-name path below already reports a miss; this reports the
+    // shape, which is the other way to name nothing.
+    if (!Array.isArray(body?.toolsets)) {
+      throw new Error(`load_toolset requires "toolsets" as an array of domain names, e.g. {"toolsets":["scene","mutation"]}. Valid: ${TOOL_DOMAINS.join(', ')}.`);
+    }
+    const selectors = body.toolsets;
+    if (selectors.length === 0) {
+      throw new Error(`load_toolset requires at least one toolset name. Valid: ${TOOL_DOMAINS.join(', ')}.`);
+    }
+    if (selectors.some((s) => typeof s !== 'string')) {
+      throw new Error(`load_toolset requires "toolsets" to hold strings. Valid: ${TOOL_DOMAINS.join(', ')}.`);
+    }
     // expandToolsets ignores a selector it does not recognize, and `loaded` used
     // to echo the request back verbatim — so asking for "scripting" (the domain
     // is "scripts") reported success, returned core plus nothing, and left the
@@ -58,8 +72,14 @@ export class DiscoveryTools {
   }
 
   async toolCatalogSearch(body: { query: string; domains?: ToolDomain[]; readOnly?: boolean; limit?: number }) {
+    // An absent query scored every tool equally and returned the first 8 — a
+    // ranked-looking answer to a question nobody asked, which is worse than an
+    // error because it reads as "these are your options".
+    if (typeof body?.query !== 'string' || body.query.trim() === '') {
+      throw new Error('tool_catalog_search requires a non-empty "query" describing the task, e.g. {"query":"read script source"}.');
+    }
     const matches = searchCatalog(this.getCatalog(), {
-      query: body?.query ?? '',
+      query: body.query,
       domains: body?.domains,
       readOnly: body?.readOnly,
       limit: body?.limit,
@@ -69,7 +89,7 @@ export class DiscoveryTools {
       content: [{
         type: 'text',
         text: JSON.stringify({
-          query: body?.query ?? '',
+          query: body.query,
           count: matches.length,
           matches,
           recommendedToolsets,

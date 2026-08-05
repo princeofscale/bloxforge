@@ -225,7 +225,7 @@ export class BloxForgeServer {
         if (this.lazyTools && name === 'load_toolset') {
           this.applyToolset((args ?? {}) as { toolsets?: string[] });
         }
-        const shaped = attachStructuredContent(result as Record<string, unknown>);
+        const shaped = attachStructuredContent(result as Record<string, unknown>, !!definition?.outputSchema);
         this.tools.getSessionRecorder().recordToolCall({
           toolName: name,
           durationMs: Date.now() - startedAt,
