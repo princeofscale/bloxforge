@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-08-05
+
 ### Added
 - `mass_delete_objects` — the bulk counterpart to `mass_create_objects`, and the
   one CRUD verb that had no bulk form (create, duplicate, get and set all did).
@@ -18,7 +20,152 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anywhere in the batch, so a list ending in `ServerScriptService` cannot slip
   the gate.
 
+- Asset Manifest v1 — `bloxforge.assets.json`, plus `asset_manifest_status` and
+  `asset_manifest_plan`. An asset in a place is an opaque numeric ID, so nothing
+  recorded which local file produced it, with which import settings, or which
+  version is published; "rebuild this on another machine" was guesswork. The
+  manifest declares that identity per logical asset and the tools report
+  desired-versus-actual: source present, source hash still matching what was
+  published, import recipe, Roblox assetId/version, and any declared material
+  map that is missing or over the declared texture budget.
+  `asset_manifest_plan` returns an immutable `planHash` covering the manifest
+  and the current content of every file it references, so swapping a texture
+  between preview and apply invalidates the preview — the same contract as Rojo
+  syncback rather than a second, weaker one. Unknown keys are rejected (a
+  silently ignored `pivotPolicty` would import with the wrong pivot), a damaged
+  manifest is an error rather than an empty one, and a missing source file is
+  reported as blocking rather than as a no-op. Both tools are local and offline;
+  publish/import remain the existing Studio and Open Cloud paths.
+- `asset_manifest_scan` proposes manifest entries from what is already on disk,
+  because hand-writing one entry per asset is what stops a manifest from being
+  adopted. It walks an art directory for `.glb`/`.gltf`/`.fbx`/`.obj` sources and
+  binds sibling textures to Color/Normal/Roughness/Metalness by filename suffix
+  (`_color`, `_basecolor`, `_albedo`, `_normal`, `_roughness`, `_metalness`, …),
+  longest suffix first so `_basecolor` is not read as `_color`. It distinguishes
+  a texture named after the source whose suffix it does not recognise (reported
+  under that asset) from one belonging to no scanned source at all (reported
+  once for the scan) — listing the latter under every asset would read as though
+  every asset had stray maps. It also reports manifest entries whose source has
+  disappeared. Read-only: it proposes, it never writes the manifest.
+- A coverage ratchet. CI runs the suite with `--coverage` and fails if statement,
+  branch, function or line coverage drops below what the suite reaches today
+  (60.77 / 50.57 / 53.68 / 62.41, with a small margin). It is deliberately a
+  floor rather than a target: an aspirational percentage would have to be
+  switched off to merge anything, whereas "coverage may not fall" is enforceable
+  from the first commit.
+- Generated-Luau mutations are undoable in one step. `execute_luau` carries
+  every recipe, terrain, lighting, UI and mutation-plan write, and it opened no
+  `ChangeHistoryService` recording at all — so none of those tools produced an
+  Undo waypoint, and `_runGeneratedLuau`'s own comment claiming "the safety
+  layer, history, and instance routing all apply uniformly" was wrong about
+  history. The request now carries an optional `undoLabel`; when present the
+  plugin wraps the script in one recording and commits it only if the script
+  succeeded, cancelling otherwise so a half-finished script leaves no waypoint.
+  The label is opt-in rather than inferred from the endpoint, because the same
+  endpoint serves reads (world snapshot, fingerprint, syntax check) that must
+  not open an empty recording, and runtime peers that have no edit history at
+  all. A dry-run mutation plan stays unlabelled; only the apply records.
+- `scripts/check-undo-coverage.mjs`, wired into `protocol:check`, holds that
+  line: every endpoint declared a mutation must open a recording or appear in an
+  explicit exception list with its reason. 26 of 41 record; the 15 exceptions
+  are undo/redo themselves, session and playtest control, runtime input, the
+  debugger, and async jobs — a recording cannot safely span a spawned job's
+  yields, which is marked as a known ceiling rather than left implicit.
+- The bridge fails closed on a plugin whose protocol is older than the minimum
+  it can serve. `MIN_SUPPORTED_PLUGIN_PROTOCOL_VERSION` is 3, the version that
+  introduced the stale-response fence (server epoch, plugin session binding,
+  delivery attempt, lease token). Below it, `/ack` and `/response` fell through
+  to the unfenced path, so the server could accept a result it had no way to
+  prove belonged to the request it was answering — a silent downgrade of the
+  delivery guarantee that only surfaced as a console warning. `/ready` now
+  answers `426 Upgrade Required` with `serverProtocolVersion`,
+  `minimumProtocolVersion` and the `--install-plugin` command, and refuses
+  before creating any registration state, so no half-registered instance is
+  left behind. A plugin that omits `protocolVersion` entirely is refused rather
+  than assumed current. The plugin shows a persistent banner for 426 instead of
+  retrying: unlike the 409 stale-registration case, retrying can never clear it,
+  and the previous behaviour was a bare `warn` and a silently dead connection.
+  A protocol *newer* than the server's is still only a warning, as before.
+- `docs:check` now also resolves every relative Markdown link in the tracked
+  docs. `CONTRIBUTING.md` pointed at a `todo.md` that had never existed and CI
+  never noticed, because the check only compared the generated tool reference.
+
+### Changed
+- `capture_screenshot` returns the image downscaled to 1568px wide by default,
+  with a new `maxWidth` parameter and `maxWidth: 0` for the native capture. A
+  Retina Studio window captures 3130x1760 for a 1365x768 logical viewport — 5.2x
+  the pixels, carried across the bridge as raw RGBA and paid for by the model,
+  for content that renders at logical resolution. Vision models resize past
+  roughly 1568px anyway, so those pixels were transferred and then discarded;
+  measured live, the default capture went from 918KB to 326KB. The reported
+  size and the `simulate_mouse_input` coordinate conversion always describe the
+  image actually sent, so click coordinates stay correct at any `maxWidth`.
+- `structuredContent` is attached only to tools that declare an `outputSchema`.
+  It is a byte-for-byte copy of the text block, so attaching it to every tool
+  charged each response for its payload twice — 45% of the bytes measured over a
+  live session — and 157 of 213 tools declare no `outputSchema`, leaving a
+  client nothing to validate the copy against, which is the only thing
+  `structuredContent` is for. The MCP specification's compatibility guidance
+  runs the other way: a server returning structured content should also send the
+  serialized JSON as text, and that text is what every response already carries.
+  Tools that declare an `outputSchema` must return conforming
+  `structuredContent` and continue to. The text channel is unchanged for every
+  tool, so a client reading `content` sees exactly what it saw before.
+
 ### Fixed
+- `get_file_tree` no longer spends almost its whole response on things nobody
+  authors. Read against a live place holding 24 parts, the whole-DataModel walk
+  returned 326KB — roughly 90,000 tokens — in which `Stats`, `StylingService`,
+  `MemStorageService`, `CoreGui`, `PluginGuiService` and
+  `VisualizationModeService` were 2,246 of 2,345 nodes, and another 107 services
+  were present but empty. The same read is now 10KB and 99 nodes. Both filters
+  apply only to the DataModel's own children and only when the caller named no
+  root, so `get_file_tree` on `game.CoreGui` is unchanged, `include_internal`
+  restores the full walk, and the response reports how many services it left
+  out rather than omitting them silently. A denylist rather than an allowlist of
+  authorable services: if Roblox ships a new noisy service the cost is a larger
+  response, never hidden user content.
+- `load_toolset` actually expands the advertised tool list over the Streamable
+  HTTP transport. `applyToolset` — the only caller of `registry.activate` —
+  lives on the stdio server, so over `/mcp` the tool answered `loaded: ["scene"],
+  count: 74`, the very next `tools/list` still returned the 29 core tools, and
+  the response's `client_hint` blamed the host's schema-refresh step for
+  something the server had never done. The tools stayed callable blind
+  throughout, so nothing failed loudly.
+- `load_toolset` and `tool_catalog_search` reject a malformed request instead of
+  answering one. `{"toolset":"scene"}` and `{"toolsets":"scene"}` both coerced to
+  an empty selector list and returned a success shape whose `client_hint`
+  pointed at the host; `tool_catalog_search` with no `query` scored the catalog
+  against an empty string and returned the first eight tools as if they were
+  matches. Both parameters are declared required, and `toolsets` now also
+  declares `minItems: 1`.
+- The `ui_create_*` argument error named a tool that does not exist. The name
+  was derived with `className.toLowerCase()`, so `TextLabel` produced
+  `ui_create_textlabel` rather than `ui_create_text_label` — the one message
+  pointing an agent at its mistake sent it looking for the wrong tool. Only
+  `ui_create_frame` was correct, being a single word. `scripts/check-argument-errors.mjs`
+  now runs in `protocol:check` and fails the build when an argument error
+  describes a parameter instead of naming it.
+- Argument errors in the mutation, scene-read, runtime and asset tools name the
+  schema parameter instead of describing it. `mass_get_property` answered "Paths
+  array and property name are required", leaving an agent to guess that those
+  are `paths` and `propertyName` — a wasted round trip per miss, and the same
+  defect already fixed for the script tools. Twenty-two messages across five
+  files now name the parameter; each name was checked against the tool's
+  declared `required` list rather than assumed.
+- Error classification recognises "requires" as well as "required", so a handler
+  writing `get_roblox_docs requires a name` is reported as `INVALID_ARGUMENT`
+  with a recovery hint rather than falling through to `UNKNOWN`. The
+  confirmation and beta-feature rules are more specific and still take
+  precedence.
+- `CONTRIBUTING.md` states the PR gate contributors are actually held to
+  (`lint`, `typecheck`, `test`, `build:all`, `docs:check`) and points at
+  `release:check` for releases. It had asked for `typecheck && test && build`,
+  a strictly weaker set than CI runs, so a contributor following it could pass
+  locally and fail on lint or a stale generated tool reference.
+- The comment above `interpretInsertResponse` named `InsertService:LoadAsset`.
+  The plugin has moved to `AssetService:LoadAssetAsync`; the AUTH classification
+  it explains is unchanged, but the comment sent readers to the wrong API.
 - Argument errors in the script tools name the parameters instead of describing
   them. `edit_script_lines` is the worst case: the name promises a line range,
   the tool is a string replace, and the natural first call —
@@ -1427,6 +1574,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
 [unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.3...HEAD
+[4.1.0]: https://github.com/princeofscale/bloxforge/compare/v4.0.3...v4.1.0
 [4.0.3]: https://github.com/princeofscale/bloxforge/compare/v4.0.2...v4.0.3
 [4.0.2]: https://github.com/princeofscale/bloxforge/compare/v4.0.1...v4.0.2
 [4.0.1]: https://github.com/princeofscale/bloxforge/compare/v4.0.0...v4.0.1
