@@ -9,6 +9,7 @@ import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
 import { buildSanitizeScanLuau, buildSanitizeApplyLuau, SANITIZE_PATTERNS, type SanitizeAction } from '../builders/asset-sanitize.js';
 import { buildFitScanLuau, buildFitApplyLuau, type PivotPolicy } from '../builders/asset-fit.js';
+import { buildSpatialLayoutLuau, SCAN_LIMIT } from '../builders/scene-layout.js';
 import crypto from 'crypto';
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
 import { classifyError } from '../errors.js';
@@ -413,4 +414,75 @@ export class WorldModelTools {
       `fit model (${targetScale !== undefined ? `scale ${targetScale}` : 'pivot only'})`,
     );
   }
+
+  async getSpatialLayout(path?: string, gridSize?: number, topLandmarks?: number, instance_id?: string) {
+    const grid = Math.max(4, Math.min(48, Math.round(gridSize ?? 24)));
+    const top = Math.max(1, Math.min(40, Math.round(topLandmarks ?? 10)));
+    const root = path ?? 'game.Workspace';
+    const response = await this.runtime.callSingle(
+      '/api/execute-luau',
+      { code: buildSpatialLayoutLuau(root, grid, top) },
+      'edit',
+      instance_id,
+    );
+    const rv = (response as { returnValue?: unknown })?.returnValue;
+    let layout: SpatialLayout | undefined;
+    if (typeof rv === 'string') {
+      try { layout = JSON.parse(rv) as SpatialLayout; } catch { /* fall through */ }
+    } else if (rv && typeof rv === 'object') {
+      layout = rv as SpatialLayout;
+    }
+    if (!layout) {
+      throw new Error(`get_spatial_layout could not read ${root}: ${JSON.stringify(response).slice(0, 200)}`);
+    }
+    if (!layout.found) throw new Error(`path not found for get_spatial_layout: ${root}`);
+    return wrapToolJsonText({ ...layout, notes: spatialNotes(layout) });
+  }
+}
+
+type SpatialLayout = {
+  found: boolean;
+  path?: string;
+  partCount?: number;
+  truncated?: boolean;
+  bounds?: { min: number[]; max: number[]; size: number[] };
+  grid?: { size: number; cell: number[]; origin: number[]; broadParts: number; rows: string[] };
+  ground?: { path: string; topY: number; span: number[]; material: string };
+  landmarks?: Array<{ name: string; className: string; position: number[]; size: number[] }>;
+  spawns?: Array<{ path: string; position: number[] }>;
+  terrainCells?: number;
+};
+
+/**
+ * The numbers above are exact; these say what they mean. Placing anything
+ * requires knowing where the floor is and which cells are free, and neither is
+ * obvious from a bounding box alone.
+ */
+function spatialNotes(layout: SpatialLayout): string[] {
+  const notes: string[] = [];
+  if (!layout.partCount) {
+    notes.push('No parts under this path — the space is empty, so any placement is free.');
+    return notes;
+  }
+  const [sx = 0, , sz = 0] = layout.bounds?.size ?? [];
+  notes.push(`Built area spans ${sx} × ${sz} studs; a character is about ${CHARACTER_HEIGHT_STUDS} studs tall.`);
+  if (layout.ground) {
+    notes.push(`Ground is ${layout.ground.path} (${layout.ground.material}); stand things at y=${layout.ground.topY}.`);
+  } else {
+    notes.push('No flat part wide enough to read as ground — check whether the scene stands on terrain.');
+  }
+  if (layout.grid) {
+    const [cx = 0, cz = 0] = layout.grid.cell;
+    const free = layout.grid.rows.reduce((n, row) => n + (row.match(/\./g)?.length ?? 0), 0);
+    notes.push(
+      `grid.rows is a map of the XZ plane, north (high Z) first: "." is empty, 1-9 is that many parts, "#" is ten or more. ` +
+      `Each cell is ${cx} × ${cz} studs from origin [${layout.grid.origin.join(', ')}]. ${free} of ${layout.grid.size * layout.grid.size} cells are empty.`,
+    );
+    if (layout.grid.broadParts > 0) {
+      notes.push(`${layout.grid.broadParts} part(s) cover most of the grid (baseplate or floor) and are excluded from it, so an empty cell means empty of obstacles, not of ground.`);
+    }
+  }
+  if (!layout.spawns?.length) notes.push('No SpawnLocation — players will spawn at the origin.');
+  if (layout.truncated) notes.push(`Stopped after ${SCAN_LIMIT} descendants; the picture is partial. Pass a narrower path.`);
+  return notes;
 }

@@ -2335,6 +2335,7 @@ export class RobloxStudioTools {
   async assetPreflightInsert(assetId: number, instance_id?: string) { return this.worldTools.assetPreflightInsert(assetId, instance_id); }
   async assetSanitizePlan(instancePath: string, action?: 'disable' | 'remove', instance_id?: string) { return this.worldTools.assetSanitizePlan(instancePath, action, instance_id); }
   async assetSanitizeApply(instancePath: string, expectedPlanHash: string, action?: 'disable' | 'remove', instance_id?: string) { return this.worldTools.assetSanitizeApply(instancePath, expectedPlanHash, action, instance_id); }
+  async getSpatialLayout(path?: string, gridSize?: number, topLandmarks?: number, instance_id?: string) { return this.worldTools.getSpatialLayout(path, gridSize, topLandmarks, instance_id); }
   async assetFitPlan(instancePath: string, targetHeight?: number, pivot?: 'base' | 'center' | 'keep', instance_id?: string) { return this.worldTools.assetFitPlan(instancePath, targetHeight, pivot, instance_id); }
   async assetFitApply(instancePath: string, expectedPlanHash: string, targetHeight?: number, pivot?: 'base' | 'center' | 'keep', instance_id?: string) { return this.worldTools.assetFitApply(instancePath, expectedPlanHash, targetHeight, pivot, instance_id); }
 
