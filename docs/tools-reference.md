@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 217
+## Total Tools: 218
 
 ### `get_file_tree` (Read-only)
 
@@ -1699,6 +1699,21 @@ Token-lean world model for reasoning before drill-down. Returns place info, desc
 | `path` | `string` | No | Root path to snapshot (default: game). |
 | `level` | `string` | No | Detail level (default: overview). |
 | `topNPerClass` | `number` | No | How many of the most common classes to list (default 12). |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `get_spatial_layout` (Read-only)
+
+Where things physically are, at fixed token cost. Every other scene read answers a question about the tree (what classes, what names, which script); this answers the one an agent must settle before placing anything: how big is the built area, where is the ground, and which patch of it is empty. Returns the bounding volume, the ground plane and the y to stand things on, the largest children with position and size, SpawnLocations, and a coarse occupancy grid over the XZ plane — "." empty, 1-9 that many parts, "#" ten or more, north (high Z) first. Baseplate-sized parts are excluded from the grid so it does not read as uniformly full. Use before create_object or insert_asset to pick a location that does not land inside something.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `path` | `string` | No | Root to measure (default game.Workspace). |
+| `gridSize` | `number` | No | Occupancy grid resolution per side, 4-48 (default 24). |
+| `topLandmarks` | `number` | No | How many of the largest children to list, 1-40 (default 10). |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---

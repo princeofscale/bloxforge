@@ -71,6 +71,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   asset_preflight_insert: (tools, body) => tools.assetPreflightInsert(body.assetId, body.instance_id),
   asset_sanitize_plan: (tools, body) => tools.assetSanitizePlan(body.instancePath, body.action, body.instance_id),
   asset_sanitize_apply: (tools, body) => tools.assetSanitizeApply(body.instancePath, body.expectedPlanHash, body.action, body.instance_id),
+  get_spatial_layout: (tools, body) => tools.getSpatialLayout(body.path, body.gridSize, body.topLandmarks, body.instance_id),
   asset_fit_plan: (tools, body) => tools.assetFitPlan(body.instancePath, body.targetHeight, body.pivot, body.instance_id),
   asset_fit_apply: (tools, body) => tools.assetFitApply(body.instancePath, body.expectedPlanHash, body.targetHeight, body.pivot, body.instance_id),
   execute_luau_async: (tools, body) => tools.executeLuauAsync(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }),

@@ -22,6 +22,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `jest.config.js` no longer holds.
 
 ### Added
+- `get_spatial_layout` — where things physically are. Every other scene read
+  answers a question about the tree: what classes exist, what is named what,
+  which script owns the day/night cycle. None of them answer the one an agent has
+  to settle before it places a single part — how big the built area is, where the
+  ground is, and which patch of it is empty. Names and classes cannot tell you a
+  new building would land inside an existing one. Returns the bounding volume,
+  the ground plane and the `y` to stand things on, the largest children with
+  position and size, SpawnLocations, and a coarse occupancy grid over the XZ
+  plane: `.` empty, `1`-`9` that many parts, `#` ten or more, north first. The
+  grid is the point — a few hundred characters that say where the free space is,
+  instead of thousands of stud coordinates the caller would have to intersect
+  itself. Part bounds are expanded onto the world axes, so a rotated beam reads
+  as the eighty studs it occupies rather than the four its `Size` names, and
+  baseplate-sized parts are excluded from the grid so it does not come back
+  uniformly full. Grid resolution and landmark count are clamped, so no argument
+  turns this into a wall of text.
 - `asset_fit_plan` / `asset_fit_apply` — measures how a model sits in the scene
   and corrects it. A model from the marketplace, a Package or an `.rbxm` arrives
   at whatever scale its author worked in, with its pivot wherever their modelling

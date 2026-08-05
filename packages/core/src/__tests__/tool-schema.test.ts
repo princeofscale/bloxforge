@@ -483,6 +483,7 @@ describe('Tool schema compatibility', () => {
       insert_asset: 'insertAsset',
       preview_asset: 'previewAsset',
       asset_preflight_insert: 'assetPreflightInsert',
+      get_spatial_layout: 'getSpatialLayout',
       asset_sanitize_plan: 'assetSanitizePlan',
       asset_sanitize_apply: 'assetSanitizeApply',
       asset_fit_plan: 'assetFitPlan',
