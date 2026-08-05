@@ -22,6 +22,7 @@ import { SceneReadTools } from './scene-read-tools.js';
 import { ScriptTools } from './script-tools.js';
 import { MutationTools } from './mutation-tools.js';
 import { AssetTools } from './asset-tools.js';
+import { assetManifestPlan, assetManifestScan, assetManifestStatus } from '../asset-manifest.js';
 import { searchAssetSources, type AssetSourceProvider } from './asset-sources.js';
 import { EpisodeStore } from './episode-store.js';
 import { RuntimeTools } from './runtime-tools.js';
@@ -334,7 +335,7 @@ export class RobloxStudioTools {
     });
     this.assetTools = new AssetTools({
       callSingle: this._callSingle.bind(this),
-      runGeneratedLuau: (code, instance_id) => this._runGeneratedLuau(code, instance_id),
+      runGeneratedLuau: (code, instance_id, undoLabel) => this._runGeneratedLuau(code, instance_id, undoLabel),
       recordOperation: (kind, summary) => this.safety.recordOperation({ kind, summary }),
       openCloudClient: this.openCloudClient,
       cookieClient: this.cookieClient,
@@ -417,6 +418,11 @@ export class RobloxStudioTools {
   async formatScriptPreview(source: string, fileName?: string) { return wrapToolJsonText(this.qualityTools.formatScriptPreview(source, fileName)); }
   async runProjectTests(root?: string, script?: string) { return wrapToolJsonText(this.qualityTools.runProjectTests(root, script)); }
   async getDependencyGraph(root?: string) { return wrapToolJsonText(this.qualityTools.getDependencyGraph(root)); }
+  // Asset Manifest v1: local, offline provenance. Both are pure reads — the
+  // plan is a preview, and applying it is a separate Studio/Open-Cloud step.
+  async assetManifestStatus(root?: string) { return wrapToolJsonText(assetManifestStatus(root)); }
+  async assetManifestPlan(root?: string) { return wrapToolJsonText(assetManifestPlan(root)); }
+  async assetManifestScan(root?: string, directory?: string) { return wrapToolJsonText(assetManifestScan(root, directory)); }
   async runQualityGate(root?: string) { return wrapToolJsonText(this.qualityTools.runQualityGate(root)); }
   async validateWithLuauLsp(root?: string, files?: string[]) { return wrapToolJsonText(this.qualityTools.validateWithLuauLsp(root, files)); }
 
@@ -619,8 +625,11 @@ export class RobloxStudioTools {
   // edit context. Centralizing execution here means the safety layer, history,
   // and instance routing all apply uniformly without touching the plugin.
 
-  private async _runGeneratedLuau(code: string, instance_id?: string) {
-    const response = await this._callSingle('/api/execute-luau', { code }, 'edit', instance_id);
+  // `undoLabel` is what makes one builder call one Undo waypoint. It is opt-in
+  // because this helper also serves read-only builders (scene-read-tools), and
+  // a read must not open an empty recording in the user's history.
+  private async _runGeneratedLuau(code: string, instance_id?: string, undoLabel?: string) {
+    const response = await this._callSingle('/api/execute-luau', undoLabel ? { code, undoLabel } : { code }, 'edit', instance_id);
     // Normalize like every other execute-luau caller (world-model, mutation,
     // runtime tools). The plugin JSON-*encodes* a Luau table return into the
     // `returnValue` string, so handing the raw envelope back meant callers got
@@ -735,7 +744,7 @@ export class RobloxStudioTools {
 
   // Scene-read inspection tools live in SceneReadTools; the facade delegates with
   // identical signatures.
-  async getFileTree(path: string = '', instance_id?: string) { return this.sceneReadTools.getFileTree(path, instance_id); }
+  async getFileTree(path: string = '', instance_id?: string, include_internal?: boolean) { return this.sceneReadTools.getFileTree(path, instance_id, include_internal); }
 
   async searchFiles(query: string, searchType: string = 'name', instance_id?: string) {
     const response = await this._callSingle('/api/search-files', { query, searchType }, undefined, instance_id);
@@ -1365,7 +1374,7 @@ export class RobloxStudioTools {
 
   async getBuild(id: string) {
     if (!id) {
-      throw new Error('Build ID is required for get_build');
+      throw new Error('id is required for get_build');
     }
 
     const filePath = path.join(RobloxStudioTools.findLibraryPath(), `${id}.json`);
@@ -1580,7 +1589,7 @@ export class RobloxStudioTools {
 
   async getAssetDetails(assetId: number) {
     if (!assetId) {
-      throw new Error('Asset ID is required for get_asset_details');
+      throw new Error('assetId is required for get_asset_details');
     }
 
     if (this.cookieClient.hasCookie() && !this.openCloudClient.hasApiKey()) {
@@ -1612,7 +1621,7 @@ export class RobloxStudioTools {
 
   async getAssetThumbnail(assetId: number, size?: string) {
     if (!assetId) {
-      throw new Error('Asset ID is required for get_asset_thumbnail');
+      throw new Error('assetId is required for get_asset_thumbnail');
     }
     if (!this.openCloudClient.hasApiKey()) {
       return {
@@ -1644,7 +1653,7 @@ export class RobloxStudioTools {
 
   async insertAsset(assetId: number, parentPath?: string, position?: { x: number; y: number; z: number }, instance_id?: string) {
     if (!assetId) {
-      throw new Error('Asset ID is required for insert_asset');
+      throw new Error('assetId is required for insert_asset');
     }
     const response = await this._callSingle('/api/insert-asset', {
       assetId,
@@ -1675,7 +1684,7 @@ export class RobloxStudioTools {
 
   async previewAsset(assetId: number, includeProperties?: boolean, maxDepth?: number, instance_id?: string) {
     if (!assetId) {
-      throw new Error('Asset ID is required for preview_asset');
+      throw new Error('assetId is required for preview_asset');
     }
     const response = await this._callSingle('/api/preview-asset', {
       assetId,
@@ -1845,7 +1854,7 @@ export class RobloxStudioTools {
 
   async audioCreateSound(options: CreateSoundOptions, instance_id?: string) {
     if (!options?.parentPath || options?.soundId === undefined) throw new Error('parentPath and soundId are required for audio_create_sound');
-    const result = await this._runGeneratedLuau(buildCreateSoundLuau(options), instance_id);
+    const result = await this._runGeneratedLuau(buildCreateSoundLuau(options), instance_id, "create sound");
     this.safety.recordOperation({ kind: 'audio', summary: `sound ${options.soundId} under ${options.parentPath}` });
     return result;
   }
@@ -1857,7 +1866,7 @@ export class RobloxStudioTools {
 
   async animationCreate(options: CreateAnimationOptions, instance_id?: string) {
     if (!options?.parentPath || options?.animationId === undefined) throw new Error('parentPath and animationId are required for animation_create');
-    const result = await this._runGeneratedLuau(buildCreateAnimationLuau(options), instance_id);
+    const result = await this._runGeneratedLuau(buildCreateAnimationLuau(options), instance_id, "create animation");
     this.safety.recordOperation({ kind: 'animation', summary: `animation ${options.animationId} under ${options.parentPath}` });
     return result;
   }
@@ -1869,7 +1878,7 @@ export class RobloxStudioTools {
 
   async generateModelNative(options: GenerateModelOptions, instance_id?: string) {
     if (!options?.prompt || !options.prompt.trim()) throw new Error('prompt is required for generate_model_native');
-    const result = await this._runGeneratedLuau(buildGenerateModelLuau(options), instance_id);
+    const result = await this._runGeneratedLuau(buildGenerateModelLuau(options), instance_id, "generate model");
     this.safety.recordOperation({ kind: 'generate_model', summary: `generated model "${options.prompt}" under ${options.parentPath ?? 'Workspace'}` });
     return result;
   }
@@ -1896,7 +1905,7 @@ export class RobloxStudioTools {
 
   async applyTheme(options: ApplyThemeOptions, instance_id?: string) {
     if (!options?.rootPath) throw new Error('rootPath is required for apply_theme');
-    const result = await this._runGeneratedLuau(buildApplyThemeLuau(options), instance_id);
+    const result = await this._runGeneratedLuau(buildApplyThemeLuau(options), instance_id, "apply theme");
     this.safety.recordOperation({ kind: 'apply_theme', summary: `themed ${options.rootPath} (${options.theme ?? 'dark'})` });
     return result;
   }
@@ -2045,7 +2054,7 @@ export class RobloxStudioTools {
 
   async assetApplyTexture(options: ApplyTextureOptions, instance_id?: string) {
     if (!options?.targetPath || options?.assetId === undefined) throw new Error('targetPath and assetId are required for asset_apply_texture');
-    const result = await this._runGeneratedLuau(buildApplyTextureLuau(options), instance_id);
+    const result = await this._runGeneratedLuau(buildApplyTextureLuau(options), instance_id, "apply texture");
     this.safety.recordOperation({ kind: 'texture', summary: `applied ${options.assetId} to ${options.targetPath}` });
     return result;
   }
@@ -2264,7 +2273,7 @@ export class RobloxStudioTools {
   async applyRecipe(recipe: string, params?: Record<string, unknown>, instance_id?: string) {
     if (!recipe) throw new Error('recipe is required for apply_recipe (see list_recipes)');
     const code = buildRecipeLuau(recipe, params ?? {});
-    const response = await this._callSingle('/api/execute-luau', { code }, 'edit', instance_id);
+    const response = await this._callSingle('/api/execute-luau', { code, undoLabel: `recipe ${recipe}` }, 'edit', instance_id);
     const result = wrapToolJsonText(normalizeExecuteLuauToolResult(response, {
       recipe,
       error: 'apply_recipe returned non-object execute-luau output',
@@ -2704,5 +2713,5 @@ export class RobloxStudioTools {
     return wrapToolJsonText(body);
   }
 
-  async captureScreenshot(instance_id?: string, format?: string, quality?: number, cameraPosition?: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }) { return this.runtimeTools.captureScreenshot(instance_id, format, quality, cameraPosition, lookAt); }
+  async captureScreenshot(instance_id?: string, format?: string, quality?: number, cameraPosition?: { x: number; y: number; z: number }, lookAt?: { x: number; y: number; z: number }, maxWidth?: number) { return this.runtimeTools.captureScreenshot(instance_id, format, quality, cameraPosition, lookAt, maxWidth); }
 }

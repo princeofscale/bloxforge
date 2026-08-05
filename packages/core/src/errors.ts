@@ -36,7 +36,11 @@ const PATTERNS: Array<[RegExp, ErrorCode]> = [
   [/time?d?\s*out|timeout/i, 'TIMEOUT'],
   [/no\s+(studio\s+)?plugin|plugin\s+(not\s+)?(connected|disconnected)|not\s+connected/i, 'PLUGIN_DISCONNECTED'],
   [/not\s+found|does\s+not\s+exist|no\s+instance/i, 'NOT_FOUND'],
-  [/required|missing\s+(argument|parameter|field)|must\s+be\s+(a|an)\b/i, 'INVALID_ARGUMENT'],
+  // "requires" as well as "required": handlers naturally write "get_roblox_docs
+  // requires a name", which fell through to UNKNOWN — so a plainly bad argument
+  // was reported with no suggestedRecovery and retryable left to the default.
+  // The confirm/beta rules above are more specific and still win.
+  [/require[sd]\b|missing\s+(argument|parameter|field)|must\s+be\s+(a|an)\b/i, 'INVALID_ARGUMENT'],
 ];
 
 // Codes worth retrying as-is (transient/transport) vs. ones that need the agent

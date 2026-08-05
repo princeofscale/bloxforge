@@ -1,6 +1,6 @@
 {
   "name": "@princeofscale/bloxforge-monorepo",
-  "version": "4.0.3",
+  "version": "4.1.0",
   "author": {
     "name": "princeofscale",
     "url": "https://github.com/princeofscale"
@@ -16,7 +16,7 @@
   "scripts": {
     "build": "npm run build -w packages/core && npm run build -w packages/robloxstudio-mcp && npm run build -w packages/robloxstudio-mcp-inspector",
     "protocol:generate": "node scripts/generate-protocol-policy.mjs",
-    "protocol:check": "node scripts/generate-protocol-policy.mjs --check && node tests/protocol-policy-generator.mjs",
+    "protocol:check": "node scripts/generate-protocol-policy.mjs --check && node tests/protocol-policy-generator.mjs && node scripts/check-undo-coverage.mjs && node scripts/check-argument-errors.mjs",
     "compile:plugin": "npm run protocol:check && npm --prefix studio-plugin ci && npm --prefix studio-plugin run build",
     "build:plugin": "npm run compile:plugin && node scripts/build-plugin.mjs",
     "build:plugin:inspector": "npm run compile:plugin && node scripts/build-plugin.mjs --variant inspector",
@@ -56,7 +56,7 @@
     "test:toolchain:integration": "npm run build -w packages/core && node scripts/test-toolchain-integration.mjs",
     "tools:legacy-report": "node scripts/report-legacy-tools.mjs",
     "docs:generate": "node scripts/generate-tool-docs.mjs",
-    "docs:check": "node scripts/generate-tool-docs.mjs --check",
+    "docs:check": "node scripts/generate-tool-docs.mjs --check && node scripts/check-doc-links.mjs",
     "metadata:check": "node scripts/check-package-metadata.mjs",
     "verify-package": "node scripts/verify-package.mjs",
     "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run verify-package",

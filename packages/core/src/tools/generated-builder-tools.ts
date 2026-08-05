@@ -49,7 +49,7 @@ import { type SafetyOptions, type ToolContent } from './runtime-support.js';
 import { toolErrorResult } from '../errors.js';
 
 type GeneratedToolRuntime = {
-  runGeneratedLuau(code: string, instance_id?: string): Promise<{ content: ToolContent[] }>;
+  runGeneratedLuau(code: string, instance_id?: string, undoLabel?: string): Promise<{ content: ToolContent[] }>;
   safetyGate(
     kind: OperationKind,
     detail: string,
@@ -66,14 +66,18 @@ export class GeneratedBuilderTools {
 
   async uiCreateScreenGui(options: ScreenGuiOptions, instance_id?: string) {
     if (!options?.name) throw new Error('name is required for ui_create_screen_gui');
-    const result = await this.runtime.runGeneratedLuau(buildScreenGuiLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildScreenGuiLuau(options), instance_id, "screen gui");
     this.runtime.recordOperation('ui_create', `ScreenGui ${options.name}`);
     return result;
   }
 
   private async _uiCreate(className: GuiObjectClass, options: GuiObjectOptions, instance_id?: string) {
-    if (!options?.parentPath) throw new Error(`parentPath is required for ui_create_${className.toLowerCase()}`);
-    const result = await this.runtime.runGeneratedLuau(buildGuiObjectLuau(className, options), instance_id);
+    // toLowerCase() alone named a tool that does not exist — "ui_create_textlabel"
+    // for ui_create_text_label — so the one message an agent has to recover from
+    // sent it looking for the wrong tool. Only Frame survived, being one word.
+    const toolName = `ui_create_${className.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()}`;
+    if (!options?.parentPath) throw new Error(`parentPath is required for ${toolName}`);
+    const result = await this.runtime.runGeneratedLuau(buildGuiObjectLuau(className, options), instance_id, "gui object");
     this.runtime.recordOperation('ui_create', `${className} under ${options.parentPath}`);
     return result;
   }
@@ -86,19 +90,19 @@ export class GeneratedBuilderTools {
 
   async uiApplyLayout(options: LayoutOptions & { targetPath: string }, instance_id?: string) {
     if (!options?.targetPath) throw new Error('targetPath is required for ui_apply_layout');
-    return this.runtime.runGeneratedLuau(buildApplyLayoutLuau(options.targetPath, options), instance_id);
+    return this.runtime.runGeneratedLuau(buildApplyLayoutLuau(options.targetPath, options), instance_id, "apply layout");
   }
 
   async uiMakeMobileFriendly(targetPath: string, instance_id?: string) {
     if (!targetPath) throw new Error('targetPath is required for ui_make_mobile_friendly');
-    return this.runtime.runGeneratedLuau(buildMobileFriendlyLuau(targetPath), instance_id);
+    return this.runtime.runGeneratedLuau(buildMobileFriendlyLuau(targetPath), instance_id, "mobile friendly");
   }
 
   // --- Environment tools ---
 
   async environmentSetTimeOfDay(time: number | string, instance_id?: string) {
     if (time === undefined || time === null) throw new Error('time is required for environment_set_time_of_day');
-    return this.runtime.runGeneratedLuau(buildSetTimeOfDayLuau(time), instance_id);
+    return this.runtime.runGeneratedLuau(buildSetTimeOfDayLuau(time), instance_id, "set time of day");
   }
 
   async environmentSetLightingPreset(preset: string, withPostFx?: boolean, instance_id?: string) {
@@ -110,21 +114,21 @@ export class GeneratedBuilderTools {
     } catch (error) {
       return toolErrorResult(error);
     }
-    const result = await this.runtime.runGeneratedLuau(code, instance_id);
+    const result = await this.runtime.runGeneratedLuau(code, instance_id, `lighting preset ${preset}`);
     this.runtime.recordOperation('environment', `lighting preset ${preset}${withPostFx ? ' +postFx' : ''}`);
     return result;
   }
 
   async environmentSetAtmosphere(options: AtmospherePreset, instance_id?: string) {
-    return this.runtime.runGeneratedLuau(buildAtmosphereLuau(options ?? {}), instance_id);
+    return this.runtime.runGeneratedLuau(buildAtmosphereLuau(options ?? {}), instance_id, "atmosphere");
   }
 
   async environmentSetSky(options: SkyOptions, instance_id?: string) {
-    return this.runtime.runGeneratedLuau(buildSkyLuau(options ?? {}), instance_id);
+    return this.runtime.runGeneratedLuau(buildSkyLuau(options ?? {}), instance_id, "sky");
   }
 
   async environmentCreateDayNightCycleScript(options: DayNightCycleOptions, instance_id?: string) {
-    const result = await this.runtime.runGeneratedLuau(buildDayNightCycleScriptLuau(options ?? {}), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildDayNightCycleScriptLuau(options ?? {}), instance_id, "day night cycle script");
     this.runtime.recordOperation('environment', `day-night cycle script (${options?.minutesPerDay ?? 10} min/day)`);
     return result;
   }
@@ -139,7 +143,7 @@ export class GeneratedBuilderTools {
     if (!options?.size) throw new Error('size is required for terrain_generate_baseplate');
     const gated = this._terrainGate(boxVolume(options.size), 'baseplate', options);
     if (gated) return gated;
-    const result = await this.runtime.runGeneratedLuau(buildBaseplateLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildBaseplateLuau(options), instance_id, "baseplate");
     this.runtime.recordOperation('terrain', `baseplate ${options.size.join('x')}`);
     return result;
   }
@@ -149,7 +153,7 @@ export class GeneratedBuilderTools {
     const volume = (4 / 3) * Math.PI * Math.pow(options.radius, 3);
     const gated = this._terrainGate(volume, 'island', options);
     if (gated) return gated;
-    const result = await this.runtime.runGeneratedLuau(buildIslandLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildIslandLuau(options), instance_id, "island");
     this.runtime.recordOperation('terrain', `island r=${options.radius}`);
     return result;
   }
@@ -159,7 +163,7 @@ export class GeneratedBuilderTools {
     const volume = Math.abs(options.extent[0]) * Math.abs(options.extent[1]) * Math.abs(options.maxHeight);
     const gated = this._terrainGate(volume, 'mountains', options);
     if (gated) return gated;
-    const result = await this.runtime.runGeneratedLuau(buildMountainsLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildMountainsLuau(options), instance_id, "mountains");
     this.runtime.recordOperation('terrain', `mountains ${options.extent.join('x')}`);
     return result;
   }
@@ -168,7 +172,7 @@ export class GeneratedBuilderTools {
     if (!options?.size) throw new Error('size is required for terrain_generate_water');
     const gated = this._terrainGate(boxVolume(options.size), 'water', options);
     if (gated) return gated;
-    const result = await this.runtime.runGeneratedLuau(buildWaterLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildWaterLuau(options), instance_id, "water");
     this.runtime.recordOperation('terrain', `water ${options.size.join('x')}`);
     return result;
   }
@@ -177,7 +181,7 @@ export class GeneratedBuilderTools {
     if (!options?.min || !options?.max || !options?.material) throw new Error('min, max, and material are required for terrain_paint_material');
     const gated = this._terrainGate(regionVolume(options.min, options.max), `paint ${options.material}`, options);
     if (gated) return gated;
-    const result = await this.runtime.runGeneratedLuau(buildPaintMaterialLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildPaintMaterialLuau(options), instance_id, "paint material");
     this.runtime.recordOperation('terrain', `paint ${options.material}`);
     return result;
   }
@@ -186,7 +190,7 @@ export class GeneratedBuilderTools {
     if (!options?.min || !options?.max) throw new Error('min and max are required for terrain_clear_region');
     const gated = this.runtime.safetyGate('terrain_clear', `clear region (~${Math.round(regionVolume(options.min, options.max))} studs³)`, { count: regionVolume(options.min, options.max) }, options);
     if (gated) return gated;
-    const result = await this.runtime.runGeneratedLuau(buildClearRegionLuau(options), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildClearRegionLuau(options), instance_id, "clear region");
     this.runtime.recordOperation('terrain', `cleared region`);
     return result;
   }
@@ -197,25 +201,25 @@ export class GeneratedBuilderTools {
   // template in place rather than duplicating it.
 
   async templateCreateObbyGame(options: ObbyTemplateOptions, instance_id?: string) {
-    const result = await this.runtime.runGeneratedLuau(buildObbyTemplateLuau(options ?? {}), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildObbyTemplateLuau(options ?? {}), instance_id, "obby template");
     this.runtime.recordOperation('template', `obby game (${options?.checkpoints ?? 5} checkpoints)`);
     return result;
   }
 
   async templateCreateSimulatorGame(options: SimulatorTemplateOptions, instance_id?: string) {
-    const result = await this.runtime.runGeneratedLuau(buildSimulatorTemplateLuau(options ?? {}), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildSimulatorTemplateLuau(options ?? {}), instance_id, "simulator template");
     this.runtime.recordOperation('template', `simulator game (${options?.currencyName ?? 'Coins'})`);
     return result;
   }
 
   async templateCreateTycoonGame(options: TycoonTemplateOptions, instance_id?: string) {
-    const result = await this.runtime.runGeneratedLuau(buildTycoonTemplateLuau(options ?? {}), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildTycoonTemplateLuau(options ?? {}), instance_id, "tycoon template");
     this.runtime.recordOperation('template', `tycoon game`);
     return result;
   }
 
   async templateCreateRoundGame(options: RoundTemplateOptions, instance_id?: string) {
-    const result = await this.runtime.runGeneratedLuau(buildRoundTemplateLuau(options ?? {}), instance_id);
+    const result = await this.runtime.runGeneratedLuau(buildRoundTemplateLuau(options ?? {}), instance_id, "round template");
     this.runtime.recordOperation('template', `round game (${options?.roundSeconds ?? 90}s)`);
     return result;
   }

@@ -176,15 +176,16 @@ async function runToolPipeline(
     // just attach structuredContent. Otherwise, wrap the raw output into the
     // dual-format { content, structuredContent } shape.
     if (result && typeof result === 'object' && 'content' in (result as Record<string, unknown>)) {
-      return attachStructuredContent(result as Record<string, unknown>) as {
+      return attachStructuredContent(result as Record<string, unknown>, !!spec.outputSchema) as {
         content: Array<{ type: string; text: string }>;
         structuredContent?: Record<string, unknown>;
       };
     }
-    // Raw object output → dual-format wrapping.
+    // Raw object output → text, plus the structured copy when the tool declares
+    // a schema for a client to validate it against.
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      structuredContent: result as Record<string, unknown>,
+      ...(spec.outputSchema ? { structuredContent: result as Record<string, unknown> } : {}),
     };
   } catch (error: unknown) {
     if (error instanceof RoutingFailure) {

@@ -288,6 +288,21 @@ function sendReady(conn: Connection): void {
 			readyFailureLogKeys.add(readyLogKey);
 			// 409 may be a stale registration left by a crashed or upgraded
 			// plugin. Keep retrying so cleanup can recover without a Studio restart.
+			// 426 means the server will not serve this plugin's protocol version.
+			// Retrying never clears it, so stop and show the upgrade command
+			// instead of leaving a silently dead connection.
+			if (readyResult.StatusCode === 426) {
+				let message = reason;
+				const [decodeOk, body] = pcall(
+					() => HttpService.JSONDecode(readyResult.Body) as { message?: string },
+				);
+				if (decodeOk && typeIs(body.message, "string") && body.message !== "") {
+					message = body.message as string;
+				}
+				UI.showBanner("protocol-unsupported", message);
+				warn(`[BloxForge] /ready refused for ${instanceId}/${readyRole}: ${message}`);
+				return;
+			}
 			if (readyResult.StatusCode === 409) {
 				conn.sessionToken = undefined;
 				const ui = UI.getElements();

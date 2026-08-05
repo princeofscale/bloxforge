@@ -184,6 +184,10 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
           enum: ['jpeg', 'png'],
           description: 'Image format. "jpeg" (default) is compact and crisp at high quality. "png" is lossless — best for reading dense text/UI, but larger (a busy 3D scene may be big).'
         },
+        maxWidth: {
+          type: 'integer',
+          description: 'Downscale the image to at most this width in pixels (default 1568, the point past which vision models resize anyway). 0 returns the native capture — use it to read fine text. The response states the resulting size and the simulate_mouse_input coordinate conversion for it.',
+        },
         quality: {
           type: 'number',
           description: 'JPEG quality 1-100 (default 92). Higher = sharper text, larger size. Ignored for png.'

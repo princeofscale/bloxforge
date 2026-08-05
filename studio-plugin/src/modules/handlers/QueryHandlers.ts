@@ -12,6 +12,27 @@ interface TreeNode {
 	enabled?: boolean;
 }
 
+// Walking the whole DataModel spends almost all of its budget on things nobody
+// authors: in a place holding 24 parts, Stats/StylingService/MemStorageService/
+// CoreGui/PluginGuiService/VisualizationModeService were 2246 of 2345 nodes, and
+// another 107 services were present but empty. That is 326KB (~90k tokens) to
+// describe 99 nodes of actual content.
+//
+// Both filters apply to the DataModel's own children only, and only when the
+// caller did not name a root — asking for game.Stats still returns Stats.
+// A denylist rather than an allowlist of authorable services: if Roblox ships a
+// new noisy service the failure is a bigger response, not hidden user content.
+// An empty service has nothing to hide by definition, and reappears the moment
+// something is parented into it.
+const INTERNAL_SERVICES = new Set<string>([
+	"Stats",
+	"StylingService",
+	"MemStorageService",
+	"CoreGui",
+	"PluginGuiService",
+	"VisualizationModeService",
+]);
+
 function getFileTree(requestData: Record<string, unknown>) {
 	const path = (requestData.path as string) ?? "";
 	const startInstance = getInstanceByPath(path);
@@ -19,6 +40,11 @@ function getFileTree(requestData: Record<string, unknown>) {
 	if (!startInstance) {
 		return { error: `Path not found: ${path}` };
 	}
+
+	const includeInternal = requestData.include_internal === true;
+	const filterRoot = !includeInternal && startInstance === game;
+	let omittedInternal = 0;
+	let omittedEmpty = 0;
 
 	function buildTree(instance: Instance, depth: number): TreeNode {
 		if (depth > 10) {
@@ -41,15 +67,34 @@ function getFileTree(requestData: Record<string, unknown>) {
 		}
 
 		for (const child of instance.GetChildren()) {
+			if (depth === 0 && filterRoot) {
+				if (INTERNAL_SERVICES.has(child.ClassName)) {
+					omittedInternal += 1;
+					continue;
+				}
+				if (child.GetChildren().size() === 0) {
+					omittedEmpty += 1;
+					continue;
+				}
+			}
 			node.children.push(buildTree(child, depth + 1));
 		}
 
 		return node;
 	}
 
+	const tree = buildTree(startInstance, 0);
+	if (omittedInternal === 0 && omittedEmpty === 0) {
+		return { tree, timestamp: tick() };
+	}
 	return {
-		tree: buildTree(startInstance, 0),
+		tree,
 		timestamp: tick(),
+		omittedServices: {
+			internal: omittedInternal,
+			empty: omittedEmpty,
+			hint: "Engine-internal and empty services are omitted from the game root. Pass include_internal:true, or a path such as \"game.CoreGui\", to see them.",
+		},
 	};
 }
 

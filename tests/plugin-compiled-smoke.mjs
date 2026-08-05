@@ -184,6 +184,44 @@ const ASSERTIONS = [
       src.includes('variationErrors') &&
       src.includes('row.propertyErrors = variationErrors'),
   },
+  {
+    // execute_luau is how every recipe, terrain, lighting and mutation-plan
+    // write reaches the DataModel, and it opened no ChangeHistoryService
+    // recording — so none of them was undoable as one waypoint. The recording
+    // is keyed on a caller-declared undoLabel rather than inferred, because the
+    // same endpoint serves reads (world snapshot, fingerprint, syntax check)
+    // that must not open an empty recording, and runtime peers that have no
+    // edit history at all. Failure cancels rather than commits.
+    file: 'handlers/MetadataHandlers.luau',
+    label: 'execute_luau records an undo waypoint when the caller declares one',
+    test: (src) => {
+      const body = /function executeLuau\([\s\S]*?\nend/.exec(src)?.[0] ?? '';
+      return /undoLabel/.test(body)
+        && /beginRecording\(/.test(body)
+        && /finishRecording\(/.test(body)
+        && /result\.success/.test(body);
+    },
+  },
+  {
+    // Measured against a live place holding 24 parts: the whole-DataModel walk
+    // returned 326KB (~90k tokens), of which Stats/StylingService/
+    // MemStorageService/CoreGui/PluginGuiService/VisualizationModeService were
+    // 2246 of 2345 nodes and another 107 services were present but empty. One
+    // call could exhaust an agent's context to describe 99 nodes of content.
+    // Both filters are scoped to the DataModel's own children and to a caller
+    // who named no root, so game.CoreGui still reads normally.
+    file: 'handlers/QueryHandlers.luau',
+    label: 'get_file_tree omits engine-internal and empty services at the game root',
+    test: (src) => {
+      const body = /local function getFileTree\([\s\S]*?\nend\n/.exec(src)?.[0] ?? '';
+      return /INTERNAL_SERVICES/.test(src)
+        && /\["Stats"\] = true/.test(src)
+        && /startInstance == game/.test(body)      // only the whole-DataModel walk
+        && /include_internal/.test(body)           // and only without the escape hatch
+        && /depth == 0/.test(body)                 // top level only, never deeper
+        && /omittedServices/.test(body);           // never a silent omission
+    },
+  },
 ];
 
 let failures = 0;

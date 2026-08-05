@@ -133,8 +133,10 @@ describe('mutation safety gates', () => {
     const adapter = runtime();
     const tools = new MutationTools(adapter);
     await expect(tools.applyMutationPlan([])).rejects.toThrow(/non-empty array/);
-    await expect(tools.massCreateObjects([])).rejects.toThrow(/Objects array/);
-    await expect(tools.massDeleteObjects([])).rejects.toThrow(/Paths array/);
+    // Argument errors name the schema parameter, so an agent can fix the call
+    // from the message instead of guessing which prose noun maps to which key.
+    await expect(tools.massCreateObjects([])).rejects.toThrow(/^objects \(non-empty array\) is required/);
+    await expect(tools.massDeleteObjects([])).rejects.toThrow(/^paths \(non-empty array\) is required/);
     await expect(tools.setProperty('', 'Name', 'x')).rejects.toThrow(/required/);
     expect(adapter.callSingle).not.toHaveBeenCalled();
   });

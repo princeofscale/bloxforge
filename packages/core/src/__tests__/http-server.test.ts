@@ -14,6 +14,7 @@ const READY_BODY = {
   placeName: 'TestPlace',
   dataModelName: 'TestPlace',
   isRunning: false,
+  protocolVersion: 3,
 };
 
 describe('HTTP Server', () => {
@@ -77,13 +78,13 @@ describe('HTTP Server', () => {
           ...READY_BODY,
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
-          protocolVersion: 0,
+          protocolVersion: 4,
         }).expect(200);
         await request(versionedApp).post('/ready').send({
           ...READY_BODY,
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
-          protocolVersion: 0,
+          protocolVersion: 4,
         }).expect(200);
 
         const health = await request(versionedApp).get('/health').expect(200);
@@ -96,7 +97,7 @@ describe('HTTP Server', () => {
         expect(health.body.instances[0]).toMatchObject({
           pluginVersion: '1.9.0',
           pluginVariant: 'main',
-          pluginProtocolVersion: 0,
+          pluginProtocolVersion: 4,
           serverProtocolVersion: 3,
           serverVersion: '2.0.0',
           versionMismatch: true,
@@ -127,6 +128,42 @@ describe('HTTP Server', () => {
           recent: [],
         },
       });
+    });
+
+    test('refuses a plugin below the minimum supported protocol', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        // Protocol 2 cannot carry the stale-response fence, so serving it would
+        // silently downgrade the delivery guarantee instead of failing closed.
+        const response = await request(app)
+          .post('/ready')
+          .send({ ...READY_BODY, protocolVersion: 2 })
+          .expect(426);
+        expect(response.body).toMatchObject({
+          success: false,
+          error: 'unsupported_plugin_protocol',
+          serverProtocolVersion: 3,
+          minimumProtocolVersion: 3,
+        });
+        expect(response.body.message).toContain('--install-plugin');
+        // Refused before any state is created: no half-registered instance.
+        expect(bridge.getInstances()).toHaveLength(0);
+        expect(app.isPluginConnected()).toBe(false);
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test('a plugin that omits protocolVersion is refused, not assumed current', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        const { protocolVersion: _omitted, ...legacyReady } = READY_BODY;
+        const response = await request(app).post('/ready').send(legacyReady).expect(426);
+        expect(response.body.error).toBe('unsupported_plugin_protocol');
+        expect(bridge.getInstances()).toHaveLength(0);
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
 
     test('rejects /ready without required fields', async () => {
@@ -175,7 +212,7 @@ describe('HTTP Server', () => {
       const mismatchedReady = {
         ...READY_BODY,
         pluginVersion: '1.9.0',
-        protocolVersion: 0,
+        protocolVersion: 4,
       };
 
       try {
@@ -202,7 +239,7 @@ describe('HTTP Server', () => {
     });
 
     test('stale instance detection via unregister', () => {
-      bridge.registerInstance({ pluginSessionId: 'stale-1', instanceId: 'place:s', role: 'edit' });
+      bridge.registerInstance({ protocolVersion: 3, pluginSessionId: 'stale-1', instanceId: 'place:s', role: 'edit' });
       expect(app.isPluginConnected()).toBe(true);
       bridge.unregisterInstance('stale-1');
       expect(app.isPluginConnected()).toBe(false);
@@ -234,8 +271,15 @@ describe('HTTP Server', () => {
         const response = new Promise<any>((resolve, reject) => {
           socket.once('message', (raw) => {
             const frame = JSON.parse(raw.toString());
-            socket.send(JSON.stringify({ type: 'ack', requestId: frame.requestId }));
-            socket.send(JSON.stringify({ type: 'response', requestId: frame.requestId, response: { ok: true } }));
+            // A v3 plugin must echo the delivery fence back on both frames, or
+            // the server rejects the ack and the response as unprovenanced.
+            const fence = {
+              serverEpoch: frame.serverEpoch,
+              deliveryAttempt: frame.deliveryAttempt,
+              leaseToken: frame.leaseToken,
+            };
+            socket.send(JSON.stringify({ type: 'ack', requestId: frame.requestId, ...fence }));
+            socket.send(JSON.stringify({ type: 'response', requestId: frame.requestId, response: { ok: true }, ...fence }));
             resolve(frame);
           });
           socket.once('error', reject);

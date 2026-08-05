@@ -6,13 +6,17 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_file_tree',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Get instance hierarchy tree from Studio',
+    description: 'Get instance hierarchy tree from Studio. From the game root, engine-internal services (Stats, CoreGui, StylingService and similar) and services with no children are omitted, and the response reports how many; pass a path or include_internal to see them.',
     inputSchema: {
       type: 'object',
       properties: {
         path: {
           type: 'string',
           description: 'Root path (default: game root)'
+        },
+        include_internal: {
+          type: 'boolean',
+          description: 'Include engine-internal and empty services when reading from the game root. Off by default: they were 96% of the response and hold no authored content.'
         },
         instance_id: {
           type: 'string',

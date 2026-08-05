@@ -14,7 +14,9 @@ Thanks for your interest in contributing to BloxForge! Every contribution — co
 1. Fork the repo.
 2. Create a feature branch (`git checkout -b feat/my-change`).
 3. Make your changes.
-4. Run `npm run typecheck && npm test && npm run build` to verify.
+4. Run the PR gate: `npm run lint && npm run typecheck && npm test && npm run build:all && npm run docs:check`.
+   Before a release, run the full `npm run release:check` instead — it adds the
+   protocol, metadata, plugin and packaging checks that CI enforces.
 5. If adding a new tool, see "Adding a tool" below.
 6. Push and open a pull request.
 
@@ -40,6 +42,9 @@ cd studio-plugin && npm install && cd ..
 npm run build
 npm run typecheck && npm test
 ```
+
+`packages/core` has zero runtime dependencies. Keep it that way, or say plainly
+why not in the pull request.
 
 ## Code style
 

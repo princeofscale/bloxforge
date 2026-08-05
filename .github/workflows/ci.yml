@@ -51,8 +51,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
-        run: npm test
+      - name: Test (with coverage ratchet)
+        run: npm run test:coverage
 
       - name: Bridge fault-injection regression matrix
         run: npm run test:fault-injection

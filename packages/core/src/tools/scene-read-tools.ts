@@ -16,7 +16,7 @@ import { sleep, type ToolContent } from './runtime-support.js';
 
 type SceneReadRuntime = {
   callSingle(endpoint: string, data: unknown, target: string | undefined, instance_id: string | undefined): Promise<unknown>;
-  runGeneratedLuau(code: string, instance_id?: string): Promise<{ content: ToolContent[] }>;
+  runGeneratedLuau(code: string, instance_id?: string, undoLabel?: string): Promise<{ content: ToolContent[] }>;
   bridge: BridgeService;
   client: StudioHttpClient;
 };
@@ -24,8 +24,8 @@ type SceneReadRuntime = {
 export class SceneReadTools {
   constructor(private readonly runtime: SceneReadRuntime) {}
 
-  async getFileTree(path: string = '', instance_id?: string) {
-    const response = await this.runtime.callSingle('/api/file-tree', { path }, undefined, instance_id);
+  async getFileTree(path: string = '', instance_id?: string, include_internal?: boolean) {
+    const response = await this.runtime.callSingle('/api/file-tree', { path, include_internal: include_internal === true }, undefined, instance_id);
     return compactText(response);
   }
 
@@ -76,7 +76,7 @@ export class SceneReadTools {
 
   async searchByProperty(propertyName: string, propertyValue: string, instance_id?: string) {
     if (!propertyName || !propertyValue) {
-      throw new Error('Property name and value are required for search_by_property');
+      throw new Error('propertyName and propertyValue are required for search_by_property');
     }
     const response = await this.runtime.callSingle('/api/search-by-property', {
       propertyName,
@@ -87,7 +87,7 @@ export class SceneReadTools {
 
   async getClassInfo(className: string, instance_id?: string) {
     if (!className) {
-      throw new Error('Class name is required for get_class_info');
+      throw new Error('className is required for get_class_info');
     }
     const response = await this.runtime.callSingle('/api/class-info', { className }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };

@@ -81,7 +81,72 @@ The safety layer (dry-run, confirmation gating, backups, limits) is applied cent
 
 ### Dual-format output
 
-Every tool response includes both a text block (for backward-compatible MCP clients) and `structuredContent` (for clients that support typed object responses, like Cursor and newer Claude Code versions).
+Every tool response includes a text block, which is what every MCP client can
+read. A tool that declares an `outputSchema` additionally returns
+`structuredContent` for clients that consume typed object responses.
+
+`structuredContent` is not attached to tools without an `outputSchema`. It is a
+byte-for-byte copy of the text block, so attaching it everywhere charged each
+response twice — measured against a live session it was 45% of the bytes, and
+most tools declare no schema for a client to validate the copy against. The
+compatibility direction in the MCP specification is the reverse of what that
+blanket copy provided: a server returning structured content should *also* send
+the serialized text, which is what the text block already is.
+
+### Asset manifest
+
+An asset inside a place is an opaque numeric ID: nothing in the place records
+which local file produced it, with what import settings, or which version is
+published. `bloxforge.assets.json` in the project root declares that identity
+per logical asset, so "rebuild this on another machine" and "did the source
+change since we uploaded?" become answerable questions rather than guesswork.
+
+```json
+{
+  "version": 1,
+  "assets": [
+    {
+      "assetKey": "environment/tree/pine_a",
+      "source": {
+        "path": "art/environment/trees/pine_a.glb",
+        "sha256": "…",
+        "dcc": "Blender",
+        "unitScale": 1.0,
+        "forwardAxis": "-Z",
+        "upAxis": "Y"
+      },
+      "import": { "preset": "environment-static", "pivotPolicy": "base-center", "collision": "hull", "package": true },
+      "materials": { "colorMap": "art/…/pine_a_color.png", "metalnessMap": null },
+      "roblox": { "ownerType": "group", "ownerId": 123, "assetId": 456, "assetVersion": 7 },
+      "policy": { "scriptsAllowed": false, "license": "project-owned", "maxTextureSize": 2048 }
+    }
+  ]
+}
+```
+
+The manifest is declarative and read with the same preview-then-apply contract
+as Rojo syncback: `asset_manifest_status` reports desired-versus-actual, and
+`asset_manifest_plan` returns an immutable `planHash` covering the manifest
+*and* the current content of every file it references — so swapping a texture
+between preview and apply invalidates the preview rather than silently
+publishing something nobody reviewed.
+
+Three deliberate choices:
+
+- **Unknown keys are rejected.** A silently ignored `pivotPolicty` typo would
+  import the asset with the wrong pivot while the manifest still read correctly.
+- **A damaged manifest is an error, not an empty one.** Reading it as "no assets
+  declared" would report a whole library as unmanaged.
+- **A material slot set to `null` differs from an absent one.** `null` declares
+  "this asset has no metalness map"; absent means nobody has decided yet.
+
+`asset_manifest_scan` bootstraps the manifest: it walks an art directory and
+proposes entries, binding sibling textures to slots by filename suffix. It
+distinguishes a texture named after a source whose suffix it does not recognise
+from one belonging to no source at all, and never writes the manifest itself.
+
+All three tools are local and offline. Publishing and importing are separate
+Studio/Open-Cloud steps that consume a plan produced here.
 
 ## Packages
 

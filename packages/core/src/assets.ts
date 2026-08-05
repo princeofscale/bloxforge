@@ -1,8 +1,9 @@
 // Interpret the plugin's insert-asset response so the marketplace flow can react:
 // success, or a typed failure (AUTH = copy-locked toolbox model, NOT_FOUND =
-// bad parent path, etc.). InsertService:LoadAsset only loads assets the user owns
-// or that are public + copy-unlocked, so toolbox models commonly come back AUTH —
-// search-and-insert uses this to skip to the next candidate instead of throwing.
+// bad parent path, etc.). The plugin loads through AssetService:LoadAssetAsync,
+// which still refuses assets the user neither owns nor is permitted to load, so
+// copy-locked toolbox models commonly come back AUTH — search-and-insert uses
+// this to skip to the next candidate instead of throwing.
 
 import { classifyError, ErrorCode } from './errors.js';
 

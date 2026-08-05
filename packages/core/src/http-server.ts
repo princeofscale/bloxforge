@@ -15,7 +15,7 @@ import {
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
 import { RobloxStudioTools } from './tools/index.js';
-import { BridgeService, MCP_PROTOCOL_VERSION, RequestOutcomeUnknownError, RoutingFailure, toPublic } from './bridge-service.js';
+import { BridgeService, MCP_PROTOCOL_VERSION, MIN_SUPPORTED_PLUGIN_PROTOCOL_VERSION, RequestOutcomeUnknownError, RoutingFailure, toPublic } from './bridge-service.js';
 import type { RegisterInstanceResult } from './bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { ToolRegistry } from './tools/tool-pipeline.js';
@@ -25,7 +25,7 @@ import { attachStructuredContent } from './tools/structured-output.js';
 import { parseClientCapabilities, requiredCapabilities } from './capability-policy.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
-import { CORE_TOOLS } from './tools/tool-catalog.js';
+import { CORE_TOOLS, buildCatalog, expandToolsets } from './tools/tool-catalog.js';
 import { DASHBOARD_HTML } from './dashboard.js';
 
 interface StreamableHttpConfig {
@@ -73,7 +73,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_job_status: (tools, body) => tools.getJobStatus(body.jobId, body.target, body.instance_id),
   get_job_result: (tools, body) => tools.getJobResult(body.jobId, body.target, body.instance_id),
   cancel_job: (tools, body) => tools.cancelJob(body.jobId, body.target, body.instance_id),
-  get_file_tree: (tools, body) => tools.getFileTree(body.path, body.instance_id),
+  get_file_tree: (tools, body) => tools.getFileTree(body.path, body.instance_id, body.include_internal),
   search_files: (tools, body) => tools.searchFiles(body.query, body.searchType, body.instance_id),
   get_place_info: (tools, body) => tools.getPlaceInfo(body.instance_id),
   get_services: (tools, body) => tools.getServices(body.serviceName, body.instance_id),
@@ -175,7 +175,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_descendants: (tools, body) => tools.getDescendants(body.instancePath, body.maxDepth, body.classFilter, body.limit, body.offset, body.fields, body.instance_id),
   compare_instances: (tools, body) => tools.compareInstances(body.instancePathA, body.instancePathB, body.instance_id),
   bulk_set_attributes: (tools, body) => tools.bulkSetAttributes(body.instancePath, body.attributes, body.instance_id),
-  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id, body.format, body.quality, body.cameraPosition, body.lookAt),
+  capture_screenshot: (tools, body) => tools.captureScreenshot(body.instance_id, body.format, body.quality, body.cameraPosition, body.lookAt, body.maxWidth),
   simulate_mouse_input: (tools, body) => tools.simulateMouseInput(body.action, body.x, body.y, body.button, body.scrollDirection, body.target, body.instance_id),
   simulate_keyboard_input: (tools, body) => tools.simulateKeyboardInput(body.keyCode, body.action, body.duration, body.text, body.target, body.instance_id, body.holdDuration),
   character_navigation: (tools, body) => tools.characterNavigation(body.position, body.instancePath, body.waitForCompletion, body.timeout, body.target, body.instance_id),
@@ -454,12 +454,22 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     }
 
     if (!result.ok) {
-      res.status(409).json({
+      // 409 is the retryable case (a stale registration the server can still
+      // reap). An unsupported protocol never becomes valid by retrying, so it
+      // gets 426 and the plugin stops instead of spinning.
+      const unsupportedProtocol = result.error.code === 'unsupported_plugin_protocol';
+      if (unsupportedProtocol && !warnedProtocolMismatches.has(pluginSessionId)) {
+        warnedProtocolMismatches.add(pluginSessionId);
+        console.error(`[protocol-unsupported] ${result.error.message}`);
+      }
+      res.status(unsupportedProtocol ? 426 : 409).json({
         success: false,
         error: result.error.code,
         message: result.error.message,
         request: requestContext,
         existing: result.error.existing,
+        serverProtocolVersion: MCP_PROTOCOL_VERSION,
+        minimumProtocolVersion: MIN_SUPPORTED_PLUGIN_PROTOCOL_VERSION,
       });
       return;
     }
@@ -800,6 +810,22 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
       (registry?.definitions ?? []).map(definition => [definition.name, definition]),
     );
     const isLazyHttp = registry ? registry.lazyMode : isLazyTools();
+    // load_toolset expanded the advertised list on the stdio server only —
+    // applyToolset lives there and calls registry.activate. Over /mcp the tool
+    // answered "loaded: [scene], count: 105", the very next tools/list still
+    // returned the 29 core tools, and client_hint blamed the host's schema
+    // refresh for a step the server had never taken. The transport is stateless
+    // (a fresh Server per POST, so no tools/list_changed can be pushed), but the
+    // registry is shared, so the next tools/list must reflect the expansion.
+    const lazyCatalog = isLazyHttp && registry ? buildCatalog(serverConfig.tools) : undefined;
+    const activateToolsets = (args: unknown): void => {
+      if (!lazyCatalog || !registry) return;
+      const selectors = (args as { toolsets?: unknown })?.toolsets;
+      if (!Array.isArray(selectors)) return;
+      for (const name of expandToolsets(lazyCatalog, selectors as string[])) {
+        if (!allowedTools || allowedTools.has(name)) registry.activate(name);
+      }
+    };
 
     app.post('/mcp', async (req, res) => {
       try {
@@ -855,11 +881,13 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
             if (registry) {
               const registryResult: unknown = await registry.callTool(name, tools, args || {});
               if (registryResult !== null && registryResult !== undefined) {
+                const failed = (registryResult as { isError?: boolean })?.isError;
+                if (name === 'load_toolset' && !failed) activateToolsets(args);
                 tools.getSessionRecorder().recordToolCall({
                   toolName: name,
                   durationMs: Date.now() - startedAt,
-                  ok: !(registryResult as { isError?: boolean })?.isError,
-                  errorCode: (registryResult as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+                  ok: !failed,
+                  errorCode: failed ? 'TOOL_ERROR' : undefined,
                 });
                 return registryResult;
               }
@@ -872,12 +900,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
             }
 
             const result = await handler(tools, args || {});
-            const shaped = attachStructuredContent(result as Record<string, unknown>);
+            const shaped = attachStructuredContent(result as Record<string, unknown>, !!definition?.outputSchema);
+            const failed = (shaped as { isError?: boolean })?.isError;
+            if (name === 'load_toolset' && !failed) activateToolsets(args);
             tools.getSessionRecorder().recordToolCall({
               toolName: name,
               durationMs: Date.now() - startedAt,
-              ok: !(shaped as { isError?: boolean })?.isError,
-              errorCode: (shaped as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+              ok: !failed,
+              errorCode: failed ? 'TOOL_ERROR' : undefined,
             });
             return shaped;
           } catch (error) {

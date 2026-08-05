@@ -14,6 +14,7 @@ const READY = {
   placeName: 'TestPlace',
   dataModelName: 'TestPlace',
   isRunning: false,
+  protocolVersion: 3,
 };
 
 const ZERO_NETWORK_STATE = {
@@ -133,7 +134,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -172,7 +173,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client-1',
@@ -237,7 +238,7 @@ describe('Smoke', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(settled).toBe(false);
 
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -250,7 +251,7 @@ describe('Smoke', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(settled).toBe(false);
 
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client-1',
@@ -290,7 +291,7 @@ describe('Smoke', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(settled).toBe(false);
 
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -315,7 +316,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -324,7 +325,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -381,7 +382,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -449,7 +450,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -458,7 +459,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -499,7 +500,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -538,7 +539,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -582,7 +583,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -624,7 +625,7 @@ describe('Smoke', () => {
       placeId: 0,
     });
     bridge.updateInstanceMetadata('edit-stale', { placeId: 12345 });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:12345',
       role: 'server',
@@ -633,7 +634,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:12345',
       role: 'client',
@@ -674,7 +675,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -711,7 +712,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -720,7 +721,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -729,7 +730,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-2',
       instanceId: 'place:test',
       role: 'client',
@@ -803,7 +804,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -812,7 +813,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-2',
       instanceId: 'place:test',
       role: 'client',
@@ -872,7 +873,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -909,7 +910,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -918,7 +919,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -1034,7 +1035,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -1043,7 +1044,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -1194,7 +1195,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'server-1',
       instanceId: 'place:test',
       role: 'server',
@@ -1203,7 +1204,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -1212,7 +1213,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-2',
       instanceId: 'place:test',
       role: 'client',
@@ -1269,7 +1270,7 @@ describe('Smoke', () => {
     const bridge = new BridgeService();
     const tools = new RobloxStudioTools(bridge);
     bridge.registerInstance(READY);
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-1',
       instanceId: 'place:test',
       role: 'client',
@@ -1278,7 +1279,7 @@ describe('Smoke', () => {
       dataModelName: 'TestPlace',
       isRunning: true,
     });
-    bridge.registerInstance({
+    bridge.registerInstance({ protocolVersion: 3,
       pluginSessionId: 'client-2',
       instanceId: 'place:test',
       role: 'client',
