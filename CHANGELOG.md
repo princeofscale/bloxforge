@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `README.md` described a Wally safety guarantee the code does not implement. It
+  said a locked install is "refused" when `--locked` is absent from the released
+  Wally 0.3.2; the code runs the install and protects the lockfile by backing it
+  up and restoring it if the install moved it, which is what `docs/architecture.md`
+  already said. The two documents contradicted each other on a safety claim, and
+  the README was the wrong one.
+- `docs/architecture.md` said "130+ tools"; there are 213.
+- The changelog quoted a coverage ratchet (60.77 / 50.57 / 53.68 / 62.41) that
+  `jest.config.js` no longer holds.
+
+### Changed
+- `release:check` now runs the 10,000-request fault-injection benchmark, and the
+  `release:check:full` alias is gone. The benchmark lived only in the alias, so a
+  green `release:check` could still fail CI's Node 20 job — which is how a bridge
+  registration regression reached CI instead of being caught locally. The
+  benchmark takes well under a second; `release:check` exists to predict CI, so
+  anything CI gates on belongs in it.
+
+
 ## [4.1.0] - 2026-08-05
 
 ### Added
@@ -49,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disappeared. Read-only: it proposes, it never writes the manifest.
 - A coverage ratchet. CI runs the suite with `--coverage` and fails if statement,
   branch, function or line coverage drops below what the suite reaches today
-  (60.77 / 50.57 / 53.68 / 62.41, with a small margin). It is deliberately a
+  (61.58 / 51.33 / 54.46 / 63.25 measured, held at 61 / 51 / 54 / 62.8). It is deliberately a
   floor rather than a target: an aspirational percentage would have to be
   switched off to merge anything, whereas "coverage may not fall" is enforceable
   from the first commit.

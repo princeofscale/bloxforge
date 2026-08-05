@@ -202,7 +202,9 @@ between review and apply is never silently carried through.
 
 Wally installs default to `--locked` so a stale lockfile fails instead of being
 rewritten. `--locked` is absent from the released Wally 0.3.2, so support is
-probed and a locked install is **refused** rather than quietly downgraded.
+probed: when the flag is missing the install still runs, but the lockfile is
+backed up first and restored if the install moved it. The guarantee the flag
+exists to provide is kept either way — it is never quietly downgraded.
 
 This supports partially managed projects (only selected roots such as scripts or
 packages) and fully managed project trees. BloxForge never treats unmanaged
