@@ -175,7 +175,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'capture_screenshot',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the physical image size and logical viewport size. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The returned image is never downscaled, but OS display scaling can make physical image pixels larger than the logical viewport coordinates used by simulate_mouse_input; when that happens the response states the exact coordinate conversion. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
+    description: 'Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the physical image size and logical viewport size. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The image is downscaled to maxWidth (1568px by default, the point past which vision models resize anyway); pass maxWidth: 0 for the native capture. The response always states the size of the image it actually sent and, when that differs from the logical viewport coordinates used by simulate_mouse_input, the exact conversion to apply. For reading fine text/UI, raise maxWidth or use format="png" (lossless); enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -210,6 +210,39 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
         }
       },
     }
+  },
+  {
+    name: 'asset_fit_plan',
+    category: 'read',
+    effects: ['studio.read'],
+    description: 'Measure how a model sits in the scene and report what would have to change to make it usable: its size against a Roblox character (about 5 studs tall, the one absolute reference the platform gives you), where its pivot sits inside its own bounding box, and how many of its parts are unanchored. A model from the marketplace, a Package or an .rbxm arrives at whatever scale its author worked in, with its pivot wherever their modelling tool left it — often the world origin, which makes every later move and rotate swing it around a point far outside the model. Returns an immutable planHash covering the current size and pivot; pass it to asset_fit_apply.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        instancePath: { type: 'string', description: 'Model to measure, e.g. "game.Workspace.ImportedTree".' },
+        targetHeight: { type: 'number', description: 'Desired height in studs. A character is about 5. Omit to leave the scale alone and only consider the pivot.' },
+        pivot: { type: 'string', enum: ['base', 'center', 'keep'], description: '"base" (default) puts the pivot at the bottom centre, where a model that stands on ground belongs; "center" puts it in the middle; "keep" leaves it.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' },
+      },
+      required: ['instancePath'],
+    },
+  },
+  {
+    name: 'asset_fit_apply',
+    category: 'write',
+    effects: ['studio.read', 'studio.write'],
+    description: 'Apply the scale and pivot an asset_fit_plan proposed, as one Studio undo waypoint. Requires that plan\'s planHash and refuses a stale one: the model is re-measured immediately before it is changed, so moving or rescaling it by hand in between invalidates the plan. The scale is absolute against the model\'s authored size rather than a factor, so applying twice does not compound. Moving the pivot changes what the pivot is, not where the geometry sits.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        instancePath: { type: 'string', description: 'The same path the plan was run against.' },
+        expectedPlanHash: { type: 'string', description: 'planHash returned by asset_fit_plan.' },
+        targetHeight: { type: 'number', description: 'Must match the plan, because the hash covers it.' },
+        pivot: { type: 'string', enum: ['base', 'center', 'keep'], description: 'Must match the plan, because the hash covers it.' },
+        instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' },
+      },
+      required: ['instancePath', 'expectedPlanHash'],
+    },
   },
   {
     name: 'asset_sanitize_plan',

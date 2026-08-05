@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `capture_screenshot`'s description still promised "the returned image is never
+  downscaled" after the default downscale landed, so the one place a caller reads
+  about the behaviour contradicted it.
 - `README.md` described a Wally safety guarantee the code does not implement. It
   said a locked install is "refused" when `--locked` is absent from the released
   Wally 0.3.2; the code runs the install and protects the lockfile by backing it
@@ -19,6 +22,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `jest.config.js` no longer holds.
 
 ### Added
+- `asset_fit_plan` / `asset_fit_apply` — measures how a model sits in the scene
+  and corrects it. A model from the marketplace, a Package or an `.rbxm` arrives
+  at whatever scale its author worked in, with its pivot wherever their modelling
+  tool left it — often the world origin, which makes every later move and rotate
+  swing it around a point far outside the model. Neither is visible to an agent
+  that can only read names and classes. The plan reports the model's height
+  against a Roblox character (about 5 studs, the one absolute reference the
+  platform gives you), where the pivot sits inside the bounding box, and how many
+  parts are unanchored and would fall on the next playtest. The scale it proposes
+  is absolute against the authored size rather than a factor, so applying it to
+  an already-scaled model does not compound. The apply requires the plan's
+  `planHash`, which covers the current size, pivot, requested height and pivot
+  policy, and re-measures immediately before changing anything. A non-Model is
+  refused with the reason — scale and pivot are Model properties.
+
 - `asset_sanitize_plan` / `asset_sanitize_apply` — reads what the scripts inside a
   model actually do, for a model that is already in the scene. `asset_preflight_insert`
   answers "can I insert asset 123, and does it carry scripts" before anything is
@@ -38,7 +56,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than reporting success and leaving it live, and `remove` unparents
   instead of destroying so the change stays undoable.
 
-### Added
 - Upstream-derived regression scenarios in `tests/studio-tooling-smoke.mjs`,
   taken from the issue tracker of the project BloxForge descends from: an MCP
   write clobbering a script open with unsaved changes, a playtest whose peers
@@ -54,7 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   registration regression reached CI instead of being caught locally. The
   benchmark takes well under a second; `release:check` exists to predict CI, so
   anything CI gates on belongs in it.
-
 
 ## [4.1.0] - 2026-08-05
 

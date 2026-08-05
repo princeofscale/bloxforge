@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 215
+## Total Tools: 217
 
 ### `get_file_tree` (Read-only)
 
@@ -1303,7 +1303,7 @@ Upload any supported asset type to Roblox: Audio (mp3/ogg/wav/flac), Decal (png/
 
 ### `capture_screenshot` (Read-only)
 
-Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the physical image size and logical viewport size. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The returned image is never downscaled, but OS display scaling can make physical image pixels larger than the logical viewport coordinates used by simulate_mouse_input; when that happens the response states the exact coordinate conversion. For reading fine text/UI, use format="png" (lossless) or a higher quality; enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.
+Capture the Roblox Studio viewport at native resolution and return it as an image, plus a text line stating the physical image size and logical viewport size. Works in Edit mode and regular playtests (auto-detects a running client and captures the live play viewport). StudioTestService multiplayer client screenshots are currently blocked by Roblox temporary-texture process scoping; the tool returns a clear error in that case. The image is downscaled to maxWidth (1568px by default, the point past which vision models resize anyway); pass maxWidth: 0 for the native capture. The response always states the size of the image it actually sent and, when that differs from the logical viewport coordinates used by simulate_mouse_input, the exact conversion to apply. For reading fine text/UI, raise maxWidth or use format="png" (lossless); enlarging the Studio window raises resolution. Requires EditableImage API enabled (Game Settings > Security > "Allow Mesh / Image APIs") and the window to be visible.
 
 **Parameters:**
 
@@ -1314,6 +1314,37 @@ Capture the Roblox Studio viewport at native resolution and return it as an imag
 | `quality` | `number` | No | JPEG quality 1-100 (default 92). Higher = sharper text, larger size. Ignored for png. |
 | `cameraPosition` | `object` | No | Optional temporary edit-camera position. Requires lookAt; the prior camera type/CFrame are restored after capture. |
 | `lookAt` | `object` | No | World point the temporary camera faces. Requires cameraPosition. |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `asset_fit_plan` (Read-only)
+
+Measure how a model sits in the scene and report what would have to change to make it usable: its size against a Roblox character (about 5 studs tall, the one absolute reference the platform gives you), where its pivot sits inside its own bounding box, and how many of its parts are unanchored. A model from the marketplace, a Package or an .rbxm arrives at whatever scale its author worked in, with its pivot wherever their modelling tool left it — often the world origin, which makes every later move and rotate swing it around a point far outside the model. Returns an immutable planHash covering the current size and pivot; pass it to asset_fit_apply.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `instancePath` | `string` | Yes | Model to measure, e.g. "game.Workspace.ImportedTree". |
+| `targetHeight` | `number` | No | Desired height in studs. A character is about 5. Omit to leave the scale alone and only consider the pivot. |
+| `pivot` | `string` | No | "base" (default) puts the pivot at the bottom centre, where a model that stands on ground belongs; "center" puts it in the middle; "keep" leaves it. |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `asset_fit_apply` (Write)
+
+Apply the scale and pivot an asset_fit_plan proposed, as one Studio undo waypoint. Requires that plan's planHash and refuses a stale one: the model is re-measured immediately before it is changed, so moving or rescaling it by hand in between invalidates the plan. The scale is absolute against the model's authored size rather than a factor, so applying twice does not compound. Moving the pivot changes what the pivot is, not where the geometry sits.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `instancePath` | `string` | Yes | The same path the plan was run against. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by asset_fit_plan. |
+| `targetHeight` | `number` | No | Must match the plan, because the hash covers it. |
+| `pivot` | `string` | No | Must match the plan, because the hash covers it. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---

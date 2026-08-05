@@ -163,6 +163,38 @@ export function registerContractedTools(
     }),
   );
 
+  registry.register(
+    defineTool({
+      name: 'asset_fit_plan',
+      description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_fit_plan')?.description ?? 'Measure a model against the scene.',
+      category: 'read',
+      effects: ['studio.read'],
+      inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_fit_plan')?.inputSchema ?? {},
+      handler: (runtime, args) => asTools(runtime).assetFitPlan(
+        (args as any).instancePath,
+        (args as any).targetHeight,
+        (args as any).pivot,
+        (args as any).instance_id,
+      ),
+    }),
+  );
+  registry.register(
+    defineTool({
+      name: 'asset_fit_apply',
+      description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_fit_apply')?.description ?? 'Apply a model fit plan.',
+      category: 'write',
+      effects: ['studio.read', 'studio.write'],
+      inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_fit_apply')?.inputSchema ?? {},
+      handler: (runtime, args) => asTools(runtime).assetFitApply(
+        (args as any).instancePath,
+        (args as any).expectedPlanHash,
+        (args as any).targetHeight,
+        (args as any).pivot,
+        (args as any).instance_id,
+      ),
+    }),
+  );
+
   // Playtest telemetry
   registry.register(
     defineTool({
