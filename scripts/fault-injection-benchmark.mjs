@@ -11,7 +11,17 @@ global.gc?.();
 const heapBefore = process.memoryUsage().heapUsed;
 const timeoutResourcesBefore = process.getActiveResourcesInfo?.().filter((name) => name === 'Timeout').length ?? 0;
 const bridge = new BridgeService('');
-bridge.registerInstance({ pluginSessionId: 'benchmark', instanceId: 'place:benchmark', role: 'edit' });
+// protocolVersion is required: the bridge refuses a plugin below the minimum
+// supported protocol. Omitting it registered nothing, and the first symptom was
+// "request 0 was not delivered" 10,000 lines later — so the registration is
+// asserted here rather than inferred from a delivery failure.
+const registration = bridge.registerInstance({
+  pluginSessionId: 'benchmark',
+  instanceId: 'place:benchmark',
+  role: 'edit',
+  protocolVersion: 3,
+});
+assert(registration?.ok, `benchmark instance did not register: ${registration?.error?.message ?? 'unknown reason'}`);
 
 const started = performance.now();
 for (let index = 0; index < RUNS; index++) {
