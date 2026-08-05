@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The changelog quoted a coverage ratchet (60.77 / 50.57 / 53.68 / 62.41) that
   `jest.config.js` no longer holds.
 
+### Added
+- Upstream-derived regression scenarios in `tests/studio-tooling-smoke.mjs`,
+  taken from the issue tracker of the project BloxForge descends from: an MCP
+  write clobbering a script open with unsaved changes, a playtest whose peers
+  never go away, a Play Solo screenshot sourced from the edit DataModel, and
+  temporary bridge objects left in the tree after a stop. None reproduced when
+  run by hand against a live Studio — which is the reason to keep them, since
+  "we already handle that" decays silently without a test.
+
 ### Changed
 - `release:check` now runs the 10,000-request fault-injection benchmark, and the
   `release:check:full` alias is gone. The benchmark lived only in the alias, so a

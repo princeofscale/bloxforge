@@ -261,6 +261,91 @@ async function runEditModeToolSmoke(client, instanceId) {
   }
 }
 
+// Scenarios taken from the upstream project's issue tracker (Chrrxs/robloxstudio-mcp).
+// None of them reproduced against BloxForge when they were first run by hand, which
+// is exactly why they belong here: a defect somebody else shipped is a cheap test,
+// and "we already handle that" decays silently without one.
+async function runUpstreamRegressionScenarios(client, instanceId) {
+  console.log('\n=== upstream-derived regression scenarios ===');
+  const luau = async (code) => {
+    const res = await client.callTool('execute_luau', { code, instance_id: instanceId });
+    assert(res.success === true, `execute_luau succeeds: ${res.error ?? ''}`);
+    return res.returnValue;
+  };
+
+  // Upstream: an MCP write clobbered a script the user had open with unsaved
+  // changes. The read must see the editor's live text, and the write must go
+  // through the document rather than assigning Source underneath it.
+  const scriptPath = 'game.ServerScriptService.UpstreamDraftProbe';
+  await luau(`
+    local ses = game:GetService("ScriptEditorService")
+    local sss = game:GetService("ServerScriptService")
+    local s = sss:FindFirstChild("UpstreamDraftProbe")
+    if not s then s = Instance.new("Script"); s.Name = "UpstreamDraftProbe"; s.Parent = sss end
+    s.Source = "-- SAVED"
+    ses:OpenScriptDocumentAsync(s)
+    local doc = ses:FindScriptDocument(s)
+    if not doc then return "NO DOC" end
+    doc:EditTextAsync("-- EDITOR BUFFER", 1, 1, doc:GetLineCount(), #doc:GetLine(doc:GetLineCount()) + 1)
+    return "ok"
+  `);
+  try {
+    const read = await client.callTool('get_script_source', { instancePath: scriptPath, instance_id: instanceId });
+    assert(String(read).includes('-- EDITOR BUFFER'), 'get_script_source reads the open editor buffer, not a stale Source');
+
+    const written = await client.callTool('set_script_source', {
+      instancePath: scriptPath,
+      source: '-- WRITTEN BY MCP',
+      instance_id: instanceId,
+    });
+    assert(written.method === 'UpdateSourceAsync', 'set_script_source writes through the script document');
+    const after = await luau(`
+      local ses = game:GetService("ScriptEditorService")
+      local s = game:GetService("ServerScriptService").UpstreamDraftProbe
+      local doc = ses:FindScriptDocument(s)
+      return doc and doc:GetText() or "<closed>"
+    `);
+    assert(String(after).includes('-- WRITTEN BY MCP'), 'the editor buffer reflects the write instead of diverging from Source');
+  } finally {
+    await client.callTool('delete_object', { instancePath: scriptPath, instance_id: instanceId }).catch(() => {});
+  }
+
+  // Upstream: stop left the session in a state where peers never went away, and
+  // temporary bridge objects stayed behind in the edit tree.
+  const namedTemporaries = `
+    local found = {}
+    for _, d in game:GetDescendants() do
+      local ok, name = pcall(function() return d.Name end)
+      if ok and typeof(name) == "string" and (name:find("BloxForge") or name:find("__bridge")) then
+        table.insert(found, d:GetFullName())
+      end
+    end
+    return #found == 0 and "none" or table.concat(found, ", ")
+  `;
+  assert(await luau(namedTemporaries) === 'none', 'no temporary bridge objects in the edit tree before a playtest');
+
+  const started = await client.callTool('start_playtest', { mode: 'play', instance_id: instanceId });
+  assert(started.success === true, 'start_playtest starts');
+  try {
+    assert(started.roles?.includes('server') && started.roles?.includes('client-1'),
+      `start_playtest brings up server and client peers (got ${JSON.stringify(started.roles)})`);
+
+    // Upstream: a screenshot taken during Play Solo came from the edit DataModel.
+    const shot = await client.rpc('tools/call', { name: 'capture_screenshot', arguments: { maxWidth: 640, instance_id: instanceId } });
+    assert(!shot.isError, `capture_screenshot succeeds during a playtest: ${JSON.stringify(shot).slice(0, 200)}`);
+    assert((shot.content ?? []).some((block) => block.type === 'image'), 'capture_screenshot returns an image block during a playtest');
+
+    const sampled = await client.callTool('playtest_sample_state', { instance_id: instanceId });
+    assert(sampled.runtime?.isRunning === true, 'playtest_sample_state observes a running runtime');
+  } finally {
+    const stopped = await client.callTool('stop_playtest', { instance_id: instanceId });
+    assert(stopped.success === true, 'stop_playtest reports success');
+    assert(stopped.roles?.includes('server') !== true, `stop_playtest leaves no runtime peers (got ${JSON.stringify(stopped.roles)})`);
+  }
+
+  assert(await luau(namedTemporaries) === 'none', 'no temporary bridge objects survive the playtest');
+}
+
 function runLiveRegressionSuite() {
   console.log('\n=== existing live Studio regression suite ===');
   return new Promise((resolve, reject) => {
@@ -305,6 +390,7 @@ async function main() {
     launchStudio([placePath]);
     const edit = await waitForEditInstance(client, version);
     await runEditModeToolSmoke(client, edit.instanceId);
+    await runUpstreamRegressionScenarios(client, edit.instanceId);
     await runLiveRegressionSuite();
   } finally {
     if (client) {
