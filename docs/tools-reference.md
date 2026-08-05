@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 213
+## Total Tools: 215
 
 ### `get_file_tree` (Read-only)
 
@@ -1314,6 +1314,35 @@ Capture the Roblox Studio viewport at native resolution and return it as an imag
 | `quality` | `number` | No | JPEG quality 1-100 (default 92). Higher = sharper text, larger size. Ignored for png. |
 | `cameraPosition` | `object` | No | Optional temporary edit-camera position. Requires lookAt; the prior camera type/CFrame are restored after capture. |
 | `lookAt` | `object` | No | World point the temporary camera faces. Requires cameraPosition. |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `asset_sanitize_plan` (Read-only)
+
+Report what the scripts inside a model actually do, for a model that is ALREADY in the scene — from a Package, an .rbxm, a collaborator, or an insert nobody preflighted. Walks the subtree, reads each script (the open editor buffer when there is one), and flags the capabilities that matter in code you did not write: loading another asset at runtime, network access, loadstring, getfenv/setfenv, purchase prompts, kicks, DataStore and TeleportService use, and runtime remote creation. Script source is never returned — only the matched capabilities, their counts and sizes — so a 40-script model does not cost more to report than to read. Returns an immutable planHash covering every script and its content; pass it to asset_sanitize_apply. Use asset_preflight_insert instead when you have an assetId and have not inserted it yet.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `instancePath` | `string` | Yes | Model to inspect, e.g. "game.Workspace.ImportedTree". |
+| `action` | `string` | No | What the matching apply would do. "disable" (default) sets Enabled = false and cannot touch a ModuleScript; "remove" unparents, which stays undoable. |
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `asset_sanitize_apply` (Write)
+
+Disable or remove every script under the path an asset_sanitize_plan covered, as one Studio undo waypoint. Requires the planHash from that plan and refuses a stale one: the subtree is re-read immediately before mutating, and a script added, edited or removed since the plan changes the hash, so the apply never acts on a tree the caller did not see. Acts on every script in the subtree rather than only the flagged ones — a model you did not write is the unit of trust, not an individual file.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `instancePath` | `string` | Yes | The same path the plan was run against. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by asset_sanitize_plan. |
+| `action` | `string` | No | Must match the action the plan was made with, because the hash covers it. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---

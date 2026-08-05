@@ -19,6 +19,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `jest.config.js` no longer holds.
 
 ### Added
+- `asset_sanitize_plan` / `asset_sanitize_apply` — reads what the scripts inside a
+  model actually do, for a model that is already in the scene. `asset_preflight_insert`
+  answers "can I insert asset 123, and does it carry scripts" before anything is
+  parented, and it counts them without reading them; it cannot help once a model
+  has arrived from a Package, an `.rbxm`, a collaborator, or an insert nobody
+  preflighted. The plan flags capabilities that matter in code you did not write —
+  loading another asset at runtime, network access, `loadstring`, `getfenv`,
+  purchase prompts, kicks, DataStore and TeleportService use, runtime remote
+  creation — and grades the model. Script source is never returned, only the
+  matched capabilities and sizes, so a 40-script model does not cost more to
+  report than to read; a clean script contributes its count and nothing else.
+  The apply disables or removes every script in the subtree as one undo waypoint
+  and requires the plan's `planHash`, which covers each script's content: a
+  script added or edited in between invalidates the plan rather than riding
+  along. The hash also covers the action, so a `remove` cannot be applied against
+  a `disable` plan. `disable` refuses a ModuleScript, which has no `Enabled`,
+  rather than reporting success and leaving it live, and `remove` unparents
+  instead of destroying so the change stays undoable.
+
+### Added
 - Upstream-derived regression scenarios in `tests/studio-tooling-smoke.mjs`,
   taken from the issue tracker of the project BloxForge descends from: an MCP
   write clobbering a script open with unsaved changes, a playtest whose peers

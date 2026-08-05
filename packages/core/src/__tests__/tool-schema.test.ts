@@ -483,6 +483,8 @@ describe('Tool schema compatibility', () => {
       insert_asset: 'insertAsset',
       preview_asset: 'previewAsset',
       asset_preflight_insert: 'assetPreflightInsert',
+      asset_sanitize_plan: 'assetSanitizePlan',
+      asset_sanitize_apply: 'assetSanitizeApply',
       clone_object: 'cloneObject',
       get_descendants: 'getDescendants',
       get_scene_summary: 'getSceneSummary',

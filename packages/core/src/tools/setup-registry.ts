@@ -131,6 +131,38 @@ export function registerContractedTools(
     }),
   );
 
+  // Foreign-model sanitising: a plan/apply pair, because disabling someone
+  // else's scripts is a mutation the caller should see spelled out first.
+  registry.register(
+    defineTool({
+      name: 'asset_sanitize_plan',
+      description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_sanitize_plan')?.description ?? 'Report what the scripts inside a model do.',
+      category: 'read',
+      effects: ['studio.read'],
+      inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_sanitize_plan')?.inputSchema ?? {},
+      handler: (runtime, args) => asTools(runtime).assetSanitizePlan(
+        (args as any).instancePath,
+        (args as any).action,
+        (args as any).instance_id,
+      ),
+    }),
+  );
+  registry.register(
+    defineTool({
+      name: 'asset_sanitize_apply',
+      description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_sanitize_apply')?.description ?? 'Disable or remove the scripts a sanitize plan listed.',
+      category: 'write',
+      effects: ['studio.read', 'studio.write'],
+      inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_sanitize_apply')?.inputSchema ?? {},
+      handler: (runtime, args) => asTools(runtime).assetSanitizeApply(
+        (args as any).instancePath,
+        (args as any).expectedPlanHash,
+        (args as any).action,
+        (args as any).instance_id,
+      ),
+    }),
+  );
+
   // Playtest telemetry
   registry.register(
     defineTool({
