@@ -7,12 +7,102 @@ import { buildWorldSnapshotLuau, buildNodeBatchLuau, type SnapshotLevel } from '
 import { buildSceneSearchLuau } from '../builders/scene-search.js';
 import { buildWorldFingerprintLuau } from '../builders/world-fingerprint.js';
 import { buildAssetPreflightLuau } from '../builders/asset-preflight.js';
+import { buildSanitizeScanLuau, buildSanitizeApplyLuau, SANITIZE_PATTERNS, type SanitizeAction } from '../builders/asset-sanitize.js';
+import { buildFitScanLuau, buildFitApplyLuau, type PivotPolicy } from '../builders/asset-fit.js';
+import crypto from 'crypto';
 import { diffFingerprints, SnapshotStore, type Fingerprint } from '../world-changes.js';
 import { classifyError } from '../errors.js';
 import { normalizeExecuteLuauToolResult, wrapToolJsonText, type ToolContent } from './runtime-support.js';
 
 type WorldModelRuntime = {
   callSingle(endpoint: string, data: unknown, target: string | undefined, instance_id: string | undefined): Promise<unknown>;
+  runGeneratedLuau?(code: string, instance_id?: string, undoLabel?: string): Promise<{ content: ToolContent[] }>;
+};
+
+type ScannedScript = {
+  path: string;
+  name: string;
+  className: string;
+  enabled?: boolean;
+  sourceBytes: number;
+  sourceChecksum: number;
+  findings: string[];
+};
+
+type SanitizeScan = {
+  found: boolean;
+  path?: string;
+  className?: string;
+  descendantCount?: number;
+  scripts?: ScannedScript[];
+  remotes?: Array<{ path: string; className: string }>;
+};
+
+/**
+ * Covers everything the apply depends on: which subtree, which scripts, and the
+ * content of each one. A script edited between plan and apply changes its
+ * checksum and invalidates the plan, which is the point — the caller approved a
+ * specific set of scripts doing specific things, not a path.
+ */
+function sanitizePlanHash(action: SanitizeAction, scan: SanitizeScan): string {
+  const digest = crypto.createHash('sha256');
+  digest.update(JSON.stringify({
+    operation: 'asset_sanitize',
+    action,
+    path: scan.path,
+    scripts: (scan.scripts ?? []).map((s) => ({
+      path: s.path,
+      className: s.className,
+      enabled: s.enabled ?? null,
+      sourceBytes: s.sourceBytes,
+      sourceChecksum: s.sourceChecksum,
+    })),
+  }));
+  return `sha256:${digest.digest('hex')}`;
+}
+
+type FitScan = {
+  found: boolean;
+  isModel?: boolean;
+  path?: string;
+  className?: string;
+  scale?: number;
+  extents?: [number, number, number];
+  center?: [number, number, number];
+  pivotOffset?: [number, number, number];
+  partCount?: number;
+  unanchoredParts?: number;
+};
+
+/**
+ * A Roblox character is about 5 studs tall — the one absolute reference the
+ * platform provides. Everything a builder judges as "too big" or "too small" is
+ * measured against it, so it is the default the plan compares to.
+ */
+export const CHARACTER_HEIGHT_STUDS = 5;
+
+function fitPlanHash(scan: FitScan, targetScale: number | undefined, pivot: PivotPolicy): string {
+  return `sha256:${crypto.createHash('sha256').update(JSON.stringify({
+    operation: 'asset_fit',
+    path: scan.path,
+    scale: scan.scale,
+    extents: scan.extents,
+    pivotOffset: scan.pivotOffset,
+    targetScale: targetScale ?? null,
+    pivot,
+  })).digest('hex')}`;
+}
+
+const SEVERITY_OF: Record<string, 'high' | 'medium'> = {
+  require_asset_id: 'high',
+  http_request: 'high',
+  dynamic_code: 'high',
+  env_access: 'high',
+  purchase_prompt: 'high',
+  player_kick: 'medium',
+  datastore: 'medium',
+  teleport: 'medium',
+  remote_creation: 'medium',
 };
 
 export class WorldModelTools {
@@ -110,5 +200,217 @@ export class WorldModelTools {
       }
     }
     return { content: [{ type: 'text', text: JSON.stringify(verdict ?? response) }] as ToolContent[] };
+  }
+
+  private async scanSubtree(instancePath: string, instance_id?: string): Promise<SanitizeScan> {
+    const response = await this.runtime.callSingle(
+      '/api/execute-luau',
+      { code: buildSanitizeScanLuau(instancePath) },
+      'edit',
+      instance_id,
+    );
+    const rv = (response as { returnValue?: unknown })?.returnValue;
+    if (typeof rv === 'string') {
+      try {
+        return JSON.parse(rv) as SanitizeScan;
+      } catch { /* fall through */ }
+    }
+    if (rv && typeof rv === 'object') return rv as SanitizeScan;
+    throw new Error(`asset_sanitize_plan could not read ${instancePath}: ${JSON.stringify(response).slice(0, 200)}`);
+  }
+
+  async assetSanitizePlan(instancePath: string, action?: SanitizeAction, instance_id?: string) {
+    if (!instancePath) throw new Error('instancePath is required for asset_sanitize_plan');
+    const chosen: SanitizeAction = action === 'remove' ? 'remove' : 'disable';
+    const scan = await this.scanSubtree(instancePath, instance_id);
+    if (!scan.found) {
+      throw new Error(`instancePath not found for asset_sanitize_plan: ${instancePath}`);
+    }
+
+    const scripts = scan.scripts ?? [];
+    const flagged = scripts.filter((s) => s.findings.length > 0);
+    const severity = flagged.some((s) => s.findings.some((f) => SEVERITY_OF[f] === 'high'))
+      ? 'high'
+      : flagged.length > 0
+        ? 'medium'
+        : scripts.length > 0
+          ? 'low'
+          : 'none';
+
+    return wrapToolJsonText({
+      path: scan.path,
+      className: scan.className,
+      action: chosen,
+      severity,
+      descendantCount: scan.descendantCount,
+      scriptCount: scripts.length,
+      flaggedCount: flagged.length,
+      remotes: scan.remotes ?? [],
+      // Only flagged scripts are listed in full; a clean script contributes its
+      // count and nothing else, because a 40-script model would otherwise cost
+      // more to report than to inspect.
+      scripts: flagged.map((s) => ({
+        path: s.path,
+        className: s.className,
+        enabled: s.enabled,
+        sourceBytes: s.sourceBytes,
+        findings: s.findings.map((id) => ({
+          id,
+          severity: SEVERITY_OF[id] ?? 'medium',
+          why: SANITIZE_PATTERNS.find((p) => p.id === id)?.why ?? '',
+        })),
+      })),
+      // The apply acts on every script, not only the flagged ones: a model you
+      // did not write is the unit of trust, not an individual file.
+      targets: scripts.map((s) => s.path),
+      planHash: sanitizePlanHash(chosen, scan),
+      client_hint: severity === 'none'
+        ? 'No scripts under this path — nothing to sanitize.'
+        : `Pass this planHash to asset_sanitize_apply to ${chosen === 'remove' ? 'remove' : 'disable'} all ${scripts.length} script(s). Read an individual one with get_script_source first if you want to keep it.`,
+    });
+  }
+
+  async assetSanitizeApply(instancePath: string, expectedPlanHash: string, action?: SanitizeAction, instance_id?: string) {
+    if (!instancePath) throw new Error('instancePath is required for asset_sanitize_apply');
+    if (!expectedPlanHash) {
+      throw new Error('expectedPlanHash is required for asset_sanitize_apply: run asset_sanitize_plan and pass the planHash it returns.');
+    }
+    const chosen: SanitizeAction = action === 'remove' ? 'remove' : 'disable';
+
+    // Re-read immediately before mutating. A script added, edited or removed
+    // since the plan changes this hash, and the apply refuses rather than acting
+    // on a tree the caller never saw.
+    const scan = await this.scanSubtree(instancePath, instance_id);
+    if (!scan.found) throw new Error(`instancePath not found for asset_sanitize_apply: ${instancePath}`);
+    const actual = sanitizePlanHash(chosen, scan);
+    if (actual !== expectedPlanHash) {
+      throw new Error(
+        `${instancePath} changed after asset_sanitize_plan ran (expected planHash ${expectedPlanHash}, current ${actual}). Re-run the plan and review it before applying.`,
+      );
+    }
+
+    const targets = (scan.scripts ?? []).map((s) => s.path);
+    if (targets.length === 0) {
+      return wrapToolJsonText({ path: scan.path, action: chosen, applied: [], appliedCount: 0, skippedCount: 0, message: 'No scripts to sanitize.' });
+    }
+    if (!this.runtime.runGeneratedLuau) {
+      throw new Error('asset_sanitize_apply requires the generated-Luau runtime');
+    }
+    const result = await this.runtime.runGeneratedLuau(
+      buildSanitizeApplyLuau(targets, chosen),
+      instance_id,
+      `sanitize ${chosen} (${targets.length} scripts)`,
+    );
+    return result;
+  }
+
+  private async scanFit(instancePath: string, instance_id?: string): Promise<FitScan> {
+    const response = await this.runtime.callSingle(
+      '/api/execute-luau',
+      { code: buildFitScanLuau(instancePath) },
+      'edit',
+      instance_id,
+    );
+    const rv = (response as { returnValue?: unknown })?.returnValue;
+    if (typeof rv === 'string') {
+      try { return JSON.parse(rv) as FitScan; } catch { /* fall through */ }
+    }
+    if (rv && typeof rv === 'object') return rv as FitScan;
+    throw new Error(`asset_fit_plan could not read ${instancePath}: ${JSON.stringify(response).slice(0, 200)}`);
+  }
+
+  async assetFitPlan(instancePath: string, targetHeight?: number, pivot?: PivotPolicy, instance_id?: string) {
+    if (!instancePath) throw new Error('instancePath is required for asset_fit_plan');
+    const pivotPolicy: PivotPolicy = pivot === 'center' ? 'center' : pivot === 'keep' ? 'keep' : 'base';
+    const scan = await this.scanFit(instancePath, instance_id);
+    if (!scan.found) throw new Error(`instancePath not found for asset_fit_plan: ${instancePath}`);
+    if (!scan.isModel) {
+      throw new Error(`asset_fit_plan needs a Model; ${instancePath} is a ${scan.className}. Scale and pivot are Model properties — group the parts into a Model first.`);
+    }
+
+    const [ex = 0, ey = 0, ez = 0] = scan.extents ?? [];
+    const currentScale = scan.scale ?? 1;
+    // ScaleTo is absolute against the authored size, so the target is computed
+    // from the current scale rather than applied as a factor — a factor would
+    // compound if the model had already been scaled.
+    const targetScale = targetHeight && ey > 0
+      ? Number(((currentScale * targetHeight) / ey).toFixed(6))
+      : undefined;
+
+    const [px = 0, py = 0, pz = 0] = scan.pivotOffset ?? [];
+    const pivotDistance = Number(Math.sqrt(px * px + py * py + pz * pz).toFixed(3));
+    // The pivot belongs at the base for anything that stands on ground. Half the
+    // height below centre is where "base" is, so that is what a correct model
+    // already reads as.
+    const pivotAlreadyAtBase = Math.abs(px) < 0.05 && Math.abs(pz) < 0.05 && Math.abs(py + ey / 2) < 0.05;
+
+    const notes: string[] = [];
+    if (ey > 0) {
+      const characters = Number((ey / CHARACTER_HEIGHT_STUDS).toFixed(2));
+      notes.push(`${characters}× the height of a character (${CHARACTER_HEIGHT_STUDS} studs)`);
+    }
+    if (!pivotAlreadyAtBase && pivotPolicy !== 'keep') {
+      notes.push(`pivot sits ${pivotDistance} studs from where "${pivotPolicy}" would put it, so moves and rotations swing the model`);
+    }
+    if ((scan.unanchoredParts ?? 0) > 0) {
+      notes.push(`${scan.unanchoredParts} of ${scan.partCount} parts are unanchored and will fall on playtest`);
+    }
+
+    return wrapToolJsonText({
+      path: scan.path,
+      currentScale,
+      extents: { x: ex, y: ey, z: ez },
+      heightInCharacters: ey > 0 ? Number((ey / CHARACTER_HEIGHT_STUDS).toFixed(2)) : undefined,
+      pivotOffset: { x: px, y: py, z: pz },
+      pivotAlreadyAtBase,
+      partCount: scan.partCount,
+      unanchoredParts: scan.unanchoredParts,
+      proposed: {
+        scale: targetScale,
+        resultingHeight: targetScale ? Number((ey * (targetScale / currentScale)).toFixed(3)) : ey,
+        pivot: pivotPolicy,
+      },
+      notes,
+      planHash: fitPlanHash(scan, targetScale, pivotPolicy),
+      client_hint: targetScale === undefined && pivotPolicy === 'keep'
+        ? 'Nothing to change: pass targetHeight to rescale, or pivot to move the pivot.'
+        : 'Pass this planHash to asset_fit_apply. The hash covers the model\'s current size and pivot, so moving or rescaling it by hand in between invalidates the plan.',
+    });
+  }
+
+  async assetFitApply(instancePath: string, expectedPlanHash: string, targetHeight?: number, pivot?: PivotPolicy, instance_id?: string) {
+    if (!instancePath) throw new Error('instancePath is required for asset_fit_apply');
+    if (!expectedPlanHash) {
+      throw new Error('expectedPlanHash is required for asset_fit_apply: run asset_fit_plan and pass the planHash it returns.');
+    }
+    const pivotPolicy: PivotPolicy = pivot === 'center' ? 'center' : pivot === 'keep' ? 'keep' : 'base';
+
+    const scan = await this.scanFit(instancePath, instance_id);
+    if (!scan.found) throw new Error(`instancePath not found for asset_fit_apply: ${instancePath}`);
+    if (!scan.isModel) throw new Error(`asset_fit_apply needs a Model; ${instancePath} is a ${scan.className}.`);
+
+    const [, ey = 0] = scan.extents ?? [];
+    const currentScale = scan.scale ?? 1;
+    const targetScale = targetHeight && ey > 0
+      ? Number(((currentScale * targetHeight) / ey).toFixed(6))
+      : undefined;
+
+    const actual = fitPlanHash(scan, targetScale, pivotPolicy);
+    if (actual !== expectedPlanHash) {
+      throw new Error(
+        `${instancePath} changed after asset_fit_plan ran (expected planHash ${expectedPlanHash}, current ${actual}). Re-run the plan and review it before applying.`,
+      );
+    }
+    if (targetScale === undefined && pivotPolicy === 'keep') {
+      return wrapToolJsonText({ path: scan.path, changed: [], message: 'Nothing to apply: no targetHeight and pivot is "keep".' });
+    }
+    if (!this.runtime.runGeneratedLuau) {
+      throw new Error('asset_fit_apply requires the generated-Luau runtime');
+    }
+    return this.runtime.runGeneratedLuau(
+      buildFitApplyLuau(instancePath, targetScale, pivotPolicy),
+      instance_id,
+      `fit model (${targetScale !== undefined ? `scale ${targetScale}` : 'pivot only'})`,
+    );
   }
 }

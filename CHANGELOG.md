@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `capture_screenshot`'s description still promised "the returned image is never
+  downscaled" after the default downscale landed, so the one place a caller reads
+  about the behaviour contradicted it.
+- `README.md` described a Wally safety guarantee the code does not implement. It
+  said a locked install is "refused" when `--locked` is absent from the released
+  Wally 0.3.2; the code runs the install and protects the lockfile by backing it
+  up and restoring it if the install moved it, which is what `docs/architecture.md`
+  already said. The two documents contradicted each other on a safety claim, and
+  the README was the wrong one.
+- `docs/architecture.md` said "130+ tools"; there are 213.
+- The changelog quoted a coverage ratchet (60.77 / 50.57 / 53.68 / 62.41) that
+  `jest.config.js` no longer holds.
+
+### Added
+- `asset_fit_plan` / `asset_fit_apply` — measures how a model sits in the scene
+  and corrects it. A model from the marketplace, a Package or an `.rbxm` arrives
+  at whatever scale its author worked in, with its pivot wherever their modelling
+  tool left it — often the world origin, which makes every later move and rotate
+  swing it around a point far outside the model. Neither is visible to an agent
+  that can only read names and classes. The plan reports the model's height
+  against a Roblox character (about 5 studs, the one absolute reference the
+  platform gives you), where the pivot sits inside the bounding box, and how many
+  parts are unanchored and would fall on the next playtest. The scale it proposes
+  is absolute against the authored size rather than a factor, so applying it to
+  an already-scaled model does not compound. The apply requires the plan's
+  `planHash`, which covers the current size, pivot, requested height and pivot
+  policy, and re-measures immediately before changing anything. A non-Model is
+  refused with the reason — scale and pivot are Model properties.
+
+- `asset_sanitize_plan` / `asset_sanitize_apply` — reads what the scripts inside a
+  model actually do, for a model that is already in the scene. `asset_preflight_insert`
+  answers "can I insert asset 123, and does it carry scripts" before anything is
+  parented, and it counts them without reading them; it cannot help once a model
+  has arrived from a Package, an `.rbxm`, a collaborator, or an insert nobody
+  preflighted. The plan flags capabilities that matter in code you did not write —
+  loading another asset at runtime, network access, `loadstring`, `getfenv`,
+  purchase prompts, kicks, DataStore and TeleportService use, runtime remote
+  creation — and grades the model. Script source is never returned, only the
+  matched capabilities and sizes, so a 40-script model does not cost more to
+  report than to read; a clean script contributes its count and nothing else.
+  The apply disables or removes every script in the subtree as one undo waypoint
+  and requires the plan's `planHash`, which covers each script's content: a
+  script added or edited in between invalidates the plan rather than riding
+  along. The hash also covers the action, so a `remove` cannot be applied against
+  a `disable` plan. `disable` refuses a ModuleScript, which has no `Enabled`,
+  rather than reporting success and leaving it live, and `remove` unparents
+  instead of destroying so the change stays undoable.
+
+- Upstream-derived regression scenarios in `tests/studio-tooling-smoke.mjs`,
+  taken from the issue tracker of the project BloxForge descends from: an MCP
+  write clobbering a script open with unsaved changes, a playtest whose peers
+  never go away, a Play Solo screenshot sourced from the edit DataModel, and
+  temporary bridge objects left in the tree after a stop. None reproduced when
+  run by hand against a live Studio — which is the reason to keep them, since
+  "we already handle that" decays silently without a test.
+
+### Changed
+- `release:check` now runs the 10,000-request fault-injection benchmark, and the
+  `release:check:full` alias is gone. The benchmark lived only in the alias, so a
+  green `release:check` could still fail CI's Node 20 job — which is how a bridge
+  registration regression reached CI instead of being caught locally. The
+  benchmark takes well under a second; `release:check` exists to predict CI, so
+  anything CI gates on belongs in it.
+
 ## [4.1.0] - 2026-08-05
 
 ### Added
@@ -49,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disappeared. Read-only: it proposes, it never writes the manifest.
 - A coverage ratchet. CI runs the suite with `--coverage` and fails if statement,
   branch, function or line coverage drops below what the suite reaches today
-  (60.77 / 50.57 / 53.68 / 62.41, with a small margin). It is deliberately a
+  (61.58 / 51.33 / 54.46 / 63.25 measured, held at 61 / 51 / 54 / 62.8). It is deliberately a
   floor rather than a target: an aspirational percentage would have to be
   switched off to merge anything, whereas "coverage may not fall" is enforceable
   from the first commit.

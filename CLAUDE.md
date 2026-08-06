@@ -133,9 +133,15 @@ npm run test:plugin:runtime   # needs the pinned Lune runtime
 npm run docs:check
 npm run metadata:check
 npm run tools:legacy-report -- --check
+npm run test:fault-injection:10k
 npm run verify-package
 npm run release:check         # all of the above, in order
 ```
+
+`release:check` runs everything CI runs, and that is the point of it. The 10,000-request
+benchmark used to sit only in a separate `release:check:full`, so a green `release:check`
+could still fail on CI's Node 20 job — which is exactly how a registration regression
+reached CI. Anything CI gates on belongs here; do not split it back out.
 
 Environment notes that have cost real debugging time:
 
