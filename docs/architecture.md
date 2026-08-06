@@ -1,20 +1,20 @@
 # Architecture
 
 ```
-                    ┌─────────────────────────────────────┐
+                    ┌──────────────────────────────────────┐
                     │        AI Coding Agent               │
                     │  (Claude Code / Codex / Cursor /     │
                     │   Gemini / any MCP client)           │
-                    └──────────────┬──────────────────────┘
+                    └──────────────┬───────────────────────┘
                                    │
                            MCP protocol (stdio)
                                    │
-                    ┌──────────────▼──────────────────────┐
-                    │     BloxForge Server         │
-                    │     (Node.js / TypeScript)            │
+                    ┌──────────────▼───────────────────────┐
+                    │     BloxForge Server                 │
+                    │     (Node.js / TypeScript)           │
                     │                                      │
                     │  ┌────────────────────────────────┐  │
-                    │  │  Tool handlers (213 tools)      │  │
+                    │  │  Tool handlers (218 tools)     │  │
                     │  │  · Scene read / mutation       │  │
                     │  │  · Script / Luau               │  │
                     │  │  · UI / Terrain / Environment  │  │
@@ -23,34 +23,34 @@
                     │  │  · Safety layer                │  │
                     │  │  · Sync / Backup               │  │
                     │  └────────────────────────────────┘  │
-                    │              │                        │
+                    │             │                        │
                     │  ┌────────────────────────────────┐  │
-                    │  │  Tool pipeline                  │  │
-                    │  │  (structuredContent,            │  │
-                    │  │   errorEnvelope,                │  │
-                    │  │   MCP resources)                │  │
+                    │  │  Tool pipeline                 │  │
+                    │  │  (structuredContent,           │  │
+                    │  │   errorEnvelope,               │  │
+                    │  │   MCP resources)               │  │
                     │  └────────────────────────────────┘  │
-                    └──────────────┬──────────────────────┘
+                    └──────────────┬───────────────────────┘
                                    │
                       HTTP long-poll bridge (localhost)
                                    │
-                    ┌──────────────▼──────────────────────┐
+                    ┌──────────────▼───────────────────────┐
                     │     Roblox Studio Plugin             │
                     │     (roblox-ts → Luau)               │
                     │                                      │
                     │  · Receives tool requests            │
                     │  · Operates the DataModel            │
                     │  · Returns results                   │
-                    └──────────────┬──────────────────────┘
+                    └──────────────┬───────────────────────┘
                                    │
-                    ┌──────────────▼──────────────────────┐
+                    ┌──────────────▼───────────────────────┐
                     │     Your Roblox Place                │
                     │                                      │
                     │  Workspace · ServerScriptService     │
                     │  ReplicatedStorage · StarterGui      │
                     │  Lighting · Terrain · Players        │
                     │  And everything in your place        │
-                    └─────────────────────────────────────┘
+                    └──────────────────────────────────────┘
 ```
 
 ## Key design decisions

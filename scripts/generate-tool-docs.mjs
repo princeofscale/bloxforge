@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const coreDistPath = join(__dirname, '../packages/core/dist');
 const outputPath = join(__dirname, '../docs/tools-reference.md');
+const architecturePath = join(__dirname, '../docs/architecture.md');
 
 function schemaType(schema) {
   if (schema.type) return Array.isArray(schema.type) ? schema.type.join(' | ') : schema.type;
@@ -57,6 +58,21 @@ async function main() {
       if (normalize(readFileSync(outputPath, 'utf8')) !== normalize(markdown)) {
         throw new Error('Generated tool docs are out of date.');
       }
+      // docs/architecture.md states the tool count by hand. It went stale inside
+      // the very branch that corrected it, because adding a tool does not touch
+      // the file that names how many there are. Check it against the source of
+      // truth rather than against whoever last remembered.
+      const architecture = readFileSync(architecturePath, 'utf8');
+      const stated = architecture.match(/Tool handlers \((\d+) tools\)/);
+      if (!stated) {
+        throw new Error('docs/architecture.md no longer states a tool count in the form "Tool handlers (N tools)".');
+      }
+      if (Number(stated[1]) !== TOOL_DEFINITIONS.length) {
+        throw new Error(
+          `docs/architecture.md says ${stated[1]} tools; there are ${TOOL_DEFINITIONS.length}.`,
+        );
+      }
+
       console.log(`Tools reference is up to date: ${outputPath}`);
       return;
     }
