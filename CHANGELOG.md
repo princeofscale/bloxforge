@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   baseplate-sized parts are excluded from the grid so it does not come back
   uniformly full. Grid resolution and landmark count are clamped, so no argument
   turns this into a wall of text.
+  Reads a part's position through `CFrame.Position` rather than `.Position`:
+  the same value, and the one a non-Studio Luau host can read, which is what
+  makes the runtime test above possible.
 - `asset_fit_plan` / `asset_fit_apply` — measures how a model sits in the scene
   and corrects it. A model from the marketplace, a Package or an `.rbxm` arrives
   at whatever scale its author worked in, with its pivot wherever their modelling
@@ -81,6 +84,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "we already handle that" decays silently without a test.
 
 ### Changed
+- The Luau that `get_spatial_layout` generates now runs under Lune against a real
+  DataModel, in `release:check` and in CI. Generated Luau is where this repo's
+  read tools actually compute their answers, and none of it was reachable from
+  Jest — the arithmetic could only be checked by hand against a live Studio,
+  which means in practice it was checked once and then never again. Lune supplies
+  real `CFrame`, `Vector3` and Instance semantics, so the bounding boxes and the
+  occupancy grid are now asserted on: a rotated 4x4x80 beam has to read as the
+  eighty studs of X it occupies, a baseplate has to be excluded from the grid
+  rather than filling it, and a 390x300x2 wall must not be mistaken for the
+  ground it stands on. The generated code and the code under test are the same
+  artefact, so the test cannot drift from the builder by copying it.
 - `release:check` now runs the 10,000-request fault-injection benchmark, and the
   `release:check:full` alias is gone. The benchmark lived only in the alias, so a
   green `release:check` could still fail CI's Node 20 job — which is how a bridge

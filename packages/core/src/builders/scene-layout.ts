@@ -69,7 +69,9 @@ for _, d in ipairs(root:GetDescendants()) do
 \t\tbreak
 \tend
 \tif d:IsA("SpawnLocation") and #spawns < 12 then
-\t\tlocal p = d.Position
+\t\t-- CFrame.Position rather than .Position: the same value, and the one a
+\t\t-- non-Studio Luau host can actually read.
+\t\tlocal p = d.CFrame.Position
 \t\ttable.insert(spawns, { path = "game." .. d:GetFullName(), position = { r1(p.X), r1(p.Y), r1(p.Z) } })
 \tend
 \t-- Terrain is a BasePart but has no meaningful CFrame/Size of its own.
