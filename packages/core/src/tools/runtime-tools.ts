@@ -581,13 +581,17 @@ export class RuntimeTools {
     };
   }
 
-  async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions) {
+  async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions, undoLabel?: string) {
     if (!code) {
       throw new Error('code is required for execute_luau');
     }
     const gated = this.runtime.safetyGate('execute_luau', 'run Luau in Studio', { code }, options);
     if (gated) return gated;
-    const response = await this._callSingle('/api/execute-luau', { code }, target || 'edit', instance_id);
+    // The plugin has always recorded a waypoint when it is given a label; only
+    // generated builders were passing one, so a caller writing its own mutation
+    // through this tool could not get its edit into the undo stack at all.
+    const payload = undoLabel ? { code, undoLabel } : { code };
+    const response = await this._callSingle('/api/execute-luau', payload, target || 'edit', instance_id);
     this.runtime.recordOperation('execute_luau', `ran Luau (${code.length} chars)`);
     return {
       content: [

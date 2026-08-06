@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `execute_luau` could not produce a Studio Undo waypoint. The plugin has always
+  opened a `ChangeHistoryService` recording for any script that arrives with an
+  `undoLabel`, but only the generated builders were sending one — the parameter
+  was never exposed on the tool, and the server dropped it. So an agent writing
+  its own mutation through the most general write path there is landed the edit
+  outside the undo stack, and Ctrl+Z would not take it back. `undoLabel` is now
+  an optional parameter of `execute_luau`: pass it whenever the code changes the
+  DataModel, omit it for reads, since an empty recording is worse than none. A
+  script that errors still cancels its recording rather than leaving a waypoint
+  the user has to undo separately.
+- `execute_luau_async`'s description recommended it over `execute_luau` for
+  "mass builds" without saying that a job's changes are not undoable. A recording
+  cannot span an asynchronous job's yields without blocking the user's own edits,
+  so that is a real property of the tool and now stated where the caller reads,
+  along with the advice to keep async for long reads and scans.
+
+### Fixed
 - `docs/architecture.md` claimed 213 tools; there are 218. It went stale inside
   the very branch that last corrected it, because adding a tool does not touch
   the file that states how many exist. `docs:check` now compares that number

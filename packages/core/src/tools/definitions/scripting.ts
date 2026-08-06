@@ -361,6 +361,10 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'boolean',
           description: 'Approve Luau the safety layer flagged as destructive (e.g. ClearAllChildren, Destroy, DataStore writes) (default false).'
         },
+        undoLabel: {
+          type: 'string',
+          description: 'Record the whole script as one Studio Undo waypoint under this name. Pass it whenever the code changes the DataModel: without it the edit is not in the undo stack and Ctrl+Z will not take it back. Omit it for reads — an empty recording is worse than none. A script that errors cancels its recording rather than leaving a waypoint behind.'
+        },
         instance_id: {
           type: 'string',
           description: 'Connected Studio place id. Required only when multiple places are open.'

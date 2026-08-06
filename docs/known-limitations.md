@@ -107,6 +107,16 @@ Judge actual audibility, timbre, and loudness **by ear in a playtest**
   Attributes.
 - `Instance:GetDebugId()` is security-gated in game VMs. Key monitor tables by
   the Instance object itself.
+- **`execute_luau_async` produces no Undo waypoint.** A job yields, and a Studio
+  recording cannot be held open across those yields without blocking the user's
+  own edits and risking a dangling recording if the job is cancelled. Anything an
+  async job changes is therefore outside the undo stack, and Ctrl+Z will not take
+  it back. Prefer `execute_luau` with `undoLabel` for work that mutates the
+  DataModel, and keep async for long reads and scans.
+- `execute_luau` records a waypoint only when the caller passes `undoLabel`.
+  That is deliberate — a read must not open an empty recording — but it means a
+  mutation sent without a label is not undoable. The dedicated write tools
+  (`create_object`, `set_property`, the builders) always declare their own.
 - Regular play sessions use shared `LogService`, so peer attribution is not
   reliable. `get_runtime_logs` exposes this as
   `peerAttribution="unavailable_shared_logservice"`; guaranteed peer labels

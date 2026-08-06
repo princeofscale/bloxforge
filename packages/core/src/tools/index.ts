@@ -871,7 +871,7 @@ export class RobloxStudioTools {
 
   // Runtime / playtest / eval / simulation tools live in RuntimeTools; the facade
   // delegates with identical public signatures (instance_id stays the last param).
-  async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions) { return this.runtimeTools.executeLuau(code, target, instance_id, options); }
+  async executeLuau(code: string, target?: string, instance_id?: string, options?: SafetyOptions, undoLabel?: string) { return this.runtimeTools.executeLuau(code, target, instance_id, options, undoLabel); }
 
   async executeLuauAsync(code: string, target?: string, instance_id?: string, options?: SafetyOptions) { return this.runtimeTools.executeLuauAsync(code, target, instance_id, options); }
 
