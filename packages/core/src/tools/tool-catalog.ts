@@ -123,6 +123,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   get_descendants: 'scene',
   get_changes_since: 'scene',
   scene_search: 'scene',
+  get_spatial_layout: 'scene',
   // mutation
   clone_object: 'mutation',
   smart_duplicate: 'mutation',

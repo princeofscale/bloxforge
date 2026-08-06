@@ -502,6 +502,24 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
   {
+    name: 'get_spatial_layout',
+    category: 'read',
+    effects: ['studio.read'],
+    description: 'Where things physically are, at fixed token cost. Every other scene read answers a question about the tree (what classes, what names, which script); this answers the one an agent must settle before placing anything: how big is the built area, where is the ground, and which patch of it is empty. Returns the bounding volume, the ground plane and the y to stand things on, the largest children with position and size, SpawnLocations, and a coarse occupancy grid over the XZ plane — "." empty, 1-9 that many parts, "#" ten or more, north (high Z) first. Baseplate-sized parts are excluded from the grid so it does not read as uniformly full. Use before create_object or insert_asset to pick a location that does not land inside something.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Root to measure (default game.Workspace).' },
+        gridSize: { type: 'number', description: 'Occupancy grid resolution per side, 4-48 (default 24).' },
+        topLandmarks: { type: 'number', description: 'How many of the largest children to list, 1-40 (default 10).' },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      }
+    }
+  },
+  {
     name: 'get_node_batch',
     category: 'read',
     effects: ['studio.read'],

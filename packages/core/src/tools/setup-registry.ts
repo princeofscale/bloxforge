@@ -73,6 +73,19 @@ export function registerContractedTools(
       ),
     }),
     defineTool({
+      name: 'get_spatial_layout',
+      description: findDef(SCENE_TOOL_DEFINITIONS, 'get_spatial_layout')?.description ?? 'Where things physically are.',
+      category: 'read',
+      effects: ['studio.read'],
+      inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_spatial_layout')?.inputSchema ?? {},
+      handler: (runtime, args) => asTools(runtime).getSpatialLayout(
+        (args as any).path,
+        (args as any).gridSize,
+        (args as any).topLandmarks,
+        (args as any).instance_id,
+      ),
+    }),
+    defineTool({
       name: 'get_node_batch',
       description: findDef(SCENE_TOOL_DEFINITIONS, 'get_node_batch')?.description ?? 'Read instance properties in batch.',
       category: 'read',
