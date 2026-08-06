@@ -66,8 +66,8 @@ jobs:
         env:
           MCP_PLUGINS_DIR: ${{ runner.temp }}/bloxforge-plugins
 
-      - name: Runtime-check the generated spatial-layout Luau
-        run: npm run test:layout:runtime
+      - name: Runtime-check the generated Luau against a real DataModel
+        run: npm run test:luau:runtime
 
       - name: Legacy dispatch migration baseline
         run: npm run tools:legacy-report -- --check

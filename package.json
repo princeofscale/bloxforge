@@ -52,7 +52,7 @@
     "test:plugin:smoke": "node tests/plugin-compiled-smoke.mjs && node tests/plugin-build-install-safety.mjs",
     "test:plugin:installer": "node tests/plugin-installer-smoke.mjs",
     "test:plugin:runtime": "node scripts/run-lune.mjs run tests/plugin-runtime-smoke.luau",
-    "test:layout:runtime": "node scripts/test-scene-layout-runtime.mjs",
+    "test:luau:runtime": "node scripts/test-generated-luau-runtime.mjs",
     "test:rojo:integration": "node scripts/test-rojo-integration.mjs",
     "test:toolchain:integration": "npm run build -w packages/core && node scripts/test-toolchain-integration.mjs",
     "tools:legacy-report": "node scripts/report-legacy-tools.mjs",
@@ -60,7 +60,7 @@
     "docs:check": "node scripts/generate-tool-docs.mjs --check && node scripts/check-doc-links.mjs",
     "metadata:check": "node scripts/check-package-metadata.mjs",
     "verify-package": "node scripts/verify-package.mjs",
-    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run test:layout:runtime && npm run test:fault-injection:10k && npm run verify-package"
+    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run test:luau:runtime && npm run test:fault-injection:10k && npm run verify-package"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

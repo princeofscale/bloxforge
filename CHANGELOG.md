@@ -84,17 +84,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "we already handle that" decays silently without a test.
 
 ### Changed
-- The Luau that `get_spatial_layout` generates now runs under Lune against a real
-  DataModel, in `release:check` and in CI. Generated Luau is where this repo's
-  read tools actually compute their answers, and none of it was reachable from
-  Jest — the arithmetic could only be checked by hand against a live Studio,
-  which means in practice it was checked once and then never again. Lune supplies
-  real `CFrame`, `Vector3` and Instance semantics, so the bounding boxes and the
-  occupancy grid are now asserted on: a rotated 4x4x80 beam has to read as the
-  eighty studs of X it occupies, a baseplate has to be excluded from the grid
-  rather than filling it, and a 390x300x2 wall must not be mistaken for the
-  ground it stands on. The generated code and the code under test are the same
-  artefact, so the test cannot drift from the builder by copying it.
+- The Luau this server generates now runs under Lune against a real DataModel,
+  in `release:check` and in CI. Generated Luau is where the read tools actually
+  compute their answers, and none of it was reachable from Jest — it could only
+  be checked by hand against a live Studio, which in practice means checked once
+  and then never again. Lune supplies real `CFrame`, `Vector3` and Instance
+  semantics, so `get_spatial_layout`, `get_node_batch`, `scene_search`, the
+  `get_changes_since` fingerprint and the `asset_fit_plan` scan are now asserted
+  on: a rotated 4x4x80 beam has to read as the eighty studs of X it occupies, a
+  baseplate has to be excluded from the occupancy grid rather than fill it, a
+  390x300x2 wall must not be mistaken for the ground it stands on, a batch row
+  for a missing path must report itself rather than vanish and leave the caller
+  matching answers to requests by position, and an unresolvable fit scan must
+  fail closed. The builders are called and their output is what runs, so the
+  tests cannot drift from them by copying. `get_world_snapshot` and the sanitize
+  scan cannot run there — Lune reads properties from rbx-dom, which has no value
+  for one that was never assigned and has no default, so `game.PlaceId` and
+  `Script.Enabled` are unreadable. That is a limit of the host, not a defect in
+  those builders.
 - `release:check` now runs the 10,000-request fault-injection benchmark, and the
   `release:check:full` alias is gone. The benchmark lived only in the alias, so a
   green `release:check` could still fail CI's Node 20 job — which is how a bridge
