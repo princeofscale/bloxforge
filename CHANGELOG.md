@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The argument guards on every mutating tool are now exercised, not just
+  spell-checked. `check-argument-errors.mjs` proved the refusals name a
+  parameter rather than describing the problem in prose, but nothing proved a
+  guard actually fired — and in this repo a guard's condition has been broken
+  while its message stayed perfectly correct. Twenty-one guards now run against
+  a bridge that throws on contact, so one that stopped firing reaches the bridge
+  and fails with a different error than the one asserted. Confirmed by breaking
+  a condition on purpose and watching the suite go red. `mutation-tools.ts`
+  coverage moved from 33% to 63%.
+
 ### Fixed
 - `execute_luau` could not produce a Studio Undo waypoint. The plugin has always
   opened a `ChangeHistoryService` recording for any script that arrives with an
