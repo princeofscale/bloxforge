@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `docs/architecture.md` claimed 213 tools; there are 218. It went stale inside
+  the very branch that last corrected it, because adding a tool does not touch
+  the file that states how many exist. `docs:check` now compares that number
+  against `TOOL_DEFINITIONS` and fails when they disagree, so the next person to
+  add a tool is told rather than trusted to remember. The ASCII diagram around it
+  had also come apart — rows were 52 to 61 characters wide inside a 59-character
+  frame, most likely since the rename to BloxForge — and is square again.
+
+### Fixed
 - `capture_screenshot`'s description still promised "the returned image is never
   downscaled" after the default downscale landed, so the one place a caller reads
   about the behaviour contradicted it.
