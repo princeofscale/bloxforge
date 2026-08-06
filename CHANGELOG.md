@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Four caller-supplied values reached generated Luau without being escaped, so a
+  crafted argument executed arbitrary code in the Studio plugin's edit context:
+  `template_create_simulator_game`'s `currencyName` (interpolated inside a Luau
+  string literal, so a quote closed it), and the numeric arguments of
+  `template_create_tycoon_game`, `template_create_round_game`,
+  `template_create_obby_game` and `environment_create_day_night_cycle_script`
+  (typed `number` but never checked at runtime, so a JSON string was emitted as
+  code). `environment_create_day_night_cycle_script` also placed the caller's
+  `scriptName` inside the `[==[ ... ]==]` literal holding the generated script's
+  Source, where a name containing that literal's closing delimiter ended it early
+  and turned the remainder into executable Luau.
+
+  This mattered because none of these tools declares the `studio.execute` effect.
+  That effect is what the `builder` profile filters on — the profile README
+  describes as "arbitrary Luau execution denied" — and what the `execute_luau`
+  safety gate hangs off, so both were bypassed by tools that promise neither.
+
+  Every value now goes through `luaString`/`luaNumber`, and the script name is no
+  longer interpolated into the Source literal at all; it is still applied to the
+  Instance through `luaString` where it belongs. Regression tests drive each
+  builder with a string that closes its quote, a name that closes the long
+  bracket, and a "number" that was never a number — and the detector is itself
+  tested, because a marker that vanishes with the literals it hides in proves
+  nothing.
+
 ### Changed
 - The argument guards on every mutating tool are now exercised, not just
   spell-checked. `check-argument-errors.mjs` proved the refusals name a

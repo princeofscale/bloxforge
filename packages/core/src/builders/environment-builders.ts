@@ -200,11 +200,17 @@ export function buildDayNightCycleScriptLuau(options: DayNightCycleOptions = {})
   const scriptName = options.scriptName ?? 'DayNightCycle';
   // The day-night logic itself, embedded as the new Script's Source via a Lua
   // long-bracket literal (`[==[ ... ]==]`) so quotes/newlines pass through clean.
+  // The caller's name is NOT interpolated here. It reaches this function as an
+  // arbitrary string, and a name containing the literal's own closing delimiter
+  // would end the [==[ ... ]==] early and turn the rest into executable Luau —
+  // arbitrary execution through a tool that declares no studio.execute effect,
+  // bypassing both the execute_luau safety gate and the `builder` profile. The
+  // name is still applied through luaString() where it belongs, on the Instance.
   const cycleSource = `--!strict
--- ${scriptName} — advances Lighting.ClockTime continuously.
+-- Advances Lighting.ClockTime continuously.
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
-local MINUTES_PER_DAY = ${minutesPerDay}
+local MINUTES_PER_DAY = ${luaNumber(Number(minutesPerDay))}
 local SECONDS_PER_DAY = MINUTES_PER_DAY * 60
 RunService.Heartbeat:Connect(function(dt)
 \tLighting.ClockTime = (Lighting.ClockTime + (24 / SECONDS_PER_DAY) * dt) % 24
@@ -218,7 +224,7 @@ end)`;
     `script.Name = ${luaString(scriptName)}`,
     `script.Source = [==[\n${cycleSource}\n]==]`,
     'script.Parent = ServerScriptService',
-    `return { path = script:GetFullName(), minutesPerDay = ${minutesPerDay}, success = true }`,
+    `return { path = script:GetFullName(), minutesPerDay = ${luaNumber(Number(minutesPerDay))}, success = true }`,
   ];
   return lines.join('\n');
 }

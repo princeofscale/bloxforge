@@ -4,7 +4,7 @@
 // Source is embedded via Lua long-bracket literals. Re-running a template is
 // idempotent — `ensure` rebuilds each named instance rather than duplicating.
 
-import { luaString } from './luau-emit.js';
+import { luaString, luaNumber } from './luau-emit.js';
 
 // Shared helpers available to every template body.
 const TEMPLATE_PRELUDE_LUA = `local Workspace = game:GetService("Workspace")
@@ -106,7 +106,7 @@ RunService.RenderStepped:Connect(function()
 \tlabel.Text = string.format("Time: %.1fs", os.clock() - startTime)
 end)`;
 
-  const body = `local NUM_CHECKPOINTS = ${checkpoints}
+  const body = `local NUM_CHECKPOINTS = ${luaNumber(Number(checkpoints))}
 local course = ensure(Workspace, "ObbyCourse", "Folder")
 
 local spawn = ensure(course, "SpawnLocation", "SpawnLocation")
@@ -206,7 +206,7 @@ button.BackgroundColor3 = Color3.fromRGB(70, 160, 255)
 button.TextColor3 = Color3.fromRGB(255, 255, 255)
 button.Font = Enum.Font.GothamBold
 button.TextScaled = true
-button.Text = "Click to earn ${currency}!"
+button.Text = "Click to earn " .. ${luaString(currency)} .. "!"
 makeScript(hud, "ClickClient", [===[\n${clickClient}\n]===], "LocalScript")
 
 local shop = ensure(ReplicatedStorage, "Shop", "Folder")
@@ -239,7 +239,7 @@ Players.PlayerAdded:Connect(function(player)
 \tstats.Name = "leaderstats"
 \tlocal cash = Instance.new("IntValue")
 \tcash.Name = "Cash"
-\tcash.Value = ${startingCash}
+\tcash.Value = ${luaNumber(Number(startingCash))}
 \tcash.Parent = stats
 \tstats.Parent = player
 end)
@@ -275,7 +275,7 @@ for _, button in ipairs(buttons:GetChildren()) do
 \tend)
 end`;
 
-  const body = `local PLOT_PRICE = ${buttonPrice}
+  const body = `local PLOT_PRICE = ${luaNumber(Number(buttonPrice))}
 local tycoons = ensure(Workspace, "Tycoons", "Folder")
 local plot = ensure(tycoons, "Plot1", "Model")
 
@@ -313,8 +313,8 @@ export function buildRoundTemplateLuau(options: RoundTemplateOptions = {}): stri
 local arena = workspace:WaitForChild("Arena")
 local teleports = arena:WaitForChild("TeleportPoints")
 local lobby = workspace:WaitForChild("Lobby"):WaitForChild("LobbySpawn")
-local ROUND_SECONDS = ${roundSeconds}
-local INTERMISSION_SECONDS = ${intermission}
+local ROUND_SECONDS = ${luaNumber(Number(roundSeconds))}
+local INTERMISSION_SECONDS = ${luaNumber(Number(intermission))}
 
 local status = Instance.new("StringValue")
 status.Name = "RoundStatus"
@@ -353,8 +353,8 @@ while true do
 \tend
 end`;
 
-  const body = `local ROUND_SECONDS = ${roundSeconds}
-local NUM_TELEPORTS = ${teleportPoints}
+  const body = `local ROUND_SECONDS = ${luaNumber(Number(roundSeconds))}
+local NUM_TELEPORTS = ${luaNumber(Number(teleportPoints))}
 
 local lobby = ensure(Workspace, "Lobby", "Model")
 local lobbySpawn = ensure(lobby, "LobbySpawn", "SpawnLocation")
