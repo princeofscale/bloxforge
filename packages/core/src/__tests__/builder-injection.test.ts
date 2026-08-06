@@ -5,6 +5,7 @@ import {
   buildRoundTemplateLuau,
 } from '../builders/template-builders.js';
 import { buildDayNightCycleScriptLuau } from '../builders/environment-builders.js';
+import { buildApplyThemeLuau, buildDesignLintLuau } from '../builders/design-builders.js';
 
 // Everything these builders emit is sent to /api/execute-luau and runs in the
 // plugin's edit context. None of them declares `studio.execute`, which is what
@@ -49,6 +50,8 @@ describe('generated Luau cannot be escaped by caller input', () => {
     ['round teleportPoints', () => buildRoundTemplateLuau({ teleportPoints: NOT_A_NUMBER as never })],
     ['obby checkpoints', () => buildObbyTemplateLuau({ checkpoints: NOT_A_NUMBER as never })],
     ['day-night minutesPerDay', () => buildDayNightCycleScriptLuau({ minutesPerDay: NOT_A_NUMBER as never })],
+    ['apply_theme minTextSize', () => buildApplyThemeLuau({ rootPath: 'game.StarterGui', minTextSize: NOT_A_NUMBER as never })],
+    ['design_lint minTextSize', () => buildDesignLintLuau({ rootPath: 'game.StarterGui', minTextSize: NOT_A_NUMBER as never })],
   ])('%s is a number or nothing, never code', (_label, build) => {
     expect(executesMarker(build())).toBe(false);
   });

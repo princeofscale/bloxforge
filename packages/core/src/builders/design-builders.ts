@@ -7,7 +7,7 @@
 // AbsoluteSize computed in edit, so geometric checks (overlap/offscreen) work
 // without a playtest. Topbar/safe-area insets are 0 in edit and need a playtest.
 
-import { luaString, PATH_RESOLVER_LUA } from './luau-emit.js';
+import { luaString, PATH_RESOLVER_LUA, luaNumber } from './luau-emit.js';
 
 function wrap(body: string): string {
   return `${PATH_RESOLVER_LUA}\n${body}`;
@@ -104,14 +104,14 @@ local SURFACE = ${color3(t.surface)}
 local PRIMARY = ${color3(t.primary)}
 local ON_PRIMARY = ${color3(t.onPrimary)}
 local TEXT = ${color3(t.text)}
-local MIN_TEXT = ${minTextSize}
+local MIN_TEXT = ${luaNumber(Number(minTextSize))}
 local ROUND = ${roundCorners ? 'true' : 'false'}
 local styled = 0
 local function ensureCorner(o)
 \tif not ROUND then return end
 \tif o:FindFirstChildWhichIsA("UICorner") == nil then
 \t\tlocal c = Instance.new("UICorner")
-\t\tc.CornerRadius = UDim.new(0, ${radiusMd})
+\t\tc.CornerRadius = UDim.new(0, ${luaNumber(Number(radiusMd))})
 \t\tc.Parent = o
 \tend
 end
@@ -203,7 +203,7 @@ end`;
 local Workspace = game:GetService("Workspace")
 local camera = Workspace.CurrentCamera
 local viewport = (camera and camera.ViewportSize) or Vector2.new(1280, 720)
-local MIN_TEXT_SIZE = ${minTextSize}
+local MIN_TEXT_SIZE = ${luaNumber(Number(minTextSize))}
 
 local findings = {}
 local function add(rule, severity, inst, detail)

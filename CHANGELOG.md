@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Four caller-supplied values reached generated Luau without being escaped, so a
-  crafted argument executed arbitrary code in the Studio plugin's edit context:
+  crafted argument executed arbitrary code in the Studio plugin's edit context.
+  `apply_theme` and `design_lint` were caught by the same audit through
+  `minTextSize`. The full set:
   `template_create_simulator_game`'s `currencyName` (interpolated inside a Luau
   string literal, so a quote closed it), and the numeric arguments of
   `template_create_tycoon_game`, `template_create_round_game`,
