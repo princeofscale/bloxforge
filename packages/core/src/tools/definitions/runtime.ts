@@ -666,7 +666,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'execute_luau_async',
     category: 'write',
     effects: ['studio.execute'],
-    description: 'Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target. Shares the same execute_luau wrapper, so fresh_require(module) is available and the require-cache caveat applies identically.',
+    description: 'Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target. Shares the same execute_luau wrapper, so fresh_require(module) is available and the require-cache caveat applies identically. NO UNDO: a job yields, and a Studio recording cannot be held open across those yields without blocking the user\'s own edits, so anything this changes is NOT in the undo stack and Ctrl+Z will not take it back. For work that mutates the DataModel prefer execute_luau with undoLabel, and keep this for long reads and scans.',
     inputSchema: {
       type: 'object',
       properties: {

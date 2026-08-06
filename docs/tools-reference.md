@@ -505,6 +505,7 @@ Execute Luau code in plugin context. target="server" and target="client-N" run a
 | `target` | `string` | No | Instance target: "edit" (default), "server", "client-1", "client-2", etc. |
 | `dryRun` | `boolean` | No | Preview without running. Reports any destructive-pattern warnings (default false). |
 | `confirm` | `boolean` | No | Approve Luau the safety layer flagged as destructive (e.g. ClearAllChildren, Destroy, DataStore writes) (default false). |
+| `undoLabel` | `string` | No | Record the whole script as one Studio Undo waypoint under this name. Pass it whenever the code changes the DataModel: without it the edit is not in the undo stack and Ctrl+Z will not take it back. Omit it for reads — an empty recording is worse than none. A script that errors cancels its recording rather than leaving a waypoint behind. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -871,7 +872,7 @@ Redo the last undone change in Roblox Studio. Uses ChangeHistoryService to reapp
 
 ### `execute_luau_async` (Write)
 
-Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target. Shares the same execute_luau wrapper, so fresh_require(module) is available and the require-cache caveat applies identically.
+Run heavy/long Luau without risking a connection timeout: returns a jobId immediately while the code runs in the background. Poll get_job_status until done, then get_job_result. Use this instead of execute_luau when the code may take more than ~10s (mass builds, big scene scans). Job state lives in the targeted DataModel — poll status/result with the SAME target. Shares the same execute_luau wrapper, so fresh_require(module) is available and the require-cache caveat applies identically. NO UNDO: a job yields, and a Studio recording cannot be held open across those yields without blocking the user's own edits, so anything this changes is NOT in the undo stack and Ctrl+Z will not take it back. For work that mutates the DataModel prefer execute_luau with undoLabel, and keep this for long reads and scans.
 
 **Parameters:**
 
