@@ -263,6 +263,13 @@ export class SyncTools {
    * identity/hash/length of every mapped script, and the current hash of every
    * local file. A local edit between plan and apply therefore invalidates the
    * hash even when the set of affected paths is unchanged.
+   *
+   * The `\0` joining each pair of fields below is the separator, not a typo: it
+   * is the one byte that cannot occur in a path, a class name or a hex hash, so
+   * two different field splits can never canonicalize to the same string. It is
+   * written as the escape rather than as a literal NUL byte because a raw one
+   * makes `grep` classify this whole file as binary and return nothing for every
+   * search in it — silently, which reads as "no match" rather than "not read".
    */
   private _planHash(plan: Omit<SyncPlan, 'planHash'>): string {
     const sorted = (values: string[]) => [...values].sort();
@@ -274,15 +281,15 @@ export class SyncTools {
       conflicts: sorted(plan.conflicts),
       deletedInStudio: sorted(plan.deletedInStudio),
       tooLarge: sorted(plan.tooLarge),
-      renamed: [...plan.renamed].map(({ from, to }) => `${from} ${to}`).sort(),
-      unsupported: plan.unsupported.map(({ path: instancePath, reason }) => `${instancePath} ${reason}`).sort(),
-      ambiguous: plan.ambiguous.map(({ from, candidates }) => `${from} ${sorted(candidates).join(',')}`).sort(),
+      renamed: [...plan.renamed].map(({ from, to }) => `${from}\0${to}`).sort(),
+      unsupported: plan.unsupported.map(({ path: instancePath, reason }) => `${instancePath}\0${reason}`).sort(),
+      ambiguous: plan.ambiguous.map(({ from, candidates }) => `${from}\0${sorted(candidates).join(',')}`).sort(),
       studio: [...plan.scripts]
-        .map(([rel, script]) => `${rel} ${script.path} ${script.className} ${script.sourceHash} ${script.sourceLength}`)
+        .map(([rel, script]) => `${rel}\0${script.path}\0${script.className}\0${script.sourceHash}\0${script.sourceLength}`)
         .sort(),
-      local: [...plan.local].map(([rel, content]) => `${rel} ${contentHash(content)}`).sort(),
+      local: [...plan.local].map(([rel, content]) => `${rel}\0${contentHash(content)}`).sort(),
       baseline: Object.entries(plan.state.entries)
-        .map(([rel, entry]) => `${rel} ${entry.contentHash} ${entry.studioHash}`)
+        .map(([rel, entry]) => `${rel}\0${entry.contentHash}\0${entry.studioHash}`)
         .sort(),
     };
     return `sha256:${createHash('sha256').update(JSON.stringify(canonical)).digest('hex')}`;

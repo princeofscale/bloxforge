@@ -47,6 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coverage moved from 33% to 63%.
 
 ### Fixed
+- `sync-tools.ts` was invisible to `grep`. Its plan-hash canonicalization joined
+  each pair of fields with a raw NUL byte — a sound choice of separator, since
+  NUL cannot occur in a path, a class name or a hex hash — but a NUL anywhere in
+  a file makes `grep` classify it as binary and print `Binary file … matches`
+  instead of the matching lines. Under a wrapper that swallows that notice, every
+  search in the file returns nothing at all, which reads as "no such code" rather
+  than "not searched": while auditing invariant 2 this made a plan-hash guard
+  that is present (`sync-tools.ts:409`, `requirePlanHash`) look absent. The
+  separator is now written as the escape `\0`, which a template literal evaluates
+  to the same byte, so every plan hash is unchanged. `protocol:check` now fails on
+  a raw NUL byte under `packages/core/src/tools`.
 - The batch mutation tools accepted a string where an array belongs, and one of
   them then lied about it. `inputSchema` is advertised to clients but never
   enforced server-side — neither `server.ts` nor the tool pipeline validates

@@ -28,8 +28,19 @@ const IDENTIFIER = /^[a-z][A-Za-z0-9_]*$/;
 const failures = [];
 let checked = 0;
 
+// A raw NUL byte in a source file makes `grep` classify the whole file as
+// binary and print "Binary file ... matches" instead of the lines — and under a
+// wrapper that swallows that notice, every search in the file comes back empty.
+// `sync-tools.ts` used raw NULs as plan-hash field separators and read as
+// unsearchable for it, which turned a present guard into an apparently missing
+// one. Write the escape (`\0`); it produces the same byte at runtime.
+// ponytail: this walks packages/core/src/tools only, because that is where it
+// happened. Widen to every tracked text file if one turns up outside.
+const nulFiles = [];
+
 for (const file of files) {
   const src = readFileSync(file, 'utf8');
+  if (src.includes('\0')) nulFiles.push(file);
   for (const match of src.matchAll(PATTERN)) {
     const [, subject, tool] = match;
     checked++;
@@ -43,6 +54,13 @@ for (const file of files) {
       failures.push(`${file}:${line}  ${tool}: "${subject} is required" does not name the parameter`);
     }
   }
+}
+
+if (nulFiles.length > 0) {
+  console.error('argument-errors: source files must not contain a raw NUL byte — grep reads them as binary');
+  console.error('  and returns nothing for every search, silently. Write it as the escape "\\0" instead.\n');
+  for (const f of nulFiles) console.error(`  ✗ ${f}`);
+  process.exit(1);
 }
 
 if (failures.length > 0) {
