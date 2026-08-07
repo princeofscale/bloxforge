@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Two tools sent data off the machine while declaring they did not, which put
+  them on the wrong side of the capability gate. `design_review` screenshots the
+  user's place and uploads it to Pollinations (`gen.pollinations.ai`) for a
+  vision critique; `get_roblox_docs` fetches from `create.roblox.com`. Both
+  declared only `studio.read`, which `requiredCapabilities` maps to
+  `read.scene` — so a client granted nothing but the narrowest read capability
+  could still cause a picture of the user's place to be uploaded to a third
+  party. This is invariant 1's under-declaration case, the one it names as the
+  worse failure. Both now declare `network.external`, which maps to
+  `assets.external` — the capability a local-only user withholds. Sibling tools
+  on the same client (`image_generate`, `image_generate_and_upload`) already
+  declared it, so this was an omission rather than a decision.
+  `design_review`'s description now says the screenshot leaves the machine, and
+  `protocol:check` gained `check-network-effects.mjs`, which maps every tool to
+  the facade method its handler calls and fails when that method reaches a
+  network client without the effect. It reads effects from source rather than
+  `packages/core/dist`, because it runs before any build.
+- The generated tools reference labelled every tool by category alone, so
+  `design_review` — which uploads a screenshot — was published as `(Read-only)`.
+  Category describes what a tool does to Studio and says nothing about whether
+  the call leaves the machine, which is the distinction a local-first user is
+  deciding on. All 26 tools declaring `network.external` are now marked
+  `· sends data off this machine` in their heading.
 - Three vulnerable packages shipped in the published CLI's dependency tree, all
   reached through `@modelcontextprotocol/sdk@1.30.0`: `ip-address` ≤ 10.3.0
   (three advisories, each an SSRF or trust-boundary bypass — leading-zero octets

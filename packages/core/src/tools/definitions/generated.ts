@@ -591,8 +591,12 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'design_review',
     category: 'read',
-    effects: ['studio.read'],
-    description: 'Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and asks a vision model to rate visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk, then return specific Roblox-phrased fixes. Run AFTER design_lint passes (lint is the cheap deterministic gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.',
+    // `network.external` because the screenshot leaves the machine: the critique
+    // is produced by Pollinations, not locally. Declaring only `studio.read`
+    // resolved to the `read.scene` capability, so a client granted nothing but
+    // the narrowest read could still upload a picture of the user's place.
+    effects: ['studio.read', 'network.external'],
+    description: 'Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and SENDS THAT SCREENSHOT to Pollinations (gen.pollinations.ai), which rates visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk and returns specific Roblox-phrased fixes. This is the one design tool that leaves the machine — design_lint does the same class of check locally and deterministically. Run AFTER design_lint passes (lint is the cheap local gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.',
     inputSchema: {
       type: 'object',
       properties: {

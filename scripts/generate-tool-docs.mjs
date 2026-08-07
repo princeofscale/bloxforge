@@ -28,7 +28,14 @@ async function main() {
     markdown += `## Total Tools: ${TOOL_DEFINITIONS.length}\n\n`;
 
     for (const tool of TOOL_DEFINITIONS) {
-      markdown += `### \`${tool.name}\` (${tool.category === 'read' ? 'Read-only' : 'Write'})\n\n`;
+      // The category alone labelled `design_review` "Read-only" while it
+      // uploaded a screenshot of the user's place to a third party. Category
+      // describes what the tool does to Studio; it says nothing about whether
+      // the call leaves the machine, which is the thing a local-first user is
+      // deciding on. Mark it in the heading, where it cannot be missed.
+      const leavesMachine = tool.effects?.includes('network.external');
+      const label = `${tool.category === 'read' ? 'Read-only' : 'Write'}${leavesMachine ? ' · sends data off this machine' : ''}`;
+      markdown += `### \`${tool.name}\` (${label})\n\n`;
       markdown += `${tool.description}\n\n`;
       const properties = tool.inputSchema?.properties;
       if (properties && Object.keys(properties).length > 0) {
