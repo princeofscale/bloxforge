@@ -23,8 +23,8 @@ const cases: Case[] = [
   ['set_property', (t) => t.setProperty('', 'Anchored', true), /instancePath and propertyName are required for set_property/],
   ['set_property (no property)', (t) => t.setProperty('game.Workspace.Part', '', true), /instancePath and propertyName/],
   ['set_properties', (t) => t.setProperties('', {}), /instancePath and properties are required for set_properties/],
-  ['mass_set_property', (t) => t.massSetProperty([], 'Anchored', true), /paths \(non-empty\) and propertyName are required for mass_set_property/],
-  ['mass_get_property', (t) => t.massGetProperty([], 'Anchored'), /paths \(non-empty\) and propertyName are required for mass_get_property/],
+  ['mass_set_property', (t) => t.massSetProperty([], 'Anchored', true), /paths \(non-empty array\) and propertyName are required for mass_set_property/],
+  ['mass_get_property', (t) => t.massGetProperty([], 'Anchored'), /paths \(non-empty array\) and propertyName are required for mass_get_property/],
   ['create_object', (t) => t.createObject('', 'game.Workspace'), /className and parent are required for create_object/],
   ['create_object (no parent)', (t) => t.createObject('Part', ''), /className and parent are required/],
   ['mass_create_objects', (t) => t.massCreateObjects([]), /objects \(non-empty array\) is required for mass_create_objects/],
@@ -46,6 +46,42 @@ const cases: Case[] = [
 describe('mutating tools refuse incomplete calls before reaching the bridge', () => {
   it.each(cases)('%s', async (_name, call, expected) => {
     await expect(call(tools())).rejects.toThrow(expected);
+  });
+
+  // A string has a `.length`, so `!paths || paths.length === 0` passed it through.
+  // The declared `string[]` buys nothing here: it is erased at the JSON boundary
+  // and nothing between the client and the handler enforces inputSchema. What
+  // got through was not merely a crash further down — mass_create_objects put
+  // the string's length in front of the safety gate ("create 24 objects") and
+  // then recorded "created 24 objects" for a batch that never existed.
+  const STRING_WHERE_AN_ARRAY_BELONGS = 'game.ServerScriptService';
+
+  const stringCases: Case[] = [
+    ['mass_set_property', (t) => t.massSetProperty(STRING_WHERE_AN_ARRAY_BELONGS as never, 'Anchored', true), /paths \(non-empty array\)/],
+    ['mass_get_property', (t) => t.massGetProperty(STRING_WHERE_AN_ARRAY_BELONGS as never, 'Anchored'), /paths \(non-empty array\)/],
+    ['mass_create_objects', (t) => t.massCreateObjects(STRING_WHERE_AN_ARRAY_BELONGS as never), /objects \(non-empty array\)/],
+    ['mass_delete_objects', (t) => t.massDeleteObjects(STRING_WHERE_AN_ARRAY_BELONGS as never), /paths \(non-empty array\)/],
+    ['mass_duplicate', (t) => t.massDuplicate(STRING_WHERE_AN_ARRAY_BELONGS as never), /duplications \(non-empty array\)/],
+  ];
+
+  it.each(stringCases)('%s refuses a string where an array belongs', async (_name, call, expected) => {
+    await expect(call(tools())).rejects.toThrow(expected);
+  });
+
+  it('refuses the string before the safety gate or the operation history sees it', async () => {
+    const gated: string[] = [];
+    const recorded: string[] = [];
+    const watched = new MutationTools({
+      callSingle: async () => { throw new Error('the guard let the call through to the bridge'); },
+      safetyGate: (_kind: string, description: string) => { gated.push(description); return undefined; },
+      recordOperation: (_kind: string, description: string) => { recorded.push(description); },
+    } as never);
+
+    await expect(watched.massCreateObjects(STRING_WHERE_AN_ARRAY_BELONGS as never)).rejects.toThrow(/objects \(non-empty array\)/);
+    // Previously: gated held "create 24 objects" and recorded held "created 24
+    // objects" — 24 being the length of the string.
+    expect(gated).toEqual([]);
+    expect(recorded).toEqual([]);
   });
 
   it('accepts a complete call, so the guards are not simply refusing everything', async () => {
