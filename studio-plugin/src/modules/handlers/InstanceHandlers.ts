@@ -68,6 +68,23 @@ type ProcessedBatchResult = {
 	failureCount: number;
 };
 
+/**
+ * A row carrying `propertyErrors` is still counted a success, because the
+ * instance really was created — but that left `{succeeded: 4, failed: 0}` next
+ * to rows whose Color and Material the engine had rejected, and a caller
+ * reading only the summary has no reason to look further. Verified live:
+ * mass_create_objects reported four successes for a batch in which two
+ * properties never applied.
+ */
+function countPropertyErrorRows(results: Record<string, unknown>[]): number {
+	let count = 0;
+	for (const row of results) {
+		const errors = row.propertyErrors as defined[] | undefined;
+		if (errors && errors.size() > 0) count++;
+	}
+	return count;
+}
+
 function processObjectEntries(
 	objects: Record<string, unknown>[],
 	createFn: (objData: Record<string, unknown>) => ProcessedCreateResult,
@@ -302,7 +319,15 @@ function massCreateObjects(requestData: Record<string, unknown>) {
 	});
 
 	finishRecording(recordingId, successCount > 0);
-	return { results, summary: { total: (objects as defined[]).size(), succeeded: successCount, failed: failureCount } };
+	return {
+		results,
+		summary: {
+			total: (objects as defined[]).size(),
+			succeeded: successCount,
+			failed: failureCount,
+			withPropertyErrors: countPropertyErrorRows(results),
+		},
+	};
 }
 
 
@@ -420,7 +445,12 @@ function performSmartDuplicate(requestData: Record<string, unknown>, useRecordin
 
 	return {
 		results,
-		summary: { total: count, succeeded: successCount, failed: failureCount },
+		summary: {
+			total: count,
+			succeeded: successCount,
+			failed: failureCount,
+			withPropertyErrors: countPropertyErrorRows(results),
+		},
 		sourceInstance: instancePath,
 	};
 }
@@ -438,14 +468,20 @@ function massDuplicate(requestData: Record<string, unknown>) {
 	const allResults: Record<string, unknown>[] = [];
 	let totalSuccess = 0;
 	let totalFailures = 0;
+	let totalPropertyErrorRows = 0;
 	const recordingId = beginRecording("Mass duplicate operations");
 
 	for (const duplication of duplications) {
-		const result = performSmartDuplicate(duplication, false) as { summary?: { succeeded: number; failed: number } };
+		const result = performSmartDuplicate(duplication, false) as {
+			summary?: { succeeded: number; failed: number; withPropertyErrors?: number };
+		};
 		allResults.push(result as unknown as Record<string, unknown>);
 		if (result.summary) {
 			totalSuccess += result.summary.succeeded;
 			totalFailures += result.summary.failed;
+			// Nested one level down: allResults holds whole sub-results, not rows,
+			// so the count has to come from each sub-summary rather than a scan.
+			totalPropertyErrorRows += result.summary.withPropertyErrors ?? 0;
 		}
 	}
 
@@ -453,7 +489,12 @@ function massDuplicate(requestData: Record<string, unknown>) {
 
 	return {
 		results: allResults,
-		summary: { total: totalSuccess + totalFailures, succeeded: totalSuccess, failed: totalFailures },
+		summary: {
+			total: totalSuccess + totalFailures,
+			succeeded: totalSuccess,
+			failed: totalFailures,
+			withPropertyErrors: totalPropertyErrorRows,
+		},
 	};
 }
 

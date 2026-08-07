@@ -1,7 +1,7 @@
 import Utils from "../Utils";
 import Recording from "../Recording";
 
-const { getInstanceByPath, convertPropertyValue } = Utils;
+const { getInstanceByPath, convertPropertyValue, serializeValue } = Utils;
 const { beginRecording, finishRecording } = Recording;
 
 function setProperty(requestData: Record<string, unknown>) {
@@ -118,7 +118,9 @@ function massGetProperty(requestData: Record<string, unknown>) {
 		if (instance) {
 			const [success, value] = pcall(() => (instance as unknown as Record<string, unknown>)[propertyName]);
 			if (success) {
-				results.push({ path, success: true, propertyName, propertyValue: value });
+				// Raw userdata here (Color3, EnumItem, Vector3, UDim2 …) is dropped
+				// by the response encoder, leaving success:true with no value.
+				results.push({ path, success: true, propertyName, propertyValue: serializeValue(value) });
 			} else {
 				results.push({ path, success: false, error: tostring(value) });
 			}

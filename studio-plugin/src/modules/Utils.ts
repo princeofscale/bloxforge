@@ -119,6 +119,82 @@ function toColor3(r: number, g: number, b: number): Color3 {
 	return new Color3(r, g, b);
 }
 
+/**
+ * Make a Luau value survive the JSON response encoder.
+ *
+ * The encoder drops any key whose value is userdata, so a handler that returns
+ * a Color3 or an EnumItem verbatim answers `{success = true}` with the value
+ * simply absent — which reads as "worked" at the call site. `mass_get_property`
+ * did exactly that for Color and Material while Anchored (a boolean) came
+ * through fine, and `get_attributes` loses the same way for every attribute
+ * type past Vector3/Color3/UDim2/BrickColor: it still reports `type`, so only
+ * the value goes missing.
+ *
+ * Tagged tables keep the components addressable and match what
+ * `deserializeValue` reads back. An unhandled type becomes an explicit
+ * `unsupported` marker rather than either vanishing or degrading to a bare
+ * string that would silently write back as text.
+ *
+ * ponytail: NumberSequence, ColorSequence and Font take that marker — readable,
+ * not writable. Give them real branches here and in `deserializeValue` together
+ * when something needs to round-trip one.
+ */
+function serializeValue(value: unknown): unknown {
+	const vType = typeOf(value);
+
+	if (vType === "Vector3") {
+		const v = value as Vector3;
+		return { X: v.X, Y: v.Y, Z: v.Z, _type: "Vector3" };
+	} else if (vType === "Vector2") {
+		const v = value as Vector2;
+		return { X: v.X, Y: v.Y, _type: "Vector2" };
+	} else if (vType === "Color3") {
+		const v = value as Color3;
+		return { R: v.R, G: v.G, B: v.B, _type: "Color3" };
+	} else if (vType === "CFrame") {
+		const v = value as CFrame;
+		return { Position: { X: v.Position.X, Y: v.Position.Y, Z: v.Position.Z }, _type: "CFrame" };
+	} else if (vType === "UDim2") {
+		const v = value as UDim2;
+		return {
+			X: { Scale: v.X.Scale, Offset: v.X.Offset },
+			Y: { Scale: v.Y.Scale, Offset: v.Y.Offset },
+			_type: "UDim2",
+		};
+	} else if (vType === "UDim") {
+		const v = value as UDim;
+		return { Scale: v.Scale, Offset: v.Offset, _type: "UDim" };
+	} else if (vType === "NumberRange") {
+		const v = value as NumberRange;
+		return { Min: v.Min, Max: v.Max, _type: "NumberRange" };
+	} else if (vType === "Rect") {
+		const v = value as Rect;
+		return { MinX: v.Min.X, MinY: v.Min.Y, MaxX: v.Max.X, MaxY: v.Max.Y, _type: "Rect" };
+	} else if (vType === "BrickColor") {
+		const v = value as BrickColor;
+		return { Name: v.Name, _type: "BrickColor" };
+	} else if (vType === "EnumItem") {
+		const v = value as EnumItem;
+		return { Name: v.Name, Value: v.Value, EnumType: tostring(v.EnumType), _type: "EnumItem" };
+	} else if (vType === "Instance") {
+		return { Path: getInstancePath(value as Instance), _type: "Instance" };
+	}
+
+	// Everything the encoder can already represent passes through untouched, so
+	// a boolean stays a boolean rather than becoming "true".
+	if (
+		vType === "string" ||
+		vType === "number" ||
+		vType === "boolean" ||
+		vType === "nil" ||
+		vType === "table"
+	) {
+		return value;
+	}
+
+	return { TypeName: vType, Text: tostring(value), _type: "unsupported" };
+}
+
 function convertPropertyValue(instance: Instance, propertyName: string, propertyValue: unknown): unknown {
 	if (propertyValue === undefined) return undefined;
 
@@ -341,6 +417,7 @@ export = {
 	splitLines,
 	joinLines,
 	readScriptSource,
+	serializeValue,
 	convertPropertyValue,
 	evaluateFormula,
 	compareVersions,

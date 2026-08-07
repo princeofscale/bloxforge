@@ -68,6 +68,43 @@ describe('proposeNextAction', () => {
     expect(a.action).toBe('fix_startup');
   });
 
+  // A live episode failed with 23 errors, every one an asset fetch. The hostname
+  // inside the URL parsed as a dotted script name, so the agent was told to open
+  // "assetdelivery.roblox.com" and fix it — a loop it could never leave.
+  it('does not mistake a URL host for a script to open', () => {
+    const contentOnly = {
+      episodeId: 'ep_net',
+      verdict: 'fail',
+      logs: {
+        errorCount: 3,
+        errors: [
+          { message: "MeshContentProvider failed to process https://assetdelivery.roblox.com/v1/asset/?id=7430071105 because 'could not fetch'" },
+          { message: 'Failed to load animation with sanitized ID rbxassetid://913384386: Animation failed to load, assetId: https://assetdelivery.roblox.com/v1/asset?id=913384386&serverplaceid=0' },
+          { message: 'Failed to load sound rbxassetid://10066921516: HttpError: DnsResolve' },
+        ],
+      },
+    };
+    expect(implicatedScriptsOf(contentOnly)).toEqual([]);
+
+    const a = proposeNextAction(contentOnly);
+    expect(a.focus).toEqual([]);
+    expect(a.rationale).not.toMatch(/Open the implicated script/);
+    expect(a.rationale).toMatch(/none name a script/);
+  });
+
+  it('still finds a real script path in a line that also carries a URL', () => {
+    const mixed = {
+      episodeId: 'ep_mixed',
+      verdict: 'fail',
+      logs: {
+        errorCount: 1,
+        errors: [{ message: 'ServerScriptService.Main:12: bad argument, see https://create.roblox.com/docs/reference' }],
+      },
+    };
+    expect(implicatedScriptsOf(mixed)).toEqual(['ServerScriptService.Main']);
+    expect(proposeNextAction(mixed).rationale).toMatch(/Open the implicated script/);
+  });
+
   it('proposes proving the fix when a clean run follows a failing one', () => {
     const a = proposeNextAction(passEp, failEp);
     expect(a.action).toBe('prove_fix');
