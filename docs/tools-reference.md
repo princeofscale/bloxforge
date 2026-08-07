@@ -1214,7 +1214,7 @@ Import a full scene layout. Provide a scene with model references (resolved from
 
 ---
 
-### `search_assets` (Read-only)
+### `search_assets` (Read-only · sends data off this machine)
 
 Search the Creator Store (Roblox marketplace) for assets by type and keywords. Requires ROBLOX_OPEN_CLOUD_API_KEY env var (no cookie auth for this endpoint).
 
@@ -1230,7 +1230,7 @@ Search the Creator Store (Roblox marketplace) for assets by type and keywords. R
 
 ---
 
-### `get_asset_details` (Read-only)
+### `get_asset_details` (Read-only · sends data off this machine)
 
 Get detailed marketplace metadata for a specific asset. Uses ROBLOX_OPEN_CLOUD_API_KEY or falls back to ROBLOSECURITY cookie (own assets only).
 
@@ -1242,7 +1242,7 @@ Get detailed marketplace metadata for a specific asset. Uses ROBLOX_OPEN_CLOUD_A
 
 ---
 
-### `get_asset_thumbnail` (Read-only)
+### `get_asset_thumbnail` (Read-only · sends data off this machine)
 
 Get the thumbnail image for an asset as base64 PNG, suitable for vision LLMs. Thumbnails API is public but asset validation uses ROBLOX_OPEN_CLOUD_API_KEY.
 
@@ -1255,7 +1255,7 @@ Get the thumbnail image for an asset as base64 PNG, suitable for vision LLMs. Th
 
 ---
 
-### `insert_asset` (Write)
+### `insert_asset` (Write · sends data off this machine)
 
 Insert a Roblox asset into Studio by loading it via AssetService and parenting it to a target location. Optionally set position.
 
@@ -1270,7 +1270,7 @@ Insert a Roblox asset into Studio by loading it via AssetService and parenting i
 
 ---
 
-### `preview_asset` (Read-only)
+### `preview_asset` (Read-only · sends data off this machine)
 
 Preview a Roblox asset without permanently inserting it. Loads the asset, builds a hierarchy tree with properties and summary stats, then destroys it. Useful for inspecting asset contents before insertion.
 
@@ -1285,7 +1285,7 @@ Preview a Roblox asset without permanently inserting it. Loads the asset, builds
 
 ---
 
-### `upload_asset` (Write)
+### `upload_asset` (Write · sends data off this machine)
 
 Upload any supported asset type to Roblox: Audio (mp3/ogg/wav/flac), Decal (png/jpg/bmp/tga), Model (fbx/gltf/glb/rbxm/rbxmx), Animation (rbxm/rbxmx), or Video (mp4/mov). Decal supports ROBLOSECURITY cookie auth or ROBLOX_OPEN_CLOUD_API_KEY. All other types require Open Cloud API key with asset:write scope + creator ID. Audio: max 7 min, 100 uploads/month (ID-verified). Video: max 5 min, requires 13+ ID-verified.
 
@@ -1379,7 +1379,7 @@ Disable or remove every script under the path an asset_sanitize_plan covered, as
 
 ---
 
-### `asset_preflight_insert` (Read-only)
+### `asset_preflight_insert` (Read-only · sends data off this machine)
 
 Authoritatively check whether an asset can be inserted, BEFORE touching the live scene. Loads the asset with AssetService:LoadAssetAsync into an isolated, unparented container, inspects it (root summary, descendant + script counts), then destroys it. Returns insertabilityVerdict ("yes"/"no") with a typed error code on failure (AUTH for copy-locked/unowned assets) and hasScripts as a safety signal. Use this between marketplace_search and insert_asset — metadata like isFree is only a hint; a real load is the source of truth.
 
@@ -1392,7 +1392,7 @@ Authoritatively check whether an asset can be inserted, BEFORE touching the live
 
 ---
 
-### `plan_asset_insert` (Read-only)
+### `plan_asset_insert` (Read-only · sends data off this machine)
 
 One-shot asset discovery: marketplace-search a keyword, run the authoritative insertability preflight (asset_preflight_insert) on the top candidates IN ONE BATCH, and return a ranked, vetted plan — insertable + free + script-free first, with per-candidate warnings (scripts, paid/copy-locked, preflight error). Collapses the search→preflight→search churn an agent otherwise does as many separate round-trips into a single call; then insert the recommended assetId with insert_asset. Use this instead of hand-looping marketplace_search + asset_preflight_insert.
 
@@ -1407,7 +1407,7 @@ One-shot asset discovery: marketplace-search a keyword, run the authoritative in
 
 ---
 
-### `asset_source_search` (Read-only)
+### `asset_source_search` (Read-only · sends data off this machine)
 
 Search free, license-clean (CC0) asset libraries OUTSIDE the Roblox marketplace and return one normalized descriptor shape across providers: { provider, id, name, type, license, attributionRequired, pageUrl, downloadUrl?, thumbnailUrl?, note }. Live search hits Poly Haven (textures/HDRIs/models) and ambientCG (PBR materials); Kenney and Quaternius are browse-only pointers (no search API). The intended flow is asset_source_search → pick a result → import_external_asset with the downloadUrl (which uploads it to Roblox and records provenance). All results are CC0, so no attribution is legally required, but the source is still tracked. Studio-agnostic (web only).
 
@@ -1421,7 +1421,7 @@ Search free, license-clean (CC0) asset libraries OUTSIDE the Roblox marketplace 
 
 ---
 
-### `import_external_asset` (Write)
+### `import_external_asset` (Write · sends data off this machine)
 
 Bring an asset from OUTSIDE the Roblox marketplace into the place: download a URL (or read a local file), upload it to Roblox via Open Cloud, record its provenance (source, license, attribution obligation, sha256, new assetId), and optionally insert it. Use for CC0/CC-BY libraries (Kenney, Quaternius, Poly Haven, ambientCG), your own files, or any direct asset URL. Always pass the license so attribution can be tracked. Requires ROBLOX_OPEN_CLOUD_API_KEY (asset:write) + a creator id (ROBLOX_CREATOR_USER_ID / ROBLOX_CREATOR_GROUP_ID). Only import assets you have the right to upload.
 
@@ -1623,7 +1623,7 @@ Serialize one or more instances to a .rbxm file on disk via SerializationService
 
 ---
 
-### `import_rbxm` (Write)
+### `import_rbxm` (Write · sends data off this machine)
 
 Deserialize a .rbxm via SerializationService:DeserializeInstancesAsync (engine v668+, PluginSecurity) and parent the resulting instances under parent_path. All-or-nothing parenting: if any single instance fails to parent, every already-parented sibling is unparented and the call errors. Wrapped in ChangeHistoryService for edit target so one Ctrl+Z reverses the whole import.
 
@@ -2186,7 +2186,7 @@ Scaffold a round-based game: a lobby with spawn, an arena with teleport points, 
 
 ---
 
-### `marketplace_search` (Read-only)
+### `marketplace_search` (Read-only · sends data off this machine)
 
 Search Roblox's public marketplace/toolbox for insertable assets (models, decals, audio, meshes) — no Open Cloud key required. Returns asset ids + names to use with insert_asset.
 
@@ -2201,7 +2201,7 @@ Search Roblox's public marketplace/toolbox for insertable assets (models, decals
 
 ---
 
-### `marketplace_search_and_insert` (Write)
+### `marketplace_search_and_insert` (Write · sends data off this machine)
 
 Search the public marketplace and insert the top match into the place in one step (key-free, via InsertService). Returns the inserted asset and alternative matches.
 
@@ -2279,7 +2279,7 @@ Load and play an animation on a rig (finds/creates an Animator under its Humanoi
 
 ---
 
-### `asset_apply_texture` (Write)
+### `asset_apply_texture` (Write · sends data off this machine)
 
 Apply an image/texture asset to a target, choosing the right property by class (ImageLabel→Image, Decal/Texture→Texture, MeshPart→TextureID, SurfaceAppearance→ColorMap). Override with property.
 
@@ -2294,7 +2294,7 @@ Apply an image/texture asset to a target, choosing the right property by class (
 
 ---
 
-### `image_generate` (Write)
+### `image_generate` (Write · sends data off this machine)
 
 Generate an image from a text prompt via Pollinations (default model zimage; any model from enter.pollinations.ai/#models). Saves a local file and returns its path. Requires POLLINATIONS_API_KEY. To use it in Roblox, upload it (image_generate_and_upload or upload_asset) then asset_apply_texture.
 
@@ -2310,7 +2310,7 @@ Generate an image from a text prompt via Pollinations (default model zimage; any
 
 ---
 
-### `image_generate_and_upload` (Write)
+### `image_generate_and_upload` (Write · sends data off this machine)
 
 Generate an image (Pollinations) and upload it to Roblox in one step, returning the new assetId to use with asset_apply_texture. Requires POLLINATIONS_API_KEY and Roblox upload auth (ROBLOX_OPEN_CLOUD_API_KEY with asset:write, or ROBLOSECURITY for Decals).
 
@@ -2403,9 +2403,9 @@ Deterministically lint a UI for common quality problems and return scored, struc
 
 ---
 
-### `design_review` (Read-only)
+### `design_review` (Read-only · sends data off this machine)
 
-Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and asks a vision model to rate visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk, then return specific Roblox-phrased fixes. Run AFTER design_lint passes (lint is the cheap deterministic gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.
+Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and SENDS THAT SCREENSHOT to Pollinations (gen.pollinations.ai), which rates visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk and returns specific Roblox-phrased fixes. This is the one design tool that leaves the machine — design_lint does the same class of check locally and deterministically. Run AFTER design_lint passes (lint is the cheap local gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.
 
 **Parameters:**
 
@@ -2451,7 +2451,7 @@ Run a recipe (a proven, idempotent build macro) with typed parameters — faster
 
 ---
 
-### `get_roblox_docs` (Read-only)
+### `get_roblox_docs` (Read-only · sends data off this machine)
 
 Fetch official Roblox engine API documentation as markdown from create.roblox.com. Call this before writing or editing code that uses an engine class, enum, datatype, or Luau library you are not fully certain about (for example ProximityPrompt, Enum.KeyCode, CFrame, TweenService). Results are cached; very large pages are truncated with a section index, and the section parameter reads one section in full.
 
@@ -2630,7 +2630,7 @@ Read Wally manifest/lockfile metadata into a compact dependency list without ins
 
 ---
 
-### `install_wally_packages` (Write)
+### `install_wally_packages` (Write · sends data off this machine)
 
 Run wally install in the detected project only after explicit confirm=true.
 
@@ -3026,7 +3026,7 @@ Compare each tool's manifest version, installed shim, and the version the shim a
 
 ---
 
-### `rokit_install` (Write)
+### `rokit_install` (Write · sends data off this machine)
 
 Install every tool pinned by the manifest after confirm=true; downloads binaries and writes shims. Rokit prompts for trust on an unseen source and there is no terminal here, so set allowPinnedToolDownloads=true to skip that check — allowed only when every tool is pinned to an exact version.
 
@@ -3053,7 +3053,7 @@ Preview adding a tool spec (owner/repo[@version]) without touching the manifest.
 
 ---
 
-### `rokit_add_tool_apply` (Write)
+### `rokit_add_tool_apply` (Write · sends data off this machine)
 
 Run the toolchain's own add command after confirm=true and an expectedPlanHash match, so the version is resolved and written by the toolchain, never hardcoded.
 
@@ -3081,7 +3081,7 @@ Preview updating one tool or every tool without touching the manifest.
 
 ---
 
-### `rokit_update_apply` (Write)
+### `rokit_update_apply` (Write · sends data off this machine)
 
 Update one tool or every tool after confirm=true and an expectedPlanHash match; rewrites the manifest and downloads new versions.
 
@@ -3157,7 +3157,7 @@ Verify the installed Packages/ServerPackages/DevPackages directories are actuall
 
 ---
 
-### `wally_search` (Read-only)
+### `wally_search` (Read-only · sends data off this machine)
 
 Search the configured Wally registry for a package.
 
@@ -3182,7 +3182,7 @@ Preview a Wally install, including whether --locked can be used and whether the 
 
 ---
 
-### `wally_install_apply` (Write)
+### `wally_install_apply` (Write · sends data off this machine)
 
 Install Wally packages after confirm=true and an expectedPlanHash match, using --locked by default. On a Wally without --locked (0.3.2) the lockfile is backed up and restored if the install moved it, so the install is locked either way rather than refused.
 
@@ -3210,7 +3210,7 @@ Preview a Wally update against the current resolved graph without writing the lo
 
 ---
 
-### `wally_update_apply` (Write)
+### `wally_update_apply` (Write · sends data off this machine)
 
 Update Wally packages after confirm=true and an expectedPlanHash match; rewrites wally.lock and can change transitive versions.
 
@@ -3238,7 +3238,7 @@ Read the whole project — Rojo project, toolchain pins, Wally lock, package mou
 
 ---
 
-### `project_reconcile_apply` (Write)
+### `project_reconcile_apply` (Write · sends data off this machine)
 
 Run the planned steps in order under a single-writer lease, re-reading state after each one, then finish with a strict project verify. Restores declared state only: installing pinned tools and locked packages is permitted, resolving new versions is not. Pass the same runId to resume an interrupted run from its journal.
 

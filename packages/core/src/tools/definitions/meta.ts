@@ -7,7 +7,10 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'get_roblox_docs',
     category: 'read',
-    effects: ['studio.read'],
+    // Fetches from create.roblox.com, so it leaves the machine. It reads no
+    // Studio state at all — `studio.read` was doubly wrong, and it hid the
+    // request from the capability gate.
+    effects: ['network.external'],
     description: 'Fetch official Roblox engine API documentation as markdown from create.roblox.com. Call this before writing or editing code that uses an engine class, enum, datatype, or Luau library you are not fully certain about (for example ProximityPrompt, Enum.KeyCode, CFrame, TweenService). Results are cached; very large pages are truncated with a section index, and the section parameter reads one section in full.',
     inputSchema: {
       type: 'object',
