@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Three vulnerable packages shipped in the published CLI's dependency tree, all
+  reached through `@modelcontextprotocol/sdk@1.30.0`: `ip-address` ≤ 10.3.0
+  (three advisories, each an SSRF or trust-boundary bypass — leading-zero octets
+  decoded as decimal where resolvers decode octal, a CIDR suffix suppressing
+  special-use classification, and misclassified IPv4-mapped/NAT64 addresses),
+  `fast-uri` 3.0.0–3.1.4 (host confusion via a backslash authority introducer),
+  and `hono` ≤ 4.12.33 (ReDoS in CORS middleware, `memo()` retaining SSR output
+  across requests, Proxy Helper leaking headers named in `Connection`, and
+  algorithmic-complexity DoS in language middleware). Two rated high.
+  These were not dev-only: `npm audit --omit=dev` reported them, and all three
+  resolve under `@princeofscale/bloxforge`'s own dependencies, so anyone who
+  installed the CLI got them. The SDK was already at its latest release, and
+  every fix fits inside the existing semver ranges, so this is a lockfile
+  update — no declared dependency changed.
+
 ## [4.2.0] - 2026-08-07
 
 ### Added
