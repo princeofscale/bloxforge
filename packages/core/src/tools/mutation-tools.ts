@@ -43,17 +43,24 @@ export class MutationTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
+  // Every array argument below is checked with Array.isArray, not just for a
+  // length: the declared `string[]` is erased at the JSON boundary and nothing
+  // between the client and here enforces inputSchema. A caller that sent
+  // `paths: "game.Workspace.Part"` used to clear a bare `.length === 0` on the
+  // string's length — mass_create_objects then told the safety gate "create 24
+  // objects" and wrote "created 24 objects" into the operation history for a
+  // batch that never existed. `bulkMutate` below already guarded this way.
   async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) {
-    if (!paths || paths.length === 0 || !propertyName) {
-      throw new Error('paths (non-empty) and propertyName are required for mass_set_property');
+    if (!Array.isArray(paths) || paths.length === 0 || !propertyName) {
+      throw new Error('paths (non-empty array) and propertyName are required for mass_set_property');
     }
     const response = await this.runtime.callSingle('/api/mass-set-property', { paths, propertyName, propertyValue }, undefined, instance_id);
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
   async massGetProperty(paths: string[], propertyName: string, instance_id?: string) {
-    if (!paths || paths.length === 0 || !propertyName) {
-      throw new Error('paths (non-empty) and propertyName are required for mass_get_property');
+    if (!Array.isArray(paths) || paths.length === 0 || !propertyName) {
+      throw new Error('paths (non-empty array) and propertyName are required for mass_get_property');
     }
     const response = await this.runtime.callSingle('/api/mass-get-property', { paths, propertyName }, undefined, instance_id);
     return compactText(response);
@@ -68,7 +75,7 @@ export class MutationTools {
   }
 
   async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) {
-    if (!objects || objects.length === 0) {
+    if (!Array.isArray(objects) || objects.length === 0) {
       throw new Error('objects (non-empty array) is required for mass_create_objects');
     }
     const gated = this.runtime.safetyGate('bulk_create', `create ${objects.length} objects`, { count: objects.length }, options);
@@ -90,7 +97,7 @@ export class MutationTools {
   }
 
   async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions) {
-    if (!paths || paths.length === 0) {
+    if (!Array.isArray(paths) || paths.length === 0) {
       throw new Error('paths (non-empty array) is required for mass_delete_objects');
     }
     // The safety manager has carried a `bulk_delete` kind (protected-path check
@@ -164,7 +171,7 @@ export class MutationTools {
     }>,
     instance_id?: string
   ) {
-    if (!duplications || duplications.length === 0) {
+    if (!Array.isArray(duplications) || duplications.length === 0) {
       throw new Error('duplications (non-empty array) is required for mass_duplicate');
     }
     const response = await this.runtime.callSingle('/api/mass-duplicate', { duplications }, undefined, instance_id);

@@ -47,6 +47,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coverage moved from 33% to 63%.
 
 ### Fixed
+- The batch mutation tools accepted a string where an array belongs, and one of
+  them then lied about it. `inputSchema` is advertised to clients but never
+  enforced server-side — neither `server.ts` nor the tool pipeline validates
+  arguments — so a declared `string[]` is erased at the JSON boundary. A caller
+  sending `paths: "game.ServerScriptService"` cleared a bare `.length === 0`
+  check against the *string's* length: `mass_set_property`, `mass_get_property`
+  and `mass_duplicate` forwarded the string to the bridge, and
+  `mass_create_objects` told the safety gate "create 24 objects" and wrote
+  "created 24 objects" into the operation history for a batch that never
+  existed — 24 being the length of the string. (`mass_delete_objects` escaped
+  only by accident, on `paths.find is not a function`.) All five now check
+  `Array.isArray`, which is what `bulk_mutate` in the same file and
+  `load_toolset` already did.
 - `mass_get_property` reported success while returning no value. The response
   encoder drops any key holding userdata, so a handler that returned the property
   verbatim answered `{path, success: true, propertyName}` with `propertyValue`
