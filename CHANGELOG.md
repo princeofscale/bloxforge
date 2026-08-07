@@ -7,35 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
-- Four caller-supplied values reached generated Luau without being escaped, so a
-  crafted argument executed arbitrary code in the Studio plugin's edit context.
-  `apply_theme` and `design_lint` were caught by the same audit through
-  `minTextSize`. The full set:
-  `template_create_simulator_game`'s `currencyName` (interpolated inside a Luau
-  string literal, so a quote closed it), and the numeric arguments of
-  `template_create_tycoon_game`, `template_create_round_game`,
-  `template_create_obby_game` and `environment_create_day_night_cycle_script`
-  (typed `number` but never checked at runtime, so a JSON string was emitted as
-  code). `environment_create_day_night_cycle_script` also placed the caller's
-  `scriptName` inside the `[==[ ... ]==]` literal holding the generated script's
-  Source, where a name containing that literal's closing delimiter ended it early
-  and turned the remainder into executable Luau.
+## [4.2.0] - 2026-08-07
 
-  This mattered because none of these tools declares the `studio.execute` effect.
-  That effect is what the `builder` profile filters on — the profile README
-  describes as "arbitrary Luau execution denied" — and what the `execute_luau`
-  safety gate hangs off, so both were bypassed by tools that promise neither.
+### Added
 
-  Every value now goes through `luaString`/`luaNumber`, and the script name is no
-  longer interpolated into the Source literal at all; it is still applied to the
-  Instance through `luaString` where it belongs. Regression tests drive each
-  builder with a string that closes its quote, a name that closes the long
-  bracket, and a "number" that was never a number — and the detector is itself
-  tested, because a marker that vanishes with the literals it hides in proves
-  nothing.
+- `get_spatial_layout` — where things physically are. Every other scene read
+  answers a question about the tree: what classes exist, what is named what,
+  which script owns the day/night cycle. None of them answer the one an agent has
+  to settle before it places a single part — how big the built area is, where the
+  ground is, and which patch of it is empty. Names and classes cannot tell you a
+  new building would land inside an existing one. Returns the bounding volume,
+  the ground plane and the `y` to stand things on, the largest children with
+  position and size, SpawnLocations, and a coarse occupancy grid over the XZ
+  plane: `.` empty, `1`-`9` that many parts, `#` ten or more, north first. The
+  grid is the point — a few hundred characters that say where the free space is,
+  instead of thousands of stud coordinates the caller would have to intersect
+  itself. Part bounds are expanded onto the world axes, so a rotated beam reads
+  as the eighty studs it occupies rather than the four its `Size` names, and
+  baseplate-sized parts are excluded from the grid so it does not come back
+  uniformly full. Grid resolution and landmark count are clamped, so no argument
+  turns this into a wall of text.
+  Reads a part's position through `CFrame.Position` rather than `.Position`:
+  the same value, and the one a non-Studio Luau host can read, which is what
+  makes the runtime test above possible.
+- `asset_fit_plan` / `asset_fit_apply` — measures how a model sits in the scene
+  and corrects it. A model from the marketplace, a Package or an `.rbxm` arrives
+  at whatever scale its author worked in, with its pivot wherever their modelling
+  tool left it — often the world origin, which makes every later move and rotate
+  swing it around a point far outside the model. Neither is visible to an agent
+  that can only read names and classes. The plan reports the model's height
+  against a Roblox character (about 5 studs, the one absolute reference the
+  platform gives you), where the pivot sits inside the bounding box, and how many
+  parts are unanchored and would fall on the next playtest. The scale it proposes
+  is absolute against the authored size rather than a factor, so applying it to
+  an already-scaled model does not compound. The apply requires the plan's
+  `planHash`, which covers the current size, pivot, requested height and pivot
+  policy, and re-measures immediately before changing anything. A non-Model is
+  refused with the reason — scale and pivot are Model properties.
+
+- `asset_sanitize_plan` / `asset_sanitize_apply` — reads what the scripts inside a
+  model actually do, for a model that is already in the scene. `asset_preflight_insert`
+  answers "can I insert asset 123, and does it carry scripts" before anything is
+  parented, and it counts them without reading them; it cannot help once a model
+  has arrived from a Package, an `.rbxm`, a collaborator, or an insert nobody
+  preflighted. The plan flags capabilities that matter in code you did not write —
+  loading another asset at runtime, network access, `loadstring`, `getfenv`,
+  purchase prompts, kicks, DataStore and TeleportService use, runtime remote
+  creation — and grades the model. Script source is never returned, only the
+  matched capabilities and sizes, so a 40-script model does not cost more to
+  report than to read; a clean script contributes its count and nothing else.
+  The apply disables or removes every script in the subtree as one undo waypoint
+  and requires the plan's `planHash`, which covers each script's content: a
+  script added or edited in between invalidates the plan rather than riding
+  along. The hash also covers the action, so a `remove` cannot be applied against
+  a `disable` plan. `disable` refuses a ModuleScript, which has no `Enabled`,
+  rather than reporting success and leaving it live, and `remove` unparents
+  instead of destroying so the change stays undoable.
+
+- Upstream-derived regression scenarios in `tests/studio-tooling-smoke.mjs`,
+  taken from the issue tracker of the project BloxForge descends from: an MCP
+  write clobbering a script open with unsaved changes, a playtest whose peers
+  never go away, a Play Solo screenshot sourced from the edit DataModel, and
+  temporary bridge objects left in the tree after a stop. None reproduced when
+  run by hand against a live Studio — which is the reason to keep them, since
+  "we already handle that" decays silently without a test.
 
 ### Changed
+
 - The argument guards on every mutating tool are now exercised, not just
   spell-checked. `check-argument-errors.mjs` proved the refusals name a
   parameter rather than describing the problem in prose, but nothing proved a
@@ -46,7 +84,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a condition on purpose and watching the suite go red. `mutation-tools.ts`
   coverage moved from 33% to 63%.
 
+- The Luau this server generates now runs under Lune against a real DataModel,
+  in `release:check` and in CI. Generated Luau is where the read tools actually
+  compute their answers, and none of it was reachable from Jest — it could only
+  be checked by hand against a live Studio, which in practice means checked once
+  and then never again. Lune supplies real `CFrame`, `Vector3` and Instance
+  semantics, so `get_spatial_layout`, `get_node_batch`, `scene_search`, the
+  `get_changes_since` fingerprint and the `asset_fit_plan` scan are now asserted
+  on: a rotated 4x4x80 beam has to read as the eighty studs of X it occupies, a
+  baseplate has to be excluded from the occupancy grid rather than fill it, a
+  390x300x2 wall must not be mistaken for the ground it stands on, a batch row
+  for a missing path must report itself rather than vanish and leave the caller
+  matching answers to requests by position, and an unresolvable fit scan must
+  fail closed. The builders are called and their output is what runs, so the
+  tests cannot drift from them by copying. `get_world_snapshot` and the sanitize
+  scan cannot run there — Lune reads properties from rbx-dom, which has no value
+  for one that was never assigned and has no default, so `game.PlaceId` and
+  `Script.Enabled` are unreadable. That is a limit of the host, not a defect in
+  those builders.
+- `release:check` now runs the 10,000-request fault-injection benchmark, and the
+  `release:check:full` alias is gone. The benchmark lived only in the alias, so a
+  green `release:check` could still fail CI's Node 20 job — which is how a bridge
+  registration regression reached CI instead of being caught locally. The
+  benchmark takes well under a second; `release:check` exists to predict CI, so
+  anything CI gates on belongs in it.
+
 ### Fixed
+
 - `sync-tools.ts` was invisible to `grep`. Its plan-hash canonicalization joined
   each pair of fields with a raw NUL byte — a sound choice of separator, since
   NUL cannot occur in a path, a class name or a hex hash — but a NUL anywhere in
@@ -143,93 +207,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The changelog quoted a coverage ratchet (60.77 / 50.57 / 53.68 / 62.41) that
   `jest.config.js` no longer holds.
 
-### Added
-- `get_spatial_layout` — where things physically are. Every other scene read
-  answers a question about the tree: what classes exist, what is named what,
-  which script owns the day/night cycle. None of them answer the one an agent has
-  to settle before it places a single part — how big the built area is, where the
-  ground is, and which patch of it is empty. Names and classes cannot tell you a
-  new building would land inside an existing one. Returns the bounding volume,
-  the ground plane and the `y` to stand things on, the largest children with
-  position and size, SpawnLocations, and a coarse occupancy grid over the XZ
-  plane: `.` empty, `1`-`9` that many parts, `#` ten or more, north first. The
-  grid is the point — a few hundred characters that say where the free space is,
-  instead of thousands of stud coordinates the caller would have to intersect
-  itself. Part bounds are expanded onto the world axes, so a rotated beam reads
-  as the eighty studs it occupies rather than the four its `Size` names, and
-  baseplate-sized parts are excluded from the grid so it does not come back
-  uniformly full. Grid resolution and landmark count are clamped, so no argument
-  turns this into a wall of text.
-  Reads a part's position through `CFrame.Position` rather than `.Position`:
-  the same value, and the one a non-Studio Luau host can read, which is what
-  makes the runtime test above possible.
-- `asset_fit_plan` / `asset_fit_apply` — measures how a model sits in the scene
-  and corrects it. A model from the marketplace, a Package or an `.rbxm` arrives
-  at whatever scale its author worked in, with its pivot wherever their modelling
-  tool left it — often the world origin, which makes every later move and rotate
-  swing it around a point far outside the model. Neither is visible to an agent
-  that can only read names and classes. The plan reports the model's height
-  against a Roblox character (about 5 studs, the one absolute reference the
-  platform gives you), where the pivot sits inside the bounding box, and how many
-  parts are unanchored and would fall on the next playtest. The scale it proposes
-  is absolute against the authored size rather than a factor, so applying it to
-  an already-scaled model does not compound. The apply requires the plan's
-  `planHash`, which covers the current size, pivot, requested height and pivot
-  policy, and re-measures immediately before changing anything. A non-Model is
-  refused with the reason — scale and pivot are Model properties.
+### Security
 
-- `asset_sanitize_plan` / `asset_sanitize_apply` — reads what the scripts inside a
-  model actually do, for a model that is already in the scene. `asset_preflight_insert`
-  answers "can I insert asset 123, and does it carry scripts" before anything is
-  parented, and it counts them without reading them; it cannot help once a model
-  has arrived from a Package, an `.rbxm`, a collaborator, or an insert nobody
-  preflighted. The plan flags capabilities that matter in code you did not write —
-  loading another asset at runtime, network access, `loadstring`, `getfenv`,
-  purchase prompts, kicks, DataStore and TeleportService use, runtime remote
-  creation — and grades the model. Script source is never returned, only the
-  matched capabilities and sizes, so a 40-script model does not cost more to
-  report than to read; a clean script contributes its count and nothing else.
-  The apply disables or removes every script in the subtree as one undo waypoint
-  and requires the plan's `planHash`, which covers each script's content: a
-  script added or edited in between invalidates the plan rather than riding
-  along. The hash also covers the action, so a `remove` cannot be applied against
-  a `disable` plan. `disable` refuses a ModuleScript, which has no `Enabled`,
-  rather than reporting success and leaving it live, and `remove` unparents
-  instead of destroying so the change stays undoable.
+- Eleven caller-supplied values across seven tools reached generated Luau without
+  being escaped, so a crafted argument executed arbitrary code in the Studio
+  plugin's edit context. `apply_theme` and `design_lint` were caught by the same
+  audit through `minTextSize`, and `radiusMd` was wrapped in the same pass. The
+  full set:
+  `template_create_simulator_game`'s `currencyName` (interpolated inside a Luau
+  string literal, so a quote closed it), and the numeric arguments of
+  `template_create_tycoon_game`, `template_create_round_game`,
+  `template_create_obby_game` and `environment_create_day_night_cycle_script`
+  (typed `number` but never checked at runtime, so a JSON string was emitted as
+  code). `environment_create_day_night_cycle_script` also placed the caller's
+  `scriptName` inside the `[==[ ... ]==]` literal holding the generated script's
+  Source, where a name containing that literal's closing delimiter ended it early
+  and turned the remainder into executable Luau.
 
-- Upstream-derived regression scenarios in `tests/studio-tooling-smoke.mjs`,
-  taken from the issue tracker of the project BloxForge descends from: an MCP
-  write clobbering a script open with unsaved changes, a playtest whose peers
-  never go away, a Play Solo screenshot sourced from the edit DataModel, and
-  temporary bridge objects left in the tree after a stop. None reproduced when
-  run by hand against a live Studio — which is the reason to keep them, since
-  "we already handle that" decays silently without a test.
+  This mattered because none of these tools declares the `studio.execute` effect.
+  That effect is what the `builder` profile filters on — the profile README
+  describes as "arbitrary Luau execution denied" — and what the `execute_luau`
+  safety gate hangs off, so both were bypassed by tools that promise neither.
 
-### Changed
-- The Luau this server generates now runs under Lune against a real DataModel,
-  in `release:check` and in CI. Generated Luau is where the read tools actually
-  compute their answers, and none of it was reachable from Jest — it could only
-  be checked by hand against a live Studio, which in practice means checked once
-  and then never again. Lune supplies real `CFrame`, `Vector3` and Instance
-  semantics, so `get_spatial_layout`, `get_node_batch`, `scene_search`, the
-  `get_changes_since` fingerprint and the `asset_fit_plan` scan are now asserted
-  on: a rotated 4x4x80 beam has to read as the eighty studs of X it occupies, a
-  baseplate has to be excluded from the occupancy grid rather than fill it, a
-  390x300x2 wall must not be mistaken for the ground it stands on, a batch row
-  for a missing path must report itself rather than vanish and leave the caller
-  matching answers to requests by position, and an unresolvable fit scan must
-  fail closed. The builders are called and their output is what runs, so the
-  tests cannot drift from them by copying. `get_world_snapshot` and the sanitize
-  scan cannot run there — Lune reads properties from rbx-dom, which has no value
-  for one that was never assigned and has no default, so `game.PlaceId` and
-  `Script.Enabled` are unreadable. That is a limit of the host, not a defect in
-  those builders.
-- `release:check` now runs the 10,000-request fault-injection benchmark, and the
-  `release:check:full` alias is gone. The benchmark lived only in the alias, so a
-  green `release:check` could still fail CI's Node 20 job — which is how a bridge
-  registration regression reached CI instead of being caught locally. The
-  benchmark takes well under a second; `release:check` exists to predict CI, so
-  anything CI gates on belongs in it.
+  Every value now goes through `luaString`/`luaNumber`, and the script name is no
+  longer interpolated into the Source literal at all; it is still applied to the
+  Instance through `luaString` where it belongs. Regression tests drive each
+  builder with a string that closes its quote, a name that closes the long
+  bracket, and a "number" that was never a number — and the detector is itself
+  tested, because a marker that vanishes with the literals it hides in proves
+  nothing.
 
 ## [4.1.0] - 2026-08-05
 
@@ -1797,7 +1803,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.0.3...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/princeofscale/bloxforge/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/princeofscale/bloxforge/compare/v4.0.3...v4.1.0
 [4.0.3]: https://github.com/princeofscale/bloxforge/compare/v4.0.2...v4.0.3
 [4.0.2]: https://github.com/princeofscale/bloxforge/compare/v4.0.1...v4.0.2
