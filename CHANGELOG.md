@@ -19,6 +19,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coverage moved from 33% to 63%.
 
 ### Fixed
+- `mass_get_property` reported success while returning no value. The response
+  encoder drops any key holding userdata, so a handler that returned the property
+  verbatim answered `{path, success: true, propertyName}` with `propertyValue`
+  simply absent — indistinguishable from a successful read at the call site.
+  Verified against a live place: `Anchored` came back as `true`, while `Color` and
+  `Material` came back as successes with nothing in them. `Size`, `Position`,
+  `CFrame` and `BrickColor` lost the same way, which is most of what a caller
+  batch-reads while building. Values are now tagged (`{R,G,B,_type:"Color3"}`,
+  `{Name,Value,EnumType,_type:"EnumItem"}`) and primitives still pass through as
+  primitives, so a boolean does not become `"true"`.
+  The serializer moved to `Utils` because `get_attributes` had the same hole for
+  every attribute type past Vector3/Color3/UDim2/BrickColor — it kept reporting
+  `type`, so only the value went missing — and both readers now route through one
+  implementation that also covers Vector2, UDim, NumberRange, Rect and Instance.
+  A type it still cannot represent comes back as an explicit
+  `_type: "unsupported"` marker rather than vanishing, and `set_attribute` refuses
+  such a marker instead of storing the text where a NumberSequence belongs.
+- Batch create and duplicate summaries hid rejected properties. A row carrying
+  `propertyErrors` is counted a success, correctly — the instance does exist — but
+  that put `{succeeded: 4, failed: 0}` next to two properties the engine had
+  refused, and nothing in the summary suggested opening the rows. Observed live on
+  a `mass_create_objects` batch. `mass_create_objects`, `smart_duplicate` and
+  `mass_duplicate` summaries now carry `withPropertyErrors`.
+- `propose_next_action` sent agents to fix a script that does not exist. It pulls
+  dotted names out of error text to name the script to open, and a URL host is a
+  dotted name too — so an episode whose errors were all asset fetches
+  (`MeshContentProvider failed to process https://assetdelivery.roblox.com/…`)
+  came back as `action: "fix_script"`, `focus: ["assetdelivery.roblox.com"]`,
+  "Open the implicated script(s), fix the error, then re-run". Observed on a live
+  episode where all 23 errors were content fetches and every assertion passed:
+  the self-driving loop had no exit. URLs are now stripped before the scan, and
+  when nothing names a script the rationale says so and points at `logs.errors`
+  instead of naming a file to open. The verdict still fails — an episode whose
+  assets did not load did not go well, and telling those apart from a genuinely
+  broken asset id would be guesswork.
 - `execute_luau` could not produce a Studio Undo waypoint. The plugin has always
   opened a `ChangeHistoryService` recording for any script that arrives with an
   `undoLabel`, but only the generated builders were sending one — the parameter

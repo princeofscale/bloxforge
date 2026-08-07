@@ -203,6 +203,50 @@ const ASSERTIONS = [
     },
   },
   {
+    // A created instance whose properties the engine rejected still counts as a
+    // success, so `{succeeded: 4, failed: 0}` sat right next to two rejected
+    // properties (verified live) and a caller reading only the summary had no
+    // reason to open the rows. All three batch summaries that can carry
+    // propertyErrors now report how many rows have them — mass_duplicate reads
+    // it from each sub-summary, since its results are sub-results, not rows.
+    file: 'handlers/InstanceHandlers.luau',
+    label: 'batch summaries count the rows whose properties were rejected',
+    test: (src) =>
+      /function countPropertyErrorRows\(/.test(src) &&
+      (src.match(/withPropertyErrors = countPropertyErrorRows\(results\)/g) ?? []).length === 2 &&
+      /withPropertyErrors = totalPropertyErrorRows/.test(src),
+  },
+  {
+    // The response encoder drops keys holding userdata, so returning a property
+    // value verbatim answered {success = true} with no propertyValue at all —
+    // verified live: Anchored (boolean) came back, Color and Material did not,
+    // both reported as successes. Size/Position/CFrame lose the same way, which
+    // is most of what a caller batch-reads while building.
+    file: 'handlers/PropertyHandlers.luau',
+    label: 'mass_get_property serializes values the encoder would otherwise drop',
+    test: (src) => {
+      const body = /function massGetProperty\([\s\S]*?\nend\n/.exec(src)?.[0] ?? '';
+      return /propertyValue = serializeValue\(value\)/.test(body);
+    },
+  },
+  {
+    // One serializer for both readers: get_attributes lost every attribute type
+    // past Vector3/Color3/UDim2/BrickColor the same way (it kept reporting
+    // `type`, so only the value vanished). Anything still unhandled becomes an
+    // explicit marker, so deserializeValue can refuse to write text back rather
+    // than storing a string where a NumberSequence belongs.
+    file: 'Utils.luau',
+    label: 'serializeValue tags every userdata type the encoder cannot represent',
+    test: (src) => {
+      const body = /function serializeValue\([\s\S]*?\nend\n/.exec(src)?.[0] ?? '';
+      const tagged = ['Vector3', 'Vector2', 'Color3', 'CFrame', 'UDim2', 'UDim', 'NumberRange', 'Rect', 'BrickColor', 'EnumItem', 'Instance'];
+      return tagged.every((t) => body.includes(`"${t}"`))
+        && /_type = "unsupported"/.test(body)
+        // primitives must pass through untouched, or a boolean becomes "true"
+        && /vType == "boolean"/.test(body);
+    },
+  },
+  {
     // Measured against a live place holding 24 parts: the whole-DataModel walk
     // returned 326KB (~90k tokens), of which Stats/StylingService/
     // MemStorageService/CoreGui/PluginGuiService/VisualizationModeService were

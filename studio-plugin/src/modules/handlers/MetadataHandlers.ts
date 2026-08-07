@@ -6,33 +6,8 @@ import LuauExec from "../LuauExec";
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
 
-const { getInstancePath, getInstanceByPath } = Utils;
+const { getInstancePath, getInstanceByPath, serializeValue } = Utils;
 const { beginRecording, finishRecording } = Recording;
-
-function serializeValue(value: unknown): unknown {
-	const vType = typeOf(value);
-	if (vType === "Vector3") {
-		const v = value as Vector3;
-		return { X: v.X, Y: v.Y, Z: v.Z, _type: "Vector3" };
-	} else if (vType === "Color3") {
-		const v = value as Color3;
-		return { R: v.R, G: v.G, B: v.B, _type: "Color3" };
-	} else if (vType === "CFrame") {
-		const v = value as CFrame;
-		return { Position: { X: v.Position.X, Y: v.Position.Y, Z: v.Position.Z }, _type: "CFrame" };
-	} else if (vType === "UDim2") {
-		const v = value as UDim2;
-		return {
-			X: { Scale: v.X.Scale, Offset: v.X.Offset },
-			Y: { Scale: v.Y.Scale, Offset: v.Y.Offset },
-			_type: "UDim2",
-		};
-	} else if (vType === "BrickColor") {
-		const v = value as BrickColor;
-		return { Name: v.Name, _type: "BrickColor" };
-	}
-	return value;
-}
 
 function deserializeValue(attributeValue: unknown, valueType?: string): unknown {
 	// Scalars used to return unchanged, so `valueType` — advertised as "type hint
@@ -58,8 +33,31 @@ function deserializeValue(attributeValue: unknown, valueType?: string): unknown 
 		const x = tbl.X as Record<string, number> | undefined;
 		const y = tbl.Y as Record<string, number> | undefined;
 		return new UDim2(x?.Scale ?? 0, x?.Offset ?? 0, y?.Scale ?? 0, y?.Offset ?? 0);
+	} else if (t === "UDim") {
+		return new UDim((tbl.Scale as number) ?? 0, (tbl.Offset as number) ?? 0);
+	} else if (t === "Vector2") {
+		return new Vector2((tbl.X as number) ?? 0, (tbl.Y as number) ?? 0);
+	} else if (t === "NumberRange") {
+		const min = (tbl.Min as number) ?? 0;
+		return new NumberRange(min, (tbl.Max as number) ?? min);
+	} else if (t === "Rect") {
+		return new Rect(
+			(tbl.MinX as number) ?? 0,
+			(tbl.MinY as number) ?? 0,
+			(tbl.MaxX as number) ?? 0,
+			(tbl.MaxY as number) ?? 0,
+		);
 	} else if (t === "BrickColor") {
 		return new BrickColor(((tbl.Name as string) ?? "Medium stone grey") as unknown as number);
+	} else if (t === "unsupported") {
+		// serializeValue could only render this type as text. Writing the text
+		// back would store a string under a name the caller believes still holds
+		// a NumberSequence, so refuse instead.
+		error(
+			`Cannot write back a ${tostring(tbl.TypeName)} value: BloxForge read it as text only. ` +
+				"Set it from Luau via execute_luau instead.",
+			0,
+		);
 	}
 	return attributeValue;
 }

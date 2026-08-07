@@ -176,7 +176,7 @@ Set a property on multiple instances at once — color, material, anchored, and 
 
 ### `mass_get_property` (Read-only)
 
-Get a property from multiple instances
+Get a property from multiple instances. Primitives come back as themselves; everything else is tagged — {R,G,B,_type:"Color3"}, {X,Y,Z,_type:"Vector3"}, {Name,Value,EnumType,_type:"EnumItem"} — so reading Color, Material or Size returns a value instead of nothing.
 
 **Parameters:**
 

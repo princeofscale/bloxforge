@@ -63,7 +63,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_get_property',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Get a property from multiple instances',
+    description: 'Get a property from multiple instances. Primitives come back as themselves; everything else is tagged — {R,G,B,_type:"Color3"}, {X,Y,Z,_type:"Vector3"}, {Name,Value,EnumType,_type:"EnumItem"} — so reading Color, Material or Size returns a value instead of nothing.',
     inputSchema: {
       type: 'object',
       properties: {

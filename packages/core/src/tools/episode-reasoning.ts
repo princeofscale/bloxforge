@@ -77,9 +77,15 @@ export function failedAssertionsOf(ep: EpisodeLike): string[] {
 
 // Best-effort: pull script-ish dotted names (Foo.Bar, ServerScriptService.X) out
 // of error text so the agent knows which script to open.
+//
+// URLs go first, because a hostname is a dotted name too. An asset that fails to
+// fetch logs "MeshContentProvider failed to process https://assetdelivery.roblox.com/…",
+// which implicated "assetdelivery.roblox.com" and sent the agent off to open a
+// script by that name — verified against a live episode whose 23 errors were all
+// content fetches. Any scheme, since rbxassetid:// shows up in these lines too.
 export function implicatedScriptsOf(ep: EpisodeLike): string[] {
   const names = errorLinesOf(ep).flatMap(
-    (line) => line.match(/[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+/g) ?? [],
+    (line) => line.replace(/\w+:\/\/\S+/g, ' ').match(/[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)+/g) ?? [],
   );
   return Array.from(new Set(names)).slice(0, 10);
 }
@@ -160,16 +166,22 @@ export function proposeNextAction(
       };
     }
     const scripts = implicatedScriptsOf(latest);
+    const rerun = `re-run run_playtest_episode${
+      episodeId ? ` and compare with comparedToEpisodeId="${episodeId}"` : ''
+    }`;
     return {
       action: 'fix_script',
       done: false,
       tool: null,
       focus: scripts,
-      rationale: `Runtime errors were logged${
-        scripts.length ? ` implicating [${scripts.join(', ')}]` : ''
-      }. Open the implicated script(s), fix the error, then re-run run_playtest_episode${
-        episodeId ? ` and compare with comparedToEpisodeId="${episodeId}"` : ''
-      }.`,
+      // With nothing implicated there is no script to open, and saying "open the
+      // implicated script(s)" anyway is what turned an unfixable environment
+      // failure into a loop. Asset fetch failures land here.
+      rationale: scripts.length
+        ? `Runtime errors were logged implicating [${scripts.join(
+            ', ',
+          )}]. Open the implicated script(s), fix the error, then ${rerun}.`
+        : `Runtime errors were logged but none name a script — read logs.errors before editing anything. Asset and content fetch failures look like this, and they are fixed in the place's assets or in Studio's network access, not in a script. Then ${rerun}.`,
     };
   }
 
