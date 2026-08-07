@@ -122,7 +122,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so that is a real property of the tool and now stated where the caller reads,
   along with the advice to keep async for long reads and scans.
 
-### Fixed
 - `docs/architecture.md` claimed 213 tools; there are 218. It went stale inside
   the very branch that last corrected it, because adding a tool does not touch
   the file that states how many exist. `docs:check` now compares that number
@@ -131,7 +130,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   had also come apart — rows were 52 to 61 characters wide inside a 59-character
   frame, most likely since the rename to BloxForge — and is square again.
 
-### Fixed
 - `capture_screenshot`'s description still promised "the returned image is never
   downscaled" after the default downscale landed, so the one place a caller reads
   about the behaviour contradicted it.
