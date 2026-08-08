@@ -20,7 +20,7 @@ import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { ToolRegistry } from './tools/tool-pipeline.js';
 import { registerContractedTools } from './tools/setup-registry.js';
-import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
+import { buildCatalog, expandToolsets, collapseToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
 import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
@@ -202,15 +202,21 @@ export class BloxForgeServer {
         //    envelope). Returns null if the tool isn't registered yet.
         const registryResult: unknown = await this.registry.callTool(name, this.tools, args ?? {});
         if (registryResult !== null && registryResult !== undefined) {
-          // Lazy: load_toolset expands the advertised tool list.
-          if (this.lazyTools && name === 'load_toolset') {
-            this.applyToolset((args ?? {}) as { toolsets?: string[] });
+          // Lazy: load_toolset changes the advertised tool list — but only when
+          // the call succeeded. A rejected request that still moved the active
+          // set (`{"toolsets":["scene",123]}` errors on the number after `scene`
+          // is already a valid selector) answered "error" and expanded anyway,
+          // leaving the client's list and the server's disagreeing. The HTTP
+          // path has always guarded on isError; stdio did not.
+          const failed = (registryResult as { isError?: boolean })?.isError;
+          if (this.lazyTools && name === 'load_toolset' && !failed) {
+            this.applyToolset((args ?? {}) as { toolsets?: string[]; unload?: string[] });
           }
           this.tools.getSessionRecorder().recordToolCall({
             toolName: name,
             durationMs: Date.now() - startedAt,
-            ok: !(registryResult as { isError?: boolean })?.isError,
-            errorCode: (registryResult as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+            ok: !failed,
+            errorCode: failed ? 'TOOL_ERROR' : undefined,
           });
           return registryResult;
         }
@@ -222,15 +228,18 @@ export class BloxForgeServer {
         }
 
         const result = await handler(this.tools, args ?? {});
-        if (this.lazyTools && name === 'load_toolset') {
-          this.applyToolset((args ?? {}) as { toolsets?: string[] });
-        }
         const shaped = attachStructuredContent(result as Record<string, unknown>, !!definition?.outputSchema);
+        // Same guard as the registry branch above: shape the result first, so
+        // the decision to change the advertised list sees whether it failed.
+        const shapedFailed = (shaped as { isError?: boolean })?.isError;
+        if (this.lazyTools && name === 'load_toolset' && !shapedFailed) {
+          this.applyToolset((args ?? {}) as { toolsets?: string[]; unload?: string[] });
+        }
         this.tools.getSessionRecorder().recordToolCall({
           toolName: name,
           durationMs: Date.now() - startedAt,
-          ok: !(shaped as { isError?: boolean })?.isError,
-          errorCode: (shaped as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+          ok: !shapedFailed,
+          errorCode: shapedFailed ? 'TOOL_ERROR' : undefined,
         });
         return shaped;
       } catch (error) {
@@ -266,21 +275,33 @@ export class BloxForgeServer {
     });
   }
 
-  // Expand the active tool set by the requested domains and notify the client.
-  private applyToolset(args: { toolsets?: string[] }): void {
+  // Expand (or shrink) the active tool set by the requested domains and notify
+  // the client. Loading was one-way until 4.3.0: a session that touched runtime
+  // carried its ~13k tokens of schemas on every later request, whether or not it
+  // ever ran another playtest. `unload` releases a domain it is done with.
+  private applyToolset(args: { toolsets?: string[]; unload?: string[] }): void {
     const selectors = Array.isArray(args?.toolsets) ? args.toolsets : [];
-    if (selectors.length === 0) return;
+    const release = Array.isArray(args?.unload) ? args.unload : [];
+    if (selectors.length === 0 && release.length === 0) return;
     const catalog = buildCatalog(this.config.tools);
-    const wanted = expandToolsets(catalog, selectors);
-    let added = false;
-    for (const n of wanted) {
+    let changed = false;
+
+    // Unload first, so naming a domain in both lands on "loaded" rather than
+    // depending on which loop ran last.
+    for (const n of collapseToolsets(catalog, release)) {
+      if (this.activeToolNames.delete(n)) {
+        this.registry.deactivate(n);
+        changed = true;
+      }
+    }
+    for (const n of expandToolsets(catalog, selectors)) {
       if (this.allowedToolNames.has(n) && !this.activeToolNames.has(n)) {
         this.activeToolNames.add(n);
         this.registry.activate(n); // also activate in registry
-        added = true;
+        changed = true;
       }
     }
-    if (added) {
+    if (changed) {
       this.server.sendToolListChanged?.();
     }
   }

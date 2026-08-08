@@ -25,7 +25,7 @@ import { attachStructuredContent } from './tools/structured-output.js';
 import { parseClientCapabilities, requiredCapabilities } from './capability-policy.js';
 import { SERVER_INSTRUCTIONS } from './server-instructions.js';
 import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js';
-import { CORE_TOOLS, buildCatalog, expandToolsets } from './tools/tool-catalog.js';
+import { CORE_TOOLS, buildCatalog, expandToolsets, collapseToolsets } from './tools/tool-catalog.js';
 import { DASHBOARD_HTML } from './dashboard.js';
 
 interface StreamableHttpConfig {
@@ -57,7 +57,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   load_toolset: (tools, body) => tools.loadToolset(body),
   get_world_snapshot: (tools, body) => tools.getWorldSnapshot(body.path, body.level, body.topNPerClass, body.instance_id),
   get_node_batch: (tools, body) => tools.getNodeBatch(body.paths, body.fields, body.includeChildrenCount, body.instance_id),
-  get_changes_since: (tools, body) => tools.getChangesSince(body.snapshotId, body.path, body.instance_id),
+  get_changes_since: (tools, body) => tools.getChangesSince(body.snapshotId, body.path, body.instance_id, body.rebaseline),
   scene_search: (tools, body) => tools.sceneSearch(body.query, body.path, body.limit, body.instance_id),
   playtest_sample_state: (tools, body) => tools.playtestSampleState(body.domains, body.target, body.instance_id),
   apply_mutation_plan: (tools, body) => tools.applyMutationPlan(body.operations, body.dryRun, body.confirm, body.instance_id, body.atomic),
@@ -826,6 +826,14 @@ export function createHttpServer(tools: RobloxStudioTools, bridge: BridgeService
     const activateToolsets = (args: unknown): void => {
       if (!lazyCatalog || !registry) return;
       const selectors = (args as { toolsets?: unknown })?.toolsets;
+      const release = (args as { unload?: unknown })?.unload;
+      // Unload before load, matching the stdio server — naming a domain in both
+      // must mean the same thing on either transport.
+      if (Array.isArray(release)) {
+        for (const name of collapseToolsets(lazyCatalog, release as string[])) {
+          registry.deactivate(name);
+        }
+      }
       if (!Array.isArray(selectors)) return;
       for (const name of expandToolsets(lazyCatalog, selectors as string[])) {
         if (!allowedTools || allowedTools.has(name)) registry.activate(name);

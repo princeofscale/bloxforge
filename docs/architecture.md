@@ -197,7 +197,13 @@ authenticated when a server token is configured. Machine-control requests are
 JSON-only and reject browser origins.
 
 Lazy discovery and authorization are separate. `load_toolset` changes the
-advertised schema set only. Authorization uses explicit effects:
+advertised schema set only, in both directions — its `unload` releases a domain
+whose schemas the session no longer needs. That set is re-sent on every request,
+so it is a recurring cost rather than a one-off: the full catalog is ~49.9k
+tokens, the always-on core set ~4.8k, and `runtime` alone ~13.2k. Both tools
+report `approxTokens` so the choice is an informed one, and
+`npm run tools:token-report -- --check` holds the core set to its budget.
+Authorization uses explicit effects:
 `studio.read`, `studio.write`, `studio.execute`, `local.files.read`,
 `local.files.write`, `local.process.execute`, `network.external`,
 `assets.upload`, and `playtest.control`. Every tool declares its own effects and

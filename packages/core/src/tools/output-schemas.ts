@@ -156,6 +156,8 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
     properties: {
       snapshotId: { type: 'string' },
       baseline: { type: 'boolean' },
+      since: { type: 'string', enum: ['baseline', 'previous-call'] },
+      baselineAt: { type: 'number' },
       path: { type: 'string' },
       scope: { type: 'string' },
       added: { type: 'array', items: { type: 'object', additionalProperties: true } },

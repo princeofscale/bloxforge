@@ -84,4 +84,62 @@ describe('load_toolset over the Streamable HTTP transport', () => {
     expect(decode(res.text).result.isError).toBe(true);
     expect(await listToolNames()).toEqual(before);
   });
+
+  // Loading was one-way, so a session paid for a domain's schemas on every
+  // later request whether or not it used them again. The round trip is the
+  // invariant that matters: what is advertised after a release must be exactly
+  // what was advertised before the load.
+  it('stops advertising a released domain, returning to the pre-load list', async () => {
+    const before = await listToolNames();
+
+    await rpc(app, sessionId, {
+      jsonrpc: '2.0', id: 5, method: 'tools/call',
+      params: { name: 'load_toolset', arguments: { toolsets: ['scene'] } },
+    });
+    expect(await listToolNames()).toContain('get_file_tree');
+
+    const res = await rpc(app, sessionId, {
+      jsonrpc: '2.0', id: 6, method: 'tools/call',
+      params: { name: 'load_toolset', arguments: { unload: ['scene'] } },
+    });
+    expect(decode(res.text).result.isError).toBeFalsy();
+
+    const after = await listToolNames();
+    expect(after).not.toContain('get_file_tree');
+    expect(after.sort()).toEqual(before.sort());
+  });
+
+  it('keeps the core tools advertised after every domain is released', async () => {
+    await rpc(app, sessionId, {
+      jsonrpc: '2.0', id: 7, method: 'tools/call',
+      params: { name: 'load_toolset', arguments: { toolsets: ['scene', 'runtime'] } },
+    });
+    await rpc(app, sessionId, {
+      jsonrpc: '2.0', id: 8, method: 'tools/call',
+      params: { name: 'load_toolset', arguments: { unload: ['scene', 'runtime'] } },
+    });
+
+    // Releasing load_toolset itself would leave no way to load anything back.
+    const after = await listToolNames();
+    expect(after).toContain('load_toolset');
+    expect(after).toContain('tool_catalog_search');
+    expect(after).toContain('execute_luau');
+  });
+
+  it('does not release anything when the unload request is rejected', async () => {
+    await rpc(app, sessionId, {
+      jsonrpc: '2.0', id: 9, method: 'tools/call',
+      params: { name: 'load_toolset', arguments: { toolsets: ['scene'] } },
+    });
+    const loaded = await listToolNames();
+
+    // A string instead of an array used to coerce to [] and report success for
+    // a release that never happened.
+    const res = await rpc(app, sessionId, {
+      jsonrpc: '2.0', id: 10, method: 'tools/call',
+      params: { name: 'load_toolset', arguments: { unload: 'scene' } },
+    });
+    expect(decode(res.text).result.isError).toBe(true);
+    expect(await listToolNames()).toEqual(loaded);
+  });
 });

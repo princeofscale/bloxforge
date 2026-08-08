@@ -1736,7 +1736,7 @@ Read several instances in one round-trip, returning only the requested fields pe
 
 ### `get_changes_since` (Read-only)
 
-Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now). At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.
+Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get everything that changed since that baseline — it holds still, so this stays answerable across a whole session. Pass rebaseline:true instead to poll ("what moved since I last looked"), which advances the baseline to now. The "since" field in the response says which question was answered. At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.
 
 **Parameters:**
 
@@ -1744,6 +1744,7 @@ Incremental changefeed: returns which instances were added, removed, or changed 
 |---|---|---|---|
 | `snapshotId` | `string` | No | Snapshot id from a previous call. Omit to capture a fresh baseline. |
 | `path` | `string` | No | Root path to track (default: game). |
+| `rebaseline` | `boolean` | No | Advance the baseline to the current state after diffing (default false). Use for polling; leave off to keep asking "what changed since the baseline". |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -2696,13 +2697,14 @@ Build the detected Rojo project to an explicit RBXL/RBXM output path.
 
 ### `load_toolset` (Read-only)
 
-Load one or more tool domains. This expands the advertised MCP tool list and sends tools/list_changed; it does not grant tools denied by the active profile or capability policy. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. Use --profile core|builder|tester|full|inspector to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every authorized schema upfront.
+Load or release tool domains. Loading expands the advertised MCP tool list and sends tools/list_changed; it does not grant tools denied by the active profile or capability policy. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. A loaded domain is re-sent on every later request, so release one you are done with via "unload" (core is never released). The response reports approxTokens for both directions. Use --profile core|builder|tester|full|inspector to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every authorized schema upfront.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `toolsets` | `array` | Yes | Domains to load (e.g. ["ui","assets"]). Accepts "domain.suffix" shorthand too. |
+| `toolsets` | `array` | No | Domains to load (e.g. ["ui","assets"]). Accepts "domain.suffix" shorthand too. |
+| `unload` | `array` | No | Domains to stop advertising, freeing their per-request schema cost (e.g. ["runtime"]). Core tools are never released. May be sent on its own. |
 
 ---
 

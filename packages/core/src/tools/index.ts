@@ -2325,13 +2325,13 @@ export class RobloxStudioTools {
   // Discovery + world-model tools live in their own domain classes; the facade
   // delegates so the public tool surface (names + signatures, incl. instance_id)
   // stays identical.
-  async loadToolset(body: { toolsets?: string[] }) { return this.discoveryTools.loadToolset(body); }
+  async loadToolset(body: { toolsets?: string[]; unload?: string[] }) { return this.discoveryTools.loadToolset(body); }
   async toolCatalogSearch(body: { query: string; domains?: ToolDomain[]; readOnly?: boolean; limit?: number }) { return this.discoveryTools.toolCatalogSearch(body); }
 
   async getWorldSnapshot(path?: string, level?: SnapshotLevel, topNPerClass?: number, instance_id?: string) { return this.worldTools.getWorldSnapshot(path, level, topNPerClass, instance_id); }
   async sceneSearch(query: string, path?: string, limit?: number, instance_id?: string) { return this.worldTools.sceneSearch(query, path, limit, instance_id); }
   async getNodeBatch(paths: string[], fields?: string[], includeChildrenCount?: boolean, instance_id?: string) { return this.worldTools.getNodeBatch(paths, fields, includeChildrenCount, instance_id); }
-  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string) { return this.worldTools.getChangesSince(snapshotId, path, instance_id); }
+  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string, rebaseline?: boolean) { return this.worldTools.getChangesSince(snapshotId, path, instance_id, rebaseline); }
   async assetPreflightInsert(assetId: number, instance_id?: string) { return this.worldTools.assetPreflightInsert(assetId, instance_id); }
   async assetSanitizePlan(instancePath: string, action?: 'disable' | 'remove', instance_id?: string) { return this.worldTools.assetSanitizePlan(instancePath, action, instance_id); }
   async assetSanitizeApply(instancePath: string, expectedPlanHash: string, action?: 'disable' | 'remove', instance_id?: string) { return this.worldTools.assetSanitizeApply(instancePath, expectedPlanHash, action, instance_id); }

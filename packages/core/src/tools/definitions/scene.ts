@@ -553,7 +553,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_changes_since',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get the diff (the baseline then rolls forward to now). At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.',
+    description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get everything that changed since that baseline — it holds still, so this stays answerable across a whole session. Pass rebaseline:true instead to poll ("what moved since I last looked"), which advances the baseline to now. The "since" field in the response says which question was answered. At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -564,6 +564,10 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         path: {
           type: 'string',
           description: 'Root path to track (default: game).'
+        },
+        rebaseline: {
+          type: 'boolean',
+          description: 'Advance the baseline to the current state after diffing (default false). Use for polling; leave off to keep asking "what changed since the baseline".'
         },
         instance_id: {
           type: 'string',

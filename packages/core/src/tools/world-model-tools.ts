@@ -168,7 +168,20 @@ export class WorldModelTools {
     return { fp: {}, count: 0, truncated: false, error: 'Could not parse world fingerprint' };
   }
 
-  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string) {
+  /**
+   * Diff the world against a stored snapshot.
+   *
+   * The baseline used to roll forward on every call, so a snapshotId silently
+   * changed meaning from "the world as it was when I started" to "the world as
+   * of my previous call". Asking twice in a row therefore reported no changes,
+   * and an agent had no way to ask what it had built across a whole session —
+   * the one question the snapshot id looks like it answers.
+   *
+   * The baseline now holds still, which is what the id promises. Pass
+   * `rebaseline: true` for the old polling behaviour ("what moved since I last
+   * looked"), where advancing the baseline is the point.
+   */
+  async getChangesSince(snapshotId?: string, path?: string, instance_id?: string, rebaseline?: boolean) {
     const p = path ?? 'game';
     const cur = await this._captureFingerprint(p, instance_id);
     const wrap = (obj: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(obj) }] as ToolContent[] });
@@ -180,8 +193,21 @@ export class WorldModelTools {
     const prev = this.snapshots.get(snapshotId);
     if (!prev) return wrap({ error: 'Unknown or expired snapshotId — call get_changes_since with no snapshotId to start a new baseline.', snapshotId });
     const diff = diffFingerprints(prev.fingerprint, cur.fp);
-    this.snapshots.update(snapshotId, cur.fp); // rolling baseline
-    return wrap({ snapshotId, path: p, ...diff, count: cur.count, truncated: cur.truncated, scope: cur.scope });
+    const rolled = rebaseline === true;
+    if (rolled) this.snapshots.update(snapshotId, cur.fp);
+    return wrap({
+      snapshotId,
+      path: p,
+      ...diff,
+      // Which question this answer is to. Without it the two modes are
+      // indistinguishable in the response, and a caller cannot tell a quiet
+      // world from a baseline that just moved out from under it.
+      since: rolled ? 'previous-call' : 'baseline',
+      baselineAt: prev.createdAt,
+      count: cur.count,
+      truncated: cur.truncated,
+      scope: cur.scope,
+    });
   }
 
   async assetPreflightInsert(assetId: number, instance_id?: string) {

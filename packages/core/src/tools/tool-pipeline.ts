@@ -111,6 +111,18 @@ export class ToolRegistry {
     }
   }
 
+  /**
+   * Stop advertising tool names. Only meaningful in lazy mode — outside it the
+   * active set is empty and means "everything", so removing from it would be a
+   * no-op that reads like it worked.
+   */
+  deactivate(...names: string[]): void {
+    if (!this._lazyMode) return;
+    for (const n of names) {
+      this._activeToolNames.delete(n);
+    }
+  }
+
   /** Whether lazy mode is on. */
   get lazyMode(): boolean {
     return this._lazyMode;
