@@ -271,6 +271,18 @@ const ASSERTIONS = [
       && /cframeFromTable = cframeFromTable/.test(src),
   },
   {
+    // A caller who hand-writes { Position, Orientation } never saw `_type` —
+    // that tag is ours, added on the way out. The write path resolves it the
+    // same way the Vector3/Color3 branches do: by asking what the property
+    // currently holds.
+    file: 'Utils.luau',
+    label: 'an untagged CFrame table converts when the property expects a CFrame',
+    // roblox-ts lowers the TS `typeOf` binding to Luau's builtin `typeof`.
+    test: (src) =>
+      /typeof\(currentVal\) == "CFrame"/.test(src)
+      && /tbl\.Components ~= nil or tbl\.Position ~= nil/.test(src),
+  },
+  {
     // Measured against a live place holding 24 parts: the whole-DataModel walk
     // returned 326KB (~90k tokens), of which Stats/StylingService/
     // MemStorageService/CoreGui/PluginGuiService/VisualizationModeService were

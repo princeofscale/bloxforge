@@ -248,12 +248,19 @@ function convertPropertyValue(instance: Instance, propertyName: string, property
 		const arr = propertyValue as unknown[];
 		const tbl = propertyValue as Record<string, unknown>;
 
-		// Before the shape guesses below: an explicitly tagged CFrame is the one
-		// case where the caller already told us the type, and none of the X/Y/Z
-		// heuristics would recognise it.
+		// Before the shape guesses below. Two ways in: the caller tagged it, or
+		// the property itself is already a CFrame — the same "ask the current
+		// value" trick the Vector3/Color3 branches below use, so a hand-written
+		// { Position, Orientation } works without knowing about `_type`.
 		if (tbl._type === "CFrame") {
 			const cf = cframeFromTable(tbl);
 			if (cf !== undefined) return cf;
+		} else if (tbl.Components !== undefined || tbl.Position !== undefined) {
+			const [ok, currentVal] = pcall(() => inst[propertyName]);
+			if (ok && typeOf(currentVal) === "CFrame") {
+				const cf = cframeFromTable(tbl);
+				if (cf !== undefined) return cf;
+			}
 		}
 
 		if (typeIs(arr, "table") && (arr as defined[]).size() > 0) {
