@@ -57,11 +57,12 @@
     "test:toolchain:integration": "npm run build -w packages/core && node scripts/test-toolchain-integration.mjs",
     "tools:legacy-report": "node scripts/report-legacy-tools.mjs",
     "tools:token-report": "node scripts/report-tool-tokens.mjs",
+    "protocol:compat-check": "node scripts/check-mcp-protocol-compat.mjs",
     "docs:generate": "node scripts/generate-tool-docs.mjs",
     "docs:check": "node scripts/generate-tool-docs.mjs --check && node scripts/check-doc-links.mjs",
     "metadata:check": "node scripts/check-package-metadata.mjs",
     "verify-package": "node scripts/verify-package.mjs",
-    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run tools:token-report -- --check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run test:luau:runtime && npm run test:fault-injection:10k && npm run verify-package"
+    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run tools:token-report -- --check && npm run protocol:compat-check && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run test:luau:runtime && npm run test:fault-injection:10k && npm run verify-package"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
