@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `check-network-effects` now recognizes a bare `fetch(` as a network client and
+  propagates through `this.x()` calls to a fixed point. Three methods —
+  `importExternalAsset`, `importRbxm` and the `universeIdForPlace` helper — call
+  `fetch` directly rather than through a client module, and one delegates rather
+  than calling out itself. All of them declared `network.external` already, so
+  nothing was mis-declared, but they were not being *checked*: the audit
+  reported "12 network-reaching tools" while two of the tools that most plainly
+  reach the network went unexamined. Coverage is now 14. A check that
+  under-counts its own reach is the failure this script exists to prevent.
 - `load_toolset` now tells callers to switch toolsets at phase boundaries rather
   than per call, in the tool description, both `client_hint`s, the README and the
   architecture doc. The `client_hint` caveat is appended to every response where
