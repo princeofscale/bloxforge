@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A `CFrame` no longer loses its orientation on the way out. Three separate read
+  paths reduced it to a position and reported success:
+  `mass_get_property` / `get_attributes` answered
+  `{"_type":"CFrame","Position":{...}}`, `get_node_batch` answered three numbers
+  byte-identical to the `Position` field, and the change fingerprint behind
+  `get_changes_since` hashed only `cf.Position`. Verified live: rotating a part
+  from Orientation `[20.7,49.1,82.2]` to `[0,90,0]` with its position untouched
+  produced `"changed":[]` and `changedCount: 0` — a visible edit the changefeed
+  could not see at all. Reads now carry the orientation (`mass_get_property`
+  adds exact `Components` plus `Orientation` in degrees; `get_node_batch`
+  returns six numbers), and the fingerprint folds rotation into its geometry
+  signature. Of every type this serializer handles, `CFrame` was the only one
+  that looked like a complete structured read while half the value was gone —
+  an `unsupported` marker at least admits the loss.
+- A serialized `CFrame` can be written back. Neither the attribute path
+  (`deserializeValue`) nor the property path (`convertPropertyValue`) had a
+  `CFrame` branch, so the tagged table fell through and was stored as a table.
+  Both now rebuild it through a shared `cframeFromTable`, preferring the exact
+  `Components` and accepting hand-written `Position` + `Orientation`.
+
 ### Security
 
 - Two tools sent data off the machine while declaring they did not, which put

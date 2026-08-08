@@ -152,8 +152,25 @@ function serializeValue(value: unknown): unknown {
 		const v = value as Color3;
 		return { R: v.R, G: v.G, B: v.B, _type: "Color3" };
 	} else if (vType === "CFrame") {
+		// Position alone was the worst shape in this function: `unsupported` at
+		// least admits it lost something, but a CFrame reported as {Position}
+		// looks like a complete structured read while half the value — the whole
+		// orientation — is gone. Reading a rotated part to copy its placement
+		// silently produced an unrotated one.
+		//
+		// Components is the exact 12-number form `CFrame.new(...)` reconstructs,
+		// so the value round-trips. Orientation (degrees) is what Studio's
+		// property panel shows and what a caller reasons about. Position stays
+		// for the readers that already destructure it.
 		const v = value as CFrame;
-		return { Position: { X: v.Position.X, Y: v.Position.Y, Z: v.Position.Z }, _type: "CFrame" };
+		const [rx, ry, rz] = v.ToOrientation();
+		const [cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22] = v.GetComponents();
+		return {
+			Position: { X: v.Position.X, Y: v.Position.Y, Z: v.Position.Z },
+			Orientation: { X: math.deg(rx), Y: math.deg(ry), Z: math.deg(rz) },
+			Components: [cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22],
+			_type: "CFrame",
+		};
 	} else if (vType === "UDim2") {
 		const v = value as UDim2;
 		return {
@@ -195,6 +212,33 @@ function serializeValue(value: unknown): unknown {
 	return { TypeName: vType, Text: tostring(value), _type: "unsupported" };
 }
 
+/**
+ * Rebuild a CFrame from what `serializeValue` emits, so a read value can be
+ * written straight back. `Components` is preferred because it is exact;
+ * `Position` + `Orientation` is accepted so a caller can hand-write one.
+ * Returns undefined when the table is not a CFrame shape, leaving the caller's
+ * other branches to run.
+ */
+function cframeFromTable(tbl: Record<string, unknown>): CFrame | undefined {
+	const comps = tbl.Components as number[] | undefined;
+	if (typeIs(comps, "table") && (comps as defined[]).size() >= 12) {
+		return new CFrame(
+			comps[0], comps[1], comps[2],
+			comps[3], comps[4], comps[5],
+			comps[6], comps[7], comps[8],
+			comps[9], comps[10], comps[11],
+		);
+	}
+
+	const pos = tbl.Position as Record<string, number> | undefined;
+	if (!typeIs(pos, "table")) return undefined;
+	const base = new CFrame(pos.X ?? 0, pos.Y ?? 0, pos.Z ?? 0);
+
+	const ori = tbl.Orientation as Record<string, number> | undefined;
+	if (!typeIs(ori, "table")) return base;
+	return base.mul(CFrame.fromOrientation(math.rad(ori.X ?? 0), math.rad(ori.Y ?? 0), math.rad(ori.Z ?? 0)));
+}
+
 function convertPropertyValue(instance: Instance, propertyName: string, propertyValue: unknown): unknown {
 	if (propertyValue === undefined) return undefined;
 
@@ -203,6 +247,14 @@ function convertPropertyValue(instance: Instance, propertyName: string, property
 	if (typeIs(propertyValue, "table")) {
 		const arr = propertyValue as unknown[];
 		const tbl = propertyValue as Record<string, unknown>;
+
+		// Before the shape guesses below: an explicitly tagged CFrame is the one
+		// case where the caller already told us the type, and none of the X/Y/Z
+		// heuristics would recognise it.
+		if (tbl._type === "CFrame") {
+			const cf = cframeFromTable(tbl);
+			if (cf !== undefined) return cf;
+		}
 
 		if (typeIs(arr, "table") && (arr as defined[]).size() > 0) {
 			const len = (arr as defined[]).size();
@@ -419,6 +471,7 @@ export = {
 	readScriptSource,
 	serializeValue,
 	convertPropertyValue,
+	cframeFromTable,
 	evaluateFormula,
 	compareVersions,
 };

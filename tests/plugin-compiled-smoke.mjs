@@ -247,6 +247,30 @@ const ASSERTIONS = [
     },
   },
   {
+    // A CFrame serialized as {Position} alone was the one shape that looked
+    // like a complete read while losing half the value. Verified live: a part
+    // at Orientation [20.7,49.1,82.2] came back as {"Position":{...}} with no
+    // rotation and success:true. Components is the exact 12-number form
+    // CFrame.new() reconstructs, so the value round-trips through
+    // cframeFromTable on the way back in.
+    file: 'Utils.luau',
+    label: 'serializeValue keeps a CFrame orientation, not only its position',
+    test: (src) => {
+      const body = /function serializeValue\([\s\S]*?\nend\n/.exec(src)?.[0] ?? '';
+      return body.includes('v:GetComponents()')
+        && body.includes('v:ToOrientation()')
+        && /Components = \{/.test(body)
+        && /Orientation = \{/.test(body);
+    },
+  },
+  {
+    file: 'Utils.luau',
+    label: 'a serialized CFrame can be written back (read/write stay in sync)',
+    test: (src) =>
+      src.includes('function cframeFromTable(')
+      && /cframeFromTable = cframeFromTable/.test(src),
+  },
+  {
     // Measured against a live place holding 24 parts: the whole-DataModel walk
     // returned 326KB (~90k tokens), of which Stats/StylingService/
     // MemStorageService/CoreGui/PluginGuiService/VisualizationModeService were

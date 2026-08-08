@@ -13,7 +13,13 @@ const SERIALIZE_LUA = `local function ser(v)
 \tif t == "Vector3" then return { v.X, v.Y, v.Z }
 \telseif t == "Vector2" then return { v.X, v.Y }
 \telseif t == "Color3" then return { math.floor(v.R*255+0.5), math.floor(v.G*255+0.5), math.floor(v.B*255+0.5) }
-\telseif t == "CFrame" then local p = v.Position return { p.X, p.Y, p.Z }
+\telseif t == "CFrame" then
+\t\t-- Position alone made a CFrame field indistinguishable from Position, and
+\t\t-- silently dropped the orientation the caller asked for. Six numbers:
+\t\t-- x, y, z, then pitch/yaw/roll in degrees.
+\t\tlocal p = v.Position
+\t\tlocal rx, ry, rz = v:ToOrientation()
+\t\treturn { p.X, p.Y, p.Z, math.deg(rx), math.deg(ry), math.deg(rz) }
 \telseif t == "EnumItem" then return v.Name
 \telseif t == "Instance" then return v:GetFullName()
 \telseif t == "number" or t == "boolean" or t == "string" then return v

@@ -6,7 +6,7 @@ import LuauExec from "../LuauExec";
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
 
-const { getInstancePath, getInstanceByPath, serializeValue } = Utils;
+const { getInstancePath, getInstanceByPath, serializeValue, cframeFromTable } = Utils;
 const { beginRecording, finishRecording } = Recording;
 
 function deserializeValue(attributeValue: unknown, valueType?: string): unknown {
@@ -49,6 +49,12 @@ function deserializeValue(attributeValue: unknown, valueType?: string): unknown 
 		);
 	} else if (t === "BrickColor") {
 		return new BrickColor(((tbl.Name as string) ?? "Medium stone grey") as unknown as number);
+	} else if (t === "CFrame") {
+		// CFrame is a valid attribute type, and serializeValue now emits a full
+		// one — without this branch the tagged table fell through and got stored
+		// as a table, which the engine rejects.
+		const cf = cframeFromTable(tbl);
+		if (cf !== undefined) return cf;
 	} else if (t === "unsupported") {
 		// serializeValue could only render this type as text. Writing the text
 		// back would store a string under a name the caller believes still holds
