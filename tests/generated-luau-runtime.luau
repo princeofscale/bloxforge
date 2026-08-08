@@ -80,11 +80,84 @@ beam.Size = roblox.Vector3.new(4, 4, 80)
 beam.CFrame = roblox.CFrame.new(-120, 3, -120) * roblox.CFrame.Angles(0, math.rad(90), 0)
 beam.Parent = ws
 
+-- A UI shaped to separate a correct contrast calculation from a plausible one.
+-- rbx-dom has no default for a property that was never assigned, so every
+-- property design_lint reads is set explicitly here — including AbsolutePosition
+-- and AbsoluteSize, which Roblox computes and Lune does not.
+local cam = roblox.Instance.new("Camera")
+cam.Name = "RuntimeTestCamera"
+cam.ViewportSize = roblox.Vector2.new(1280, 720)
+cam.Parent = ws
+ws.CurrentCamera = cam
+
+local sg = dm:GetService("StarterGui")
+local screen = roblox.Instance.new("ScreenGui")
+screen.Name = "Menu"
+screen.Parent = sg
+
+local function label(name, parent, color, size, pos)
+	local t = roblox.Instance.new("TextLabel")
+	t.Name = name
+	t.Text = name
+	t.TextColor3 = color
+	t.TextTransparency = 0
+	t.TextStrokeTransparency = 1
+	t.TextSize = 16
+	t.BackgroundTransparency = 1
+	t.BackgroundColor3 = roblox.Color3.fromRGB(0, 0, 0)
+	t.AbsolutePosition = pos
+	t.AbsoluteSize = size
+	t.Visible = true
+	t.Parent = parent
+	return t
+end
+
+local function panel(name, parent, color, transparency, pos)
+	local f = roblox.Instance.new("Frame")
+	f.Name = name
+	f.BackgroundColor3 = color
+	f.BackgroundTransparency = transparency
+	f.AbsolutePosition = pos
+	f.AbsoluteSize = roblox.Vector2.new(300, 200)
+	f.Visible = true
+	f.Parent = parent
+	return f
+end
+
+-- Opaque dark panel: the palette's own text/bg pair, and a near-invisible one.
+local dark = panel("Dark", screen, roblox.Color3.fromRGB(26, 27, 30), 0, roblox.Vector2.new(0, 0))
+label("Readable", dark, roblox.Color3.fromRGB(233, 236, 239), roblox.Vector2.new(200, 20), roblox.Vector2.new(4, 4))
+label("Faint", dark, roblox.Color3.fromRGB(60, 62, 66), roblox.Vector2.new(200, 20), roblox.Vector2.new(4, 28))
+
+-- The case that separates real compositing from a shortcut. A half-transparent
+-- white panel over black renders mid-grey, so white text on it is ~3.95:1.
+-- Reading only the panel's own colour would say white-on-white (1:1); ignoring
+-- the panel would say white-on-black (21:1). Only the composite gives 3.95.
+local black = panel("Black", screen, roblox.Color3.fromRGB(0, 0, 0), 0, roblox.Vector2.new(0, 220))
+local veil = panel("Veil", black, roblox.Color3.fromRGB(255, 255, 255), 0.5, roblox.Vector2.new(0, 220))
+label("Composited", veil, roblox.Color3.fromRGB(255, 255, 255), roblox.Vector2.new(200, 20), roblox.Vector2.new(4, 224))
+
+-- No opaque layer anywhere above: the 3D viewport shows through.
+label("Floating", screen, roblox.Color3.fromRGB(255, 255, 255), roblox.Vector2.new(200, 20), roblox.Vector2.new(400, 4))
+
+-- A gradient backdrop is a range of contrast, not a number.
+local gradientPanel = panel("Gradient", screen, roblox.Color3.fromRGB(120, 120, 120), 0, roblox.Vector2.new(400, 40))
+roblox.Instance.new("UIGradient").Parent = gradientPanel
+label("OverGradient", gradientPanel, roblox.Color3.fromRGB(130, 130, 130), roblox.Vector2.new(200, 20), roblox.Vector2.new(404, 44))
+
+-- Same terrible ratio, but stroked: WCAG has no model for an outline, so this
+-- must not be reported as a warning.
+local strokeHost = panel("StrokeHost", screen, roblox.Color3.fromRGB(26, 27, 30), 0, roblox.Vector2.new(400, 260))
+local stroked = label("Stroked", strokeHost, roblox.Color3.fromRGB(60, 62, 66), roblox.Vector2.new(200, 20), roblox.Vector2.new(404, 264))
+stroked.TextStrokeTransparency = 0
+
 local function env()
 	return {
 		game = dm,
 		workspace = ws,
 		Vector3 = roblox.Vector3,
+		Vector2 = roblox.Vector2,
+		Color3 = roblox.Color3,
 		CFrame = roblox.CFrame,
 		Enum = roblox.Enum,
 	}
@@ -200,6 +273,73 @@ end
 local fit = run("fit-scan")
 if fit then
 	eq("fit: an unresolvable path fails closed", fit.found, false)
+end
+
+-- === design_lint contrast ===================================================
+local lint = run("design-lint")
+if lint then
+	local byPath = {}
+	for _, f in ipairs(lint.findings or {}) do byPath[f.path] = f end
+	local function finding(name)
+		return byPath["StarterGui.Menu." .. name] or byPath["StarterGui.Menu.Dark." .. name]
+			or byPath["StarterGui.Menu.Black.Veil." .. name] or byPath["StarterGui.Menu.Gradient." .. name]
+			or byPath["StarterGui.Menu.StrokeHost." .. name]
+	end
+
+	check("contrast: the palette's own text/bg pair raises nothing", finding("Readable") == nil,
+		finding("Readable") and finding("Readable").detail or "")
+
+	local faint = finding("Faint")
+	if faint then
+		eq("contrast: near-invisible text is a warning", faint.rule, "low_contrast")
+		eq("contrast: severity", faint.severity, "warn")
+		eq("contrast: the resolved backdrop is the opaque panel", faint.background, "#1A1B1E")
+		near("contrast: ratio", faint.ratio, 1.61, 0.01)
+	else
+		check("contrast: near-invisible text is reported", false)
+	end
+
+	-- The one that proves alpha compositing rather than a shortcut: reading the
+	-- veil's own colour would give white-on-white (1:1), ignoring the veil would
+	-- give white-on-black (21:1). Only compositing gives mid-grey and ~3.98:1.
+	--
+	-- 3.98 and not 3.95: the ratio is computed from the exact composited 0.5,
+	-- while the hex rounds it to 128/255 = 0.50196. Deriving the expectation
+	-- from the printed hex instead of the real value is off by 0.03.
+	local composited = finding("Composited")
+	if composited then
+		eq("contrast: half-transparent white over black resolves to mid-grey", composited.background, "#808080")
+		near("contrast: composited ratio", composited.ratio, 3.98, 0.01)
+	else
+		check("contrast: text over a translucent layer is measured", false)
+	end
+
+	local floating = finding("Floating")
+	if floating then
+		eq("contrast: nothing opaque behind the text is unknown, not a guess", floating.rule, "contrast_unknown")
+		check("contrast: says why", floating.detail:find("nothing opaque") ~= nil, floating.detail)
+	else
+		check("contrast: text over the viewport is reported as unknown", false)
+	end
+
+	local gradient = finding("OverGradient")
+	if gradient then
+		eq("contrast: a gradient backdrop is unknown", gradient.rule, "contrast_unknown")
+		check("contrast: names the gradient", gradient.detail:find("UIGradient") ~= nil, gradient.detail)
+	else
+		check("contrast: text over a gradient is reported as unknown", false)
+	end
+
+	-- Same 1.61:1 as Faint, but stroked. WCAG models no outline, and an outline
+	-- usually helps, so this must not carry the warning severity.
+	local stroked = finding("Stroked")
+	if stroked then
+		eq("contrast: stroked text is not a warning", stroked.severity, "info")
+		eq("contrast: stroked text is reported as unknown", stroked.rule, "contrast_unknown")
+		check("contrast: says the stroke is why", stroked.detail:find("stroke") ~= nil, stroked.detail)
+	else
+		check("contrast: stroked low-contrast text is still reported", false)
+	end
 end
 
 -- === ground detection, second pass ==========================================

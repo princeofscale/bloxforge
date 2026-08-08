@@ -28,14 +28,25 @@ export interface ThemeTokens {
   danger: [number, number, number];
 }
 
+// Every foreground/background pair an agent is told to use meets WCAG 2.2 AA,
+// and `theme-contrast.test.ts` proves it on every run. It did not before: the
+// catalog's own `button` recipe says "BackgroundColor3 = primary, TextColor3 =
+// onPrimary", and white on indigo-6 is 4.32:1 — under the 4.5:1 minimum for
+// normal text, in both themes, on the most-used pair in the system. Light
+// `muted` was 3.15:1 and light `danger` 4.28:1. So `design_lint` would have
+// flagged UI that BloxForge's own canon produced.
+//
+// The three corrections stay inside Open Color, so the palette keeps its
+// character: primary indigo-6 -> indigo-7, light muted gray-6 -> #5C636A, light
+// danger red-8 -> red-9.
 export const THEMES: Record<string, ThemeTokens> = {
   dark: {
-    bg: [26, 27, 30], surface: [37, 38, 43], primary: [76, 110, 245], onPrimary: [255, 255, 255],
+    bg: [26, 27, 30], surface: [37, 38, 43], primary: [66, 99, 235], onPrimary: [255, 255, 255],
     text: [233, 236, 239], muted: [144, 146, 150], stroke: [55, 58, 64], danger: [250, 82, 82],
   },
   light: {
-    bg: [248, 249, 250], surface: [255, 255, 255], primary: [76, 110, 245], onPrimary: [255, 255, 255],
-    text: [33, 37, 41], muted: [134, 142, 150], stroke: [222, 226, 230], danger: [224, 49, 49],
+    bg: [248, 249, 250], surface: [255, 255, 255], primary: [66, 99, 235], onPrimary: [255, 255, 255],
+    text: [33, 37, 41], muted: [92, 99, 106], stroke: [222, 226, 230], danger: [201, 42, 42],
   },
 };
 
@@ -189,6 +200,100 @@ export interface DesignLintOptions {
   minTextSize?: number;
 }
 
+// WCAG 2.2 contrast, computed honestly or not at all.
+//
+// The maths is exact for opaque, solid colours after sRGB linearization. It is
+// not exact for anything else, and the difference matters: a gradient backdrop
+// has a *range* of contrast, an image backdrop has no static answer, and text
+// over nothing opaque sits on the 3D viewport. Those come back as
+// `contrast_unknown` with the reason, never as an optimistic number — a
+// confident wrong ratio is worse than an admitted gap, because it gets fixed
+// once and trusted forever.
+//
+// Two Roblox specifics the formula has to respect:
+//   * `TextSize` is the *line height*, not the font's em size, so it cannot be
+//     substituted into WCAG's large-text thresholds (24px / 18.66px bold),
+//     which are font sizes. Using it directly would classify text as "large"
+//     that is not, and hand it the weaker 3:1 bar. So the 4.5:1 minimum always
+//     decides severity, and the large-text exemption is only ever reported as
+//     "a human may apply this" — never applied here.
+//   * `TextStrokeTransparency` is documented as "multiple renderings ...
+//     essentially multiplicative on itself four times over". WCAG has no model
+//     for an outline, and an outline usually helps legibility, so a stroked
+//     label reports its ratio at `info` rather than `warn`, saying why.
+//
+// `UIGradient` blends with the rendering of its *parent* only and never
+// descendants (verified: create.roblox.com UIGradient), so finding one on an
+// ancestor is enough to give up on a single number for that layer.
+const CONTRAST_LUA = `local function srgbToLinear(c)
+\tif c <= 0.03928 then return c / 12.92 end
+\treturn ((c + 0.055) / 1.055) ^ 2.4
+end
+
+local function luminance(color)
+\treturn 0.2126 * srgbToLinear(color.R) + 0.7152 * srgbToLinear(color.G) + 0.0722 * srgbToLinear(color.B)
+end
+
+local function contrastRatio(a, b)
+\tlocal la, lb = luminance(a), luminance(b)
+\tif la < lb then la, lb = lb, la end
+\treturn (la + 0.05) / (lb + 0.05)
+end
+
+local function hex(color)
+\treturn string.format("#%02X%02X%02X",
+\t\tmath.floor(color.R * 255 + 0.5), math.floor(color.G * 255 + 0.5), math.floor(color.B * 255 + 0.5))
+end
+
+local function blend(over, overAlpha, under)
+\treturn Color3.new(
+\t\tover.R * overAlpha + under.R * (1 - overAlpha),
+\t\tover.G * overAlpha + under.G * (1 - overAlpha),
+\t\tover.B * overAlpha + under.B * (1 - overAlpha))
+end
+
+-- Front-to-back "over" compositing, starting at the text element itself and
+-- walking outward. Returns the resolved Color3, or nil plus the reason no
+-- single colour exists.
+local function effectiveBackground(textObject)
+\tlocal accR, accG, accB, accA = 0, 0, 0, 0
+\tlocal node = textObject
+\twhile node do
+\t\tif node:IsA("GuiObject") then
+\t\t\tif node:FindFirstChildWhichIsA("UIGradient") then
+\t\t\t\treturn nil, string.format("a UIGradient on %s makes the backdrop a range, not a colour", node.Name)
+\t\t\tend
+\t\t\tif (node:IsA("ImageLabel") or node:IsA("ImageButton")) and node.Image ~= "" and node.ImageTransparency < 1 then
+\t\t\t\treturn nil, string.format("an image backdrop on %s; no static answer, sample it in a screenshot", node.Name)
+\t\t\tend
+\t\t\tlocal alpha = 1 - node.BackgroundTransparency
+\t\t\tif alpha > 0 then
+\t\t\t\tlocal c = node.BackgroundColor3
+\t\t\t\tlocal w = (1 - accA) * alpha
+\t\t\t\taccR, accG, accB = accR + w * c.R, accG + w * c.G, accB + w * c.B
+\t\t\t\taccA += w
+\t\t\t\tif accA >= 0.999 then return Color3.new(accR, accG, accB), nil end
+\t\t\tend
+\t\telseif node:IsA("LayerCollector") then
+\t\t\tbreak
+\t\tend
+\t\tnode = node.Parent
+\tend
+\treturn nil, "nothing opaque behind the text; it sits on the 3D viewport or another ScreenGui"
+end
+
+-- WCAG large text is 24px, or 18.66px bold, as FONT sizes. TextSize is a line
+-- height, so this only ever reports that the exemption may apply.
+-- The whole lookup sits inside the pcall, Enum comparison included: a host that
+-- has no FontFace property probably has no Enum.FontWeight either, and an error
+-- escaping here would take down the entire lint over a severity nicety.
+local function isBold(o)
+\tlocal ok, bold = pcall(function()
+\t\treturn o.FontFace.Weight.Value >= Enum.FontWeight.Bold.Value
+\tend)
+\treturn ok and bold or false
+end`;
+
 export function buildDesignLintLuau(options: DesignLintOptions = {}): string {
   const minTextSize = options.minTextSize ?? 9;
   const rootResolution = options.rootPath
@@ -204,10 +309,56 @@ local Workspace = game:GetService("Workspace")
 local camera = Workspace.CurrentCamera
 local viewport = (camera and camera.ViewportSize) or Vector2.new(1280, 720)
 local MIN_TEXT_SIZE = ${luaNumber(Number(minTextSize))}
+local MIN_CONTRAST = 4.5
+local LARGE_TEXT_CONTRAST = 3.0
+
+${CONTRAST_LUA}
 
 local findings = {}
-local function add(rule, severity, inst, detail)
-\ttable.insert(findings, { rule = rule, severity = severity, path = inst:GetFullName(), className = inst.ClassName, detail = detail })
+local function add(rule, severity, inst, detail, extra)
+\tlocal f = { rule = rule, severity = severity, path = inst:GetFullName(), className = inst.ClassName, detail = detail }
+\tif extra then for k, v in pairs(extra) do f[k] = v end end
+\ttable.insert(findings, f)
+end
+
+local function checkContrast(o)
+\tif not o.Visible or o.Text == "" or o.TextTransparency >= 1 then return end
+\tif o:FindFirstChildWhichIsA("UIGradient") then
+\t\tadd("contrast_unknown", "info", o, "a UIGradient on the text element makes the foreground a range, not a colour")
+\t\treturn
+\tend
+\tlocal bg, why = effectiveBackground(o)
+\tif bg == nil then
+\t\tadd("contrast_unknown", "info", o, why)
+\t\treturn
+\tend
+\t-- Partly transparent text composites over what is behind it before it is read.
+\tlocal fg = blend(o.TextColor3, 1 - o.TextTransparency, bg)
+\tlocal ratio = contrastRatio(fg, bg)
+\tif ratio >= MIN_CONTRAST then return end
+
+\tlocal stroked = o.TextStrokeTransparency < 1
+\tlocal maybeLarge = o.TextSize >= 24 or (o.TextSize >= 19 and isBold(o))
+\tlocal extra = {
+\t\tratio = math.floor(ratio * 100 + 0.5) / 100,
+\t\trequired = MIN_CONTRAST,
+\t\tforeground = hex(fg),
+\t\tbackground = hex(bg),
+\t\ttextSize = o.TextSize,
+\t}
+\tif stroked then
+\t\tadd("contrast_unknown", "info", o, string.format(
+\t\t\t"%s on %s is %.2f:1, under %.1f:1 — but this text has a stroke, and WCAG does not model an outline. Judge it in a screenshot.",
+\t\t\textra.foreground, extra.background, ratio, MIN_CONTRAST), extra)
+\telseif maybeLarge and ratio >= LARGE_TEXT_CONTRAST then
+\t\tadd("low_contrast", "info", o, string.format(
+\t\t\t"%s on %s is %.2f:1, under the %.1f:1 needed for normal text. TextSize %d may qualify for WCAG's %.1f:1 large-text exemption, but TextSize is a line height and the exemption is stated in font sizes, so that cannot be decided here.",
+\t\t\textra.foreground, extra.background, ratio, MIN_CONTRAST, o.TextSize, LARGE_TEXT_CONTRAST), extra)
+\telse
+\t\tadd("low_contrast", "warn", o, string.format(
+\t\t\t"%s on %s is %.2f:1, under WCAG 2.2 AA's %.1f:1 for normal text — darken the background or lighten the text",
+\t\t\textra.foreground, extra.background, ratio, MIN_CONTRAST), extra)
+\tend
 end
 
 local function rectsOverlap(aPos, aSize, bPos, bSize)
@@ -220,8 +371,11 @@ local function lintRoot(root)
 \tfor _, o in ipairs(root:GetDescendants()) do
 \t\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \t\tif o:IsA("GuiObject") then
-\t\t\tif (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) and not o.TextScaled and o.TextSize < MIN_TEXT_SIZE then
-\t\t\t\tadd("tiny_text", "warn", o, string.format("TextSize %d < %d; hard to read — raise it or use TextScaled + UITextSizeConstraint", o.TextSize, MIN_TEXT_SIZE))
+\t\t\tif o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
+\t\t\t\tif not o.TextScaled and o.TextSize < MIN_TEXT_SIZE then
+\t\t\t\t\tadd("tiny_text", "warn", o, string.format("TextSize %d < %d; hard to read — raise it or use TextScaled + UITextSizeConstraint", o.TextSize, MIN_TEXT_SIZE))
+\t\t\t\tend
+\t\t\t\tcheckContrast(o)
 \t\t\tend
 \t\t\tif o.Visible and o.AbsoluteSize.X > 0 and o.AbsoluteSize.Y > 0 then
 \t\t\t\tlocal p, s = o.AbsolutePosition, o.AbsoluteSize
@@ -276,7 +430,7 @@ return {
 \tscannedRoots = #roots,
 \tviewport = { x = math.floor(viewport.X), y = math.floor(viewport.Y) },
 \tfindings = findings,
-\tnote = "Geometric checks use edit-mode layout; topbar/safe-area insets read 0 in edit and need a playtest to verify.",
+\tnote = "Geometric checks use edit-mode layout; topbar/safe-area insets read 0 in edit and need a playtest to verify. Contrast is exact only for opaque solid colours; a gradient, image or see-through backdrop returns contrast_unknown with the reason rather than a guess.",
 }`;
   return wrap(body);
 }
