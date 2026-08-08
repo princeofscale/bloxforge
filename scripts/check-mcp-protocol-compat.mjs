@@ -80,9 +80,29 @@ if (!Array.isArray(SUPPORTED_PROTOCOL_VERSIONS) || SUPPORTED_PROTOCOL_VERSIONS.l
   );
 }
 
-const forbidding = SUPPORTED_PROTOCOL_VERSIONS
-  .filter((v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= FIRST_FORBIDDING_VERSION)
-  .sort();
+// Validate the shape before comparing, not while comparing. The whole check
+// rests on version ids being YYYY-MM-DD, because that is the only reason string
+// `>=` is date ordering. If the SDK ever switches to another scheme, filtering
+// non-dates out reports "no forbidding versions" — a pass produced by not
+// understanding the input, which is the exact failure this file guards against.
+const ID_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
+const malformed = SUPPORTED_PROTOCOL_VERSIONS.filter((v) => typeof v !== 'string' || !ID_SHAPE.test(v));
+if (malformed.length > 0) {
+  throw new Error(
+    `The MCP SDK reports protocol versions that are not YYYY-MM-DD: ${JSON.stringify(malformed)}. ` +
+    'This check compares version ids as strings because that ordering is date ordering; ' +
+    'a different scheme makes the comparison meaningless. Update the comparison rather ' +
+    'than filtering the unrecognized ids away.',
+  );
+}
+if (typeof LATEST_PROTOCOL_VERSION !== 'string' || !ID_SHAPE.test(LATEST_PROTOCOL_VERSION)) {
+  throw new Error(
+    `The MCP SDK reports LATEST_PROTOCOL_VERSION as ${JSON.stringify(LATEST_PROTOCOL_VERSION)}, ` +
+    'not a YYYY-MM-DD id. The export moved, was renamed, or changed scheme.',
+  );
+}
+
+const forbidding = SUPPORTED_PROTOCOL_VERSIONS.filter((v) => v >= FIRST_FORBIDDING_VERSION).sort();
 
 console.log(JSON.stringify({
   sdk: sdkVersion,

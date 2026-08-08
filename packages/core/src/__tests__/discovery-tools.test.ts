@@ -39,6 +39,30 @@ describe('loadToolset input validation', () => {
   });
 });
 
+// The prompt-cache caveat first shipped on the unload-only branch, so a
+// load-only call — the common one — was told nothing about the cost it had just
+// paid. It is a property of the tool set having changed, not of which direction
+// it changed in.
+describe('loadToolset warns about prompt-cache invalidation whenever the set changes', () => {
+  const tools = new DiscoveryTools();
+  const CAVEAT = /invalidates the prompt cache/;
+
+  it.each([
+    ['load only', { toolsets: ['scene'] }],
+    ['unload only', { unload: ['scene'] }],
+    ['load and unload together', { toolsets: ['ui'], unload: ['scene'] }],
+    ['a partly misspelled call that still loaded something', { toolsets: ['ui', 'scripting'] }],
+  ])('%s', async (_label, body) => {
+    expect(parse(await tools.loadToolset(body)).client_hint).toMatch(CAVEAT);
+  });
+
+  it('stays silent when nothing was actually loaded or released', async () => {
+    const body = parse(await tools.loadToolset({ toolsets: ['scripting'] }));
+    expect(body.client_hint).not.toMatch(CAVEAT);
+    expect(body.client_hint).toMatch(/Not a toolset/);
+  });
+});
+
 describe('toolCatalogSearch input validation', () => {
   const tools = new DiscoveryTools();
 

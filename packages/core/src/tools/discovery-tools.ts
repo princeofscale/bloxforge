@@ -100,11 +100,21 @@ export class DiscoveryTools {
           // A bad selector gets the bad-selector hint: pointing at a host
           // schema-refresh problem that is not happening costs a restart to
           // rule out, and the real cause is one word in the request.
-          client_hint: unknownToolsets.length > 0
+          //
+          // The cache caveat is appended to whichever hint applies rather than
+          // living inside one of them: it is a property of the tool set having
+          // changed at all, and it first shipped on the unload-only branch —
+          // so a load-only call, a mixed call, and a partly-misspelled call
+          // that still loaded something all got the advice that the one thing
+          // they just did was free.
+          client_hint: (unknownToolsets.length > 0
             ? `Not a toolset: ${unknownToolsets.join(', ')} — nothing was loaded for ${unknownToolsets.length > 1 ? 'those' : 'that'}. Re-call with a name from "validToolsets", or use tool_catalog_search to find the tool and the domain it lives in.`
             : loaded.length === 0 && unloaded.length > 0
-              ? `Released ${unloaded.join(', ')} — those schemas are no longer advertised and stop costing tokens on later requests. Changing the tool set invalidates the prompt cache for the whole conversation, so do this at a phase boundary, not between every few calls. Load the domain again if you need it.`
-              : 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.',
+              ? `Released ${unloaded.join(', ')} — those schemas are no longer advertised and stop costing tokens on later requests. Load the domain again if you need it.`
+              : 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.')
+            + (loaded.length > 0 || unloaded.length > 0
+              ? ' Changing the tool set invalidates the prompt cache for the whole conversation, so do this at a phase boundary, not between every few calls.'
+              : ''),
         }),
       }] as ToolContent[],
     };

@@ -29,7 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `load_toolset` now tells callers to switch toolsets at phase boundaries rather
   than per call, in the tool description, both `client_hint`s, the README and the
-  architecture doc. Tool definitions sit at the top of the prompt-cache hierarchy
+  architecture doc. The `client_hint` caveat is appended to every response where
+  the tool set actually changed — load-only, unload-only and mixed — because it
+  is a property of the set having moved, not of the direction it moved in; a
+  first draft carried it only on the unload-only branch, so the common call told
+  the caller nothing. Tool definitions sit at the top of the prompt-cache hierarchy
   — above system and messages — so changing them invalidates the cached prefix
   for the entire conversation, not only the schemas that moved. 4.3.0 shipped the
   `unload` guidance without that caveat, which made frequent releasing look free
