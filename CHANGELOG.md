@@ -35,6 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing in the repository measured this, which made every claim about token
   efficiency here an opinion.
 
+### Fixed
+
+- The stdio server changed the advertised tool list even when `load_toolset`
+  failed. It applied the transition whenever the tool returned, without checking
+  `isError`, so a partly-valid request — `{"toolsets":["scene",123]}`, which
+  throws on the number after `scene` has already been accepted as a selector —
+  answered "error" and expanded the list anyway, leaving the client's view of
+  the tool surface and the server's disagreeing with nothing to explain the gap.
+  The Streamable HTTP path has guarded on `isError` since it was written; both
+  stdio branches now match it, and the legacy branch shapes its result before
+  deciding rather than after.
+
 ### Changed
 
 - `get_changes_since` no longer advances the baseline as a side effect of being
