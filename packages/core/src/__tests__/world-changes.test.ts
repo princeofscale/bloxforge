@@ -147,6 +147,16 @@ describe('buildWorldFingerprintLuau', () => {
     expect(code).toContain('st = structureSig(d)');
   });
 
+  it('folds a part orientation into the geometry signature', () => {
+    // Verified live before the fix: rotating a part from Orientation
+    // [20.7,49.1,82.2] to [0,90,0] with its position untouched produced
+    // "changed":[] and changedCount 0 — the changefeed could not see a
+    // rotation at all, because the signature only carried cf.Position.
+    const code = buildWorldFingerprintLuau();
+    expect(code).toContain('cf:ToOrientation()');
+    expect(code).toContain('round(math.deg(rx))');
+  });
+
   it('computes domain-specific semantics for parts, sounds, scripts', () => {
     const code = buildWorldFingerprintLuau();
     expect(code).toContain('d:IsA("BasePart")');

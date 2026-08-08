@@ -32,7 +32,13 @@ local function semanticsSig(d)
 \tif d:IsA("BasePart") then
 \t\tlocal cf = get(d, "CFrame"); local sz = get(d, "Size")
 \t\tlocal p = cf and cf.Position or Vector3.new()
+\t\t-- Orientation belongs in the signature: with position only, rotating a part
+\t\t-- left the fingerprint byte-identical, so get_changes_since reported zero
+\t\t-- changes for an edit the user can plainly see. Verified live before the fix.
+\t\tlocal rx, ry, rz = 0, 0, 0
+\t\tif cf then rx, ry, rz = cf:ToOrientation() end
 \t\treturn "geom:" .. round(p.X) .. "," .. round(p.Y) .. "," .. round(p.Z)
+\t\t\t.. "|" .. round(math.deg(rx)) .. "," .. round(math.deg(ry)) .. "," .. round(math.deg(rz))
 \t\t\t.. "|" .. (sz and (round(sz.X) .. "," .. round(sz.Y) .. "," .. round(sz.Z)) or "?")
 \t\t\t.. "|" .. tostring(get(d, "Material")) .. "|" .. tostring(get(d, "Anchored"))
 \t\t\t.. "|" .. tostring(get(d, "CanCollide")) .. "|" .. round(get(d, "Transparency") or 0)

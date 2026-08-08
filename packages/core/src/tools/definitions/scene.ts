@@ -523,7 +523,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_node_batch',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Read several instances in one round-trip, returning only the requested fields per node. Use after a snapshot or summary, when you already know which paths you want — cheaper than a cascade of get_instance_properties or an expensive get_descendants. Values are serialized compactly (Vector3 -> [x,y,z], Color3 -> [r,g,b], Instance -> full path).',
+    description: 'Read several instances in one round-trip, returning only the requested fields per node. Use after a snapshot or summary, when you already know which paths you want — cheaper than a cascade of get_instance_properties or an expensive get_descendants. Values are serialized compactly (Vector3 -> [x,y,z], Color3 -> [r,g,b], CFrame -> [x,y,z,pitch,yaw,roll] with the angles in degrees, Instance -> full path). A CFrame is six numbers, not three: the first three stay the position, so reading by index still works, and the orientation follows instead of being dropped.',
     inputSchema: {
       type: 'object',
       properties: {

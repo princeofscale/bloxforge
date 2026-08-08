@@ -18,6 +18,17 @@ describe('buildNodeBatchLuau', () => {
     expect(code).toContain('"not found"');
   });
 
+  it('serializes a CFrame with its orientation, not just its position', () => {
+    // Verified live before the fix: get_node_batch answered
+    // "CFrame":[1,3,2] for a part whose Orientation was [20.7,49.1,82.2] —
+    // byte-identical to its Position field, with the rotation silently gone.
+    const code = buildNodeBatchLuau(['game.Workspace.A'], ['CFrame']);
+    expect(code).toContain('v:ToOrientation()');
+    expect(code).toContain('math.deg(rx), math.deg(ry), math.deg(rz)');
+    // The old one-liner returned exactly three components.
+    expect(code).not.toContain('then local p = v.Position return { p.X, p.Y, p.Z }');
+  });
+
   it('omits childCount unless requested', () => {
     expect(buildNodeBatchLuau(['game.Workspace'], [], false)).toContain('if false then row.childCount');
     expect(buildNodeBatchLuau(['game.Workspace'], [], true)).toContain('if true then row.childCount');
