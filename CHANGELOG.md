@@ -28,6 +28,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `CFrame` branch, so the tagged table fell through and was stored as a table.
   Both now rebuild it through a shared `cframeFromTable`, preferring the exact
   `Components` and accepting hand-written `Position` + `Orientation`.
+## [4.3.0] - 2026-08-08
+
+### Added
+
+- `load_toolset` gained `unload`, so a domain can be released once a session is
+  done with it. Loading was one-way: the advertised tool list is re-sent on
+  every request, so a session that ran one playtest carried the runtime
+  domain's ~13.2k tokens of schemas on every later turn whether or not it
+  played again. `unload` may be sent on its own (`{"unload":["runtime"]}`), and
+  core is never released — dropping it would strand a session with no way to
+  search for or load anything back. Both transports honour it: the stdio server
+  deactivates and re-sends `tools/list_changed`, and the stateless HTTP
+  transport shrinks the next `tools/list`. Unload is applied before load, so
+  naming a domain in both means "loaded" on either transport rather than
+  depending on which loop ran last.
+- `tool_catalog_search` and `load_toolset` now report `approxTokens`, the
+  recurring per-request cost of each domain, so the agent can see what a load
+  costs before paying for it and which one is worth releasing. Measured against
+  the real definitions: 218 tools cost ~49.9k tokens if all advertised, the
+  always-on core set costs ~4.8k, and `runtime` alone is ~13.2k.
+- `npm run tools:token-report` prints the per-domain and per-tool token cost of
+  the advertised schemas, and `--check` fails when the always-on core set
+  exceeds its 6000-token budget. Added to `release:check` and CI. Adding a tool
+  to `CORE_TOOLS` taxes every request of every session, including the ones that
+  never call it, so that number is a budget and not a statistic. Until now
+  nothing in the repository measured this, which made every claim about token
+  efficiency here an opinion.
+
+### Fixed
+
+- The stdio server changed the advertised tool list even when `load_toolset`
+  failed. It applied the transition whenever the tool returned, without checking
+  `isError`, so a partly-valid request — `{"toolsets":["scene",123]}`, which
+  throws on the number after `scene` has already been accepted as a selector —
+  answered "error" and expanded the list anyway, leaving the client's view of
+  the tool surface and the server's disagreeing with nothing to explain the gap.
+  The Streamable HTTP path has guarded on `isError` since it was written; both
+  stdio branches now match it, and the legacy branch shapes its result before
+  deciding rather than after.
+
+### Changed
+
+- `get_changes_since` no longer advances the baseline as a side effect of being
+  read. A `snapshotId` silently meant "since my previous call" rather than
+  "since the baseline", so asking the same question twice reported an unchanged
+  world, and an agent had no way to ask what it had built over a session — the
+  one question the snapshot id looks like it answers. The baseline now holds
+  still. Pass `rebaseline: true` for the old polling behaviour, where advancing
+  it is the point; the response's new `since` field (`baseline` or
+  `previous-call`) says which question was answered, and `baselineAt` says as of
+  when, so a quiet world is distinguishable from a baseline that just moved.
+  This also fixes the `roblox://world/changes` resource, where a re-fetch used
+  to consume the changes and return an empty diff with nothing to explain why —
+  a resource read is a read.
 
 ### Security
 
@@ -1865,7 +1919,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.2.0...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.3.0...HEAD
+[4.3.0]: https://github.com/princeofscale/bloxforge/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/princeofscale/bloxforge/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/princeofscale/bloxforge/compare/v4.0.3...v4.1.0
 [4.0.3]: https://github.com/princeofscale/bloxforge/compare/v4.0.2...v4.0.3

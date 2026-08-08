@@ -73,6 +73,7 @@ interface StoredSnapshot {
 	id: string;
 	path: string;
 	fingerprint: Fingerprint;
+	/** When the stored fingerprint was captured; moves if the baseline rolls. */
 	createdAt: number;
 }
 
@@ -102,10 +103,18 @@ export class SnapshotStore {
 		return this.snapshots.get(id);
 	}
 
-	/** Replace a stored snapshot's fingerprint in place (rolling baseline). */
+	/**
+	 * Replace a stored snapshot's fingerprint in place (opt-in rolling baseline).
+	 * createdAt moves with it: the timestamp names when the baseline was taken,
+	 * and leaving it at the original capture would make `baselineAt` report a
+	 * moment the stored fingerprint no longer describes.
+	 */
 	update(id: string, fingerprint: Fingerprint): void {
 		const snap = this.snapshots.get(id);
-		if (snap) snap.fingerprint = fingerprint;
+		if (snap) {
+			snap.fingerprint = fingerprint;
+			snap.createdAt = Date.now();
+		}
 	}
 
 	private prune(): void {

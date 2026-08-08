@@ -281,9 +281,54 @@ export function searchCatalog(catalog: CatalogEntry[], params: CatalogSearchPara
     .map((x) => x.e);
 }
 
+/**
+ * Approximate the tokens a tool's advertised schema costs the model. The tool
+ * list is re-sent on every request, so this is a recurring cost, not a one-off.
+ *
+ * ponytail: chars/4 on the serialized MCP shape, no tokenizer dependency
+ * (`packages/core` has zero runtime deps, and a real BPE count would add one for
+ * a number only used to rank and warn). It tracks the true count closely enough
+ * to choose between domains; swap in a tokenizer if an exact budget is ever
+ * needed.
+ *
+ * For current totals run `npm run tools:token-report`. Deliberately not quoted
+ * here: a figure copied into a comment goes stale on the next tool edit, and a
+ * stale number is worse than none in the one place claiming to measure things.
+ */
+export function approxToolTokens(def: ToolDefinition): number {
+  const advertised = {
+    name: def.name,
+    description: def.description,
+    inputSchema: def.inputSchema,
+    ...((def as { outputSchema?: unknown }).outputSchema
+      ? { outputSchema: (def as { outputSchema?: unknown }).outputSchema }
+      : {}),
+  };
+  return Math.round(JSON.stringify(advertised).length / 4);
+}
+
+/** Approximate advertised-schema cost per domain, for budget-aware loading. */
+export function toolsetTokenCost(defs: ToolDefinition[]): Record<string, number> {
+  const cost: Record<string, number> = {};
+  for (const d of defs) {
+    const domain = classifyDomain(d.name);
+    cost[domain] = (cost[domain] ?? 0) + approxToolTokens(d);
+  }
+  return cost;
+}
+
+/** Approximate cost of a specific set of tool names (what is currently advertised). */
+export function tokenCostOf(defs: ToolDefinition[], names: ReadonlySet<string>): number {
+  let total = 0;
+  for (const d of defs) if (names.has(d.name)) total += approxToolTokens(d);
+  return total;
+}
+
 export interface ToolsetRecommendation {
   domain: ToolDomain;
   recommendedTools: string[];
+  /** Recurring per-request cost of loading this whole domain. */
+  approxTokens: number;
   load: { tool: 'load_toolset'; args: { toolsets: ToolDomain[] } };
 }
 
@@ -292,7 +337,10 @@ export interface ToolsetRecommendation {
  * so an agent (or a lazy-loading client) knows to call load_toolset rather than
  * having to guess. Groups matched tools by domain, most-matched first.
  */
-export function recommendToolsets(matches: CatalogEntry[]): ToolsetRecommendation[] {
+export function recommendToolsets(
+  matches: CatalogEntry[],
+  cost?: Record<string, number>,
+): ToolsetRecommendation[] {
   const byDomain = new Map<ToolDomain, string[]>();
   for (const m of matches) {
     if (m.domain === 'core') continue; // core is always loaded
@@ -305,8 +353,22 @@ export function recommendToolsets(matches: CatalogEntry[]): ToolsetRecommendatio
     .map(([domain, recommendedTools]) => ({
       domain,
       recommendedTools,
+      approxTokens: cost?.[domain] ?? 0,
       load: { tool: 'load_toolset' as const, args: { toolsets: [domain] } },
     }));
+}
+
+/**
+ * Tool names a set of domains contributes *beyond* core — the set `unload` may
+ * release. Core is never releasable: it is what the agent orients with, and
+ * dropping it would strand a session with no way to search or load anything.
+ */
+export function collapseToolsets(catalog: CatalogEntry[], selectors: string[]): Set<string> {
+  const releasable = new Set<string>();
+  for (const name of expandToolsets(catalog, selectors)) {
+    if (!CORE_TOOLS.has(name)) releasable.add(name);
+  }
+  return releasable;
 }
 
 /**

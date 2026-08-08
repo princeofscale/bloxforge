@@ -199,7 +199,7 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'load_toolset',
     category: 'read',
     effects: [],
-    description: 'Load one or more tool domains. This expands the advertised MCP tool list and sends tools/list_changed; it does not grant tools denied by the active profile or capability policy. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. Use --profile core|builder|tester|full|inspector to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every authorized schema upfront.',
+    description: 'Load or release tool domains. Loading expands the advertised MCP tool list and sends tools/list_changed; it does not grant tools denied by the active profile or capability policy. Some hosts still require their own schema-selection step after receiving that notification; that client-side step cannot be completed by the server. A loaded domain is re-sent on every later request, so release one you are done with via "unload" (core is never released). The response reports approxTokens for both directions. Use --profile core|builder|tester|full|inspector to preload common domain groups, or ROBLOX_MCP_LAZY_TOOLS=0|false|off for every authorized schema upfront.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -215,8 +215,19 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
           },
           description: 'Domains to load (e.g. ["ui","assets"]). Accepts "domain.suffix" shorthand too.',
         },
+        unload: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'string',
+            enum: [
+              'scene', 'mutation', 'scripts', 'runtime',
+              'assets', 'ui', 'environment', 'terrain', 'build', 'media', 'sync', 'safety',
+            ],
+          },
+          description: 'Domains to stop advertising, freeing their per-request schema cost (e.g. ["runtime"]). Core tools are never released. May be sent on its own.',
+        },
       },
-      required: ['toolsets'],
     },
   },
 ];

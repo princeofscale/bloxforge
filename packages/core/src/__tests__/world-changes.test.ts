@@ -42,6 +42,47 @@ describe('get_changes_since scope reporting', () => {
   });
 });
 
+describe('get_changes_since baseline stability', () => {
+  /** Tools whose world reports whatever `st` currently holds. */
+  const toolsReading = (read: () => string) =>
+    new WorldModelTools({ callSingle: async () => fingerprintEnvelope(read()) } as never);
+
+  // The defect: the baseline rolled forward on every call, so a snapshotId meant
+  // "since my previous call" rather than "since the baseline". Asking the same
+  // question twice reported an unchanged world.
+  it('keeps answering against the original baseline by default', async () => {
+    let st = 'Part|r|A|0';
+    const tools = toolsReading(() => st);
+    const baseline = readJson(await tools.getChangesSince());
+
+    st = 'Part|r|Renamed|0';
+    const first = readJson(await tools.getChangesSince(baseline.snapshotId));
+    expect(first.changedCount).toBe(1);
+    expect(first.since).toBe('baseline');
+
+    // The change is still a change relative to the baseline — it does not
+    // evaporate just because it was already reported once.
+    const second = readJson(await tools.getChangesSince(baseline.snapshotId));
+    expect(second.changedCount).toBe(1);
+    expect(second.since).toBe('baseline');
+  });
+
+  it('advances the baseline only when rebaseline is requested', async () => {
+    let st = 'Part|r|A|0';
+    const tools = toolsReading(() => st);
+    const baseline = readJson(await tools.getChangesSince());
+
+    st = 'Part|r|Renamed|0';
+    const polled = readJson(await tools.getChangesSince(baseline.snapshotId, undefined, undefined, true));
+    expect(polled.changedCount).toBe(1);
+    expect(polled.since).toBe('previous-call');
+
+    // Nothing moved since that poll, so the next poll is quiet.
+    const quiet = readJson(await tools.getChangesSince(baseline.snapshotId, undefined, undefined, true));
+    expect(quiet.changedCount).toBe(0);
+  });
+});
+
 describe('diffFingerprints', () => {
   it('detects added, removed, and per-channel changes', () => {
     const prev: Fingerprint = {
