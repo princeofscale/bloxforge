@@ -27,22 +27,29 @@ export class DiscoveryTools {
     // `{"toolset":"scene"}` and `{"toolsets":"scene"}` both read as success.
     // The unknown-name path below already reports a miss; this reports the
     // shape, which is the other way to name nothing.
-    // `unload` alone is a legitimate call ("done with runtime, drop its
-    // schemas"), so `toolsets` is only required when nothing is being released.
-    const hasUnload = Array.isArray(body?.unload) && body.unload.length > 0;
-    if (!Array.isArray(body?.toolsets) && !hasUnload) {
+    // A present-but-malformed field is rejected rather than coerced to []. The
+    // same coercion on `toolsets` is what made `{"toolsets":"scene"}` read as a
+    // successful no-op; defaulting a bad `unload` the same way would report
+    // success for a release that never happened, which is worse than an error
+    // because the caller keeps paying for schemas it believes it dropped.
+    if (body?.toolsets !== undefined && !Array.isArray(body.toolsets)) {
       throw new Error(`load_toolset requires "toolsets" as an array of domain names, e.g. {"toolsets":["scene","mutation"]}. Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
-    const selectors = Array.isArray(body?.toolsets) ? body.toolsets : [];
-    if (selectors.length === 0 && !hasUnload) {
-      throw new Error(`load_toolset requires at least one toolset name. Valid: ${TOOL_DOMAINS.join(', ')}.`);
+    if (body?.unload !== undefined && !Array.isArray(body.unload)) {
+      throw new Error(`load_toolset requires "unload" as an array of domain names, e.g. {"unload":["runtime"]}. Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
+    const selectors = body?.toolsets ?? [];
+    const release = body?.unload ?? [];
     if (selectors.some((s) => typeof s !== 'string')) {
       throw new Error(`load_toolset requires "toolsets" to hold strings. Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
-    const release = Array.isArray(body?.unload) ? body.unload : [];
     if (release.some((s) => typeof s !== 'string')) {
       throw new Error(`load_toolset requires "unload" to hold strings. Valid: ${TOOL_DOMAINS.join(', ')}.`);
+    }
+    // `unload` alone is a legitimate call ("done with runtime, drop its
+    // schemas"), so `toolsets` is only required when nothing is being released.
+    if (selectors.length === 0 && release.length === 0) {
+      throw new Error(`load_toolset requires at least one toolset name in "toolsets" or "unload". Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
     // expandToolsets ignores a selector it does not recognize, and `loaded` used
     // to echo the request back verbatim — so asking for "scripting" (the domain

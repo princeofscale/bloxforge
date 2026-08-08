@@ -202,15 +202,21 @@ export class BloxForgeServer {
         //    envelope). Returns null if the tool isn't registered yet.
         const registryResult: unknown = await this.registry.callTool(name, this.tools, args ?? {});
         if (registryResult !== null && registryResult !== undefined) {
-          // Lazy: load_toolset expands the advertised tool list.
-          if (this.lazyTools && name === 'load_toolset') {
-            this.applyToolset((args ?? {}) as { toolsets?: string[] });
+          // Lazy: load_toolset changes the advertised tool list — but only when
+          // the call succeeded. A rejected request that still moved the active
+          // set (`{"toolsets":["scene",123]}` errors on the number after `scene`
+          // is already a valid selector) answered "error" and expanded anyway,
+          // leaving the client's list and the server's disagreeing. The HTTP
+          // path has always guarded on isError; stdio did not.
+          const failed = (registryResult as { isError?: boolean })?.isError;
+          if (this.lazyTools && name === 'load_toolset' && !failed) {
+            this.applyToolset((args ?? {}) as { toolsets?: string[]; unload?: string[] });
           }
           this.tools.getSessionRecorder().recordToolCall({
             toolName: name,
             durationMs: Date.now() - startedAt,
-            ok: !(registryResult as { isError?: boolean })?.isError,
-            errorCode: (registryResult as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+            ok: !failed,
+            errorCode: failed ? 'TOOL_ERROR' : undefined,
           });
           return registryResult;
         }
@@ -222,15 +228,18 @@ export class BloxForgeServer {
         }
 
         const result = await handler(this.tools, args ?? {});
-        if (this.lazyTools && name === 'load_toolset') {
-          this.applyToolset((args ?? {}) as { toolsets?: string[] });
-        }
         const shaped = attachStructuredContent(result as Record<string, unknown>, !!definition?.outputSchema);
+        // Same guard as the registry branch above: shape the result first, so
+        // the decision to change the advertised list sees whether it failed.
+        const shapedFailed = (shaped as { isError?: boolean })?.isError;
+        if (this.lazyTools && name === 'load_toolset' && !shapedFailed) {
+          this.applyToolset((args ?? {}) as { toolsets?: string[]; unload?: string[] });
+        }
         this.tools.getSessionRecorder().recordToolCall({
           toolName: name,
           durationMs: Date.now() - startedAt,
-          ok: !(shaped as { isError?: boolean })?.isError,
-          errorCode: (shaped as { isError?: boolean })?.isError ? 'TOOL_ERROR' : undefined,
+          ok: !shapedFailed,
+          errorCode: shapedFailed ? 'TOOL_ERROR' : undefined,
         });
         return shaped;
       } catch (error) {

@@ -235,8 +235,19 @@ describe('RobloxStudioTools.loadToolset', () => {
   });
 
   it('still rejects a call that names neither a load nor an unload', async () => {
-    await expect(tools.loadToolset({})).rejects.toThrow(/requires "toolsets"/);
+    await expect(tools.loadToolset({})).rejects.toThrow(/at least one/);
     await expect(tools.loadToolset({ toolsets: [] })).rejects.toThrow(/at least one/);
+  });
+
+  it('rejects a malformed field instead of coercing it to a silent no-op', async () => {
+    // `{"unload":"runtime"}` used to default to [] and report success for a
+    // release that never happened — the caller keeps paying for the schemas it
+    // believes it dropped, which is the failure that reads as working.
+    await expect(tools.loadToolset({ unload: 'runtime' as never })).rejects.toThrow(/"unload" as an array/);
+    await expect(tools.loadToolset({ toolsets: 'scene' as never })).rejects.toThrow(/"toolsets" as an array/);
+    // A bad field is still rejected when the other one is well-formed.
+    await expect(tools.loadToolset({ toolsets: ['scene'], unload: 'runtime' as never })).rejects.toThrow(/"unload" as an array/);
+    await expect(tools.loadToolset({ toolsets: ['scene'], unload: [7] as never })).rejects.toThrow(/"unload" to hold strings/);
   });
 });
 

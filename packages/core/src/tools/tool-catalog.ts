@@ -289,7 +289,11 @@ export function searchCatalog(catalog: CatalogEntry[], params: CatalogSearchPara
  * (`packages/core` has zero runtime deps, and a real BPE count would add one for
  * a number only used to rank and warn). It tracks the true count closely enough
  * to choose between domains; swap in a tokenizer if an exact budget is ever
- * needed. Measured against the real definitions: 218 tools ≈ 49.7k, core ≈ 4.6k.
+ * needed.
+ *
+ * For current totals run `npm run tools:token-report`. Deliberately not quoted
+ * here: a figure copied into a comment goes stale on the next tool edit, and a
+ * stale number is worse than none in the one place claiming to measure things.
  */
 export function approxToolTokens(def: ToolDefinition): number {
   const advertised = {
