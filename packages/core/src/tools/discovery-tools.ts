@@ -3,33 +3,46 @@
 // tool_catalog_search finds the right tool without loading every schema, and
 // load_toolset reports/expands a domain's tools. The facade delegates to this.
 
-import { buildCatalog, searchCatalog, expandToolsets, recommendToolsets, TOOL_DOMAINS, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
+import { buildCatalog, searchCatalog, expandToolsets, collapseToolsets, recommendToolsets, toolsetTokenCost, TOOL_DOMAINS, type CatalogEntry, type ToolDomain } from './tool-catalog.js';
 import { TOOL_DEFINITIONS } from './definitions.js';
 import type { ToolContent } from './runtime-support.js';
 
 export class DiscoveryTools {
   private catalog: CatalogEntry[] | undefined;
+  private cost: Record<string, number> | undefined;
 
   private getCatalog(): CatalogEntry[] {
     if (!this.catalog) this.catalog = buildCatalog(TOOL_DEFINITIONS);
     return this.catalog;
   }
 
-  async loadToolset(body: { toolsets?: string[] }) {
+  private getCost(): Record<string, number> {
+    if (!this.cost) this.cost = toolsetTokenCost(TOOL_DEFINITIONS);
+    return this.cost;
+  }
+
+  async loadToolset(body: { toolsets?: string[]; unload?: string[] }) {
     // Coercing a bad shape to [] answered "loaded nothing, your host probably
     // needs a schema refresh" for a request that never named a toolset —
     // `{"toolset":"scene"}` and `{"toolsets":"scene"}` both read as success.
     // The unknown-name path below already reports a miss; this reports the
     // shape, which is the other way to name nothing.
-    if (!Array.isArray(body?.toolsets)) {
+    // `unload` alone is a legitimate call ("done with runtime, drop its
+    // schemas"), so `toolsets` is only required when nothing is being released.
+    const hasUnload = Array.isArray(body?.unload) && body.unload.length > 0;
+    if (!Array.isArray(body?.toolsets) && !hasUnload) {
       throw new Error(`load_toolset requires "toolsets" as an array of domain names, e.g. {"toolsets":["scene","mutation"]}. Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
-    const selectors = body.toolsets;
-    if (selectors.length === 0) {
+    const selectors = Array.isArray(body?.toolsets) ? body.toolsets : [];
+    if (selectors.length === 0 && !hasUnload) {
       throw new Error(`load_toolset requires at least one toolset name. Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
     if (selectors.some((s) => typeof s !== 'string')) {
       throw new Error(`load_toolset requires "toolsets" to hold strings. Valid: ${TOOL_DOMAINS.join(', ')}.`);
+    }
+    const release = Array.isArray(body?.unload) ? body.unload : [];
+    if (release.some((s) => typeof s !== 'string')) {
+      throw new Error(`load_toolset requires "unload" to hold strings. Valid: ${TOOL_DOMAINS.join(', ')}.`);
     }
     // expandToolsets ignores a selector it does not recognize, and `loaded` used
     // to echo the request back verbatim — so asking for "scripting" (the domain
@@ -39,8 +52,13 @@ export class DiscoveryTools {
     const known = new Set(TOOL_DOMAINS as readonly string[]);
     const domainOf = (raw: unknown) => String(raw ?? '').split('.')[0].trim();
     const loaded = selectors.filter((s) => known.has(domainOf(s)));
-    const unknownToolsets = selectors.filter((s) => !known.has(domainOf(s)));
+    const unloaded = release.filter((s) => known.has(domainOf(s)));
+    const unknownToolsets = [...selectors, ...release].filter((s) => !known.has(domainOf(s)));
     const names = Array.from(expandToolsets(this.getCatalog(), selectors)).sort();
+    const releasedNames = Array.from(collapseToolsets(this.getCatalog(), release)).sort();
+    const cost = this.getCost();
+    const sum = (domains: string[]) =>
+      domains.reduce((total, s) => total + (cost[domainOf(s)] ?? 0), 0);
     return {
       content: [{
         type: 'text',
@@ -48,6 +66,18 @@ export class DiscoveryTools {
           loaded,
           tools: names,
           count: names.length,
+          ...(unloaded.length > 0 && {
+            unloaded,
+            unloadedTools: releasedNames,
+            unloadedCount: releasedNames.length,
+          }),
+          // The recurring per-request cost of this change. The tool list is
+          // re-sent on every request, so a domain loaded once is paid for on
+          // every turn until it is released.
+          approxTokens: {
+            loaded: sum(loaded),
+            ...(unloaded.length > 0 && { released: sum(unloaded) }),
+          },
           ...(unknownToolsets.length > 0 && {
             unknownToolsets,
             validToolsets: TOOL_DOMAINS,
@@ -65,7 +95,9 @@ export class DiscoveryTools {
           // rule out, and the real cause is one word in the request.
           client_hint: unknownToolsets.length > 0
             ? `Not a toolset: ${unknownToolsets.join(', ')} — nothing was loaded for ${unknownToolsets.length > 1 ? 'those' : 'that'}. Re-call with a name from "validToolsets", or use tool_catalog_search to find the tool and the domain it lives in.`
-            : 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.',
+            : loaded.length === 0 && unloaded.length > 0
+              ? `Released ${unloaded.join(', ')} — those schemas are no longer advertised and stop costing tokens on later requests. Load the domain again if you need it.`
+              : 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.',
         }),
       }] as ToolContent[],
     };
@@ -84,7 +116,7 @@ export class DiscoveryTools {
       readOnly: body?.readOnly,
       limit: body?.limit,
     });
-    const recommendedToolsets = recommendToolsets(matches);
+    const recommendedToolsets = recommendToolsets(matches, this.getCost());
     return {
       content: [{
         type: 'text',
@@ -93,7 +125,7 @@ export class DiscoveryTools {
           count: matches.length,
           matches,
           recommendedToolsets,
-          client_hint: 'Lazy-loading is the default path. If a needed tool is not currently advertised, call load_toolset with the recommended domain(s); set ROBLOX_MCP_LAZY_TOOLS=0 only for full upfront schemas.',
+          client_hint: 'Lazy-loading is the default path. If a needed tool is not currently advertised, call load_toolset with the recommended domain(s); set ROBLOX_MCP_LAZY_TOOLS=0 only for full upfront schemas. approxTokens is what each domain adds to every later request — release one you are done with via load_toolset {"unload":["<domain>"]}.',
         }),
       }] as ToolContent[],
     };

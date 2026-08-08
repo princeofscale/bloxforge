@@ -110,6 +110,7 @@ export function registerContractedTools(
         (args as any).snapshotId,
         (args as any).path,
         (args as any).instance_id,
+        (args as any).rebaseline,
       ),
     }),
     defineTool({

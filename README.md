@@ -246,8 +246,13 @@ have been removed from MCP discovery; use the hashed `rojo_syncback_plan` →
 for the mapping.
 
 Select one with `--profile <name>` or `BLOXFORGE_TOOL_PROFILE`.
-Profiles control authorization where stated; `load_toolset` only expands
-schema visibility and cannot grant a denied tool. Invalid names fail startup.
+Profiles control authorization where stated; `load_toolset` only changes schema
+visibility and cannot grant a denied tool. Invalid names fail startup.
+
+A loaded domain is re-advertised on every later request, so `load_toolset`
+accepts `unload` to release one the session is finished with
+(`{"unload":["runtime"]}` frees roughly 13.2k tokens per request; core is never
+released). Both it and `tool_catalog_search` report each domain's `approxTokens`.
 
 ## Reliability and safety
 

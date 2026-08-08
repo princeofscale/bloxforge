@@ -3,7 +3,10 @@ import {
   buildCatalog,
   searchCatalog,
   expandToolsets,
+  collapseToolsets,
   recommendToolsets,
+  toolsetTokenCost,
+  tokenCostOf,
   CORE_TOOLS,
   TOOL_DOMAINS,
   type ToolDomain,
@@ -208,6 +211,65 @@ describe('RobloxStudioTools.loadToolset', () => {
     expect(payload.unknownToolsets).toBeUndefined();
     expect(payload.client_hint).toContain('Advertised, not guaranteed callable');
     expect(payload.tools).toContain('get_script_source');
+  });
+
+  it('reports what an unload releases, without needing a toolsets argument', async () => {
+    const res = await tools.loadToolset({ unload: ['runtime'] });
+    const payload = JSON.parse((res.content[0] as { text: string }).text) as {
+      unloaded: string[]; unloadedTools: string[]; approxTokens: { released: number };
+      client_hint: string;
+    };
+    expect(payload.unloaded).toEqual(['runtime']);
+    expect(payload.unloadedTools).toContain('run_playtest_episode');
+    expect(payload.approxTokens.released).toBeGreaterThan(0);
+    expect(payload.client_hint).toContain('Released runtime');
+  });
+
+  it('never releases a core tool, even when its domain is unloaded', async () => {
+    // execute_luau is classified core and stays advertised: releasing it would
+    // strand the session with no way to act or to load anything back.
+    const res = await tools.loadToolset({ unload: ['runtime', 'scene'] });
+    const payload = JSON.parse((res.content[0] as { text: string }).text) as { unloadedTools: string[] };
+    for (const name of payload.unloadedTools) expect(CORE_TOOLS.has(name)).toBe(false);
+    expect(payload.unloadedTools).not.toContain('execute_luau');
+  });
+
+  it('still rejects a call that names neither a load nor an unload', async () => {
+    await expect(tools.loadToolset({})).rejects.toThrow(/requires "toolsets"/);
+    await expect(tools.loadToolset({ toolsets: [] })).rejects.toThrow(/at least one/);
+  });
+});
+
+describe('token cost accounting', () => {
+  it('prices every domain and stays well under the full-catalog cost for core', () => {
+    const cost = toolsetTokenCost(TOOL_DEFINITIONS);
+    for (const domain of TOOL_DOMAINS) expect(cost[domain]).toBeGreaterThan(0);
+
+    const full = tokenCostOf(TOOL_DEFINITIONS, new Set(TOOL_DEFINITIONS.map((d) => d.name)));
+    const core = tokenCostOf(TOOL_DEFINITIONS, CORE_TOOLS);
+    expect(core).toBeLessThan(full / 5); // lazy loading is worth having
+    expect(Object.values(cost).reduce((a: number, b: number) => a + b, 0)).toBe(full);
+  });
+
+  it('quotes the per-domain price alongside a load recommendation', () => {
+    const catalog = buildCatalog(TOOL_DEFINITIONS);
+    const matches = searchCatalog(catalog, { query: 'create frame', domains: ['ui'] });
+    const recs = recommendToolsets(matches, toolsetTokenCost(TOOL_DEFINITIONS));
+    expect(recs[0].approxTokens).toBeGreaterThan(0);
+  });
+});
+
+describe('collapseToolsets', () => {
+  const catalog = buildCatalog(TOOL_DEFINITIONS);
+
+  it('returns a domain\'s tools minus core', () => {
+    const released = collapseToolsets(catalog, ['ui']);
+    expect(released.has('ui_create_frame')).toBe(true);
+    for (const c of CORE_TOOLS) expect(released.has(c)).toBe(false);
+  });
+
+  it('releases nothing for an unknown selector', () => {
+    expect(collapseToolsets(catalog, ['nonsense']).size).toBe(0);
   });
 });
 

@@ -72,6 +72,9 @@ jobs:
       - name: Legacy dispatch migration baseline
         run: npm run tools:legacy-report -- --check
 
+      - name: Always-on tool schemas stay within the per-request token budget
+        run: npm run tools:token-report -- --check
+
       - name: Generated docs are current
         run: npm run docs:check
 

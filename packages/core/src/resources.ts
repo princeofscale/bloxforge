@@ -141,6 +141,9 @@ export async function readResource(
       result = await tools.getNodeBatch([parsed.path], undefined, true);
       break;
     case 'changes':
+      // No rebaseline: a resource read is a read. Rolling the baseline here
+      // meant a client that re-fetched the URI consumed the changes and saw an
+      // empty diff the second time, with nothing to say why.
       result = await tools.getChangesSince(parsed.since);
       break;
     case 'episode':

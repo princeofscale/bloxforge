@@ -20,7 +20,7 @@ import { ProxyBridgeService } from './proxy-bridge-service.js';
 import type { ToolDefinition } from './tools/definitions.js';
 import { ToolRegistry } from './tools/tool-pipeline.js';
 import { registerContractedTools } from './tools/setup-registry.js';
-import { buildCatalog, expandToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
+import { buildCatalog, expandToolsets, collapseToolsets, CORE_TOOLS } from './tools/tool-catalog.js';
 import { toolDefinitionToMcpTool } from './tools/tool-shape.js';
 import { toolErrorResult } from './errors.js';
 import { attachStructuredContent } from './tools/structured-output.js';
@@ -266,21 +266,33 @@ export class BloxForgeServer {
     });
   }
 
-  // Expand the active tool set by the requested domains and notify the client.
-  private applyToolset(args: { toolsets?: string[] }): void {
+  // Expand (or shrink) the active tool set by the requested domains and notify
+  // the client. Loading was one-way until 4.3.0: a session that touched runtime
+  // carried its ~13k tokens of schemas on every later request, whether or not it
+  // ever ran another playtest. `unload` releases a domain it is done with.
+  private applyToolset(args: { toolsets?: string[]; unload?: string[] }): void {
     const selectors = Array.isArray(args?.toolsets) ? args.toolsets : [];
-    if (selectors.length === 0) return;
+    const release = Array.isArray(args?.unload) ? args.unload : [];
+    if (selectors.length === 0 && release.length === 0) return;
     const catalog = buildCatalog(this.config.tools);
-    const wanted = expandToolsets(catalog, selectors);
-    let added = false;
-    for (const n of wanted) {
+    let changed = false;
+
+    // Unload first, so naming a domain in both lands on "loaded" rather than
+    // depending on which loop ran last.
+    for (const n of collapseToolsets(catalog, release)) {
+      if (this.activeToolNames.delete(n)) {
+        this.registry.deactivate(n);
+        changed = true;
+      }
+    }
+    for (const n of expandToolsets(catalog, selectors)) {
       if (this.allowedToolNames.has(n) && !this.activeToolNames.has(n)) {
         this.activeToolNames.add(n);
         this.registry.activate(n); // also activate in registry
-        added = true;
+        changed = true;
       }
     }
-    if (added) {
+    if (changed) {
       this.server.sendToolListChanged?.();
     }
   }
