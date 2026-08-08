@@ -20,7 +20,15 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // The modules in packages/core that actually open a socket, by the identifier a
 // tool method uses to reach them. Add here when a new network client appears.
-const NETWORK_CLIENTS = /\b(imageClient|marketplace|cookieClient|openCloudClient|getRobloxDoc|fetchRobloxDoc)\b/;
+//
+// `fetch` is on the list because three methods — importExternalAsset,
+// importRbxm and the universeIdForPlace helper — call it directly rather than
+// through a client module. All three declared `network.external` already, so
+// nothing was mis-declared, but they were not being *checked*: the audit
+// reported "12 network-reaching tools" while two of the tools that most
+// obviously reach the network went unexamined. A check that under-counts its
+// own coverage is the failure this file exists to prevent.
+const NETWORK_CLIENTS = /\b(imageClient|marketplace|cookieClient|openCloudClient|getRobloxDoc|fetchRobloxDoc|fetch)\s*[.(]/;
 
 // tool -> why it names a network client but legitimately declares no network
 // effect. Keep this short; an entry here is a claim that no socket is opened.
@@ -65,10 +73,30 @@ function methodBodies(src) {
   return out;
 }
 
-const networkMethods = new Set();
+const allMethods = new Map();
 for (const file of FACADES) {
   for (const [name, body] of methodBodies(readFileSync(resolve(root, file), 'utf8'))) {
-    if (NETWORK_CLIENTS.test(body)) networkMethods.add(name);
+    if (!allMethods.has(name) || NETWORK_CLIENTS.test(body)) allMethods.set(name, body);
+  }
+}
+
+const networkMethods = new Set(
+  [...allMethods].filter(([, body]) => NETWORK_CLIENTS.test(body)).map(([name]) => name),
+);
+
+// One text match per method proves nothing about a method that delegates: a
+// handler whose body is `return this.uploadAsset(...)` mentions no client at
+// all. Propagate through `this.x()` to a fixed point, which is what
+// importExternalAsset -> uploadAsset already looks like. Conservative in the
+// safe direction: an extra method marked network-reaching costs a declared
+// effect, a missed one costs the capability gate.
+for (let changed = true; changed; ) {
+  changed = false;
+  for (const [name, body] of allMethods) {
+    if (networkMethods.has(name)) continue;
+    for (const call of body.matchAll(/this\.([A-Za-z_]\w*)\s*\(/g)) {
+      if (networkMethods.has(call[1])) { networkMethods.add(name); changed = true; break; }
+    }
   }
 }
 

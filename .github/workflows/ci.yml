@@ -75,6 +75,12 @@ jobs:
       - name: Always-on tool schemas stay within the per-request token budget
         run: npm run tools:token-report -- --check
 
+      # Belongs here rather than in protocol:check: it reads the installed MCP
+      # SDK, and the plugin job that runs protocol:check installs only
+      # studio-plugin's dependencies, never the root ones.
+      - name: Dynamic toolsets are legal under every negotiable MCP revision
+        run: npm run protocol:compat-check
+
       - name: Generated docs are current
         run: npm run docs:check
 

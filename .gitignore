@@ -106,3 +106,6 @@ evals/build-library/
 
 # npm pack tarballs
 *.tgz
+
+# Roadmap research: local working documents, deliberately not tracked
+ROADMAP-*

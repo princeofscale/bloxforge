@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `npm run protocol:compat-check` fails the build if an SDK bump makes a
+  forbidding MCP revision negotiable. It runs in the main CI job and in
+  `release:check`, deliberately not in `protocol:check`: it reads the installed
+  SDK, and the plugin job that runs `protocol:check` installs only
+  `studio-plugin`'s dependencies, never the root ones — every other script there
+  is dependency-free by design. From revision
+  2026-07-28 the tool set "MUST NOT vary per-connection or as a side effect of
+  other requests on the connection" — both of which `load_toolset` does. Every
+  revision the pinned SDK can negotiate (2025-11-25 and earlier) permits it, so
+  4.3.0 is compliant with everything it can actually speak; the risk is that
+  upgrading `@modelcontextprotocol/sdk` would turn that into a silent MUST NOT
+  violation with no test failing and no code changing. Verified against the
+  specification, not inferred. Resolving it when it fires means gating the
+  dynamic path on the negotiated version — static profile and no `listChanged`
+  under a forbidding revision — not deleting the check.
+
+### Changed
+
+- `check-network-effects` now recognizes a bare `fetch(` as a network client and
+  propagates through `this.x()` calls to a fixed point. Three methods —
+  `importExternalAsset`, `importRbxm` and the `universeIdForPlace` helper — call
+  `fetch` directly rather than through a client module, and one delegates rather
+  than calling out itself. All of them declared `network.external` already, so
+  nothing was mis-declared, but they were not being *checked*: the audit
+  reported "12 network-reaching tools" while two of the tools that most plainly
+  reach the network went unexamined. Coverage is now 14. A check that
+  under-counts its own reach is the failure this script exists to prevent.
+- `load_toolset` now tells callers to switch toolsets at phase boundaries rather
+  than per call, in the tool description, both `client_hint`s, the README and the
+  architecture doc. The `client_hint` caveat is appended to every response where
+  the tool set actually changed — load-only, unload-only and mixed — because it
+  is a property of the set having moved, not of the direction it moved in; a
+  first draft carried it only on the unload-only branch, so the common call told
+  the caller nothing. Tool definitions sit at the top of the prompt-cache hierarchy
+  — above system and messages — so changing them invalidates the cached prefix
+  for the entire conversation, not only the schemas that moved. 4.3.0 shipped the
+  `unload` guidance without that caveat, which made frequent releasing look free
+  when it can cost more than the schemas it frees.
+
+### Removed
+
+- The `ROADMAP-RESEARCH-*` documents are no longer tracked, and `ROADMAP-*` is
+  ignored. They are working notes for a research pass, not product
+  documentation, and every one of them went stale the moment its findings were
+  implemented — leaving a repo file that contradicted the code it described.
+
 ### Fixed
 
 - A `CFrame` no longer loses its orientation on the way out. Three separate read

@@ -100,11 +100,21 @@ export class DiscoveryTools {
           // A bad selector gets the bad-selector hint: pointing at a host
           // schema-refresh problem that is not happening costs a restart to
           // rule out, and the real cause is one word in the request.
-          client_hint: unknownToolsets.length > 0
+          //
+          // The cache caveat is appended to whichever hint applies rather than
+          // living inside one of them: it is a property of the tool set having
+          // changed at all, and it first shipped on the unload-only branch —
+          // so a load-only call, a mixed call, and a partly-misspelled call
+          // that still loaded something all got the advice that the one thing
+          // they just did was free.
+          client_hint: (unknownToolsets.length > 0
             ? `Not a toolset: ${unknownToolsets.join(', ')} — nothing was loaded for ${unknownToolsets.length > 1 ? 'those' : 'that'}. Re-call with a name from "validToolsets", or use tool_catalog_search to find the tool and the domain it lives in.`
             : loaded.length === 0 && unloaded.length > 0
               ? `Released ${unloaded.join(', ')} — those schemas are no longer advertised and stop costing tokens on later requests. Load the domain again if you need it.`
-              : 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.',
+              : 'Advertised, not guaranteed callable: this expands the server\'s tool list and sends tools/list_changed. Some hosts need their own schema-refresh step, which the server cannot perform — if a listed tool is still not callable, restart the client or start with ROBLOX_MCP_LAZY_TOOLS=0.')
+            + (loaded.length > 0 || unloaded.length > 0
+              ? ' Changing the tool set invalidates the prompt cache for the whole conversation, so do this at a phase boundary, not between every few calls.'
+              : ''),
         }),
       }] as ToolContent[],
     };
@@ -132,7 +142,7 @@ export class DiscoveryTools {
           count: matches.length,
           matches,
           recommendedToolsets,
-          client_hint: 'Lazy-loading is the default path. If a needed tool is not currently advertised, call load_toolset with the recommended domain(s); set ROBLOX_MCP_LAZY_TOOLS=0 only for full upfront schemas. approxTokens is what each domain adds to every later request — release one you are done with via load_toolset {"unload":["<domain>"]}.',
+          client_hint: 'Lazy-loading is the default path. If a needed tool is not currently advertised, call load_toolset with the recommended domain(s); set ROBLOX_MCP_LAZY_TOOLS=0 only for full upfront schemas. approxTokens is what each domain adds to every later request — release one you are done with via load_toolset {"unload":["<domain>"]}, but do it at a phase boundary: changing the tool set invalidates the conversation\'s prompt cache.',
         }),
       }] as ToolContent[],
     };

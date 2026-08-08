@@ -254,6 +254,11 @@ accepts `unload` to release one the session is finished with
 (`{"unload":["runtime"]}` frees roughly 13.2k tokens per request; core is never
 released). Both it and `tool_catalog_search` report each domain's `approxTokens`.
 
+Do this at phase boundaries rather than per call: tool definitions sit above
+system and messages in the prompt cache, so changing them invalidates the cached
+prefix for the whole conversation. One switch between phases pays for itself;
+churn can cost more than the schemas it frees.
+
 ## Reliability and safety
 
 BloxForge treats Studio as a recoverable local execution target:

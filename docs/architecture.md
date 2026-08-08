@@ -203,6 +203,27 @@ so it is a recurring cost rather than a one-off: the full catalog is ~49.9k
 tokens, the always-on core set ~4.8k, and `runtime` alone ~13.2k. Both tools
 report `approxTokens` so the choice is an informed one, and
 `npm run tools:token-report -- --check` holds the core set to its budget.
+
+Switch toolsets at phase boundaries, not per call. Tool definitions sit at the
+top of the prompt-cache hierarchy — above system and messages — so changing them
+invalidates the cached prefix for the entire conversation, not just the schemas
+that moved. One switch between phases of work pays for itself; churn does not,
+and can cost more than the schemas it frees.
+
+Two protocol constraints bound this. `load_toolset` changes the advertised set
+as a side effect of a `tools/call`, and leaves two connections with different
+sets — both forbidden from MCP revision 2026-07-28 onward, which states the tool
+set "MUST NOT vary per-connection or as a side effect of other requests on the
+connection". Every revision the pinned SDK can negotiate (2025-11-25 and earlier)
+permits it, so this is latent rather than live; `npm run protocol:compat-check`
+fails the build if an SDK bump makes a forbidding revision negotiable, so the
+conflict cannot arrive silently. It reads the installed SDK, so it runs in the
+main CI job and `release:check` rather than in `protocol:check`, whose scripts
+are dependency-free because the plugin job never installs the root packages. The fix
+when it fires is to gate the dynamic path on the negotiated version — static
+profile and no `listChanged` under a forbidding revision — not to delete the
+check.
+
 Authorization uses explicit effects:
 `studio.read`, `studio.write`, `studio.execute`, `local.files.read`,
 `local.files.write`, `local.process.execute`, `network.external`,
