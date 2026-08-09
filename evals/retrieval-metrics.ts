@@ -78,6 +78,16 @@ export function bootstrapCI(
   samples: readonly number[],
   { iterations = 2000, level = 0.95, seed = 1 } = {},
 ): { mean: number; low: number; high: number } {
+  // A published interval computed from bad options is worse than none: with
+  // `iterations: 0` the percentile lookup reads off the end of an empty array
+  // and both bounds come back `undefined`, which prints as an interval and
+  // compares as neither wider nor narrower than anything.
+  if (!Number.isInteger(iterations) || iterations <= 0) {
+    throw new RangeError(`bootstrapCI: iterations must be a positive integer, got ${iterations}`);
+  }
+  if (!Number.isFinite(level) || level <= 0 || level >= 1) {
+    throw new RangeError(`bootstrapCI: level must be strictly between 0 and 1, got ${level}`);
+  }
   const n = samples.length;
   const mean = n === 0 ? 0 : samples.reduce((a, b) => a + b, 0) / n;
   if (n === 0) return { mean: 0, low: 0, high: 0 };

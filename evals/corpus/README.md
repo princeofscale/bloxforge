@@ -41,11 +41,22 @@ nobody would type. The corpus currently sits at a mean overlap of **0.222**.
 `build-confusers.ts` derives them; do not hand-edit `confusers.generated.json`.
 
 A hand-written negative is a query its author already believed was hard, which
-measures the author's intuition about the retriever. A confuser derived from
-nearest-neighbour distance is a query that is genuinely close in the space the
-retriever scores in, and its gold answer is known-good because it is another
+measures the author's intuition about the retriever. A derived one is a query
+that genuinely collides, and its gold answer is known-good because it is another
 tool's positive case. For tool `T` with nearest neighbours `N1`/`N2`, the two
 confusers are `N1`'s and `N2`'s own queries, asserting `T` does not outrank them.
+
+Neighbours are measured **with the retriever itself**. An earlier draft used
+token-set Jaccard over name + `whenToUse`, which sounds equivalent and is not:
+`searchCatalog` scores asymmetrically — a query word landing on a whole name
+token is worth 12, a stem hit 6, a `whenToUse` substring 3 — while Jaccard is
+symmetric and unweighted. The two pick different neighbours, and the bucket
+would have been measuring a similarity heuristic under a README claiming it
+measured retrieval collisions. Collision is now the sum of reciprocal ranks in
+both directions: how highly the retriever puts `N` when asked `T`'s question,
+plus how highly it puts `T` when asked `N`'s. Switching to it moved the measured
+collision rate from 3.4% to 26.4% — the old neighbours mostly were not
+competitors, so almost nothing collided.
 
 `corpus-check.ts` regenerates and compares, so the derivation cannot drift away
 from the catalog it was derived from.
@@ -62,10 +73,11 @@ The first recorded run says the retrieval layer is the weak one:
 |---|---|
 | positives, gold tool in the top 8 | **56.0%** (95% CI 49.5–62.4) |
 | positives, gold tool ranked first | 23.4% |
-| confusers, near neighbour takes first place | 3.4% |
-| no-tool queries that still got a confident match | **90.0%** |
+| confusers, near neighbour takes first place | **26.4%** (95% CI 22.2–30.7) |
+| no-tool queries that were still offered a match | **90.0%** |
 | multi-step gold steps reachable from one shortlist | 48.0% |
-| adversarial pass | 80.0% |
+| adversarial (22 retrieval cases) pass | 72.7% |
+| stale-catalog (8 cases) named tool absent | 100% — static, no retrieval change can move it |
 
 Two of those are worth stating plainly rather than leaving in a table.
 
@@ -75,11 +87,12 @@ The scorer weights whole name tokens at 12 and a `whenToUse` substring at 3, so
 a request that shares no vocabulary with the tool's name scores almost nothing
 — and the queries here were written to share as little as a real user would.
 
-**A query with no tool answer gets a confident match 90% of the time.** The
+**A query with no tool answer is still offered a match 90% of the time.** The
 ranking has no way to say "none of these". "Make my game more fun" returns eight
-tools ranked by relevance, and nothing in the response marks them as a poor
-match. This is the same failure shape as the audits that passed by not looking:
-an answer that is indistinguishable from a good one.
+tools ordered by relevance, and nothing in the response marks them as a poor
+match. Note what this number is and is not: `searchCatalog` exposes no score to
+its caller, so this measures *presence*, not confidence. Calling it a "confident
+match" would be the same overclaim the corpus exists to catch.
 
 Both are the corpus's findings, not its bugs. Fixing them is the next change;
 the baseline exists so that fix has to prove itself.
@@ -91,6 +104,8 @@ the baseline exists so that fix has to prove itself.
   the bucket measures how often it offers something rather than whether the
   layer above correctly declines. That becomes a real measurement when a
   confidence floor exists to score against.
-- **The 30 adversarial cases with `absentTool`** only assert the catalog does
-  not contain the named tool. Whether the server *says so* rather than
+- **The 8 stale-catalog cases** only assert the catalog does not contain the
+  named tool, and are reported separately for that reason: no retrieval change
+  can ever move them, so folding them into one pass rate would pad it with cases
+  the gate cannot fail on. Whether the server *says* "no such tool" rather than
   substituting a neighbour is a model-driven question.

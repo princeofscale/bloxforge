@@ -69,16 +69,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mean overlap of 0.222. And the confusers are derived rather than invented —
   for each tool, its two nearest neighbours' own queries, asserting it does not
   outrank them — because a hand-written negative measures its author's intuition
-  about the retriever rather than the retriever.
+  about the retriever rather than the retriever. Neighbours are measured with
+  the retriever itself, as the sum of reciprocal ranks in both directions; a
+  first draft used token-set Jaccard, which is symmetric and unweighted where
+  `searchCatalog` is neither, and it picked non-competitors: the measured
+  collision rate went from 3.4% to 26.4% once the derivation used the ranking
+  actually under test.
 
   The first baseline says the retrieval layer is the weak one, and it is
   committed as-is so the fix has to prove itself: the gold tool reaches the
   8-item shortlist for **56.0%** of tools (95% CI 49.5–62.4) and ranks first for
   23.4%; "Make Workspace.Door transparent" does not surface `set_property` at
-  all. A query with no tool answer still receives a confident match **90%** of
-  the time, because the ranking has no way to express "none of these" — the same
-  shape as an audit that passes by not looking. 48% of multi-step gold steps are
-  reachable from a single shortlist.
+  all. A near neighbour takes first place on **26.4%** of confusers. A query with
+  no tool answer is still offered a match **90%** of the time, because the
+  ranking has no way to express "none of these" — the same shape as an audit that
+  passes by not looking. That last number measures presence, not confidence:
+  `searchCatalog` exposes no score to its caller, so nothing here can read one,
+  and the eight stale-catalog cases are reported apart from the 22 retrieval
+  ones for the same reason — no retrieval change can move them, so counting them
+  together would pad the rate with cases the gate cannot fail on.
 
 - `design_lint` now checks text contrast against WCAG 2.2 AA (4.5:1 for normal
   text) and reports the measured ratio with both hex colors, so a failing

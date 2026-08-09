@@ -7,499 +7,488 @@
  },
  "cases": [
   {
-   "id": "conf_get_file_tree__get_project_structure",
-   "query": "I need the entire hierarchy of the game in one go.",
+   "id": "conf_get_file_tree__rojo_serve_stop",
+   "query": "Shut the live file-sync process down cleanly.",
    "gold": [
-    "get_project_structure"
+    "rojo_serve_stop"
    ],
    "mustNotRankFirst": [
     "get_file_tree"
    ],
-   "similarity": 0.323
+   "collision": 1.0625
   },
   {
-   "id": "conf_get_file_tree__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
+   "id": "conf_get_file_tree__format_script_preview",
+   "query": "Show me what StyLua would do to this code without changing my file.",
    "gold": [
-    "get_instance_properties"
+    "format_script_preview"
    ],
    "mustNotRankFirst": [
     "get_file_tree"
    ],
-   "similarity": 0.272
+   "collision": 1
   },
   {
-   "id": "conf_search_files__search_objects",
-   "query": "Give me every part whose name starts with Coin.",
+   "id": "conf_search_files__generate_rojo_sourcemap",
+   "query": "Produce the file that maps Studio instances onto files on disk, for whichever project you found.",
    "gold": [
-    "search_objects"
+    "generate_rojo_sourcemap"
    ],
    "mustNotRankFirst": [
     "search_files"
    ],
-   "similarity": 0.45
+   "collision": 1
   },
   {
-   "id": "conf_search_files__search_materials",
-   "query": "Which custom material variants exist in this place?",
+   "id": "conf_search_files__rojo_resolve_instance_source",
+   "query": "Given a Studio path, which local files correspond to it?",
    "gold": [
-    "search_materials"
+    "rojo_resolve_instance_source"
    ],
    "mustNotRankFirst": [
     "search_files"
    ],
-   "similarity": 0.273
+   "collision": 1
   },
   {
-   "id": "conf_get_place_info__rojo_get_project_info",
-   "query": "What is inside the selected project file, including its serve settings?",
+   "id": "conf_get_place_info__animation_create",
+   "query": "Set up a movement clip with this id.",
    "gold": [
-    "rojo_get_project_info"
+    "animation_create"
    ],
    "mustNotRankFirst": [
     "get_place_info"
    ],
-   "similarity": 0.235
+   "collision": 1
   },
   {
-   "id": "conf_get_place_info__get_class_info",
-   "query": "What can a ProximityPrompt actually do?",
+   "id": "conf_get_place_info__environment_set_lighting_preset",
+   "query": "Give the place a horror mood.",
    "gold": [
-    "get_class_info"
+    "environment_set_lighting_preset"
    ],
    "mustNotRankFirst": [
     "get_place_info"
    ],
-   "similarity": 0.232
+   "collision": 1
   },
   {
-   "id": "conf_get_services__get_instance_children",
-   "query": "What sits directly under Workspace.Lobby?",
+   "id": "conf_get_services__template_create_obby_game",
+   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
    "gold": [
-    "get_instance_children"
+    "template_create_obby_game"
    ],
    "mustNotRankFirst": [
     "get_services"
    ],
-   "similarity": 0.494
+   "collision": 1
   },
   {
-   "id": "conf_get_services__get_place_info",
-   "query": "What is this experience called and what is its numeric id?",
+   "id": "conf_get_services__template_create_round_game",
+   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
    "gold": [
-    "get_place_info"
+    "template_create_round_game"
    ],
    "mustNotRankFirst": [
     "get_services"
    ],
-   "similarity": 0.232
+   "collision": 0.5
   },
   {
-   "id": "conf_search_objects__search_files",
-   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "id": "conf_search_objects__wally_get_lock",
+   "query": "List the exact resolved versions from the lockfile.",
    "gold": [
-    "search_files"
+    "wally_get_lock"
    ],
    "mustNotRankFirst": [
     "search_objects"
    ],
-   "similarity": 0.45
+   "collision": 1
   },
   {
-   "id": "conf_search_objects__search_by_property",
-   "query": "Which parts have Anchored turned off?",
-   "gold": [
-    "search_by_property"
-   ],
-   "mustNotRankFirst": [
-    "search_objects"
-   ],
-   "similarity": 0.323
-  },
-  {
-   "id": "conf_get_instance_properties__get_attributes",
-   "query": "What custom values are stored on this instance?",
-   "gold": [
-    "get_attributes"
-   ],
-   "mustNotRankFirst": [
-    "get_instance_properties"
-   ],
-   "similarity": 0.6
-  },
-  {
-   "id": "conf_get_instance_properties__get_tags",
-   "query": "Which CollectionService labels does this instance carry?",
-   "gold": [
-    "get_tags"
-   ],
-   "mustNotRankFirst": [
-    "get_instance_properties"
-   ],
-   "similarity": 0.6
-  },
-  {
-   "id": "conf_get_instance_children__get_services",
-   "query": "Which top-level containers does this game have available?",
-   "gold": [
-    "get_services"
-   ],
-   "mustNotRankFirst": [
-    "get_instance_children"
-   ],
-   "similarity": 0.494
-  },
-  {
-   "id": "conf_get_instance_children__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
-   "gold": [
-    "get_instance_properties"
-   ],
-   "mustNotRankFirst": [
-    "get_instance_children"
-   ],
-   "similarity": 0.272
-  },
-  {
-   "id": "conf_search_by_property__search_objects",
-   "query": "Give me every part whose name starts with Coin.",
-   "gold": [
-    "search_objects"
-   ],
-   "mustNotRankFirst": [
-    "search_by_property"
-   ],
-   "similarity": 0.323
-  },
-  {
-   "id": "conf_search_by_property__get_tagged",
-   "query": "Give me everything labelled Checkpoint.",
-   "gold": [
-    "get_tagged"
-   ],
-   "mustNotRankFirst": [
-    "search_by_property"
-   ],
-   "similarity": 0.167
-  },
-  {
-   "id": "conf_get_class_info__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
-   "gold": [
-    "get_instance_properties"
-   ],
-   "mustNotRankFirst": [
-    "get_class_info"
-   ],
-   "similarity": 0.3
-  },
-  {
-   "id": "conf_get_class_info__get_instance_children",
-   "query": "What sits directly under Workspace.Lobby?",
-   "gold": [
-    "get_instance_children"
-   ],
-   "mustNotRankFirst": [
-    "get_class_info"
-   ],
-   "similarity": 0.232
-  },
-  {
-   "id": "conf_get_project_structure__get_file_tree",
-   "query": "Show me how this place is laid out, top to bottom.",
-   "gold": [
-    "get_file_tree"
-   ],
-   "mustNotRankFirst": [
-    "get_project_structure"
-   ],
-   "similarity": 0.323
-  },
-  {
-   "id": "conf_get_project_structure__get_place_info",
-   "query": "What is this experience called and what is its numeric id?",
-   "gold": [
-    "get_place_info"
-   ],
-   "mustNotRankFirst": [
-    "get_project_structure"
-   ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_set_property__mass_set_property",
-   "query": "Anchor all forty of these crates at once.",
-   "gold": [
-    "mass_set_property"
-   ],
-   "mustNotRankFirst": [
-    "set_property"
-   ],
-   "similarity": 0.55
-  },
-  {
-   "id": "conf_set_property__bulk_set_attributes",
-   "query": "Write six custom values onto this one instance in a single call.",
-   "gold": [
-    "bulk_set_attributes"
-   ],
-   "mustNotRankFirst": [
-    "set_property"
-   ],
-   "similarity": 0.168
-  },
-  {
-   "id": "conf_mass_set_property__set_property",
-   "query": "Make Workspace.Door transparent.",
-   "gold": [
-    "set_property"
-   ],
-   "mustNotRankFirst": [
-    "mass_set_property"
-   ],
-   "similarity": 0.55
-  },
-  {
-   "id": "conf_mass_set_property__mass_get_property",
-   "query": "Read the colour off each of these thirty parts.",
-   "gold": [
-    "mass_get_property"
-   ],
-   "mustNotRankFirst": [
-    "mass_set_property"
-   ],
-   "similarity": 0.336
-  },
-  {
-   "id": "conf_mass_get_property__mass_set_property",
-   "query": "Anchor all forty of these crates at once.",
-   "gold": [
-    "mass_set_property"
-   ],
-   "mustNotRankFirst": [
-    "mass_get_property"
-   ],
-   "similarity": 0.336
-  },
-  {
-   "id": "conf_mass_get_property__mass_create_objects",
-   "query": "Spawn twenty pillars in one call.",
-   "gold": [
-    "mass_create_objects"
-   ],
-   "mustNotRankFirst": [
-    "mass_get_property"
-   ],
-   "similarity": 0.3
-  },
-  {
-   "id": "conf_set_properties__bulk_set_attributes",
-   "query": "Write six custom values onto this one instance in a single call.",
-   "gold": [
-    "bulk_set_attributes"
-   ],
-   "mustNotRankFirst": [
-    "set_properties"
-   ],
-   "similarity": 0.606
-  },
-  {
-   "id": "conf_set_properties__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
-   "gold": [
-    "get_instance_properties"
-   ],
-   "mustNotRankFirst": [
-    "set_properties"
-   ],
-   "similarity": 0.222
-  },
-  {
-   "id": "conf_create_object__delete_object",
-   "query": "Get rid of Workspace.OldSign.",
-   "gold": [
-    "delete_object"
-   ],
-   "mustNotRankFirst": [
-    "create_object"
-   ],
-   "similarity": 0.55
-  },
-  {
-   "id": "conf_create_object__clone_object",
-   "query": "Make a copy of this model under a different parent.",
-   "gold": [
-    "clone_object"
-   ],
-   "mustNotRankFirst": [
-    "create_object"
-   ],
-   "similarity": 0.264
-  },
-  {
-   "id": "conf_mass_create_objects__mass_get_property",
-   "query": "Read the colour off each of these thirty parts.",
-   "gold": [
-    "mass_get_property"
-   ],
-   "mustNotRankFirst": [
-    "mass_create_objects"
-   ],
-   "similarity": 0.3
-  },
-  {
-   "id": "conf_mass_create_objects__mass_delete_objects",
-   "query": "Remove all of these fifty leftover parts in one go.",
-   "gold": [
-    "mass_delete_objects"
-   ],
-   "mustNotRankFirst": [
-    "mass_create_objects"
-   ],
-   "similarity": 0.285
-  },
-  {
-   "id": "conf_delete_object__create_object",
+   "id": "conf_search_objects__create_object",
    "query": "Put a new red brick in the workspace.",
    "gold": [
     "create_object"
    ],
    "mustNotRankFirst": [
-    "delete_object"
+    "search_objects"
    ],
-   "similarity": 0.55
+   "collision": 0.5
   },
   {
-   "id": "conf_delete_object__clone_object",
-   "query": "Make a copy of this model under a different parent.",
+   "id": "conf_get_instance_properties__set_attribute",
+   "query": "Tag this part with a custom value called Damage of 25.",
    "gold": [
-    "clone_object"
+    "set_attribute"
    ],
    "mustNotRankFirst": [
-    "delete_object"
+    "get_instance_properties"
    ],
-   "similarity": 0.232
+   "collision": 1
   },
   {
-   "id": "conf_mass_delete_objects__mass_create_objects",
+   "id": "conf_get_instance_properties__set_properties",
+   "query": "On this one part, change size, colour and material together.",
+   "gold": [
+    "set_properties"
+   ],
+   "mustNotRankFirst": [
+    "get_instance_properties"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_instance_children__animation_create",
+   "query": "Set up a movement clip with this id.",
+   "gold": [
+    "animation_create"
+   ],
+   "mustNotRankFirst": [
+    "get_instance_children"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_instance_children__ui_apply_layout",
+   "query": "Make the children of this panel arrange themselves in a row automatically.",
+   "gold": [
+    "ui_apply_layout"
+   ],
+   "mustNotRankFirst": [
+    "get_instance_children"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_search_by_property__set_property",
+   "query": "Make Workspace.Door transparent.",
+   "gold": [
+    "set_property"
+   ],
+   "mustNotRankFirst": [
+    "search_by_property"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_search_by_property__asset_fit_plan",
+   "query": "This imported statue looks the wrong size next to the door — what would it take to make it sit right?",
+   "gold": [
+    "asset_fit_plan"
+   ],
+   "mustNotRankFirst": [
+    "search_by_property"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_class_info__get_scene_summary",
+   "query": "Roughly how many of each class sit under Workspace?",
+   "gold": [
+    "get_scene_summary"
+   ],
+   "mustNotRankFirst": [
+    "get_class_info"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_class_info__rokit_status",
+   "query": "Do the pinned tool versions match what is actually installed?",
+   "gold": [
+    "rokit_status"
+   ],
+   "mustNotRankFirst": [
+    "get_class_info"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_project_structure__generate_build",
+   "query": "Produce a structure procedurally from code.",
+   "gold": [
+    "generate_build"
+   ],
+   "mustNotRankFirst": [
+    "get_project_structure"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_project_structure__template_create_obby_game",
+   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
+   "gold": [
+    "template_create_obby_game"
+   ],
+   "mustNotRankFirst": [
+    "get_project_structure"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_set_property__search_by_property",
+   "query": "Which parts have Anchored turned off?",
+   "gold": [
+    "search_by_property"
+   ],
+   "mustNotRankFirst": [
+    "set_property"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_set_property__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
+   "gold": [
+    "ui_make_mobile_friendly"
+   ],
+   "mustNotRankFirst": [
+    "set_property"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_mass_set_property__design_lint",
+   "query": "Check this interface for quality problems and score it.",
+   "gold": [
+    "design_lint"
+   ],
+   "mustNotRankFirst": [
+    "mass_set_property"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_mass_set_property__generate_build",
+   "query": "Produce a structure procedurally from code.",
+   "gold": [
+    "generate_build"
+   ],
+   "mustNotRankFirst": [
+    "mass_set_property"
+   ],
+   "collision": 0.3333
+  },
+  {
+   "id": "conf_mass_get_property__rojo_read_source",
+   "query": "Read that local file and give me its hash so I can lock on it.",
+   "gold": [
+    "rojo_read_source"
+   ],
+   "mustNotRankFirst": [
+    "mass_get_property"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_mass_get_property__project_reconcile_apply",
+   "query": "Actually carry out those repairs, one writer at a time.",
+   "gold": [
+    "project_reconcile_apply"
+   ],
+   "mustNotRankFirst": [
+    "mass_get_property"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_set_properties__terrain_paint_material",
+   "query": "Turn all the grass in this region into sand.",
+   "gold": [
+    "terrain_paint_material"
+   ],
+   "mustNotRankFirst": [
+    "set_properties"
+   ],
+   "collision": 1.0526
+  },
+  {
+   "id": "conf_set_properties__mass_create_objects",
    "query": "Spawn twenty pillars in one call.",
    "gold": [
     "mass_create_objects"
    ],
    "mustNotRankFirst": [
-    "mass_delete_objects"
+    "set_properties"
    ],
-   "similarity": 0.285
+   "collision": 1
   },
   {
-   "id": "conf_mass_delete_objects__get_node_batch",
+   "id": "conf_create_object__delete_attribute",
+   "query": "Drop the Damage value off this part.",
+   "gold": [
+    "delete_attribute"
+   ],
+   "mustNotRankFirst": [
+    "create_object"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_create_object__diagnose_scripts",
+   "query": "What errors and warnings is Studio reporting right now?",
+   "gold": [
+    "diagnose_scripts"
+   ],
+   "mustNotRankFirst": [
+    "create_object"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_mass_create_objects__set_properties",
+   "query": "On this one part, change size, colour and material together.",
+   "gold": [
+    "set_properties"
+   ],
+   "mustNotRankFirst": [
+    "mass_create_objects"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_mass_create_objects__get_reproduction_bundle",
+   "query": "Capture everything a bug report would need, in one call.",
+   "gold": [
+    "get_reproduction_bundle"
+   ],
+   "mustNotRankFirst": [
+    "mass_create_objects"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_delete_object__get_request_status",
+   "query": "That call timed out — did it actually go through?",
+   "gold": [
+    "get_request_status"
+   ],
+   "mustNotRankFirst": [
+    "delete_object"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_delete_object__get_attributes",
+   "query": "What custom values are stored on this instance?",
+   "gold": [
+    "get_attributes"
+   ],
+   "mustNotRankFirst": [
+    "delete_object"
+   ],
+   "collision": 0.5769
+  },
+  {
+   "id": "conf_mass_delete_objects__remove_tag",
+   "query": "Take the Climbable label off this part.",
+   "gold": [
+    "remove_tag"
+   ],
+   "mustNotRankFirst": [
+    "mass_delete_objects"
+   ],
+   "collision": 1.125
+  },
+  {
+   "id": "conf_mass_delete_objects__set_properties",
+   "query": "On this one part, change size, colour and material together.",
+   "gold": [
+    "set_properties"
+   ],
+   "mustNotRankFirst": [
+    "mass_delete_objects"
+   ],
+   "collision": 0.6429
+  },
+  {
+   "id": "conf_smart_duplicate__project_reconcile_apply",
+   "query": "Actually carry out those repairs, one writer at a time.",
+   "gold": [
+    "project_reconcile_apply"
+   ],
+   "mustNotRankFirst": [
+    "smart_duplicate"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_smart_duplicate__redo",
+   "query": "Actually, put that change back.",
+   "gold": [
+    "redo"
+   ],
+   "mustNotRankFirst": [
+    "smart_duplicate"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_mass_duplicate__get_node_batch",
    "query": "I have twelve paths and I want two fields from each, in one round trip.",
    "gold": [
     "get_node_batch"
    ],
    "mustNotRankFirst": [
-    "mass_delete_objects"
-   ],
-   "similarity": 0.227
-  },
-  {
-   "id": "conf_smart_duplicate__mass_duplicate",
-   "query": "Run several different duplication patterns in a single batch.",
-   "gold": [
     "mass_duplicate"
    ],
-   "mustNotRankFirst": [
-    "smart_duplicate"
-   ],
-   "similarity": 0.232
+   "collision": 1
   },
   {
-   "id": "conf_smart_duplicate__mass_set_property",
-   "query": "Anchor all forty of these crates at once.",
+   "id": "conf_mass_duplicate__run_gameplay_assertions",
+   "query": "Check these named conditions hold and tell me which failed.",
    "gold": [
-    "mass_set_property"
-   ],
-   "mustNotRankFirst": [
-    "smart_duplicate"
-   ],
-   "similarity": 0.161
-  },
-  {
-   "id": "conf_mass_duplicate__smart_duplicate",
-   "query": "Copy this crate eight times, offsetting each one and numbering the names.",
-   "gold": [
-    "smart_duplicate"
+    "run_gameplay_assertions"
    ],
    "mustNotRankFirst": [
     "mass_duplicate"
    ],
-   "similarity": 0.232
+   "collision": 0.5
   },
   {
-   "id": "conf_mass_duplicate__mass_get_property",
-   "query": "Read the colour off each of these thirty parts.",
+   "id": "conf_apply_mutation_plan__asset_fit_apply",
+   "query": "Go ahead and rescale and re-pivot that statue the way you proposed.",
    "gold": [
-    "mass_get_property"
-   ],
-   "mustNotRankFirst": [
-    "mass_duplicate"
-   ],
-   "similarity": 0.15
-  },
-  {
-   "id": "conf_apply_mutation_plan__mass_delete_objects",
-   "query": "Remove all of these fifty leftover parts in one go.",
-   "gold": [
-    "mass_delete_objects"
+    "asset_fit_apply"
    ],
    "mustNotRankFirst": [
     "apply_mutation_plan"
    ],
-   "similarity": 0.204
+   "collision": 0.5
   },
   {
-   "id": "conf_apply_mutation_plan__add_tag",
-   "query": "Label this part as Climbable for CollectionService.",
+   "id": "conf_apply_mutation_plan__plan_asset_insert",
+   "query": "Search for a lamp post, check it, and tell me the plan in one shot.",
    "gold": [
-    "add_tag"
+    "plan_asset_insert"
    ],
    "mustNotRankFirst": [
     "apply_mutation_plan"
    ],
-   "similarity": 0.161
+   "collision": 0.5
   },
   {
-   "id": "conf_get_script_source__set_script_source",
-   "query": "Overwrite that script with this new code.",
+   "id": "conf_get_script_source__execute_luau",
+   "query": "Run this snippet of code inside Studio for me.",
    "gold": [
-    "set_script_source"
+    "execute_luau"
    ],
    "mustNotRankFirst": [
     "get_script_source"
    ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
-   "id": "conf_get_script_source__delete_script_lines",
-   "query": "Cut lines 12 through 20 out of that script.",
+   "id": "conf_get_script_source__generate_build",
+   "query": "Produce a structure procedurally from code.",
    "gold": [
-    "delete_script_lines"
+    "generate_build"
    ],
    "mustNotRankFirst": [
     "get_script_source"
    ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_set_script_source__get_script_source",
-   "query": "Show me the code inside ServerScriptService.Main.",
-   "gold": [
-    "get_script_source"
-   ],
-   "mustNotRankFirst": [
-    "set_script_source"
-   ],
-   "similarity": 0.383
+   "collision": 0.5
   },
   {
    "id": "conf_set_script_source__restore_script_backup",
@@ -510,7 +499,29 @@
    "mustNotRankFirst": [
     "set_script_source"
    ],
-   "similarity": 0.231
+   "collision": 1.1111
+  },
+  {
+   "id": "conf_set_script_source__capture_script_profiler",
+   "query": "Which code is eating the frame time on the live server?",
+   "gold": [
+    "capture_script_profiler"
+   ],
+   "mustNotRankFirst": [
+    "set_script_source"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_edit_script_lines__capture_script_profiler",
+   "query": "Which code is eating the frame time on the live server?",
+   "gold": [
+    "capture_script_profiler"
+   ],
+   "mustNotRankFirst": [
+    "edit_script_lines"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_edit_script_lines__delete_script_lines",
@@ -521,18 +532,7 @@
    "mustNotRankFirst": [
     "edit_script_lines"
    ],
-   "similarity": 0.281
-  },
-  {
-   "id": "conf_edit_script_lines__insert_script_lines",
-   "query": "Wedge this block in just below line 40.",
-   "gold": [
-    "insert_script_lines"
-   ],
-   "mustNotRankFirst": [
-    "edit_script_lines"
-   ],
-   "similarity": 0.226
+   "collision": 0.8333
   },
   {
    "id": "conf_insert_script_lines__delete_script_lines",
@@ -543,7 +543,7 @@
    "mustNotRankFirst": [
     "insert_script_lines"
    ],
-   "similarity": 0.25
+   "collision": 1.3333
   },
   {
    "id": "conf_insert_script_lines__edit_script_lines",
@@ -554,18 +554,7 @@
    "mustNotRankFirst": [
     "insert_script_lines"
    ],
-   "similarity": 0.226
-  },
-  {
-   "id": "conf_delete_script_lines__edit_script_lines",
-   "query": "In that script, swap this exact snippet for that one.",
-   "gold": [
-    "edit_script_lines"
-   ],
-   "mustNotRankFirst": [
-    "delete_script_lines"
-   ],
-   "similarity": 0.281
+   "collision": 0.6667
   },
   {
    "id": "conf_delete_script_lines__insert_script_lines",
@@ -576,216 +565,216 @@
    "mustNotRankFirst": [
     "delete_script_lines"
    ],
-   "similarity": 0.25
+   "collision": 1.3333
   },
   {
-   "id": "conf_set_attribute__delete_attribute",
-   "query": "Drop the Damage value off this part.",
+   "id": "conf_delete_script_lines__breakpoints",
+   "query": "Pause execution at line 88 of that script.",
    "gold": [
-    "delete_attribute"
+    "breakpoints"
    ],
    "mustNotRankFirst": [
-    "set_attribute"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_set_attribute__bulk_set_attributes",
-   "query": "Write six custom values onto this one instance in a single call.",
-   "gold": [
-    "bulk_set_attributes"
-   ],
-   "mustNotRankFirst": [
-    "set_attribute"
-   ],
-   "similarity": 0.175
-  },
-  {
-   "id": "conf_get_attributes__get_tags",
-   "query": "Which CollectionService labels does this instance carry?",
-   "gold": [
-    "get_tags"
-   ],
-   "mustNotRankFirst": [
-    "get_attributes"
-   ],
-   "similarity": 0.65
-  },
-  {
-   "id": "conf_get_attributes__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
-   "gold": [
-    "get_instance_properties"
-   ],
-   "mustNotRankFirst": [
-    "get_attributes"
-   ],
-   "similarity": 0.6
-  },
-  {
-   "id": "conf_delete_attribute__set_attribute",
-   "query": "Tag this part with a custom value called Damage of 25.",
-   "gold": [
-    "set_attribute"
-   ],
-   "mustNotRankFirst": [
-    "delete_attribute"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_delete_attribute__delete_script_lines",
-   "query": "Cut lines 12 through 20 out of that script.",
-   "gold": [
     "delete_script_lines"
    ],
-   "mustNotRankFirst": [
-    "delete_attribute"
-   ],
-   "similarity": 0.2
+   "collision": 1.0833
   },
   {
-   "id": "conf_get_tags__get_attributes",
-   "query": "What custom values are stored on this instance?",
-   "gold": [
-    "get_attributes"
-   ],
-   "mustNotRankFirst": [
-    "get_tags"
-   ],
-   "similarity": 0.65
-  },
-  {
-   "id": "conf_get_tags__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
-   "gold": [
-    "get_instance_properties"
-   ],
-   "mustNotRankFirst": [
-    "get_tags"
-   ],
-   "similarity": 0.6
-  },
-  {
-   "id": "conf_add_tag__remove_tag",
-   "query": "Take the Climbable label off this part.",
-   "gold": [
-    "remove_tag"
-   ],
-   "mustNotRankFirst": [
-    "add_tag"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_add_tag__get_tagged",
-   "query": "Give me everything labelled Checkpoint.",
-   "gold": [
-    "get_tagged"
-   ],
-   "mustNotRankFirst": [
-    "add_tag"
-   ],
-   "similarity": 0.175
-  },
-  {
-   "id": "conf_remove_tag__add_tag",
+   "id": "conf_set_attribute__add_tag",
    "query": "Label this part as Climbable for CollectionService.",
    "gold": [
     "add_tag"
    ],
    "mustNotRankFirst": [
-    "remove_tag"
+    "set_attribute"
    ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
-   "id": "conf_remove_tag__get_tagged",
-   "query": "Give me everything labelled Checkpoint.",
-   "gold": [
-    "get_tagged"
-   ],
-   "mustNotRankFirst": [
-    "remove_tag"
-   ],
-   "similarity": 0.175
-  },
-  {
-   "id": "conf_get_tagged__get_connected_instances",
-   "query": "Which Studio windows are talking to this server?",
-   "gold": [
-    "get_connected_instances"
-   ],
-   "mustNotRankFirst": [
-    "get_tagged"
-   ],
-   "similarity": 0.333
-  },
-  {
-   "id": "conf_get_tagged__get_attributes",
-   "query": "What custom values are stored on this instance?",
-   "gold": [
-    "get_attributes"
-   ],
-   "mustNotRankFirst": [
-    "get_tagged"
-   ],
-   "similarity": 0.272
-  },
-  {
-   "id": "conf_get_selection__get_instance_properties",
+   "id": "conf_set_attribute__get_instance_properties",
    "query": "Dump everything that is set on Workspace.Baseplate.",
    "gold": [
     "get_instance_properties"
    ],
    "mustNotRankFirst": [
-    "get_selection"
+    "set_attribute"
    ],
-   "similarity": 0.3
+   "collision": 1
   },
   {
-   "id": "conf_get_selection__get_attributes",
-   "query": "What custom values are stored on this instance?",
+   "id": "conf_get_attributes__manage_instance",
+   "query": "Open another Studio window and tell me about it.",
    "gold": [
+    "manage_instance"
+   ],
+   "mustNotRankFirst": [
     "get_attributes"
    ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_attributes__delete_object",
+   "query": "Get rid of Workspace.OldSign.",
+   "gold": [
+    "delete_object"
+   ],
+   "mustNotRankFirst": [
+    "get_attributes"
+   ],
+   "collision": 0.5769
+  },
+  {
+   "id": "conf_delete_attribute__create_object",
+   "query": "Put a new red brick in the workspace.",
+   "gold": [
+    "create_object"
+   ],
+   "mustNotRankFirst": [
+    "delete_attribute"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_delete_attribute__delete_object",
+   "query": "Get rid of Workspace.OldSign.",
+   "gold": [
+    "delete_object"
+   ],
+   "mustNotRankFirst": [
+    "delete_attribute"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_tags__manage_instance",
+   "query": "Open another Studio window and tell me about it.",
+   "gold": [
+    "manage_instance"
+   ],
+   "mustNotRankFirst": [
+    "get_tags"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_tags__get_instance_children",
+   "query": "What sits directly under Workspace.Lobby?",
+   "gold": [
+    "get_instance_children"
+   ],
+   "mustNotRankFirst": [
+    "get_tags"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_add_tag__environment_set_atmosphere",
+   "query": "Add haze to the air with this density and colour.",
+   "gold": [
+    "environment_set_atmosphere"
+   ],
+   "mustNotRankFirst": [
+    "add_tag"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_add_tag__set_attribute",
+   "query": "Tag this part with a custom value called Damage of 25.",
+   "gold": [
+    "set_attribute"
+   ],
+   "mustNotRankFirst": [
+    "add_tag"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_remove_tag__mass_delete_objects",
+   "query": "Remove all of these fifty leftover parts in one go.",
+   "gold": [
+    "mass_delete_objects"
+   ],
+   "mustNotRankFirst": [
+    "remove_tag"
+   ],
+   "collision": 1.125
+  },
+  {
+   "id": "conf_remove_tag__rojo_delete_source",
+   "query": "Remove that local file after I have reviewed the dry run.",
+   "gold": [
+    "rojo_delete_source"
+   ],
+   "mustNotRankFirst": [
+    "remove_tag"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_tagged__rokit_detect",
+   "query": "Is there a toolchain manifest above this directory?",
+   "gold": [
+    "rokit_detect"
+   ],
+   "mustNotRankFirst": [
+    "get_tagged"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_tagged__insert_script_lines",
+   "query": "Wedge this block in just below line 40.",
+   "gold": [
+    "insert_script_lines"
+   ],
+   "mustNotRankFirst": [
+    "get_tagged"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_selection__cancel_request",
+   "query": "Drop that queued call before the plugin picks it up.",
+   "gold": [
+    "cancel_request"
+   ],
    "mustNotRankFirst": [
     "get_selection"
    ],
-   "similarity": 0.25
+   "collision": 1
   },
   {
-   "id": "conf_execute_luau__cancel_job",
-   "query": "Stop that long-running work, I do not need it any more.",
+   "id": "conf_get_selection__capture_screenshot",
+   "query": "Take a picture of the viewport as it is.",
    "gold": [
-    "cancel_job"
+    "capture_screenshot"
+   ],
+   "mustNotRankFirst": [
+    "get_selection"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_execute_luau__run_project_tests",
+   "query": "Execute the Lune test script I picked.",
+   "gold": [
+    "run_project_tests"
    ],
    "mustNotRankFirst": [
     "execute_luau"
    ],
-   "similarity": 0.182
+   "collision": 1.3333
   },
   {
-   "id": "conf_execute_luau__execute_luau_async",
-   "query": "This code takes a minute — start it and give me a handle instead of blocking.",
+   "id": "conf_execute_luau__get_script_source",
+   "query": "Show me the code inside ServerScriptService.Main.",
    "gold": [
-    "execute_luau_async"
+    "get_script_source"
    ],
    "mustNotRankFirst": [
     "execute_luau"
    ],
-   "similarity": 0.15
-  },
-  {
-   "id": "conf_eval_server_runtime__eval_client_runtime",
-   "query": "Run this in a player's local VM while the game is live.",
-   "gold": [
-    "eval_client_runtime"
-   ],
-   "mustNotRankFirst": [
-    "eval_server_runtime"
-   ],
-   "similarity": 0.839
+   "collision": 1
   },
   {
    "id": "conf_eval_server_runtime__capture_script_profiler",
@@ -796,29 +785,40 @@
    "mustNotRankFirst": [
     "eval_server_runtime"
    ],
-   "similarity": 0.188
+   "collision": 1.0909
   },
   {
-   "id": "conf_eval_client_runtime__eval_server_runtime",
-   "query": "Run this on the server side of the running game.",
+   "id": "conf_eval_server_runtime__get_connected_instances",
+   "query": "Which Studio windows are talking to this server?",
    "gold": [
+    "get_connected_instances"
+   ],
+   "mustNotRankFirst": [
     "eval_server_runtime"
    ],
-   "mustNotRankFirst": [
-    "eval_client_runtime"
-   ],
-   "similarity": 0.839
+   "collision": 1
   },
   {
-   "id": "conf_eval_client_runtime__cancel_job",
-   "query": "Stop that long-running work, I do not need it any more.",
+   "id": "conf_eval_client_runtime__run_gameplay_assertions",
+   "query": "Check these named conditions hold and tell me which failed.",
    "gold": [
-    "cancel_job"
+    "run_gameplay_assertions"
    ],
    "mustNotRankFirst": [
     "eval_client_runtime"
    ],
-   "similarity": 0.186
+   "collision": 1
+  },
+  {
+   "id": "conf_eval_client_runtime__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
+   "gold": [
+    "detect_roblox_project"
+   ],
+   "mustNotRankFirst": [
+    "eval_client_runtime"
+   ],
+   "collision": 0.5
   },
   {
    "id": "conf_grep_scripts__find_and_replace_in_scripts",
@@ -829,51 +829,51 @@
    "mustNotRankFirst": [
     "grep_scripts"
    ],
-   "similarity": 0.25
+   "collision": 1.3333
   },
   {
-   "id": "conf_grep_scripts__search_files",
-   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "id": "conf_grep_scripts__diagnose_scripts",
+   "query": "What errors and warnings is Studio reporting right now?",
    "gold": [
-    "search_files"
+    "diagnose_scripts"
    ],
    "mustNotRankFirst": [
     "grep_scripts"
    ],
-   "similarity": 0.143
+   "collision": 1
   },
   {
-   "id": "conf_solo_playtest__multiplayer_playtest",
-   "query": "Try the game with a few simulated players.",
+   "id": "conf_solo_playtest__animation_play",
+   "query": "Make that character perform the movement clip.",
    "gold": [
+    "animation_play"
+   ],
+   "mustNotRankFirst": [
+    "solo_playtest"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_solo_playtest__audio_play_sound",
+   "query": "Trigger the noise that is already sitting at that path.",
+   "gold": [
+    "audio_play_sound"
+   ],
+   "mustNotRankFirst": [
+    "solo_playtest"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_multiplayer_playtest__character_navigation",
+   "query": "Walk the player over to that platform.",
+   "gold": [
+    "character_navigation"
+   ],
+   "mustNotRankFirst": [
     "multiplayer_playtest"
    ],
-   "mustNotRankFirst": [
-    "solo_playtest"
-   ],
-   "similarity": 0.414
-  },
-  {
-   "id": "conf_solo_playtest__stop_playtest",
-   "query": "End the session and wait for the peers to drop.",
-   "gold": [
-    "stop_playtest"
-   ],
-   "mustNotRankFirst": [
-    "solo_playtest"
-   ],
-   "similarity": 0.281
-  },
-  {
-   "id": "conf_multiplayer_playtest__solo_playtest",
-   "query": "Play the game by myself for a moment.",
-   "gold": [
-    "solo_playtest"
-   ],
-   "mustNotRankFirst": [
-    "multiplayer_playtest"
-   ],
-   "similarity": 0.414
+   "collision": 1
   },
   {
    "id": "conf_multiplayer_playtest__multiplayer_test_add_players",
@@ -884,161 +884,161 @@
    "mustNotRankFirst": [
     "multiplayer_playtest"
    ],
-   "similarity": 0.217
+   "collision": 1
   },
   {
-   "id": "conf_start_playtest__run_playtest_episode",
-   "query": "Start it, let it run a moment, and bring back what happened.",
+   "id": "conf_start_playtest__execute_luau_async",
+   "query": "This code takes a minute — start it and give me a handle instead of blocking.",
    "gold": [
-    "run_playtest_episode"
+    "execute_luau_async"
    ],
    "mustNotRankFirst": [
     "start_playtest"
    ],
-   "similarity": 0.188
+   "collision": 1
   },
   {
-   "id": "conf_start_playtest__eval_client_runtime",
-   "query": "Run this in a player's local VM while the game is live.",
+   "id": "conf_start_playtest__get_session_summary",
+   "query": "How much have I called in this session so far?",
    "gold": [
-    "eval_client_runtime"
+    "get_session_summary"
    ],
    "mustNotRankFirst": [
     "start_playtest"
    ],
-   "similarity": 0.15
+   "collision": 0.5
   },
   {
-   "id": "conf_stop_playtest__solo_playtest",
-   "query": "Play the game by myself for a moment.",
+   "id": "conf_stop_playtest__cancel_job",
+   "query": "Stop that long-running work, I do not need it any more.",
    "gold": [
-    "solo_playtest"
+    "cancel_job"
    ],
    "mustNotRankFirst": [
     "stop_playtest"
    ],
-   "similarity": 0.281
+   "collision": 1
   },
   {
-   "id": "conf_stop_playtest__multiplayer_test_start",
-   "query": "Spin up a session with a server and three joined players.",
+   "id": "conf_stop_playtest__multiplayer_test_end",
+   "query": "Shut the multi-player session down.",
    "gold": [
-    "multiplayer_test_start"
+    "multiplayer_test_end"
    ],
    "mustNotRankFirst": [
     "stop_playtest"
    ],
-   "similarity": 0.272
+   "collision": 1
   },
   {
-   "id": "conf_set_network_profile__stop_playtest",
-   "query": "End the session and wait for the peers to drop.",
+   "id": "conf_set_network_profile__compare_instances",
+   "query": "These two doors behave differently — what is set differently on them?",
    "gold": [
-    "stop_playtest"
+    "compare_instances"
    ],
    "mustNotRankFirst": [
     "set_network_profile"
    ],
-   "similarity": 0.15
+   "collision": 1
   },
   {
-   "id": "conf_set_network_profile__get_simulation_state",
-   "query": "What simulated conditions are currently in force?",
+   "id": "conf_set_network_profile__get_job_result",
+   "query": "Give me what that finished long-running work returned.",
    "gold": [
-    "get_simulation_state"
+    "get_job_result"
    ],
    "mustNotRankFirst": [
     "set_network_profile"
    ],
-   "similarity": 0.127
+   "collision": 1
   },
   {
-   "id": "conf_get_simulation_state__get_device_simulator_state",
-   "query": "Which handset is the viewport pretending to be?",
+   "id": "conf_get_simulation_state__set_network_profile",
+   "query": "Make the connection behave like bad mobile signal.",
    "gold": [
-    "get_device_simulator_state"
+    "set_network_profile"
    ],
    "mustNotRankFirst": [
     "get_simulation_state"
    ],
-   "similarity": 0.313
+   "collision": 1
   },
   {
-   "id": "conf_get_simulation_state__stop_playtest",
-   "query": "End the session and wait for the peers to drop.",
+   "id": "conf_get_simulation_state__get_selection",
+   "query": "What has the user highlighted in the viewport right now?",
    "gold": [
-    "stop_playtest"
+    "get_selection"
    ],
    "mustNotRankFirst": [
     "get_simulation_state"
    ],
-   "similarity": 0.208
+   "collision": 0.5
   },
   {
-   "id": "conf_reset_simulation_state__get_simulation_state",
-   "query": "What simulated conditions are currently in force?",
+   "id": "conf_reset_simulation_state__rojo_syncback_apply",
+   "query": "Commit the Studio-side edits down onto disk where they do not clash.",
    "gold": [
-    "get_simulation_state"
+    "rojo_syncback_apply"
    ],
    "mustNotRankFirst": [
     "reset_simulation_state"
    ],
-   "similarity": 0.2
+   "collision": 1
   },
   {
-   "id": "conf_reset_simulation_state__multiplayer_test_state",
-   "query": "Who is connected to the running session and what phase is it in?",
+   "id": "conf_reset_simulation_state__list_script_backups",
+   "query": "Which script contents were saved before being overwritten?",
    "gold": [
-    "multiplayer_test_state"
+    "list_script_backups"
    ],
    "mustNotRankFirst": [
     "reset_simulation_state"
    ],
-   "similarity": 0.137
+   "collision": 0.5
   },
   {
-   "id": "conf_get_device_simulator_state__set_device_simulator",
-   "query": "Pretend the viewport is an iPhone.",
+   "id": "conf_get_device_simulator_state__capture_screenshot",
+   "query": "Take a picture of the viewport as it is.",
    "gold": [
-    "set_device_simulator"
+    "capture_screenshot"
    ],
    "mustNotRankFirst": [
     "get_device_simulator_state"
    ],
-   "similarity": 0.407
+   "collision": 1
   },
   {
-   "id": "conf_get_device_simulator_state__get_simulation_state",
-   "query": "What simulated conditions are currently in force?",
+   "id": "conf_get_device_simulator_state__capture_device_matrix",
+   "query": "Take a picture of the interface on six different handsets.",
    "gold": [
-    "get_simulation_state"
+    "capture_device_matrix"
    ],
    "mustNotRankFirst": [
     "get_device_simulator_state"
    ],
-   "similarity": 0.313
+   "collision": 0.5
   },
   {
-   "id": "conf_set_device_simulator__get_device_simulator_state",
-   "query": "Which handset is the viewport pretending to be?",
+   "id": "conf_set_device_simulator__capture_screenshot",
+   "query": "Take a picture of the viewport as it is.",
    "gold": [
-    "get_device_simulator_state"
+    "capture_screenshot"
    ],
    "mustNotRankFirst": [
     "set_device_simulator"
    ],
-   "similarity": 0.407
+   "collision": 1
   },
   {
-   "id": "conf_set_device_simulator__get_simulation_state",
-   "query": "What simulated conditions are currently in force?",
+   "id": "conf_set_device_simulator__capture_device_matrix",
+   "query": "Take a picture of the interface on six different handsets.",
    "gold": [
-    "get_simulation_state"
+    "capture_device_matrix"
    ],
    "mustNotRankFirst": [
     "set_device_simulator"
    ],
-   "similarity": 0.145
+   "collision": 0.5
   },
   {
    "id": "conf_capture_device_matrix__capture_screenshot",
@@ -1049,7 +1049,7 @@
    "mustNotRankFirst": [
     "capture_device_matrix"
    ],
-   "similarity": 0.281
+   "collision": 0.5
   },
   {
    "id": "conf_capture_device_matrix__get_device_simulator_state",
@@ -1060,84 +1060,84 @@
    "mustNotRankFirst": [
     "capture_device_matrix"
    ],
-   "similarity": 0.18
+   "collision": 0.5
   },
   {
-   "id": "conf_multiplayer_test_start__multiplayer_test_add_players",
-   "query": "Bring two more players into the session that is already running.",
+   "id": "conf_multiplayer_test_start__get_session_summary",
+   "query": "How much have I called in this session so far?",
    "gold": [
-    "multiplayer_test_add_players"
+    "get_session_summary"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_start"
    ],
-   "similarity": 0.524
+   "collision": 1
   },
   {
-   "id": "conf_multiplayer_test_start__multiplayer_test_leave_client",
-   "query": "Kick one specific player out of the running session.",
+   "id": "conf_multiplayer_test_start__eval_server_runtime",
+   "query": "Run this on the server side of the running game.",
    "gold": [
-    "multiplayer_test_leave_client"
+    "eval_server_runtime"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_start"
    ],
-   "similarity": 0.323
+   "collision": 0.5526
   },
   {
-   "id": "conf_multiplayer_test_state__multiplayer_test_add_players",
-   "query": "Bring two more players into the session that is already running.",
+   "id": "conf_multiplayer_test_state__get_connected_instances",
+   "query": "Which Studio windows are talking to this server?",
    "gold": [
-    "multiplayer_test_add_players"
+    "get_connected_instances"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_state"
    ],
-   "similarity": 0.3
+   "collision": 1
   },
   {
-   "id": "conf_multiplayer_test_state__multiplayer_test_start",
-   "query": "Spin up a session with a server and three joined players.",
+   "id": "conf_multiplayer_test_state__get_session_summary",
+   "query": "How much have I called in this session so far?",
    "gold": [
-    "multiplayer_test_start"
+    "get_session_summary"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_state"
    ],
-   "similarity": 0.3
+   "collision": 0.5
   },
   {
-   "id": "conf_multiplayer_test_add_players__multiplayer_test_start",
-   "query": "Spin up a session with a server and three joined players.",
+   "id": "conf_multiplayer_test_add_players__playtest_sample_state",
+   "query": "Where are the players standing and how much health do they have right now?",
    "gold": [
-    "multiplayer_test_start"
+    "playtest_sample_state"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_add_players"
    ],
-   "similarity": 0.524
+   "collision": 1.0588
   },
   {
-   "id": "conf_multiplayer_test_add_players__multiplayer_test_leave_client",
-   "query": "Kick one specific player out of the running session.",
+   "id": "conf_multiplayer_test_add_players__multiplayer_playtest",
+   "query": "Try the game with a few simulated players.",
    "gold": [
+    "multiplayer_playtest"
+   ],
+   "mustNotRankFirst": [
+    "multiplayer_test_add_players"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_multiplayer_test_leave_client__get_session_summary",
+   "query": "How much have I called in this session so far?",
+   "gold": [
+    "get_session_summary"
+   ],
+   "mustNotRankFirst": [
     "multiplayer_test_leave_client"
    ],
-   "mustNotRankFirst": [
-    "multiplayer_test_add_players"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_multiplayer_test_leave_client__multiplayer_test_add_players",
-   "query": "Bring two more players into the session that is already running.",
-   "gold": [
-    "multiplayer_test_add_players"
-   ],
-   "mustNotRankFirst": [
-    "multiplayer_test_leave_client"
-   ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
    "id": "conf_multiplayer_test_leave_client__multiplayer_test_end",
@@ -1148,62 +1148,51 @@
    "mustNotRankFirst": [
     "multiplayer_test_leave_client"
    ],
-   "similarity": 0.354
+   "collision": 0.4762
   },
   {
-   "id": "conf_multiplayer_test_end__multiplayer_test_leave_client",
-   "query": "Kick one specific player out of the running session.",
+   "id": "conf_multiplayer_test_end__multiplayer_playtest",
+   "query": "Try the game with a few simulated players.",
    "gold": [
-    "multiplayer_test_leave_client"
+    "multiplayer_playtest"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_end"
    ],
-   "similarity": 0.354
+   "collision": 1
   },
   {
-   "id": "conf_multiplayer_test_end__multiplayer_test_add_players",
-   "query": "Bring two more players into the session that is already running.",
+   "id": "conf_multiplayer_test_end__stop_playtest",
+   "query": "End the session and wait for the peers to drop.",
    "gold": [
-    "multiplayer_test_add_players"
+    "stop_playtest"
    ],
    "mustNotRankFirst": [
     "multiplayer_test_end"
    ],
-   "similarity": 0.3
+   "collision": 1
   },
   {
-   "id": "conf_get_runtime_logs__cancel_request",
-   "query": "Drop that queued call before the plugin picks it up.",
+   "id": "conf_get_runtime_logs__template_create_obby_game",
+   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
    "gold": [
-    "cancel_request"
+    "template_create_obby_game"
    ],
    "mustNotRankFirst": [
     "get_runtime_logs"
    ],
-   "similarity": 0.155
+   "collision": 1
   },
   {
-   "id": "conf_get_runtime_logs__get_connected_instances",
-   "query": "Which Studio windows are talking to this server?",
+   "id": "conf_get_runtime_logs__template_create_round_game",
+   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
    "gold": [
-    "get_connected_instances"
+    "template_create_round_game"
    ],
    "mustNotRankFirst": [
     "get_runtime_logs"
    ],
-   "similarity": 0.155
-  },
-  {
-   "id": "conf_capture_script_profiler__capture_micro_profiler",
-   "query": "Take a short frame-timing sample from the running peer.",
-   "gold": [
-    "capture_micro_profiler"
-   ],
-   "mustNotRankFirst": [
-    "capture_script_profiler"
-   ],
-   "similarity": 0.55
+   "collision": 0.5
   },
   {
    "id": "conf_capture_script_profiler__eval_server_runtime",
@@ -1214,7 +1203,29 @@
    "mustNotRankFirst": [
     "capture_script_profiler"
    ],
-   "similarity": 0.188
+   "collision": 1.0909
+  },
+  {
+   "id": "conf_capture_script_profiler__edit_script_lines",
+   "query": "In that script, swap this exact snippet for that one.",
+   "gold": [
+    "edit_script_lines"
+   ],
+   "mustNotRankFirst": [
+    "capture_script_profiler"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_breakpoints__delete_script_lines",
+   "query": "Cut lines 12 through 20 out of that script.",
+   "gold": [
+    "delete_script_lines"
+   ],
+   "mustNotRankFirst": [
+    "breakpoints"
+   ],
+   "collision": 1.0833
   },
   {
    "id": "conf_breakpoints__manage_instance",
@@ -1225,106 +1236,106 @@
    "mustNotRankFirst": [
     "breakpoints"
    ],
-   "similarity": 0.183
+   "collision": 1
   },
   {
-   "id": "conf_breakpoints__import_build",
-   "query": "Materialise that stored description back into the place.",
+   "id": "conf_get_connected_instances__eval_server_runtime",
+   "query": "Run this on the server side of the running game.",
    "gold": [
-    "import_build"
-   ],
-   "mustNotRankFirst": [
-    "breakpoints"
-   ],
-   "similarity": 0.1
-  },
-  {
-   "id": "conf_get_connected_instances__get_tagged",
-   "query": "Give me everything labelled Checkpoint.",
-   "gold": [
-    "get_tagged"
+    "eval_server_runtime"
    ],
    "mustNotRankFirst": [
     "get_connected_instances"
    ],
-   "similarity": 0.333
+   "collision": 1
   },
   {
-   "id": "conf_get_connected_instances__get_descendants",
-   "query": "Walk everything underneath Workspace.Map, however deep.",
+   "id": "conf_get_connected_instances__multiplayer_test_state",
+   "query": "Who is connected to the running session and what phase is it in?",
    "gold": [
-    "get_descendants"
+    "multiplayer_test_state"
    ],
    "mustNotRankFirst": [
     "get_connected_instances"
    ],
-   "similarity": 0.214
+   "collision": 1
   },
   {
-   "id": "conf_undo__redo",
-   "query": "Actually, put that change back.",
+   "id": "conf_undo__list_script_backups",
+   "query": "Which script contents were saved before being overwritten?",
    "gold": [
-    "redo"
+    "list_script_backups"
    ],
    "mustNotRankFirst": [
     "undo"
    ],
-   "similarity": 0.675
+   "collision": 1
   },
   {
-   "id": "conf_undo__import_build",
-   "query": "Materialise that stored description back into the place.",
+   "id": "conf_undo__restore_script_backup",
+   "query": "Put that script back to what it was before I overwrote it.",
    "gold": [
-    "import_build"
+    "restore_script_backup"
    ],
    "mustNotRankFirst": [
     "undo"
    ],
-   "similarity": 0.222
+   "collision": 0.5
   },
   {
-   "id": "conf_redo__undo",
-   "query": "Take back what just happened.",
+   "id": "conf_redo__rojo_syncback_apply",
+   "query": "Commit the Studio-side edits down onto disk where they do not clash.",
    "gold": [
-    "undo"
+    "rojo_syncback_apply"
    ],
    "mustNotRankFirst": [
     "redo"
    ],
-   "similarity": 0.675
+   "collision": 1.2
   },
   {
-   "id": "conf_redo__import_build",
-   "query": "Materialise that stored description back into the place.",
+   "id": "conf_redo__get_changes_since",
+   "query": "What has moved or been added since I last looked?",
    "gold": [
-    "import_build"
+    "get_changes_since"
    ],
    "mustNotRankFirst": [
     "redo"
    ],
-   "similarity": 0.2
+   "collision": 1
   },
   {
-   "id": "conf_execute_luau_async__get_job_result",
-   "query": "Give me what that finished long-running work returned.",
+   "id": "conf_execute_luau_async__start_playtest",
+   "query": "Begin a single-player session and wait until it is up.",
    "gold": [
-    "get_job_result"
+    "start_playtest"
    ],
    "mustNotRankFirst": [
     "execute_luau_async"
    ],
-   "similarity": 0.198
+   "collision": 1
   },
   {
-   "id": "conf_execute_luau_async__get_job_status",
-   "query": "Is that long-running work finished yet?",
+   "id": "conf_execute_luau_async__multiplayer_test_start",
+   "query": "Spin up a session with a server and three joined players.",
    "gold": [
+    "multiplayer_test_start"
+   ],
+   "mustNotRankFirst": [
+    "execute_luau_async"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_job_status__set_network_profile",
+   "query": "Make the connection behave like bad mobile signal.",
+   "gold": [
+    "set_network_profile"
+   ],
+   "mustNotRankFirst": [
     "get_job_status"
    ],
-   "mustNotRankFirst": [
-    "execute_luau_async"
-   ],
-   "similarity": 0.183
+   "collision": 1
   },
   {
    "id": "conf_get_job_status__cancel_job",
@@ -1335,29 +1346,18 @@
    "mustNotRankFirst": [
     "get_job_status"
    ],
-   "similarity": 0.313
+   "collision": 0.5667
   },
   {
-   "id": "conf_get_job_status__get_job_result",
-   "query": "Give me what that finished long-running work returned.",
+   "id": "conf_get_job_result__set_network_profile",
+   "query": "Make the connection behave like bad mobile signal.",
    "gold": [
-    "get_job_result"
-   ],
-   "mustNotRankFirst": [
-    "get_job_status"
-   ],
-   "similarity": 0.311
-  },
-  {
-   "id": "conf_get_job_result__get_job_status",
-   "query": "Is that long-running work finished yet?",
-   "gold": [
-    "get_job_status"
+    "set_network_profile"
    ],
    "mustNotRankFirst": [
     "get_job_result"
    ],
-   "similarity": 0.311
+   "collision": 1
   },
   {
    "id": "conf_get_job_result__cancel_job",
@@ -1368,7 +1368,18 @@
    "mustNotRankFirst": [
     "get_job_result"
    ],
-   "similarity": 0.285
+   "collision": 0.5
+  },
+  {
+   "id": "conf_cancel_job__stop_playtest",
+   "query": "End the session and wait for the peers to drop.",
+   "gold": [
+    "stop_playtest"
+   ],
+   "mustNotRankFirst": [
+    "cancel_job"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_cancel_job__get_job_status",
@@ -1379,161 +1390,139 @@
    "mustNotRankFirst": [
     "cancel_job"
    ],
-   "similarity": 0.313
+   "collision": 0.5667
   },
   {
-   "id": "conf_cancel_job__get_job_result",
-   "query": "Give me what that finished long-running work returned.",
+   "id": "conf_playtest_sample_state__multiplayer_test_add_players",
+   "query": "Bring two more players into the session that is already running.",
    "gold": [
-    "get_job_result"
-   ],
-   "mustNotRankFirst": [
-    "cancel_job"
-   ],
-   "similarity": 0.285
-  },
-  {
-   "id": "conf_playtest_sample_state__character_navigation",
-   "query": "Walk the player over to that platform.",
-   "gold": [
-    "character_navigation"
+    "multiplayer_test_add_players"
    ],
    "mustNotRankFirst": [
     "playtest_sample_state"
    ],
-   "similarity": 0.186
+   "collision": 1.0588
   },
   {
-   "id": "conf_playtest_sample_state__stop_playtest",
-   "query": "End the session and wait for the peers to drop.",
+   "id": "conf_playtest_sample_state__cancel_request",
+   "query": "Drop that queued call before the plugin picks it up.",
    "gold": [
-    "stop_playtest"
+    "cancel_request"
    ],
    "mustNotRankFirst": [
     "playtest_sample_state"
    ],
-   "similarity": 0.145
+   "collision": 0.3333
   },
   {
-   "id": "conf_run_gameplay_assertions__multiplayer_test_start",
-   "query": "Spin up a session with a server and three joined players.",
+   "id": "conf_run_gameplay_assertions__eval_client_runtime",
+   "query": "Run this in a player's local VM while the game is live.",
    "gold": [
-    "multiplayer_test_start"
+    "eval_client_runtime"
    ],
    "mustNotRankFirst": [
     "run_gameplay_assertions"
    ],
-   "similarity": 0.153
+   "collision": 1
   },
   {
-   "id": "conf_run_gameplay_assertions__capture_screenshot",
-   "query": "Take a picture of the viewport as it is.",
+   "id": "conf_run_gameplay_assertions__execute_luau",
+   "query": "Run this snippet of code inside Studio for me.",
    "gold": [
-    "capture_screenshot"
+    "execute_luau"
    ],
    "mustNotRankFirst": [
     "run_gameplay_assertions"
    ],
-   "similarity": 0.147
+   "collision": 1
   },
   {
-   "id": "conf_run_playtest_episode__start_playtest",
-   "query": "Begin a single-player session and wait until it is up.",
+   "id": "conf_run_playtest_episode__execute_luau",
+   "query": "Run this snippet of code inside Studio for me.",
    "gold": [
-    "start_playtest"
+    "execute_luau"
    ],
    "mustNotRankFirst": [
     "run_playtest_episode"
    ],
-   "similarity": 0.188
+   "collision": 0.5
   },
   {
-   "id": "conf_run_playtest_episode__summarize_episode",
-   "query": "Boil that recorded session down to what actually matters.",
+   "id": "conf_run_playtest_episode__get_roblox_docs",
+   "query": "What does the official documentation say about TweenService?",
    "gold": [
-    "summarize_episode"
+    "get_roblox_docs"
    ],
    "mustNotRankFirst": [
     "run_playtest_episode"
    ],
-   "similarity": 0.188
+   "collision": 0.5
   },
   {
-   "id": "conf_summarize_episode__propose_next_action",
-   "query": "Just tell me the one thing to do next.",
+   "id": "conf_summarize_episode__get_build",
+   "query": "Fetch the stored description with this identifier.",
    "gold": [
-    "propose_next_action"
+    "get_build"
    ],
    "mustNotRankFirst": [
     "summarize_episode"
    ],
-   "similarity": 0.193
+   "collision": 1
   },
   {
-   "id": "conf_summarize_episode__run_playtest_episode",
-   "query": "Start it, let it run a moment, and bring back what happened.",
+   "id": "conf_summarize_episode__get_session_summary",
+   "query": "How much have I called in this session so far?",
    "gold": [
-    "run_playtest_episode"
+    "get_session_summary"
    ],
    "mustNotRankFirst": [
     "summarize_episode"
    ],
-   "similarity": 0.188
+   "collision": 1
   },
   {
-   "id": "conf_propose_next_action__summarize_episode",
-   "query": "Boil that recorded session down to what actually matters.",
+   "id": "conf_propose_next_action__asset_fit_plan",
+   "query": "This imported statue looks the wrong size next to the door — what would it take to make it sit right?",
    "gold": [
-    "summarize_episode"
+    "asset_fit_plan"
    ],
    "mustNotRankFirst": [
     "propose_next_action"
    ],
-   "similarity": 0.193
+   "collision": 0.5
   },
   {
-   "id": "conf_propose_next_action__character_navigation",
-   "query": "Walk the player over to that platform.",
+   "id": "conf_propose_next_action__redo",
+   "query": "Actually, put that change back.",
    "gold": [
-    "character_navigation"
+    "redo"
    ],
    "mustNotRankFirst": [
     "propose_next_action"
    ],
-   "similarity": 0.133
+   "collision": 0.5
   },
   {
-   "id": "conf_get_reproduction_bundle__capture_device_matrix",
-   "query": "Take a picture of the interface on six different handsets.",
+   "id": "conf_get_reproduction_bundle__capture_micro_profiler",
+   "query": "Take a short frame-timing sample from the running peer.",
    "gold": [
-    "capture_device_matrix"
+    "capture_micro_profiler"
    ],
    "mustNotRankFirst": [
     "get_reproduction_bundle"
    ],
-   "similarity": 0.153
+   "collision": 1
   },
   {
-   "id": "conf_get_reproduction_bundle__capture_screenshot",
-   "query": "Take a picture of the viewport as it is.",
+   "id": "conf_get_reproduction_bundle__capture_script_profiler",
+   "query": "Which code is eating the frame time on the live server?",
    "gold": [
-    "capture_screenshot"
+    "capture_script_profiler"
    ],
    "mustNotRankFirst": [
     "get_reproduction_bundle"
    ],
-   "similarity": 0.153
-  },
-  {
-   "id": "conf_manage_instance__get_simulation_state",
-   "query": "What simulated conditions are currently in force?",
-   "gold": [
-    "get_simulation_state"
-   ],
-   "mustNotRankFirst": [
-    "manage_instance"
-   ],
-   "similarity": 0.186
+   "collision": 0.5
   },
   {
    "id": "conf_manage_instance__breakpoints",
@@ -1544,7 +1533,29 @@
    "mustNotRankFirst": [
     "manage_instance"
    ],
-   "similarity": 0.183
+   "collision": 1
+  },
+  {
+   "id": "conf_manage_instance__get_attributes",
+   "query": "What custom values are stored on this instance?",
+   "gold": [
+    "get_attributes"
+   ],
+   "mustNotRankFirst": [
+    "manage_instance"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_capture_micro_profiler__get_reproduction_bundle",
+   "query": "Capture everything a bug report would need, in one call.",
+   "gold": [
+    "get_reproduction_bundle"
+   ],
+   "mustNotRankFirst": [
+    "capture_micro_profiler"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_capture_micro_profiler__capture_script_profiler",
@@ -1555,282 +1566,271 @@
    "mustNotRankFirst": [
     "capture_micro_profiler"
    ],
-   "similarity": 0.55
+   "collision": 0.75
   },
   {
-   "id": "conf_capture_micro_profiler__capture_screenshot",
-   "query": "Take a picture of the viewport as it is.",
+   "id": "conf_export_build__generate_model",
+   "query": "Produce a three-dimensional object from a written description.",
    "gold": [
-    "capture_screenshot"
-   ],
-   "mustNotRankFirst": [
-    "capture_micro_profiler"
-   ],
-   "similarity": 0.188
-  },
-  {
-   "id": "conf_export_build__create_build",
-   "query": "Design something from nothing and keep it around for later.",
-   "gold": [
-    "create_build"
+    "generate_model"
    ],
    "mustNotRankFirst": [
     "export_build"
    ],
-   "similarity": 0.35
+   "collision": 1
   },
   {
-   "id": "conf_export_build__get_build",
-   "query": "Fetch the stored description with this identifier.",
+   "id": "conf_export_build__generate_model_native",
+   "query": "Have Roblox build me a 3D object from this description.",
    "gold": [
-    "get_build"
+    "generate_model_native"
    ],
    "mustNotRankFirst": [
     "export_build"
    ],
-   "similarity": 0.217
+   "collision": 0.6667
   },
   {
-   "id": "conf_create_build__get_build",
-   "query": "Fetch the stored description with this identifier.",
+   "id": "conf_create_build__design_lint",
+   "query": "Check this interface for quality problems and score it.",
    "gold": [
-    "get_build"
+    "design_lint"
    ],
    "mustNotRankFirst": [
     "create_build"
    ],
-   "similarity": 0.414
+   "collision": 1
   },
   {
-   "id": "conf_create_build__export_build",
-   "query": "Turn this model into a compact description I can store.",
+   "id": "conf_create_build__design_review",
+   "query": "Look at a screenshot of this interface and critique it.",
    "gold": [
-    "export_build"
+    "design_review"
    ],
    "mustNotRankFirst": [
     "create_build"
    ],
-   "similarity": 0.35
+   "collision": 0.5
   },
   {
-   "id": "conf_generate_build__get_build",
-   "query": "Fetch the stored description with this identifier.",
+   "id": "conf_generate_build__get_project_structure",
+   "query": "I need the entire hierarchy of the game in one go.",
    "gold": [
-    "get_build"
+    "get_project_structure"
    ],
    "mustNotRankFirst": [
     "generate_build"
    ],
-   "similarity": 0.161
+   "collision": 1
   },
   {
-   "id": "conf_generate_build__import_build",
-   "query": "Materialise that stored description back into the place.",
+   "id": "conf_generate_build__get_script_source",
+   "query": "Show me the code inside ServerScriptService.Main.",
    "gold": [
-    "import_build"
+    "get_script_source"
    ],
    "mustNotRankFirst": [
     "generate_build"
    ],
-   "similarity": 0.161
+   "collision": 0.5
   },
   {
-   "id": "conf_import_build__undo",
-   "query": "Take back what just happened.",
+   "id": "conf_import_build__generate_model_native",
+   "query": "Have Roblox build me a 3D object from this description.",
    "gold": [
-    "undo"
+    "generate_model_native"
    ],
    "mustNotRankFirst": [
     "import_build"
    ],
-   "similarity": 0.222
+   "collision": 1
   },
   {
-   "id": "conf_import_build__insert_asset",
+   "id": "conf_import_build__get_place_info",
+   "query": "What is this experience called and what is its numeric id?",
+   "gold": [
+    "get_place_info"
+   ],
+   "mustNotRankFirst": [
+    "import_build"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_list_library__wally_get_lock",
+   "query": "List the exact resolved versions from the lockfile.",
+   "gold": [
+    "wally_get_lock"
+   ],
+   "mustNotRankFirst": [
+    "list_library"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_list_library__import_external_asset",
+   "query": "Take this model from a public library and bring it into the place.",
+   "gold": [
+    "import_external_asset"
+   ],
+   "mustNotRankFirst": [
+    "list_library"
+   ],
+   "collision": 0.625
+  },
+  {
+   "id": "conf_search_materials__terrain_paint_material",
+   "query": "Turn all the grass in this region into sand.",
+   "gold": [
+    "terrain_paint_material"
+   ],
+   "mustNotRankFirst": [
+    "search_materials"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_search_materials__get_place_info",
+   "query": "What is this experience called and what is its numeric id?",
+   "gold": [
+    "get_place_info"
+   ],
+   "mustNotRankFirst": [
+    "search_materials"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_build__summarize_episode",
+   "query": "Boil that recorded session down to what actually matters.",
+   "gold": [
+    "summarize_episode"
+   ],
+   "mustNotRankFirst": [
+    "get_build"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_build__get_job_result",
+   "query": "Give me what that finished long-running work returned.",
+   "gold": [
+    "get_job_result"
+   ],
+   "mustNotRankFirst": [
+    "get_build"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_import_scene__get_spatial_layout",
+   "query": "How big is the world, where is the floor, and which patch of it is empty?",
+   "gold": [
+    "get_spatial_layout"
+   ],
+   "mustNotRankFirst": [
+    "import_scene"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_import_scene__scene_search",
+   "query": "Where is the door system in this place?",
+   "gold": [
+    "scene_search"
+   ],
+   "mustNotRankFirst": [
+    "import_scene"
+   ],
+   "collision": 0.3333
+  },
+  {
+   "id": "conf_search_assets__asset_manifest_status",
+   "query": "Which art assets are already uploaded and which are not?",
+   "gold": [
+    "asset_manifest_status"
+   ],
+   "mustNotRankFirst": [
+    "search_assets"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_search_assets__find_and_replace_in_scripts",
+   "query": "Rename that function everywhere it appears across the codebase.",
+   "gold": [
+    "find_and_replace_in_scripts"
+   ],
+   "mustNotRankFirst": [
+    "search_assets"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_asset_details__upload_asset",
+   "query": "Push this local audio file up to Roblox.",
+   "gold": [
+    "upload_asset"
+   ],
+   "mustNotRankFirst": [
+    "get_asset_details"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_asset_details__asset_manifest_status",
+   "query": "Which art assets are already uploaded and which are not?",
+   "gold": [
+    "asset_manifest_status"
+   ],
+   "mustNotRankFirst": [
+    "get_asset_details"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_asset_thumbnail__insert_asset",
    "query": "Bring asset 1234567 into the place.",
    "gold": [
     "insert_asset"
    ],
    "mustNotRankFirst": [
-    "import_build"
-   ],
-   "similarity": 0.214
-  },
-  {
-   "id": "conf_list_library__get_build",
-   "query": "Fetch the stored description with this identifier.",
-   "gold": [
-    "get_build"
-   ],
-   "mustNotRankFirst": [
-    "list_library"
-   ],
-   "similarity": 0.333
-  },
-  {
-   "id": "conf_list_library__list_recipes",
-   "query": "What canned constructions can you run for me?",
-   "gold": [
-    "list_recipes"
-   ],
-   "mustNotRankFirst": [
-    "list_library"
-   ],
-   "similarity": 0.333
-  },
-  {
-   "id": "conf_search_materials__search_files",
-   "query": "Somewhere there is a thing called Conveyor — locate it.",
-   "gold": [
-    "search_files"
-   ],
-   "mustNotRankFirst": [
-    "search_materials"
-   ],
-   "similarity": 0.273
-  },
-  {
-   "id": "conf_search_materials__search_objects",
-   "query": "Give me every part whose name starts with Coin.",
-   "gold": [
-    "search_objects"
-   ],
-   "mustNotRankFirst": [
-    "search_materials"
-   ],
-   "similarity": 0.273
-  },
-  {
-   "id": "conf_get_build__create_build",
-   "query": "Design something from nothing and keep it around for later.",
-   "gold": [
-    "create_build"
-   ],
-   "mustNotRankFirst": [
-    "get_build"
-   ],
-   "similarity": 0.414
-  },
-  {
-   "id": "conf_get_build__list_library",
-   "query": "What is saved in the local library?",
-   "gold": [
-    "list_library"
-   ],
-   "mustNotRankFirst": [
-    "get_build"
-   ],
-   "similarity": 0.333
-  },
-  {
-   "id": "conf_import_scene__import_build",
-   "query": "Materialise that stored description back into the place.",
-   "gold": [
-    "import_build"
-   ],
-   "mustNotRankFirst": [
-    "import_scene"
-   ],
-   "similarity": 0.125
-  },
-  {
-   "id": "conf_import_scene__import_rbxm",
-   "query": "Read that file on disk back into the place.",
-   "gold": [
-    "import_rbxm"
-   ],
-   "mustNotRankFirst": [
-    "import_scene"
-   ],
-   "similarity": 0.117
-  },
-  {
-   "id": "conf_search_assets__marketplace_search",
-   "query": "Look through the public toolbox for a wooden crate.",
-   "gold": [
-    "marketplace_search"
-   ],
-   "mustNotRankFirst": [
-    "search_assets"
-   ],
-   "similarity": 0.288
-  },
-  {
-   "id": "conf_search_assets__asset_source_search",
-   "query": "Find a CC0 model outside the Roblox marketplace.",
-   "gold": [
-    "asset_source_search"
-   ],
-   "mustNotRankFirst": [
-    "search_assets"
-   ],
-   "similarity": 0.267
-  },
-  {
-   "id": "conf_get_asset_details__get_asset_thumbnail",
-   "query": "Show me a picture of that asset so I can judge it.",
-   "gold": [
     "get_asset_thumbnail"
    ],
-   "mustNotRankFirst": [
-    "get_asset_details"
-   ],
-   "similarity": 0.237
+   "collision": 1.0556
   },
   {
-   "id": "conf_get_asset_details__search_assets",
-   "query": "Find models on the Creator Store matching medieval barrel.",
-   "gold": [
-    "search_assets"
-   ],
-   "mustNotRankFirst": [
-    "get_asset_details"
-   ],
-   "similarity": 0.168
-  },
-  {
-   "id": "conf_get_asset_thumbnail__get_asset_details",
-   "query": "Tell me about the asset with this id — creator, price, type.",
-   "gold": [
-    "get_asset_details"
-   ],
-   "mustNotRankFirst": [
-    "get_asset_thumbnail"
-   ],
-   "similarity": 0.237
-  },
-  {
-   "id": "conf_get_asset_thumbnail__get_asset_provenance",
-   "query": "Where did the externally sourced assets in this place come from?",
-   "gold": [
-    "get_asset_provenance"
-   ],
-   "mustNotRankFirst": [
-    "get_asset_thumbnail"
-   ],
-   "similarity": 0.175
-  },
-  {
-   "id": "conf_insert_asset__import_build",
-   "query": "Materialise that stored description back into the place.",
-   "gold": [
-    "import_build"
-   ],
-   "mustNotRankFirst": [
-    "insert_asset"
-   ],
-   "similarity": 0.214
-  },
-  {
-   "id": "conf_insert_asset__preview_asset",
+   "id": "conf_get_asset_thumbnail__preview_asset",
    "query": "Let me look at asset 1234567 without committing to it.",
    "gold": [
     "preview_asset"
    ],
    "mustNotRankFirst": [
+    "get_asset_thumbnail"
+   ],
+   "collision": 0.5625
+  },
+  {
+   "id": "conf_insert_asset__get_asset_thumbnail",
+   "query": "Show me a picture of that asset so I can judge it.",
+   "gold": [
+    "get_asset_thumbnail"
+   ],
+   "mustNotRankFirst": [
     "insert_asset"
    ],
-   "similarity": 0.175
+   "collision": 1.0556
+  },
+  {
+   "id": "conf_insert_asset__import_external_asset",
+   "query": "Take this model from a public library and bring it into the place.",
+   "gold": [
+    "import_external_asset"
+   ],
+   "mustNotRankFirst": [
+    "insert_asset"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_preview_asset__insert_asset",
@@ -1841,84 +1841,95 @@
    "mustNotRankFirst": [
     "preview_asset"
    ],
-   "similarity": 0.175
+   "collision": 0.6667
   },
   {
-   "id": "conf_preview_asset__rokit_update_plan",
-   "query": "What would bumping the pinned tools change?",
+   "id": "conf_preview_asset__get_asset_thumbnail",
+   "query": "Show me a picture of that asset so I can judge it.",
    "gold": [
-    "rokit_update_plan"
+    "get_asset_thumbnail"
    ],
    "mustNotRankFirst": [
     "preview_asset"
    ],
-   "similarity": 0.125
+   "collision": 0.5625
   },
   {
-   "id": "conf_upload_asset__image_generate_and_upload",
-   "query": "Make me a picture of a neon sign and get it onto Roblox ready to use.",
+   "id": "conf_upload_asset__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
    "gold": [
-    "image_generate_and_upload"
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
     "upload_asset"
    ],
-   "similarity": 0.138
+   "collision": 1
   },
   {
-   "id": "conf_upload_asset__import_external_asset",
-   "query": "Take this model from a public library and bring it into the place.",
+   "id": "conf_upload_asset__get_asset_details",
+   "query": "Tell me about the asset with this id — creator, price, type.",
    "gold": [
-    "import_external_asset"
+    "get_asset_details"
    ],
    "mustNotRankFirst": [
     "upload_asset"
    ],
-   "similarity": 0.136
+   "collision": 1
   },
   {
-   "id": "conf_capture_screenshot__capture_device_matrix",
-   "query": "Take a picture of the interface on six different handsets.",
+   "id": "conf_capture_screenshot__design_review",
+   "query": "Look at a screenshot of this interface and critique it.",
    "gold": [
-    "capture_device_matrix"
+    "design_review"
    ],
    "mustNotRankFirst": [
     "capture_screenshot"
    ],
-   "similarity": 0.281
+   "collision": 1
   },
   {
-   "id": "conf_capture_screenshot__capture_micro_profiler",
-   "query": "Take a short frame-timing sample from the running peer.",
+   "id": "conf_capture_screenshot__get_device_simulator_state",
+   "query": "Which handset is the viewport pretending to be?",
    "gold": [
-    "capture_micro_profiler"
+    "get_device_simulator_state"
    ],
    "mustNotRankFirst": [
     "capture_screenshot"
    ],
-   "similarity": 0.188
+   "collision": 1
   },
   {
-   "id": "conf_asset_fit_plan__asset_sanitize_plan",
-   "query": "Someone dropped a free model in. Tell me what its scripts do before I trust it.",
+   "id": "conf_asset_fit_plan__set_property",
+   "query": "Make Workspace.Door transparent.",
    "gold": [
-    "asset_sanitize_plan"
+    "set_property"
    ],
    "mustNotRankFirst": [
     "asset_fit_plan"
    ],
-   "similarity": 0.276
+   "collision": 0.5833
   },
   {
-   "id": "conf_asset_fit_plan__asset_fit_apply",
-   "query": "Go ahead and rescale and re-pivot that statue the way you proposed.",
+   "id": "conf_asset_fit_plan__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
    "gold": [
+    "ui_make_mobile_friendly"
+   ],
+   "mustNotRankFirst": [
+    "asset_fit_plan"
+   ],
+   "collision": 0.5333
+  },
+  {
+   "id": "conf_asset_fit_apply__apply_mutation_plan",
+   "query": "Apply this whole list of small edits as one transaction.",
+   "gold": [
+    "apply_mutation_plan"
+   ],
+   "mustNotRankFirst": [
     "asset_fit_apply"
    ],
-   "mustNotRankFirst": [
-    "asset_fit_plan"
-   ],
-   "similarity": 0.222
+   "collision": 0.5
   },
   {
    "id": "conf_asset_fit_apply__asset_sanitize_apply",
@@ -1929,95 +1940,84 @@
    "mustNotRankFirst": [
     "asset_fit_apply"
    ],
-   "similarity": 0.431
+   "collision": 0.5
   },
   {
-   "id": "conf_asset_fit_apply__asset_fit_plan",
-   "query": "This imported statue looks the wrong size next to the door — what would it take to make it sit right?",
+   "id": "conf_asset_sanitize_plan__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
    "gold": [
-    "asset_fit_plan"
-   ],
-   "mustNotRankFirst": [
-    "asset_fit_apply"
-   ],
-   "similarity": 0.222
-  },
-  {
-   "id": "conf_asset_sanitize_plan__asset_fit_plan",
-   "query": "This imported statue looks the wrong size next to the door — what would it take to make it sit right?",
-   "gold": [
-    "asset_fit_plan"
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
     "asset_sanitize_plan"
    ],
-   "similarity": 0.276
+   "collision": 1
   },
   {
-   "id": "conf_asset_sanitize_plan__scene_search",
-   "query": "Where is the door system in this place?",
+   "id": "conf_asset_sanitize_plan__generate_model_native",
+   "query": "Have Roblox build me a 3D object from this description.",
    "gold": [
-    "scene_search"
+    "generate_model_native"
    ],
    "mustNotRankFirst": [
     "asset_sanitize_plan"
    ],
-   "similarity": 0.193
+   "collision": 1
   },
   {
-   "id": "conf_asset_sanitize_apply__asset_fit_apply",
-   "query": "Go ahead and rescale and re-pivot that statue the way you proposed.",
+   "id": "conf_asset_sanitize_apply__audio_play_sound",
+   "query": "Trigger the noise that is already sitting at that path.",
    "gold": [
-    "asset_fit_apply"
+    "audio_play_sound"
    ],
    "mustNotRankFirst": [
     "asset_sanitize_apply"
    ],
-   "similarity": 0.431
+   "collision": 1
   },
   {
-   "id": "conf_asset_sanitize_apply__asset_sanitize_plan",
+   "id": "conf_asset_sanitize_apply__generate_model_native",
+   "query": "Have Roblox build me a 3D object from this description.",
+   "gold": [
+    "generate_model_native"
+   ],
+   "mustNotRankFirst": [
+    "asset_sanitize_apply"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_asset_preflight_insert__asset_sanitize_plan",
    "query": "Someone dropped a free model in. Tell me what its scripts do before I trust it.",
    "gold": [
     "asset_sanitize_plan"
    ],
    "mustNotRankFirst": [
-    "asset_sanitize_apply"
+    "asset_preflight_insert"
    ],
-   "similarity": 0.188
+   "collision": 0.5588
   },
   {
-   "id": "conf_asset_preflight_insert__plan_asset_insert",
-   "query": "Search for a lamp post, check it, and tell me the plan in one shot.",
+   "id": "conf_asset_preflight_insert__asset_source_search",
+   "query": "Find a CC0 model outside the Roblox marketplace.",
    "gold": [
-    "plan_asset_insert"
+    "asset_source_search"
    ],
    "mustNotRankFirst": [
     "asset_preflight_insert"
    ],
-   "similarity": 0.224
+   "collision": 0.3333
   },
   {
-   "id": "conf_asset_preflight_insert__get_asset_thumbnail",
-   "query": "Show me a picture of that asset so I can judge it.",
+   "id": "conf_plan_asset_insert__apply_mutation_plan",
+   "query": "Apply this whole list of small edits as one transaction.",
    "gold": [
-    "get_asset_thumbnail"
-   ],
-   "mustNotRankFirst": [
-    "asset_preflight_insert"
-   ],
-   "similarity": 0.141
-  },
-  {
-   "id": "conf_plan_asset_insert__marketplace_search_and_insert",
-   "query": "Find a wooden crate in the toolbox and drop the best one in.",
-   "gold": [
-    "marketplace_search_and_insert"
+    "apply_mutation_plan"
    ],
    "mustNotRankFirst": [
     "plan_asset_insert"
    ],
-   "similarity": 0.25
+   "collision": 0.5
   },
   {
    "id": "conf_plan_asset_insert__asset_source_search",
@@ -2028,337 +2028,337 @@
    "mustNotRankFirst": [
     "plan_asset_insert"
    ],
-   "similarity": 0.242
+   "collision": 0.3333
   },
   {
-   "id": "conf_asset_source_search__marketplace_search_and_insert",
-   "query": "Find a wooden crate in the toolbox and drop the best one in.",
+   "id": "conf_asset_source_search__marketplace_search",
+   "query": "Look through the public toolbox for a wooden crate.",
    "gold": [
-    "marketplace_search_and_insert"
+    "marketplace_search"
    ],
    "mustNotRankFirst": [
     "asset_source_search"
    ],
-   "similarity": 0.272
+   "collision": 1
   },
   {
-   "id": "conf_asset_source_search__search_assets",
+   "id": "conf_asset_source_search__generate_model_native",
+   "query": "Have Roblox build me a 3D object from this description.",
+   "gold": [
+    "generate_model_native"
+   ],
+   "mustNotRankFirst": [
+    "asset_source_search"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_import_external_asset__generate_model",
+   "query": "Produce a three-dimensional object from a written description.",
+   "gold": [
+    "generate_model"
+   ],
+   "mustNotRankFirst": [
+    "import_external_asset"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_import_external_asset__insert_asset",
+   "query": "Bring asset 1234567 into the place.",
+   "gold": [
+    "insert_asset"
+   ],
+   "mustNotRankFirst": [
+    "import_external_asset"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_asset_provenance__search_assets",
    "query": "Find models on the Creator Store matching medieval barrel.",
    "gold": [
     "search_assets"
    ],
    "mustNotRankFirst": [
-    "asset_source_search"
+    "get_asset_provenance"
    ],
-   "similarity": 0.267
+   "collision": 1
   },
   {
-   "id": "conf_import_external_asset__asset_source_search",
-   "query": "Find a CC0 model outside the Roblox marketplace.",
+   "id": "conf_get_asset_provenance__get_place_info",
+   "query": "What is this experience called and what is its numeric id?",
    "gold": [
-    "asset_source_search"
-   ],
-   "mustNotRankFirst": [
-    "import_external_asset"
-   ],
-   "similarity": 0.222
-  },
-  {
-   "id": "conf_import_external_asset__image_generate_and_upload",
-   "query": "Make me a picture of a neon sign and get it onto Roblox ready to use.",
-   "gold": [
-    "image_generate_and_upload"
-   ],
-   "mustNotRankFirst": [
-    "import_external_asset"
-   ],
-   "similarity": 0.188
-  },
-  {
-   "id": "conf_get_asset_provenance__asset_source_search",
-   "query": "Find a CC0 model outside the Roblox marketplace.",
-   "gold": [
-    "asset_source_search"
+    "get_place_info"
    ],
    "mustNotRankFirst": [
     "get_asset_provenance"
    ],
-   "similarity": 0.229
+   "collision": 0.5
   },
   {
-   "id": "conf_get_asset_provenance__get_asset_thumbnail",
-   "query": "Show me a picture of that asset so I can judge it.",
+   "id": "conf_simulate_mouse_input__template_create_obby_game",
+   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
    "gold": [
-    "get_asset_thumbnail"
-   ],
-   "mustNotRankFirst": [
-    "get_asset_provenance"
-   ],
-   "similarity": 0.175
-  },
-  {
-   "id": "conf_simulate_mouse_input__simulate_keyboard_input",
-   "query": "Press W in the running game.",
-   "gold": [
-    "simulate_keyboard_input"
+    "template_create_obby_game"
    ],
    "mustNotRankFirst": [
     "simulate_mouse_input"
    ],
-   "similarity": 0.777
+   "collision": 1
   },
   {
-   "id": "conf_simulate_mouse_input__eval_client_runtime",
-   "query": "Run this in a player's local VM while the game is live.",
+   "id": "conf_simulate_mouse_input__template_create_round_game",
+   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
    "gold": [
-    "eval_client_runtime"
+    "template_create_round_game"
    ],
    "mustNotRankFirst": [
     "simulate_mouse_input"
    ],
-   "similarity": 0.175
+   "collision": 0.5
   },
   {
-   "id": "conf_simulate_keyboard_input__simulate_mouse_input",
-   "query": "Click at that point in the running game.",
+   "id": "conf_simulate_keyboard_input__template_create_obby_game",
+   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
    "gold": [
-    "simulate_mouse_input"
+    "template_create_obby_game"
    ],
    "mustNotRankFirst": [
     "simulate_keyboard_input"
    ],
-   "similarity": 0.777
+   "collision": 1
   },
   {
-   "id": "conf_simulate_keyboard_input__eval_client_runtime",
-   "query": "Run this in a player's local VM while the game is live.",
+   "id": "conf_simulate_keyboard_input__environment_set_time_of_day",
+   "query": "Make it late afternoon.",
    "gold": [
-    "eval_client_runtime"
+    "environment_set_time_of_day"
    ],
    "mustNotRankFirst": [
     "simulate_keyboard_input"
    ],
-   "similarity": 0.18
+   "collision": 0.5
   },
   {
-   "id": "conf_character_navigation__playtest_sample_state",
-   "query": "Where are the players standing and how much health do they have right now?",
+   "id": "conf_character_navigation__animation_play",
+   "query": "Make that character perform the movement clip.",
    "gold": [
-    "playtest_sample_state"
+    "animation_play"
    ],
    "mustNotRankFirst": [
     "character_navigation"
    ],
-   "similarity": 0.186
+   "collision": 1
   },
   {
-   "id": "conf_character_navigation__set_property",
-   "query": "Make Workspace.Door transparent.",
+   "id": "conf_character_navigation__multiplayer_playtest",
+   "query": "Try the game with a few simulated players.",
    "gold": [
-    "set_property"
+    "multiplayer_playtest"
    ],
    "mustNotRankFirst": [
     "character_navigation"
    ],
-   "similarity": 0.158
+   "collision": 1
   },
   {
-   "id": "conf_clone_object__create_object",
-   "query": "Put a new red brick in the workspace.",
+   "id": "conf_clone_object__generate_model",
+   "query": "Produce a three-dimensional object from a written description.",
    "gold": [
-    "create_object"
+    "generate_model"
    ],
    "mustNotRankFirst": [
     "clone_object"
    ],
-   "similarity": 0.264
+   "collision": 1.5
   },
   {
-   "id": "conf_clone_object__delete_object",
-   "query": "Get rid of Workspace.OldSign.",
+   "id": "conf_clone_object__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
    "gold": [
-    "delete_object"
+    "ui_make_mobile_friendly"
    ],
    "mustNotRankFirst": [
     "clone_object"
    ],
-   "similarity": 0.232
+   "collision": 1
   },
   {
-   "id": "conf_get_descendants__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
+   "id": "conf_get_descendants__diagnose_scripts",
+   "query": "What errors and warnings is Studio reporting right now?",
    "gold": [
-    "get_instance_properties"
+    "diagnose_scripts"
    ],
    "mustNotRankFirst": [
     "get_descendants"
    ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
-   "id": "conf_get_descendants__get_attributes",
-   "query": "What custom values are stored on this instance?",
+   "id": "conf_get_descendants__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
    "gold": [
-    "get_attributes"
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
     "get_descendants"
    ],
-   "similarity": 0.333
+   "collision": 0.5
   },
   {
-   "id": "conf_get_scene_summary__rojo_get_version",
-   "query": "Which binary will be used for the sync tool here, and what version is it?",
-   "gold": [
-    "rojo_get_version"
-   ],
-   "mustNotRankFirst": [
-    "get_scene_summary"
-   ],
-   "similarity": 0.171
-  },
-  {
-   "id": "conf_get_scene_summary__get_runtime_logs",
-   "query": "What did the game print while it was running?",
-   "gold": [
-    "get_runtime_logs"
-   ],
-   "mustNotRankFirst": [
-    "get_scene_summary"
-   ],
-   "similarity": 0.121
-  },
-  {
-   "id": "conf_compare_instances__search_objects",
-   "query": "Give me every part whose name starts with Coin.",
-   "gold": [
-    "search_objects"
-   ],
-   "mustNotRankFirst": [
-    "compare_instances"
-   ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_compare_instances__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
-   "gold": [
-    "get_instance_properties"
-   ],
-   "mustNotRankFirst": [
-    "compare_instances"
-   ],
-   "similarity": 0.15
-  },
-  {
-   "id": "conf_bulk_set_attributes__set_properties",
-   "query": "On this one part, change size, colour and material together.",
-   "gold": [
-    "set_properties"
-   ],
-   "mustNotRankFirst": [
-    "bulk_set_attributes"
-   ],
-   "similarity": 0.606
-  },
-  {
-   "id": "conf_bulk_set_attributes__get_attributes",
-   "query": "What custom values are stored on this instance?",
-   "gold": [
-    "get_attributes"
-   ],
-   "mustNotRankFirst": [
-    "bulk_set_attributes"
-   ],
-   "similarity": 0.272
-  },
-  {
-   "id": "conf_get_memory_breakdown__get_node_batch",
-   "query": "I have twelve paths and I want two fields from each, in one round trip.",
-   "gold": [
-    "get_node_batch"
-   ],
-   "mustNotRankFirst": [
-    "get_memory_breakdown"
-   ],
-   "similarity": 0.161
-  },
-  {
-   "id": "conf_get_memory_breakdown__get_services",
-   "query": "Which top-level containers does this game have available?",
-   "gold": [
-    "get_services"
-   ],
-   "mustNotRankFirst": [
-    "get_memory_breakdown"
-   ],
-   "similarity": 0.155
-  },
-  {
-   "id": "conf_get_scene_analysis__get_class_info",
+   "id": "conf_get_scene_summary__get_class_info",
    "query": "What can a ProximityPrompt actually do?",
    "gold": [
     "get_class_info"
    ],
    "mustNotRankFirst": [
-    "get_scene_analysis"
+    "get_scene_summary"
    ],
-   "similarity": 0.183
+   "collision": 1
   },
   {
-   "id": "conf_get_scene_analysis__get_world_snapshot",
-   "query": "Give me a cheap overall picture of the world before I dig in anywhere.",
+   "id": "conf_get_scene_summary__project_reconcile_apply",
+   "query": "Actually carry out those repairs, one writer at a time.",
    "gold": [
-    "get_world_snapshot"
+    "project_reconcile_apply"
    ],
    "mustNotRankFirst": [
-    "get_scene_analysis"
+    "get_scene_summary"
    ],
-   "similarity": 0.15
+   "collision": 0.3333
   },
   {
-   "id": "conf_export_rbxm__import_rbxm",
-   "query": "Read that file on disk back into the place.",
-   "gold": [
-    "import_rbxm"
-   ],
-   "mustNotRankFirst": [
-    "export_rbxm"
-   ],
-   "similarity": 0.3
-  },
-  {
-   "id": "conf_export_rbxm__marketplace_search_and_insert",
-   "query": "Find a wooden crate in the toolbox and drop the best one in.",
-   "gold": [
-    "marketplace_search_and_insert"
-   ],
-   "mustNotRankFirst": [
-    "export_rbxm"
-   ],
-   "similarity": 0.124
-  },
-  {
-   "id": "conf_import_rbxm__export_rbxm",
+   "id": "conf_compare_instances__export_rbxm",
    "query": "Serialise these instances to a file on disk.",
    "gold": [
     "export_rbxm"
    ],
    "mustNotRankFirst": [
-    "import_rbxm"
+    "compare_instances"
    ],
-   "similarity": 0.3
+   "collision": 1.0556
   },
   {
-   "id": "conf_import_rbxm__marketplace_search_and_insert",
-   "query": "Find a wooden crate in the toolbox and drop the best one in.",
+   "id": "conf_compare_instances__get_scene_analysis",
+   "query": "Which instances are costing the most performance, attributed by category?",
    "gold": [
-    "marketplace_search_and_insert"
+    "get_scene_analysis"
+   ],
+   "mustNotRankFirst": [
+    "compare_instances"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_bulk_set_attributes__resolve_instance_source_file",
+   "query": "Which file on disk backs this Instance?",
+   "gold": [
+    "resolve_instance_source_file"
+   ],
+   "mustNotRankFirst": [
+    "bulk_set_attributes"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_bulk_set_attributes__manage_instance",
+   "query": "Open another Studio window and tell me about it.",
+   "gold": [
+    "manage_instance"
+   ],
+   "mustNotRankFirst": [
+    "bulk_set_attributes"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_memory_breakdown__get_request_status",
+   "query": "That call timed out — did it actually go through?",
+   "gold": [
+    "get_request_status"
+   ],
+   "mustNotRankFirst": [
+    "get_memory_breakdown"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_memory_breakdown__rojo_syncback_apply",
+   "query": "Commit the Studio-side edits down onto disk where they do not clash.",
+   "gold": [
+    "rojo_syncback_apply"
+   ],
+   "mustNotRankFirst": [
+    "get_memory_breakdown"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_scene_analysis__compare_instances",
+   "query": "These two doors behave differently — what is set differently on them?",
+   "gold": [
+    "compare_instances"
+   ],
+   "mustNotRankFirst": [
+    "get_scene_analysis"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_get_scene_analysis__get_connected_instances",
+   "query": "Which Studio windows are talking to this server?",
+   "gold": [
+    "get_connected_instances"
+   ],
+   "mustNotRankFirst": [
+    "get_scene_analysis"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_export_rbxm__compare_instances",
+   "query": "These two doors behave differently — what is set differently on them?",
+   "gold": [
+    "compare_instances"
+   ],
+   "mustNotRankFirst": [
+    "export_rbxm"
+   ],
+   "collision": 1.0556
+  },
+  {
+   "id": "conf_export_rbxm__rojo_serve_status",
+   "query": "Is the live file-sync process running, and on which port?",
+   "gold": [
+    "rojo_serve_status"
+   ],
+   "mustNotRankFirst": [
+    "export_rbxm"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_import_rbxm__rojo_read_source",
+   "query": "Read that local file and give me its hash so I can lock on it.",
+   "gold": [
+    "rojo_read_source"
    ],
    "mustNotRankFirst": [
     "import_rbxm"
    ],
-   "similarity": 0.17
+   "collision": 1
+  },
+  {
+   "id": "conf_import_rbxm__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
+   "gold": [
+    "get_file_tree"
+   ],
+   "mustNotRankFirst": [
+    "import_rbxm"
+   ],
+   "collision": 0.5
   },
   {
    "id": "conf_find_and_replace_in_scripts__grep_scripts",
@@ -2369,40 +2369,40 @@
    "mustNotRankFirst": [
     "find_and_replace_in_scripts"
    ],
-   "similarity": 0.25
+   "collision": 1.3333
   },
   {
-   "id": "conf_find_and_replace_in_scripts__edit_script_lines",
-   "query": "In that script, swap this exact snippet for that one.",
+   "id": "conf_find_and_replace_in_scripts__environment_set_sky",
+   "query": "Replace the skybox and turn the stars up.",
    "gold": [
-    "edit_script_lines"
+    "environment_set_sky"
    ],
    "mustNotRankFirst": [
     "find_and_replace_in_scripts"
    ],
-   "similarity": 0.217
+   "collision": 1
   },
   {
-   "id": "conf_get_operation_history__list_script_backups",
-   "query": "Which script contents were saved before being overwritten?",
+   "id": "conf_get_operation_history__get_session_summary",
+   "query": "How much have I called in this session so far?",
    "gold": [
-    "list_script_backups"
+    "get_session_summary"
    ],
    "mustNotRankFirst": [
     "get_operation_history"
    ],
-   "similarity": 0.25
+   "collision": 1
   },
   {
-   "id": "conf_get_operation_history__restore_script_backup",
-   "query": "Put that script back to what it was before I overwrote it.",
+   "id": "conf_get_operation_history__redo",
+   "query": "Actually, put that change back.",
    "gold": [
-    "restore_script_backup"
+    "redo"
    ],
    "mustNotRankFirst": [
     "get_operation_history"
    ],
-   "similarity": 0.17
+   "collision": 0.5
   },
   {
    "id": "conf_list_script_backups__restore_script_backup",
@@ -2413,18 +2413,18 @@
    "mustNotRankFirst": [
     "list_script_backups"
    ],
-   "similarity": 0.313
+   "collision": 1.5
   },
   {
-   "id": "conf_list_script_backups__get_operation_history",
-   "query": "What destructive things has this session done so far?",
+   "id": "conf_list_script_backups__undo",
+   "query": "Take back what just happened.",
    "gold": [
-    "get_operation_history"
+    "undo"
    ],
    "mustNotRankFirst": [
     "list_script_backups"
    ],
-   "similarity": 0.25
+   "collision": 1
   },
   {
    "id": "conf_restore_script_backup__list_script_backups",
@@ -2435,7 +2435,7 @@
    "mustNotRankFirst": [
     "restore_script_backup"
    ],
-   "similarity": 0.313
+   "collision": 1.5
   },
   {
    "id": "conf_restore_script_backup__set_script_source",
@@ -2446,18 +2446,7 @@
    "mustNotRankFirst": [
     "restore_script_backup"
    ],
-   "similarity": 0.231
-  },
-  {
-   "id": "conf_get_world_snapshot__get_class_info",
-   "query": "What can a ProximityPrompt actually do?",
-   "gold": [
-    "get_class_info"
-   ],
-   "mustNotRankFirst": [
-    "get_world_snapshot"
-   ],
-   "similarity": 0.183
+   "collision": 1.1111
   },
   {
    "id": "conf_get_world_snapshot__get_spatial_layout",
@@ -2468,7 +2457,18 @@
    "mustNotRankFirst": [
     "get_world_snapshot"
    ],
-   "similarity": 0.155
+   "collision": 1
+  },
+  {
+   "id": "conf_get_world_snapshot__cancel_request",
+   "query": "Drop that queued call before the plugin picks it up.",
+   "gold": [
+    "cancel_request"
+   ],
+   "mustNotRankFirst": [
+    "get_world_snapshot"
+   ],
+   "collision": 0.5
   },
   {
    "id": "conf_get_spatial_layout__get_world_snapshot",
@@ -2479,348 +2479,359 @@
    "mustNotRankFirst": [
     "get_spatial_layout"
    ],
-   "similarity": 0.155
+   "collision": 1
   },
   {
-   "id": "conf_get_spatial_layout__get_instance_properties",
-   "query": "Dump everything that is set on Workspace.Baseplate.",
+   "id": "conf_get_spatial_layout__import_scene",
+   "query": "Bring in a whole scene layout at once.",
    "gold": [
-    "get_instance_properties"
+    "import_scene"
    ],
    "mustNotRankFirst": [
     "get_spatial_layout"
    ],
-   "similarity": 0.127
+   "collision": 0.5
   },
   {
-   "id": "conf_get_node_batch__mass_delete_objects",
-   "query": "Remove all of these fifty leftover parts in one go.",
+   "id": "conf_get_node_batch__mass_duplicate",
+   "query": "Run several different duplication patterns in a single batch.",
    "gold": [
-    "mass_delete_objects"
+    "mass_duplicate"
    ],
    "mustNotRankFirst": [
     "get_node_batch"
    ],
-   "similarity": 0.227
+   "collision": 1
   },
   {
-   "id": "conf_get_node_batch__get_memory_breakdown",
-   "query": "Where is the memory in this place actually going?",
+   "id": "conf_get_node_batch__template_create_round_game",
+   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
    "gold": [
-    "get_memory_breakdown"
+    "template_create_round_game"
    ],
    "mustNotRankFirst": [
     "get_node_batch"
    ],
-   "similarity": 0.161
+   "collision": 0.5
   },
   {
-   "id": "conf_get_changes_since__get_class_info",
-   "query": "What can a ProximityPrompt actually do?",
+   "id": "conf_get_changes_since__redo",
+   "query": "Actually, put that change back.",
    "gold": [
-    "get_class_info"
+    "redo"
    ],
    "mustNotRankFirst": [
     "get_changes_since"
    ],
-   "similarity": 0.145
+   "collision": 1
   },
   {
-   "id": "conf_get_changes_since__get_instance_children",
+   "id": "conf_get_changes_since__undo",
+   "query": "Take back what just happened.",
+   "gold": [
+    "undo"
+   ],
+   "mustNotRankFirst": [
+    "get_changes_since"
+   ],
+   "collision": 0.3333
+  },
+  {
+   "id": "conf_scene_search__get_place_info",
+   "query": "What is this experience called and what is its numeric id?",
+   "gold": [
+    "get_place_info"
+   ],
+   "mustNotRankFirst": [
+    "scene_search"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_scene_search__set_network_profile",
+   "query": "Make the connection behave like bad mobile signal.",
+   "gold": [
+    "set_network_profile"
+   ],
+   "mustNotRankFirst": [
+    "scene_search"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_ui_create_screen_gui__ui_create_image_button",
+   "query": "Show a pressable picture on screen.",
+   "gold": [
+    "ui_create_image_button"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_screen_gui"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_screen_gui__ui_create_image_label",
+   "query": "Show a picture on screen that the player cannot press.",
+   "gold": [
+    "ui_create_image_label"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_screen_gui"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_frame__add_tag",
+   "query": "Label this part as Climbable for CollectionService.",
+   "gold": [
+    "add_tag"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_frame"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_frame__capture_script_profiler",
+   "query": "Which code is eating the frame time on the live server?",
+   "gold": [
+    "capture_script_profiler"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_frame"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_ui_create_text_label__ui_create_screen_gui",
+   "query": "I need a new on-screen layer to put interface into.",
+   "gold": [
+    "ui_create_screen_gui"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_text_label"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_text_label__add_tag",
+   "query": "Label this part as Climbable for CollectionService.",
+   "gold": [
+    "add_tag"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_text_label"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_ui_create_text_button__ui_create_screen_gui",
+   "query": "I need a new on-screen layer to put interface into.",
+   "gold": [
+    "ui_create_screen_gui"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_text_button"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_text_button__capture_screenshot",
+   "query": "Take a picture of the viewport as it is.",
+   "gold": [
+    "capture_screenshot"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_text_button"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_ui_create_image_label__add_tag",
+   "query": "Label this part as Climbable for CollectionService.",
+   "gold": [
+    "add_tag"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_image_label"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_image_label__remove_tag",
+   "query": "Take the Climbable label off this part.",
+   "gold": [
+    "remove_tag"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_image_label"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_image_button__ui_create_screen_gui",
+   "query": "I need a new on-screen layer to put interface into.",
+   "gold": [
+    "ui_create_screen_gui"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_image_button"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_ui_create_image_button__capture_screenshot",
+   "query": "Take a picture of the viewport as it is.",
+   "gold": [
+    "capture_screenshot"
+   ],
+   "mustNotRankFirst": [
+    "ui_create_image_button"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_ui_apply_layout__get_instance_children",
    "query": "What sits directly under Workspace.Lobby?",
    "gold": [
     "get_instance_children"
    ],
    "mustNotRankFirst": [
-    "get_changes_since"
-   ],
-   "similarity": 0.141
-  },
-  {
-   "id": "conf_scene_search__asset_sanitize_plan",
-   "query": "Someone dropped a free model in. Tell me what its scripts do before I trust it.",
-   "gold": [
-    "asset_sanitize_plan"
-   ],
-   "mustNotRankFirst": [
-    "scene_search"
-   ],
-   "similarity": 0.193
-  },
-  {
-   "id": "conf_scene_search__tool_catalog_search",
-   "query": "I do not know which capability handles this — help me find it.",
-   "gold": [
-    "tool_catalog_search"
-   ],
-   "mustNotRankFirst": [
-    "scene_search"
-   ],
-   "similarity": 0.174
-  },
-  {
-   "id": "conf_ui_create_screen_gui__ui_create_frame",
-   "query": "Add a rectangular panel inside that interface container.",
-   "gold": [
-    "ui_create_frame"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_screen_gui"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_screen_gui__ui_apply_layout",
-   "query": "Make the children of this panel arrange themselves in a row automatically.",
-   "gold": [
     "ui_apply_layout"
    ],
-   "mustNotRankFirst": [
-    "ui_create_screen_gui"
-   ],
-   "similarity": 0.175
+   "collision": 1
   },
   {
-   "id": "conf_ui_create_frame__ui_create_screen_gui",
-   "query": "I need a new on-screen layer to put interface into.",
+   "id": "conf_ui_apply_layout__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
    "gold": [
-    "ui_create_screen_gui"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_frame"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_frame__ui_apply_layout",
-   "query": "Make the children of this panel arrange themselves in a row automatically.",
-   "gold": [
-    "ui_apply_layout"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_frame"
-   ],
-   "similarity": 0.193
-  },
-  {
-   "id": "conf_ui_create_text_label__ui_create_image_label",
-   "query": "Show a picture on screen that the player cannot press.",
-   "gold": [
-    "ui_create_image_label"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_text_label"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_text_label__ui_create_text_button",
-   "query": "Put a pressable word on screen.",
-   "gold": [
-    "ui_create_text_button"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_text_label"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_text_button__ui_create_image_button",
-   "query": "Show a pressable picture on screen.",
-   "gold": [
-    "ui_create_image_button"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_text_button"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_text_button__ui_create_text_label",
-   "query": "Put some words on screen that the player cannot press.",
-   "gold": [
-    "ui_create_text_label"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_text_button"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_image_label__ui_create_image_button",
-   "query": "Show a pressable picture on screen.",
-   "gold": [
-    "ui_create_image_button"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_image_label"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_image_label__ui_create_text_label",
-   "query": "Put some words on screen that the player cannot press.",
-   "gold": [
-    "ui_create_text_label"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_image_label"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_image_button__ui_create_image_label",
-   "query": "Show a picture on screen that the player cannot press.",
-   "gold": [
-    "ui_create_image_label"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_image_button"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_create_image_button__ui_create_text_button",
-   "query": "Put a pressable word on screen.",
-   "gold": [
-    "ui_create_text_button"
-   ],
-   "mustNotRankFirst": [
-    "ui_create_image_button"
-   ],
-   "similarity": 0.383
-  },
-  {
-   "id": "conf_ui_apply_layout__ui_create_frame",
-   "query": "Add a rectangular panel inside that interface container.",
-   "gold": [
-    "ui_create_frame"
+    "ui_make_mobile_friendly"
    ],
    "mustNotRankFirst": [
     "ui_apply_layout"
    ],
-   "similarity": 0.193
+   "collision": 0.5
   },
   {
-   "id": "conf_ui_apply_layout__ui_create_screen_gui",
-   "query": "I need a new on-screen layer to put interface into.",
+   "id": "conf_ui_make_mobile_friendly__clone_object",
+   "query": "Make a copy of this model under a different parent.",
    "gold": [
-    "ui_create_screen_gui"
-   ],
-   "mustNotRankFirst": [
-    "ui_apply_layout"
-   ],
-   "similarity": 0.175
-  },
-  {
-   "id": "conf_ui_make_mobile_friendly__asset_sanitize_apply",
-   "query": "Kill every script inside that free model.",
-   "gold": [
-    "asset_sanitize_apply"
+    "clone_object"
    ],
    "mustNotRankFirst": [
     "ui_make_mobile_friendly"
    ],
-   "similarity": 0.143
+   "collision": 1
   },
   {
-   "id": "conf_ui_make_mobile_friendly__apply_theme",
-   "query": "Recolour this existing interface onto a consistent palette.",
-   "gold": [
-    "apply_theme"
-   ],
-   "mustNotRankFirst": [
-    "ui_make_mobile_friendly"
-   ],
-   "similarity": 0.121
-  },
-  {
-   "id": "conf_environment_set_time_of_day__environment_set_atmosphere",
-   "query": "Add haze to the air with this density and colour.",
-   "gold": [
-    "environment_set_atmosphere"
-   ],
-   "mustNotRankFirst": [
-    "environment_set_time_of_day"
-   ],
-   "similarity": 0.264
-  },
-  {
-   "id": "conf_environment_set_time_of_day__environment_create_day_night_cycle_script",
+   "id": "conf_ui_make_mobile_friendly__environment_create_day_night_cycle_script",
    "query": "Make the sun move on its own over time.",
    "gold": [
     "environment_create_day_night_cycle_script"
    ],
    "mustNotRankFirst": [
-    "environment_set_time_of_day"
+    "ui_make_mobile_friendly"
    ],
-   "similarity": 0.25
+   "collision": 1
   },
   {
-   "id": "conf_environment_set_lighting_preset__environment_set_time_of_day",
-   "query": "Make it late afternoon.",
+   "id": "conf_environment_set_time_of_day__project_reconcile_apply",
+   "query": "Actually carry out those repairs, one writer at a time.",
    "gold": [
+    "project_reconcile_apply"
+   ],
+   "mustNotRankFirst": [
     "environment_set_time_of_day"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_environment_set_time_of_day__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
+   "gold": [
+    "ui_make_mobile_friendly"
+   ],
+   "mustNotRankFirst": [
+    "environment_set_time_of_day"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_environment_set_lighting_preset__get_place_info",
+   "query": "What is this experience called and what is its numeric id?",
+   "gold": [
+    "get_place_info"
    ],
    "mustNotRankFirst": [
     "environment_set_lighting_preset"
    ],
-   "similarity": 0.237
+   "collision": 1
   },
   {
-   "id": "conf_environment_set_lighting_preset__environment_set_atmosphere",
-   "query": "Add haze to the air with this density and colour.",
+   "id": "conf_environment_set_lighting_preset__marketplace_search",
+   "query": "Look through the public toolbox for a wooden crate.",
    "gold": [
-    "environment_set_atmosphere"
+    "marketplace_search"
    ],
    "mustNotRankFirst": [
     "environment_set_lighting_preset"
    ],
-   "similarity": 0.18
+   "collision": 0.5
   },
   {
-   "id": "conf_environment_set_atmosphere__environment_set_sky",
-   "query": "Replace the skybox and turn the stars up.",
+   "id": "conf_environment_set_atmosphere__add_tag",
+   "query": "Label this part as Climbable for CollectionService.",
    "gold": [
-    "environment_set_sky"
+    "add_tag"
    ],
    "mustNotRankFirst": [
     "environment_set_atmosphere"
    ],
-   "similarity": 0.35
+   "collision": 1
   },
   {
-   "id": "conf_environment_set_atmosphere__environment_set_time_of_day",
-   "query": "Make it late afternoon.",
+   "id": "conf_environment_set_atmosphere__animation_create",
+   "query": "Set up a movement clip with this id.",
    "gold": [
-    "environment_set_time_of_day"
+    "animation_create"
    ],
    "mustNotRankFirst": [
     "environment_set_atmosphere"
    ],
-   "similarity": 0.264
+   "collision": 1
   },
   {
-   "id": "conf_environment_set_sky__environment_set_atmosphere",
-   "query": "Add haze to the air with this density and colour.",
+   "id": "conf_environment_set_sky__find_and_replace_in_scripts",
+   "query": "Rename that function everywhere it appears across the codebase.",
    "gold": [
-    "environment_set_atmosphere"
+    "find_and_replace_in_scripts"
    ],
    "mustNotRankFirst": [
     "environment_set_sky"
    ],
-   "similarity": 0.35
+   "collision": 1
   },
   {
-   "id": "conf_environment_set_sky__environment_set_time_of_day",
-   "query": "Make it late afternoon.",
+   "id": "conf_environment_set_sky__animation_create",
+   "query": "Set up a movement clip with this id.",
    "gold": [
-    "environment_set_time_of_day"
+    "animation_create"
    ],
    "mustNotRankFirst": [
     "environment_set_sky"
    ],
-   "similarity": 0.237
+   "collision": 0.5
+  },
+  {
+   "id": "conf_environment_create_day_night_cycle_script__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
+   "gold": [
+    "ui_make_mobile_friendly"
+   ],
+   "mustNotRankFirst": [
+    "environment_create_day_night_cycle_script"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_environment_create_day_night_cycle_script__environment_set_time_of_day",
@@ -2831,40 +2842,29 @@
    "mustNotRankFirst": [
     "environment_create_day_night_cycle_script"
    ],
-   "similarity": 0.25
+   "collision": 0.5
   },
   {
-   "id": "conf_environment_create_day_night_cycle_script__environment_set_atmosphere",
-   "query": "Add haze to the air with this density and colour.",
+   "id": "conf_terrain_generate_baseplate__get_memory_breakdown",
+   "query": "Where is the memory in this place actually going?",
    "gold": [
-    "environment_set_atmosphere"
-   ],
-   "mustNotRankFirst": [
-    "environment_create_day_night_cycle_script"
-   ],
-   "similarity": 0.186
-  },
-  {
-   "id": "conf_terrain_generate_baseplate__terrain_generate_water",
-   "query": "Flood this box with sea.",
-   "gold": [
-    "terrain_generate_water"
+    "get_memory_breakdown"
    ],
    "mustNotRankFirst": [
     "terrain_generate_baseplate"
    ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
-   "id": "conf_terrain_generate_baseplate__terrain_generate_island",
-   "query": "I want a small piece of dry ground with water all around it.",
+   "id": "conf_terrain_generate_baseplate__load_toolset",
+   "query": "I need the terrain capabilities available in this conversation.",
    "gold": [
-    "terrain_generate_island"
+    "load_toolset"
    ],
    "mustNotRankFirst": [
     "terrain_generate_baseplate"
    ],
-   "similarity": 0.264
+   "collision": 0.5
   },
   {
    "id": "conf_terrain_generate_island__terrain_generate_water",
@@ -2875,18 +2875,18 @@
    "mustNotRankFirst": [
     "terrain_generate_island"
    ],
-   "similarity": 0.358
+   "collision": 1
   },
   {
-   "id": "conf_terrain_generate_island__terrain_generate_baseplate",
-   "query": "Lay down a flat slab of ground.",
+   "id": "conf_terrain_generate_island__apply_mutation_plan",
+   "query": "Apply this whole list of small edits as one transaction.",
    "gold": [
-    "terrain_generate_baseplate"
+    "apply_mutation_plan"
    ],
    "mustNotRankFirst": [
     "terrain_generate_island"
    ],
-   "similarity": 0.264
+   "collision": 0.5
   },
   {
    "id": "conf_terrain_generate_mountains__terrain_clear_region",
@@ -2897,29 +2897,29 @@
    "mustNotRankFirst": [
     "terrain_generate_mountains"
    ],
-   "similarity": 0.217
+   "collision": 1.1111
   },
   {
-   "id": "conf_terrain_generate_mountains__terrain_generate_baseplate",
-   "query": "Lay down a flat slab of ground.",
+   "id": "conf_terrain_generate_mountains__find_and_replace_in_scripts",
+   "query": "Rename that function everywhere it appears across the codebase.",
    "gold": [
-    "terrain_generate_baseplate"
+    "find_and_replace_in_scripts"
    ],
    "mustNotRankFirst": [
     "terrain_generate_mountains"
    ],
-   "similarity": 0.217
+   "collision": 0.6111
   },
   {
-   "id": "conf_terrain_generate_water__terrain_generate_baseplate",
-   "query": "Lay down a flat slab of ground.",
+   "id": "conf_terrain_generate_water__marketplace_search",
+   "query": "Look through the public toolbox for a wooden crate.",
    "gold": [
-    "terrain_generate_baseplate"
+    "marketplace_search"
    ],
    "mustNotRankFirst": [
     "terrain_generate_water"
    ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
    "id": "conf_terrain_generate_water__terrain_generate_island",
@@ -2930,7 +2930,7 @@
    "mustNotRankFirst": [
     "terrain_generate_water"
    ],
-   "similarity": 0.358
+   "collision": 1
   },
   {
    "id": "conf_terrain_paint_material__terrain_clear_region",
@@ -2941,18 +2941,29 @@
    "mustNotRankFirst": [
     "terrain_paint_material"
    ],
-   "similarity": 0.317
+   "collision": 1.1
   },
   {
-   "id": "conf_terrain_paint_material__terrain_generate_water",
-   "query": "Flood this box with sea.",
+   "id": "conf_terrain_paint_material__set_properties",
+   "query": "On this one part, change size, colour and material together.",
    "gold": [
-    "terrain_generate_water"
+    "set_properties"
    ],
    "mustNotRankFirst": [
     "terrain_paint_material"
    ],
-   "similarity": 0.237
+   "collision": 1.0526
+  },
+  {
+   "id": "conf_terrain_clear_region__terrain_generate_mountains",
+   "query": "Raise a noisy mountain range across this region.",
+   "gold": [
+    "terrain_generate_mountains"
+   ],
+   "mustNotRankFirst": [
+    "terrain_clear_region"
+   ],
+   "collision": 1.1111
   },
   {
    "id": "conf_terrain_clear_region__terrain_paint_material",
@@ -2963,62 +2974,62 @@
    "mustNotRankFirst": [
     "terrain_clear_region"
    ],
-   "similarity": 0.317
+   "collision": 1.1
   },
   {
-   "id": "conf_terrain_clear_region__terrain_generate_baseplate",
-   "query": "Lay down a flat slab of ground.",
+   "id": "conf_template_create_obby_game__environment_set_atmosphere",
+   "query": "Add haze to the air with this density and colour.",
    "gold": [
-    "terrain_generate_baseplate"
-   ],
-   "mustNotRankFirst": [
-    "terrain_clear_region"
-   ],
-   "similarity": 0.25
-  },
-  {
-   "id": "conf_template_create_obby_game__template_create_round_game",
-   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
-   "gold": [
-    "template_create_round_game"
+    "environment_set_atmosphere"
    ],
    "mustNotRankFirst": [
     "template_create_obby_game"
    ],
-   "similarity": 0.281
+   "collision": 1
   },
   {
-   "id": "conf_template_create_obby_game__template_create_simulator_game",
-   "query": "Scaffold a clicker game with a currency stat and a shop.",
+   "id": "conf_template_create_obby_game__get_project_structure",
+   "query": "I need the entire hierarchy of the game in one go.",
    "gold": [
+    "get_project_structure"
+   ],
+   "mustNotRankFirst": [
+    "template_create_obby_game"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_template_create_simulator_game__template_create_obby_game",
+   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
+   "gold": [
+    "template_create_obby_game"
+   ],
+   "mustNotRankFirst": [
     "template_create_simulator_game"
    ],
-   "mustNotRankFirst": [
-    "template_create_obby_game"
-   ],
-   "similarity": 0.188
+   "collision": 0.5714
   },
   {
-   "id": "conf_template_create_simulator_game__template_create_tycoon_game",
-   "query": "Set me up the kind of game where you buy upgrades and cash piles up on your own plot.",
+   "id": "conf_template_create_simulator_game__rojo_create_source",
+   "query": "Create that local file, but only if it is genuinely absent.",
    "gold": [
+    "rojo_create_source"
+   ],
+   "mustNotRankFirst": [
+    "template_create_simulator_game"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_template_create_tycoon_game__environment_set_atmosphere",
+   "query": "Add haze to the air with this density and colour.",
+   "gold": [
+    "environment_set_atmosphere"
+   ],
+   "mustNotRankFirst": [
     "template_create_tycoon_game"
    ],
-   "mustNotRankFirst": [
-    "template_create_simulator_game"
-   ],
-   "similarity": 0.309
-  },
-  {
-   "id": "conf_template_create_simulator_game__template_create_round_game",
-   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
-   "gold": [
-    "template_create_round_game"
-   ],
-   "mustNotRankFirst": [
-    "template_create_simulator_game"
-   ],
-   "similarity": 0.229
+   "collision": 0.5
   },
   {
    "id": "conf_template_create_tycoon_game__template_create_simulator_game",
@@ -3029,84 +3040,84 @@
    "mustNotRankFirst": [
     "template_create_tycoon_game"
    ],
-   "similarity": 0.309
+   "collision": 0.4
   },
   {
-   "id": "conf_template_create_tycoon_game__template_create_round_game",
-   "query": "Set me up the kind of game where everyone waits, gets teleported in, plays for two minutes, then comes back.",
+   "id": "conf_template_create_round_game__environment_set_atmosphere",
+   "query": "Add haze to the air with this density and colour.",
    "gold": [
-    "template_create_round_game"
-   ],
-   "mustNotRankFirst": [
-    "template_create_tycoon_game"
-   ],
-   "similarity": 0.272
-  },
-  {
-   "id": "conf_template_create_round_game__template_create_obby_game",
-   "query": "Set me up the kind of game where you leap across platforms and respawn at flags.",
-   "gold": [
-    "template_create_obby_game"
+    "environment_set_atmosphere"
    ],
    "mustNotRankFirst": [
     "template_create_round_game"
    ],
-   "similarity": 0.281
+   "collision": 1
   },
   {
-   "id": "conf_template_create_round_game__template_create_tycoon_game",
-   "query": "Set me up the kind of game where you buy upgrades and cash piles up on your own plot.",
+   "id": "conf_template_create_round_game__environment_set_sky",
+   "query": "Replace the skybox and turn the stars up.",
    "gold": [
-    "template_create_tycoon_game"
+    "environment_set_sky"
    ],
    "mustNotRankFirst": [
     "template_create_round_game"
    ],
-   "similarity": 0.272
+   "collision": 0.5
   },
   {
-   "id": "conf_marketplace_search__search_assets",
-   "query": "Find models on the Creator Store matching medieval barrel.",
-   "gold": [
-    "search_assets"
-   ],
-   "mustNotRankFirst": [
-    "marketplace_search"
-   ],
-   "similarity": 0.288
-  },
-  {
-   "id": "conf_marketplace_search__marketplace_search_and_insert",
-   "query": "Find a wooden crate in the toolbox and drop the best one in.",
-   "gold": [
-    "marketplace_search_and_insert"
-   ],
-   "mustNotRankFirst": [
-    "marketplace_search"
-   ],
-   "similarity": 0.198
-  },
-  {
-   "id": "conf_marketplace_search_and_insert__asset_source_search",
+   "id": "conf_marketplace_search__asset_source_search",
    "query": "Find a CC0 model outside the Roblox marketplace.",
    "gold": [
     "asset_source_search"
    ],
    "mustNotRankFirst": [
-    "marketplace_search_and_insert"
+    "marketplace_search"
    ],
-   "similarity": 0.272
+   "collision": 1
   },
   {
-   "id": "conf_marketplace_search_and_insert__plan_asset_insert",
-   "query": "Search for a lamp post, check it, and tell me the plan in one shot.",
+   "id": "conf_marketplace_search__terrain_generate_water",
+   "query": "Flood this box with sea.",
    "gold": [
-    "plan_asset_insert"
+    "terrain_generate_water"
+   ],
+   "mustNotRankFirst": [
+    "marketplace_search"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_marketplace_search_and_insert__find_and_replace_in_scripts",
+   "query": "Rename that function everywhere it appears across the codebase.",
+   "gold": [
+    "find_and_replace_in_scripts"
    ],
    "mustNotRankFirst": [
     "marketplace_search_and_insert"
    ],
-   "similarity": 0.25
+   "collision": 1
+  },
+  {
+   "id": "conf_marketplace_search_and_insert__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
+   "gold": [
+    "get_file_tree"
+   ],
+   "mustNotRankFirst": [
+    "marketplace_search_and_insert"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_audio_create_sound__rojo_resolve_source_instance",
+   "query": "Given a local file, which Studio instance does it become?",
+   "gold": [
+    "rojo_resolve_source_instance"
+   ],
+   "mustNotRankFirst": [
+    "audio_create_sound"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_audio_create_sound__animation_create",
@@ -3117,194 +3128,183 @@
    "mustNotRankFirst": [
     "audio_create_sound"
    ],
-   "similarity": 0.55
+   "collision": 0.5526
   },
   {
-   "id": "conf_audio_create_sound__audio_play_sound",
-   "query": "Trigger the noise that is already sitting at that path.",
+   "id": "conf_audio_play_sound__asset_sanitize_apply",
+   "query": "Kill every script inside that free model.",
    "gold": [
-    "audio_play_sound"
-   ],
-   "mustNotRankFirst": [
-    "audio_create_sound"
-   ],
-   "similarity": 0.204
-  },
-  {
-   "id": "conf_audio_play_sound__audio_create_sound",
-   "query": "Attach a noise to this part using this id.",
-   "gold": [
-    "audio_create_sound"
+    "asset_sanitize_apply"
    ],
    "mustNotRankFirst": [
     "audio_play_sound"
    ],
-   "similarity": 0.204
+   "collision": 1
   },
   {
-   "id": "conf_audio_play_sound__rojo_resolve_instance_source",
-   "query": "Given a Studio path, which local files correspond to it?",
+   "id": "conf_audio_play_sound__apply_theme",
+   "query": "Recolour this existing interface onto a consistent palette.",
    "gold": [
-    "rojo_resolve_instance_source"
+    "apply_theme"
    ],
    "mustNotRankFirst": [
     "audio_play_sound"
    ],
-   "similarity": 0.143
+   "collision": 0.5
   },
   {
-   "id": "conf_animation_create__audio_create_sound",
-   "query": "Attach a noise to this part using this id.",
+   "id": "conf_animation_create__environment_set_atmosphere",
+   "query": "Add haze to the air with this density and colour.",
    "gold": [
-    "audio_create_sound"
+    "environment_set_atmosphere"
    ],
    "mustNotRankFirst": [
     "animation_create"
    ],
-   "similarity": 0.55
+   "collision": 1
   },
   {
-   "id": "conf_animation_create__animation_play",
-   "query": "Make that character perform the movement clip.",
+   "id": "conf_animation_create__get_instance_children",
+   "query": "What sits directly under Workspace.Lobby?",
    "gold": [
-    "animation_play"
+    "get_instance_children"
    ],
    "mustNotRankFirst": [
     "animation_create"
    ],
-   "similarity": 0.155
+   "collision": 1
   },
   {
-   "id": "conf_animation_play__animation_create",
-   "query": "Set up a movement clip with this id.",
+   "id": "conf_animation_play__character_navigation",
+   "query": "Walk the player over to that platform.",
    "gold": [
-    "animation_create"
+    "character_navigation"
    ],
    "mustNotRankFirst": [
     "animation_play"
    ],
-   "similarity": 0.155
+   "collision": 1
   },
   {
-   "id": "conf_animation_play__audio_play_sound",
-   "query": "Trigger the noise that is already sitting at that path.",
+   "id": "conf_animation_play__solo_playtest",
+   "query": "Play the game by myself for a moment.",
    "gold": [
-    "audio_play_sound"
+    "solo_playtest"
    ],
    "mustNotRankFirst": [
     "animation_play"
    ],
-   "similarity": 0.109
+   "collision": 1
   },
   {
-   "id": "conf_asset_apply_texture__image_generate_and_upload",
-   "query": "Make me a picture of a neon sign and get it onto Roblox ready to use.",
+   "id": "conf_asset_apply_texture__apply_theme",
+   "query": "Recolour this existing interface onto a consistent palette.",
    "gold": [
-    "image_generate_and_upload"
+    "apply_theme"
    ],
    "mustNotRankFirst": [
     "asset_apply_texture"
    ],
-   "similarity": 0.167
+   "collision": 1
   },
   {
-   "id": "conf_asset_apply_texture__get_asset_thumbnail",
-   "query": "Show me a picture of that asset so I can judge it.",
+   "id": "conf_asset_apply_texture__diagnose_scripts",
+   "query": "What errors and warnings is Studio reporting right now?",
    "gold": [
-    "get_asset_thumbnail"
+    "diagnose_scripts"
    ],
    "mustNotRankFirst": [
     "asset_apply_texture"
    ],
-   "similarity": 0.15
+   "collision": 0.5909
   },
   {
-   "id": "conf_image_generate__generate_model_native",
-   "query": "Have Roblox build me a 3D object from this description.",
+   "id": "conf_image_generate__ui_make_mobile_friendly",
+   "query": "Make this interface hold up on a phone.",
    "gold": [
-    "generate_model_native"
+    "ui_make_mobile_friendly"
    ],
    "mustNotRankFirst": [
     "image_generate"
    ],
-   "similarity": 0.288
+   "collision": 1
   },
   {
-   "id": "conf_image_generate__generate_model",
-   "query": "Produce a three-dimensional object from a written description.",
+   "id": "conf_image_generate__design_lint",
+   "query": "Check this interface for quality problems and score it.",
    "gold": [
-    "generate_model"
+    "design_lint"
    ],
    "mustNotRankFirst": [
     "image_generate"
    ],
-   "similarity": 0.168
+   "collision": 0.5
   },
   {
-   "id": "conf_image_generate_and_upload__asset_source_search",
-   "query": "Find a CC0 model outside the Roblox marketplace.",
+   "id": "conf_image_generate_and_upload__get_roblox_docs",
+   "query": "What does the official documentation say about TweenService?",
    "gold": [
-    "asset_source_search"
+    "get_roblox_docs"
    ],
    "mustNotRankFirst": [
     "image_generate_and_upload"
    ],
-   "similarity": 0.229
+   "collision": 1
   },
   {
-   "id": "conf_image_generate_and_upload__asset_fit_apply",
-   "query": "Go ahead and rescale and re-pivot that statue the way you proposed.",
+   "id": "conf_image_generate_and_upload__get_scene_analysis",
+   "query": "Which instances are costing the most performance, attributed by category?",
    "gold": [
-    "asset_fit_apply"
+    "get_scene_analysis"
    ],
    "mustNotRankFirst": [
     "image_generate_and_upload"
    ],
-   "similarity": 0.208
+   "collision": 0.5
   },
   {
-   "id": "conf_generate_model_native__image_generate",
-   "query": "Make me a picture of a neon sign from this description.",
+   "id": "conf_generate_model_native__asset_sanitize_apply",
+   "query": "Kill every script inside that free model.",
    "gold": [
-    "image_generate"
+    "asset_sanitize_apply"
    ],
    "mustNotRankFirst": [
     "generate_model_native"
    ],
-   "similarity": 0.288
+   "collision": 1
   },
   {
-   "id": "conf_generate_model_native__generate_model",
-   "query": "Produce a three-dimensional object from a written description.",
+   "id": "conf_generate_model_native__asset_sanitize_plan",
+   "query": "Someone dropped a free model in. Tell me what its scripts do before I trust it.",
    "gold": [
-    "generate_model"
+    "asset_sanitize_plan"
    ],
    "mustNotRankFirst": [
     "generate_model_native"
    ],
-   "similarity": 0.237
+   "collision": 1
   },
   {
-   "id": "conf_generate_model__generate_model_native",
-   "query": "Have Roblox build me a 3D object from this description.",
+   "id": "conf_generate_model__clone_object",
+   "query": "Make a copy of this model under a different parent.",
    "gold": [
-    "generate_model_native"
+    "clone_object"
    ],
    "mustNotRankFirst": [
     "generate_model"
    ],
-   "similarity": 0.237
+   "collision": 1.5
   },
   {
-   "id": "conf_generate_model__multiplayer_playtest",
-   "query": "Try the game with a few simulated players.",
+   "id": "conf_generate_model__export_build",
+   "query": "Turn this model into a compact description I can store.",
    "gold": [
-    "multiplayer_playtest"
+    "export_build"
    ],
    "mustNotRankFirst": [
     "generate_model"
    ],
-   "similarity": 0.182
+   "collision": 1
   },
   {
    "id": "conf_ui_component_catalog__apply_theme",
@@ -3315,18 +3315,29 @@
    "mustNotRankFirst": [
     "ui_component_catalog"
    ],
-   "similarity": 0.157
+   "collision": 1
   },
   {
-   "id": "conf_ui_component_catalog__design_lint",
-   "query": "Check this interface for quality problems and score it.",
+   "id": "conf_ui_component_catalog__asset_fit_plan",
+   "query": "This imported statue looks the wrong size next to the door — what would it take to make it sit right?",
    "gold": [
-    "design_lint"
+    "asset_fit_plan"
    ],
    "mustNotRankFirst": [
     "ui_component_catalog"
    ],
-   "similarity": 0.119
+   "collision": 0.3333
+  },
+  {
+   "id": "conf_apply_theme__asset_apply_texture",
+   "query": "Put this picture onto that surface.",
+   "gold": [
+    "asset_apply_texture"
+   ],
+   "mustNotRankFirst": [
+    "apply_theme"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_apply_theme__ui_component_catalog",
@@ -3337,18 +3348,18 @@
    "mustNotRankFirst": [
     "apply_theme"
    ],
-   "similarity": 0.157
+   "collision": 1
   },
   {
-   "id": "conf_apply_theme__ui_make_mobile_friendly",
-   "query": "Make this interface hold up on a phone.",
+   "id": "conf_design_lint__create_build",
+   "query": "Design something from nothing and keep it around for later.",
    "gold": [
-    "ui_make_mobile_friendly"
+    "create_build"
    ],
    "mustNotRankFirst": [
-    "apply_theme"
+    "design_lint"
    ],
-   "similarity": 0.121
+   "collision": 1
   },
   {
    "id": "conf_design_lint__run_quality_gate",
@@ -3359,315 +3370,293 @@
    "mustNotRankFirst": [
     "design_lint"
    ],
-   "similarity": 0.143
+   "collision": 1
   },
   {
-   "id": "conf_design_lint__design_review",
-   "query": "Look at a screenshot of this interface and critique it.",
+   "id": "conf_design_review__capture_screenshot",
+   "query": "Take a picture of the viewport as it is.",
    "gold": [
-    "design_review"
-   ],
-   "mustNotRankFirst": [
-    "design_lint"
-   ],
-   "similarity": 0.124
-  },
-  {
-   "id": "conf_design_review__design_lint",
-   "query": "Check this interface for quality problems and score it.",
-   "gold": [
-    "design_lint"
+    "capture_screenshot"
    ],
    "mustNotRankFirst": [
     "design_review"
    ],
-   "similarity": 0.124
+   "collision": 1
   },
   {
-   "id": "conf_design_review__ui_create_screen_gui",
-   "query": "I need a new on-screen layer to put interface into.",
-   "gold": [
-    "ui_create_screen_gui"
-   ],
-   "mustNotRankFirst": [
-    "design_review"
-   ],
-   "similarity": 0.098
-  },
-  {
-   "id": "conf_diagnose_scripts__find_and_replace_in_scripts",
-   "query": "Rename that function everywhere it appears across the codebase.",
-   "gold": [
-    "find_and_replace_in_scripts"
-   ],
-   "mustNotRankFirst": [
-    "diagnose_scripts"
-   ],
-   "similarity": 0.17
-  },
-  {
-   "id": "conf_diagnose_scripts__capture_device_matrix",
-   "query": "Take a picture of the interface on six different handsets.",
-   "gold": [
-    "capture_device_matrix"
-   ],
-   "mustNotRankFirst": [
-    "diagnose_scripts"
-   ],
-   "similarity": 0.167
-  },
-  {
-   "id": "conf_list_recipes__list_library",
-   "query": "What is saved in the local library?",
-   "gold": [
-    "list_library"
-   ],
-   "mustNotRankFirst": [
-    "list_recipes"
-   ],
-   "similarity": 0.333
-  },
-  {
-   "id": "conf_list_recipes__apply_recipe",
-   "query": "Run the proven macro for a shop front with these parameters.",
-   "gold": [
-    "apply_recipe"
-   ],
-   "mustNotRankFirst": [
-    "list_recipes"
-   ],
-   "similarity": 0.232
-  },
-  {
-   "id": "conf_apply_recipe__list_recipes",
-   "query": "What canned constructions can you run for me?",
-   "gold": [
-    "list_recipes"
-   ],
-   "mustNotRankFirst": [
-    "apply_recipe"
-   ],
-   "similarity": 0.232
-  },
-  {
-   "id": "conf_apply_recipe__create_build",
+   "id": "conf_design_review__create_build",
    "query": "Design something from nothing and keep it around for later.",
    "gold": [
     "create_build"
    ],
    "mustNotRankFirst": [
+    "design_review"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_diagnose_scripts__create_object",
+   "query": "Put a new red brick in the workspace.",
+   "gold": [
+    "create_object"
+   ],
+   "mustNotRankFirst": [
+    "diagnose_scripts"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_diagnose_scripts__get_descendants",
+   "query": "Walk everything underneath Workspace.Map, however deep.",
+   "gold": [
+    "get_descendants"
+   ],
+   "mustNotRankFirst": [
+    "diagnose_scripts"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_list_recipes__run_gameplay_assertions",
+   "query": "Check these named conditions hold and tell me which failed.",
+   "gold": [
+    "run_gameplay_assertions"
+   ],
+   "mustNotRankFirst": [
+    "list_recipes"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_list_recipes__run_playtest_episode",
+   "query": "Start it, let it run a moment, and bring back what happened.",
+   "gold": [
+    "run_playtest_episode"
+   ],
+   "mustNotRankFirst": [
+    "list_recipes"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_apply_recipe__run_gameplay_assertions",
+   "query": "Check these named conditions hold and tell me which failed.",
+   "gold": [
+    "run_gameplay_assertions"
+   ],
+   "mustNotRankFirst": [
     "apply_recipe"
    ],
-   "similarity": 0.13
+   "collision": 0.5
   },
   {
-   "id": "conf_get_roblox_docs__get_build",
-   "query": "Fetch the stored description with this identifier.",
+   "id": "conf_apply_recipe__validate_with_luau_lsp",
+   "query": "Type-check these particular files.",
    "gold": [
-    "get_build"
+    "validate_with_luau_lsp"
+   ],
+   "mustNotRankFirst": [
+    "apply_recipe"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_roblox_docs__image_generate_and_upload",
+   "query": "Make me a picture of a neon sign and get it onto Roblox ready to use.",
+   "gold": [
+    "image_generate_and_upload"
    ],
    "mustNotRankFirst": [
     "get_roblox_docs"
    ],
-   "similarity": 0.133
+   "collision": 1
   },
   {
-   "id": "conf_get_roblox_docs__mass_get_property",
-   "query": "Read the colour off each of these thirty parts.",
+   "id": "conf_get_roblox_docs__run_playtest_episode",
+   "query": "Start it, let it run a moment, and bring back what happened.",
    "gold": [
-    "mass_get_property"
+    "run_playtest_episode"
    ],
    "mustNotRankFirst": [
     "get_roblox_docs"
    ],
-   "similarity": 0.125
+   "collision": 0.5
   },
   {
-   "id": "conf_tool_catalog_search__rokit_update_plan",
-   "query": "What would bumping the pinned tools change?",
+   "id": "conf_tool_catalog_search__find_and_replace_in_scripts",
+   "query": "Rename that function everywhere it appears across the codebase.",
    "gold": [
-    "rokit_update_plan"
+    "find_and_replace_in_scripts"
    ],
    "mustNotRankFirst": [
     "tool_catalog_search"
    ],
-   "similarity": 0.2
+   "collision": 1
   },
   {
-   "id": "conf_tool_catalog_search__wally_search",
-   "query": "Is there a package in the registry called Promise?",
+   "id": "conf_tool_catalog_search__animation_play",
+   "query": "Make that character perform the movement clip.",
    "gold": [
-    "wally_search"
+    "animation_play"
    ],
    "mustNotRankFirst": [
     "tool_catalog_search"
    ],
-   "similarity": 0.188
+   "collision": 0.5
   },
   {
-   "id": "conf_get_session_summary__tool_catalog_search",
-   "query": "I do not know which capability handles this — help me find it.",
+   "id": "conf_get_session_summary__get_operation_history",
+   "query": "What destructive things has this session done so far?",
    "gold": [
-    "tool_catalog_search"
+    "get_operation_history"
    ],
    "mustNotRankFirst": [
     "get_session_summary"
    ],
-   "similarity": 0.121
+   "collision": 1
   },
   {
-   "id": "conf_get_session_summary__get_dependency_graph",
-   "query": "What does this project depend on, without installing anything?",
+   "id": "conf_get_session_summary__multiplayer_test_leave_client",
+   "query": "Kick one specific player out of the running session.",
    "gold": [
-    "get_dependency_graph"
+    "multiplayer_test_leave_client"
    ],
    "mustNotRankFirst": [
     "get_session_summary"
    ],
-   "similarity": 0.117
+   "collision": 1
   },
   {
-   "id": "conf_get_request_status__cancel_request",
-   "query": "Drop that queued call before the plugin picks it up.",
+   "id": "conf_get_request_status__delete_object",
+   "query": "Get rid of Workspace.OldSign.",
    "gold": [
-    "cancel_request"
+    "delete_object"
    ],
    "mustNotRankFirst": [
     "get_request_status"
    ],
-   "similarity": 0.193
+   "collision": 1
   },
   {
-   "id": "conf_get_request_status__get_transport_diagnostics",
-   "query": "Is the local queue backing up?",
+   "id": "conf_get_request_status__get_memory_breakdown",
+   "query": "Where is the memory in this place actually going?",
    "gold": [
-    "get_transport_diagnostics"
+    "get_memory_breakdown"
    ],
    "mustNotRankFirst": [
     "get_request_status"
    ],
-   "similarity": 0.137
+   "collision": 1
   },
   {
-   "id": "conf_get_transport_diagnostics__get_request_status",
-   "query": "That call timed out — did it actually go through?",
+   "id": "conf_get_transport_diagnostics__import_external_asset",
+   "query": "Take this model from a public library and bring it into the place.",
    "gold": [
-    "get_request_status"
-   ],
-   "mustNotRankFirst": [
-    "get_transport_diagnostics"
-   ],
-   "similarity": 0.137
-  },
-  {
-   "id": "conf_get_transport_diagnostics__get_scene_summary",
-   "query": "Roughly how many of each class sit under Workspace?",
-   "gold": [
-    "get_scene_summary"
+    "import_external_asset"
    ],
    "mustNotRankFirst": [
     "get_transport_diagnostics"
    ],
-   "similarity": 0.109
+   "collision": 0.5
   },
   {
-   "id": "conf_cancel_request__get_request_status",
-   "query": "That call timed out — did it actually go through?",
+   "id": "conf_get_transport_diagnostics__rojo_delete_source",
+   "query": "Remove that local file after I have reviewed the dry run.",
    "gold": [
-    "get_request_status"
+    "rojo_delete_source"
+   ],
+   "mustNotRankFirst": [
+    "get_transport_diagnostics"
+   ],
+   "collision": 0.3333
+  },
+  {
+   "id": "conf_cancel_request__get_selection",
+   "query": "What has the user highlighted in the viewport right now?",
+   "gold": [
+    "get_selection"
    ],
    "mustNotRankFirst": [
     "cancel_request"
    ],
-   "similarity": 0.193
+   "collision": 1
   },
   {
-   "id": "conf_cancel_request__get_runtime_logs",
-   "query": "What did the game print while it was running?",
+   "id": "conf_cancel_request__list_script_backups",
+   "query": "Which script contents were saved before being overwritten?",
    "gold": [
-    "get_runtime_logs"
+    "list_script_backups"
    ],
    "mustNotRankFirst": [
     "cancel_request"
    ],
-   "similarity": 0.155
+   "collision": 0.5625
   },
   {
-   "id": "conf_detect_roblox_project__run_quality_gate",
-   "query": "Run whatever linters and checkers this project has and give me the verdict.",
+   "id": "conf_detect_roblox_project__asset_sanitize_plan",
+   "query": "Someone dropped a free model in. Tell me what its scripts do before I trust it.",
    "gold": [
-    "run_quality_gate"
+    "asset_sanitize_plan"
    ],
    "mustNotRankFirst": [
     "detect_roblox_project"
    ],
-   "similarity": 0.291
+   "collision": 1
   },
   {
-   "id": "conf_detect_roblox_project__wally_verify_rojo_mapping",
-   "query": "Are the installed package directories actually mounted into the tree?",
+   "id": "conf_detect_roblox_project__rojo_detect_projects",
+   "query": "How many project files are nested in this repository?",
    "gold": [
-    "wally_verify_rojo_mapping"
+    "rojo_detect_projects"
    ],
    "mustNotRankFirst": [
     "detect_roblox_project"
    ],
-   "similarity": 0.229
+   "collision": 1
   },
   {
-   "id": "conf_validate_script_source__get_script_source",
-   "query": "Show me the code inside ServerScriptService.Main.",
+   "id": "conf_validate_script_source__restore_script_backup",
+   "query": "Put that script back to what it was before I overwrote it.",
    "gold": [
-    "get_script_source"
+    "restore_script_backup"
    ],
    "mustNotRankFirst": [
     "validate_script_source"
    ],
-   "similarity": 0.2
+   "collision": 1.1
   },
   {
-   "id": "conf_validate_script_source__wally_validate_lock",
-   "query": "Does the lockfile cover every dependency in the manifest?",
+   "id": "conf_validate_script_source__asset_sanitize_apply",
+   "query": "Kill every script inside that free model.",
    "gold": [
-    "wally_validate_lock"
+    "asset_sanitize_apply"
    ],
    "mustNotRankFirst": [
     "validate_script_source"
    ],
-   "similarity": 0.186
+   "collision": 0.5
   },
   {
-   "id": "conf_format_script_preview__validate_script_source",
-   "query": "Does this code even compile, before I write it anywhere?",
+   "id": "conf_format_script_preview__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
    "gold": [
-    "validate_script_source"
+    "get_file_tree"
    ],
    "mustNotRankFirst": [
     "format_script_preview"
    ],
-   "similarity": 0.145
+   "collision": 1
   },
   {
-   "id": "conf_format_script_preview__get_script_source",
-   "query": "Show me the code inside ServerScriptService.Main.",
+   "id": "conf_format_script_preview__resolve_instance_source_file",
+   "query": "Which file on disk backs this Instance?",
    "gold": [
-    "get_script_source"
-   ],
-   "mustNotRankFirst": [
-    "format_script_preview"
-   ],
-   "similarity": 0.133
-  },
-  {
-   "id": "conf_resolve_instance_source_file__rojo_resolve_instance_source",
-   "query": "Given a Studio path, which local files correspond to it?",
-   "gold": [
-    "rojo_resolve_instance_source"
-   ],
-   "mustNotRankFirst": [
     "resolve_instance_source_file"
    ],
-   "similarity": 0.353
+   "mustNotRankFirst": [
+    "format_script_preview"
+   ],
+   "collision": 0.5
   },
   {
    "id": "conf_resolve_instance_source_file__rojo_resolve_source_instance",
@@ -3678,51 +3667,73 @@
    "mustNotRankFirst": [
     "resolve_instance_source_file"
    ],
-   "similarity": 0.333
+   "collision": 1.1429
   },
   {
-   "id": "conf_run_project_tests__wally_verify_rojo_mapping",
-   "query": "Are the installed package directories actually mounted into the tree?",
+   "id": "conf_resolve_instance_source_file__bulk_set_attributes",
+   "query": "Write six custom values onto this one instance in a single call.",
    "gold": [
-    "wally_verify_rojo_mapping"
+    "bulk_set_attributes"
+   ],
+   "mustNotRankFirst": [
+    "resolve_instance_source_file"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_run_project_tests__execute_luau",
+   "query": "Run this snippet of code inside Studio for me.",
+   "gold": [
+    "execute_luau"
    ],
    "mustNotRankFirst": [
     "run_project_tests"
    ],
-   "similarity": 0.141
+   "collision": 1.3333
   },
   {
-   "id": "conf_run_project_tests__validate_with_luau_lsp",
-   "query": "Type-check these particular files.",
+   "id": "conf_run_project_tests__run_quality_gate",
+   "query": "Run whatever linters and checkers this project has and give me the verdict.",
    "gold": [
-    "validate_with_luau_lsp"
+    "run_quality_gate"
    ],
    "mustNotRankFirst": [
     "run_project_tests"
    ],
-   "similarity": 0.133
+   "collision": 1
   },
   {
-   "id": "conf_asset_manifest_status__rokit_status",
-   "query": "Do the pinned tool versions match what is actually installed?",
+   "id": "conf_asset_manifest_status__search_assets",
+   "query": "Find models on the Creator Store matching medieval barrel.",
    "gold": [
-    "rokit_status"
+    "search_assets"
    ],
    "mustNotRankFirst": [
     "asset_manifest_status"
    ],
-   "similarity": 0.217
+   "collision": 1
   },
   {
-   "id": "conf_asset_manifest_status__asset_manifest_plan",
-   "query": "Show me what reconciling the art manifest would change before it does anything.",
+   "id": "conf_asset_manifest_status__asset_manifest_scan",
+   "query": "There is a folder of .glb and .fbx files — propose a manifest for them.",
    "gold": [
-    "asset_manifest_plan"
+    "asset_manifest_scan"
    ],
    "mustNotRankFirst": [
     "asset_manifest_status"
    ],
-   "similarity": 0.207
+   "collision": 0.75
+  },
+  {
+   "id": "conf_asset_manifest_scan__rokit_detect",
+   "query": "Is there a toolchain manifest above this directory?",
+   "gold": [
+    "rokit_detect"
+   ],
+   "mustNotRankFirst": [
+    "asset_manifest_scan"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_asset_manifest_scan__asset_manifest_plan",
@@ -3733,18 +3744,7 @@
    "mustNotRankFirst": [
     "asset_manifest_scan"
    ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_asset_manifest_scan__asset_manifest_status",
-   "query": "Which art assets are already uploaded and which are not?",
-   "gold": [
-    "asset_manifest_status"
-   ],
-   "mustNotRankFirst": [
-    "asset_manifest_scan"
-   ],
-   "similarity": 0.188
+   "collision": 0.8333
   },
   {
    "id": "conf_asset_manifest_plan__asset_manifest_scan",
@@ -3755,18 +3755,29 @@
    "mustNotRankFirst": [
     "asset_manifest_plan"
    ],
-   "similarity": 0.217
+   "collision": 0.8333
   },
   {
-   "id": "conf_asset_manifest_plan__asset_manifest_status",
-   "query": "Which art assets are already uploaded and which are not?",
+   "id": "conf_asset_manifest_plan__rokit_add_tool_plan",
+   "query": "What would adding this tool spec to the manifest do?",
    "gold": [
-    "asset_manifest_status"
+    "rokit_add_tool_plan"
    ],
    "mustNotRankFirst": [
     "asset_manifest_plan"
    ],
-   "similarity": 0.207
+   "collision": 0.5
+  },
+  {
+   "id": "conf_get_dependency_graph__wally_dependency_graph",
+   "query": "Turn the lockfile into a graph of who depends on whom.",
+   "gold": [
+    "wally_dependency_graph"
+   ],
+   "mustNotRankFirst": [
+    "get_dependency_graph"
+   ],
+   "collision": 1.0769
   },
   {
    "id": "conf_get_dependency_graph__wally_validate_lock",
@@ -3777,29 +3788,18 @@
    "mustNotRankFirst": [
     "get_dependency_graph"
    ],
-   "similarity": 0.25
+   "collision": 1.0714
   },
   {
-   "id": "conf_get_dependency_graph__wally_update_plan",
-   "query": "What would updating the packages change in the resolved graph?",
+   "id": "conf_install_wally_packages__wally_install_plan",
+   "query": "What would installing the packages do, and can it be locked?",
    "gold": [
-    "wally_update_plan"
-   ],
-   "mustNotRankFirst": [
-    "get_dependency_graph"
-   ],
-   "similarity": 0.182
-  },
-  {
-   "id": "conf_install_wally_packages__wally_install_apply",
-   "query": "Actually pull the dependencies down.",
-   "gold": [
-    "wally_install_apply"
+    "wally_install_plan"
    ],
    "mustNotRankFirst": [
     "install_wally_packages"
    ],
-   "similarity": 0.316
+   "collision": 1
   },
   {
    "id": "conf_install_wally_packages__build_rojo_project",
@@ -3810,73 +3810,73 @@
    "mustNotRankFirst": [
     "install_wally_packages"
    ],
-   "similarity": 0.272
+   "collision": 0.55
   },
   {
-   "id": "conf_run_quality_gate__detect_roblox_project",
+   "id": "conf_run_quality_gate__design_lint",
+   "query": "Check this interface for quality problems and score it.",
+   "gold": [
+    "design_lint"
+   ],
+   "mustNotRankFirst": [
+    "run_quality_gate"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_run_quality_gate__run_project_tests",
+   "query": "Execute the Lune test script I picked.",
+   "gold": [
+    "run_project_tests"
+   ],
+   "mustNotRankFirst": [
+    "run_quality_gate"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_validate_with_luau_lsp__search_files",
+   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "gold": [
+    "search_files"
+   ],
+   "mustNotRankFirst": [
+    "validate_with_luau_lsp"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_validate_with_luau_lsp__apply_recipe",
+   "query": "Run the proven macro for a shop front with these parameters.",
+   "gold": [
+    "apply_recipe"
+   ],
+   "mustNotRankFirst": [
+    "validate_with_luau_lsp"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_generate_rojo_sourcemap__search_files",
+   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "gold": [
+    "search_files"
+   ],
+   "mustNotRankFirst": [
+    "generate_rojo_sourcemap"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_generate_rojo_sourcemap__detect_roblox_project",
    "query": "What tooling does this repository already use?",
    "gold": [
     "detect_roblox_project"
    ],
    "mustNotRankFirst": [
-    "run_quality_gate"
-   ],
-   "similarity": 0.291
-  },
-  {
-   "id": "conf_run_quality_gate__project_reconcile_plan",
-   "query": "Read the whole project and tell me what it would take to make it consistent.",
-   "gold": [
-    "project_reconcile_plan"
-   ],
-   "mustNotRankFirst": [
-    "run_quality_gate"
-   ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_validate_with_luau_lsp__run_quality_gate",
-   "query": "Run whatever linters and checkers this project has and give me the verdict.",
-   "gold": [
-    "run_quality_gate"
-   ],
-   "mustNotRankFirst": [
-    "validate_with_luau_lsp"
-   ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_validate_with_luau_lsp__validate_script_source",
-   "query": "Does this code even compile, before I write it anywhere?",
-   "gold": [
-    "validate_script_source"
-   ],
-   "mustNotRankFirst": [
-    "validate_with_luau_lsp"
-   ],
-   "similarity": 0.18
-  },
-  {
-   "id": "conf_generate_rojo_sourcemap__build_rojo_project",
-   "query": "Compile the detected project into a place file.",
-   "gold": [
-    "build_rojo_project"
-   ],
-   "mustNotRankFirst": [
     "generate_rojo_sourcemap"
    ],
-   "similarity": 0.517
-  },
-  {
-   "id": "conf_generate_rojo_sourcemap__rojo_generate_sourcemap",
-   "query": "For the project I picked, emit the instance-to-file mapping at this path.",
-   "gold": [
-    "rojo_generate_sourcemap"
-   ],
-   "mustNotRankFirst": [
-    "generate_rojo_sourcemap"
-   ],
-   "similarity": 0.5
+   "collision": 0.5
   },
   {
    "id": "conf_build_rojo_project__rojo_build_project",
@@ -3887,84 +3887,95 @@
    "mustNotRankFirst": [
     "build_rojo_project"
    ],
-   "similarity": 0.538
+   "collision": 1.1111
   },
   {
-   "id": "conf_build_rojo_project__generate_rojo_sourcemap",
-   "query": "Produce the file that maps Studio instances onto files on disk, for whichever project you found.",
+   "id": "conf_build_rojo_project__get_dependency_graph",
+   "query": "What does this project depend on, without installing anything?",
    "gold": [
-    "generate_rojo_sourcemap"
+    "get_dependency_graph"
    ],
    "mustNotRankFirst": [
     "build_rojo_project"
    ],
-   "similarity": 0.517
+   "collision": 1
   },
   {
-   "id": "conf_load_toolset__tool_catalog_search",
-   "query": "I do not know which capability handles this — help me find it.",
+   "id": "conf_load_toolset__terrain_clear_region",
+   "query": "Empty this region back to nothing.",
    "gold": [
-    "tool_catalog_search"
+    "terrain_clear_region"
    ],
    "mustNotRankFirst": [
     "load_toolset"
    ],
-   "similarity": 0.113
+   "collision": 1
   },
   {
-   "id": "conf_load_toolset__rokit_status",
-   "query": "Do the pinned tool versions match what is actually installed?",
+   "id": "conf_load_toolset__rokit_update_apply",
+   "query": "Bump the pinned tools for real.",
    "gold": [
-    "rokit_status"
+    "rokit_update_apply"
    ],
    "mustNotRankFirst": [
     "load_toolset"
    ],
-   "similarity": 0.1
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_detect_projects__rokit_detect",
-   "query": "Is there a toolchain manifest above this directory?",
+   "id": "conf_rojo_detect_projects__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
    "gold": [
-    "rokit_detect"
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
     "rojo_detect_projects"
    ],
-   "similarity": 0.204
+   "collision": 1
   },
   {
-   "id": "conf_rojo_detect_projects__rojo_build_project",
+   "id": "conf_rojo_detect_projects__search_files",
+   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "gold": [
+    "search_files"
+   ],
+   "mustNotRankFirst": [
+    "rojo_detect_projects"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_rojo_get_project_info__rojo_build_project",
    "query": "Turn the project I picked into an .rbxl at this path.",
    "gold": [
     "rojo_build_project"
    ],
    "mustNotRankFirst": [
-    "rojo_detect_projects"
+    "rojo_get_project_info"
    ],
-   "similarity": 0.182
+   "collision": 0.6
   },
   {
-   "id": "conf_rojo_get_project_info__rojo_serve_stop",
-   "query": "Shut the live file-sync process down cleanly.",
+   "id": "conf_rojo_get_project_info__project_reconcile_plan",
+   "query": "Read the whole project and tell me what it would take to make it consistent.",
    "gold": [
-    "rojo_serve_stop"
+    "project_reconcile_plan"
    ],
    "mustNotRankFirst": [
     "rojo_get_project_info"
    ],
-   "similarity": 0.383
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_get_project_info__rojo_serve_start",
-   "query": "Start the live file-sync process for this project.",
+   "id": "conf_rojo_validate_project__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
    "gold": [
-    "rojo_serve_start"
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
-    "rojo_get_project_info"
+    "rojo_validate_project"
    ],
-   "similarity": 0.336
+   "collision": 1
   },
   {
    "id": "conf_rojo_validate_project__rojo_build_project",
@@ -3975,51 +3986,40 @@
    "mustNotRankFirst": [
     "rojo_validate_project"
    ],
-   "similarity": 0.285
+   "collision": 0.625
   },
   {
-   "id": "conf_rojo_validate_project__rojo_serve_stop",
-   "query": "Shut the live file-sync process down cleanly.",
+   "id": "conf_rojo_get_version__rokit_add_tool_apply",
+   "query": "Go ahead and add that tool spec to the manifest.",
    "gold": [
-    "rojo_serve_stop"
-   ],
-   "mustNotRankFirst": [
-    "rojo_validate_project"
-   ],
-   "similarity": 0.217
-  },
-  {
-   "id": "conf_rojo_get_version__rokit_status",
-   "query": "Do the pinned tool versions match what is actually installed?",
-   "gold": [
-    "rokit_status"
+    "rokit_add_tool_apply"
    ],
    "mustNotRankFirst": [
     "rojo_get_version"
    ],
-   "similarity": 0.257
+   "collision": 1
   },
   {
-   "id": "conf_rojo_get_version__rokit_detect",
-   "query": "Is there a toolchain manifest above this directory?",
+   "id": "conf_rojo_get_version__rokit_add_tool_plan",
+   "query": "What would adding this tool spec to the manifest do?",
    "gold": [
-    "rokit_detect"
+    "rokit_add_tool_plan"
    ],
    "mustNotRankFirst": [
     "rojo_get_version"
    ],
-   "similarity": 0.229
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_serve_start__rojo_serve_stop",
-   "query": "Shut the live file-sync process down cleanly.",
+   "id": "conf_rojo_serve_start__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
    "gold": [
-    "rojo_serve_stop"
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
     "rojo_serve_start"
    ],
-   "similarity": 0.583
+   "collision": 0.5
   },
   {
    "id": "conf_rojo_serve_start__rojo_get_project_info",
@@ -4030,73 +4030,73 @@
    "mustNotRankFirst": [
     "rojo_serve_start"
    ],
-   "similarity": 0.336
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_serve_status__rojo_serve_start",
-   "query": "Start the live file-sync process for this project.",
+   "id": "conf_rojo_serve_status__export_rbxm",
+   "query": "Serialise these instances to a file on disk.",
    "gold": [
-    "rojo_serve_start"
+    "export_rbxm"
    ],
    "mustNotRankFirst": [
     "rojo_serve_status"
    ],
-   "similarity": 0.288
+   "collision": 1
   },
   {
-   "id": "conf_rojo_serve_status__rojo_get_project_info",
-   "query": "What is inside the selected project file, including its serve settings?",
+   "id": "conf_rojo_serve_status__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
    "gold": [
-    "rojo_get_project_info"
+    "get_file_tree"
    ],
    "mustNotRankFirst": [
     "rojo_serve_status"
    ],
-   "similarity": 0.277
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_serve_logs__rojo_serve_stop",
-   "query": "Shut the live file-sync process down cleanly.",
+   "id": "conf_rojo_serve_logs__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
    "gold": [
-    "rojo_serve_stop"
+    "get_file_tree"
    ],
    "mustNotRankFirst": [
     "rojo_serve_logs"
    ],
-   "similarity": 0.285
+   "collision": 1
   },
   {
-   "id": "conf_rojo_serve_logs__rojo_serve_start",
-   "query": "Start the live file-sync process for this project.",
+   "id": "conf_rojo_serve_logs__rojo_syncback_apply",
+   "query": "Commit the Studio-side edits down onto disk where they do not clash.",
    "gold": [
-    "rojo_serve_start"
+    "rojo_syncback_apply"
    ],
    "mustNotRankFirst": [
     "rojo_serve_logs"
    ],
-   "similarity": 0.25
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_serve_stop__rojo_serve_start",
-   "query": "Start the live file-sync process for this project.",
+   "id": "conf_rojo_serve_stop__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
    "gold": [
-    "rojo_serve_start"
+    "get_file_tree"
    ],
    "mustNotRankFirst": [
     "rojo_serve_stop"
    ],
-   "similarity": 0.583
+   "collision": 1.0625
   },
   {
-   "id": "conf_rojo_serve_stop__rojo_get_project_info",
-   "query": "What is inside the selected project file, including its serve settings?",
+   "id": "conf_rojo_serve_stop__cancel_job",
+   "query": "Stop that long-running work, I do not need it any more.",
    "gold": [
-    "rojo_get_project_info"
+    "cancel_job"
    ],
    "mustNotRankFirst": [
     "rojo_serve_stop"
    ],
-   "similarity": 0.383
+   "collision": 0.5
   },
   {
    "id": "conf_rojo_build_project__build_rojo_project",
@@ -4107,40 +4107,51 @@
    "mustNotRankFirst": [
     "rojo_build_project"
    ],
-   "similarity": 0.538
+   "collision": 1.1111
   },
   {
-   "id": "conf_rojo_build_project__rojo_generate_sourcemap",
-   "query": "For the project I picked, emit the instance-to-file mapping at this path.",
+   "id": "conf_rojo_build_project__project_reconcile_plan",
+   "query": "Read the whole project and tell me what it would take to make it consistent.",
    "gold": [
-    "rojo_generate_sourcemap"
+    "project_reconcile_plan"
    ],
    "mustNotRankFirst": [
     "rojo_build_project"
    ],
-   "similarity": 0.517
+   "collision": 0.625
   },
   {
-   "id": "conf_rojo_generate_sourcemap__rojo_build_project",
-   "query": "Turn the project I picked into an .rbxl at this path.",
+   "id": "conf_rojo_generate_sourcemap__resolve_instance_source_file",
+   "query": "Which file on disk backs this Instance?",
    "gold": [
-    "rojo_build_project"
+    "resolve_instance_source_file"
    ],
    "mustNotRankFirst": [
     "rojo_generate_sourcemap"
    ],
-   "similarity": 0.517
+   "collision": 1
   },
   {
-   "id": "conf_rojo_generate_sourcemap__generate_rojo_sourcemap",
-   "query": "Produce the file that maps Studio instances onto files on disk, for whichever project you found.",
+   "id": "conf_rojo_generate_sourcemap__build_rojo_project",
+   "query": "Compile the detected project into a place file.",
    "gold": [
-    "generate_rojo_sourcemap"
+    "build_rojo_project"
    ],
    "mustNotRankFirst": [
     "rojo_generate_sourcemap"
    ],
-   "similarity": 0.5
+   "collision": 0.5
+  },
+  {
+   "id": "conf_rojo_resolve_instance_source__search_files",
+   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "gold": [
+    "search_files"
+   ],
+   "mustNotRankFirst": [
+    "rojo_resolve_instance_source"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_rojo_resolve_instance_source__rojo_resolve_source_instance",
@@ -4151,29 +4162,7 @@
    "mustNotRankFirst": [
     "rojo_resolve_instance_source"
    ],
-   "similarity": 0.8
-  },
-  {
-   "id": "conf_rojo_resolve_instance_source__resolve_instance_source_file",
-   "query": "Which file on disk backs this Instance?",
-   "gold": [
-    "resolve_instance_source_file"
-   ],
-   "mustNotRankFirst": [
-    "rojo_resolve_instance_source"
-   ],
-   "similarity": 0.353
-  },
-  {
-   "id": "conf_rojo_resolve_source_instance__rojo_resolve_instance_source",
-   "query": "Given a Studio path, which local files correspond to it?",
-   "gold": [
-    "rojo_resolve_instance_source"
-   ],
-   "mustNotRankFirst": [
-    "rojo_resolve_source_instance"
-   ],
-   "similarity": 0.8
+   "collision": 0.6667
   },
   {
    "id": "conf_rojo_resolve_source_instance__resolve_instance_source_file",
@@ -4184,95 +4173,117 @@
    "mustNotRankFirst": [
     "rojo_resolve_source_instance"
    ],
-   "similarity": 0.333
+   "collision": 1.1429
   },
   {
-   "id": "conf_rojo_read_source__rojo_create_source",
-   "query": "Create that local file, but only if it is genuinely absent.",
+   "id": "conf_rojo_resolve_source_instance__audio_create_sound",
+   "query": "Attach a noise to this part using this id.",
    "gold": [
-    "rojo_create_source"
+    "audio_create_sound"
+   ],
+   "mustNotRankFirst": [
+    "rojo_resolve_source_instance"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_rojo_read_source__import_rbxm",
+   "query": "Read that file on disk back into the place.",
+   "gold": [
+    "import_rbxm"
    ],
    "mustNotRankFirst": [
     "rojo_read_source"
    ],
-   "similarity": 0.288
+   "collision": 1
   },
   {
-   "id": "conf_rojo_read_source__rojo_patch_source",
-   "query": "Change one unique span in that local file, dry run first.",
+   "id": "conf_rojo_read_source__mass_get_property",
+   "query": "Read the colour off each of these thirty parts.",
    "gold": [
-    "rojo_patch_source"
+    "mass_get_property"
    ],
    "mustNotRankFirst": [
     "rojo_read_source"
    ],
-   "similarity": 0.25
+   "collision": 1
   },
   {
-   "id": "conf_rojo_patch_source__rojo_delete_source",
-   "query": "Remove that local file after I have reviewed the dry run.",
+   "id": "conf_rojo_patch_source__get_spatial_layout",
+   "query": "How big is the world, where is the floor, and which patch of it is empty?",
    "gold": [
-    "rojo_delete_source"
+    "get_spatial_layout"
    ],
    "mustNotRankFirst": [
     "rojo_patch_source"
    ],
-   "similarity": 0.425
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_patch_source__rojo_create_source",
-   "query": "Create that local file, but only if it is genuinely absent.",
+   "id": "conf_rojo_patch_source__run_playtest_episode",
+   "query": "Start it, let it run a moment, and bring back what happened.",
    "gold": [
-    "rojo_create_source"
+    "run_playtest_episode"
    ],
    "mustNotRankFirst": [
     "rojo_patch_source"
    ],
-   "similarity": 0.354
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_create_source__rojo_patch_source",
-   "query": "Change one unique span in that local file, dry run first.",
+   "id": "conf_rojo_create_source__template_create_simulator_game",
+   "query": "Scaffold a clicker game with a currency stat and a shop.",
    "gold": [
-    "rojo_patch_source"
+    "template_create_simulator_game"
    ],
    "mustNotRankFirst": [
     "rojo_create_source"
    ],
-   "similarity": 0.354
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_create_source__rojo_delete_source",
-   "query": "Remove that local file after I have reviewed the dry run.",
+   "id": "conf_rojo_create_source__mass_create_objects",
+   "query": "Spawn twenty pillars in one call.",
    "gold": [
-    "rojo_delete_source"
+    "mass_create_objects"
    ],
    "mustNotRankFirst": [
     "rojo_create_source"
    ],
-   "similarity": 0.311
+   "collision": 0.4242
   },
   {
-   "id": "conf_rojo_delete_source__rojo_patch_source",
-   "query": "Change one unique span in that local file, dry run first.",
+   "id": "conf_rojo_delete_source__remove_tag",
+   "query": "Take the Climbable label off this part.",
    "gold": [
-    "rojo_patch_source"
+    "remove_tag"
    ],
    "mustNotRankFirst": [
     "rojo_delete_source"
    ],
-   "similarity": 0.425
+   "collision": 1
   },
   {
-   "id": "conf_rojo_delete_source__rojo_create_source",
-   "query": "Create that local file, but only if it is genuinely absent.",
+   "id": "conf_rojo_delete_source__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
    "gold": [
-    "rojo_create_source"
+    "get_file_tree"
    ],
    "mustNotRankFirst": [
     "rojo_delete_source"
    ],
-   "similarity": 0.311
+   "collision": 0.5
+  },
+  {
+   "id": "conf_rojo_syncback_plan__search_files",
+   "query": "Somewhere there is a thing called Conveyor — locate it.",
+   "gold": [
+    "search_files"
+   ],
+   "mustNotRankFirst": [
+    "rojo_syncback_plan"
+   ],
+   "collision": 1
   },
   {
    "id": "conf_rojo_syncback_plan__rojo_syncback_apply",
@@ -4283,84 +4294,84 @@
    "mustNotRankFirst": [
     "rojo_syncback_plan"
    ],
-   "similarity": 0.217
+   "collision": 0.5
   },
   {
-   "id": "conf_rojo_syncback_plan__wally_install_plan",
-   "query": "What would installing the packages do, and can it be locked?",
+   "id": "conf_rojo_syncback_apply__redo",
+   "query": "Actually, put that change back.",
    "gold": [
-    "wally_install_plan"
-   ],
-   "mustNotRankFirst": [
-    "rojo_syncback_plan"
-   ],
-   "similarity": 0.193
-  },
-  {
-   "id": "conf_rojo_syncback_apply__wally_install_apply",
-   "query": "Actually pull the dependencies down.",
-   "gold": [
-    "wally_install_apply"
+    "redo"
    ],
    "mustNotRankFirst": [
     "rojo_syncback_apply"
    ],
-   "similarity": 0.354
+   "collision": 1.2
   },
   {
-   "id": "conf_rojo_syncback_apply__wally_update_apply",
-   "query": "Actually move the dependencies to newer versions.",
+   "id": "conf_rojo_syncback_apply__get_memory_breakdown",
+   "query": "Where is the memory in this place actually going?",
    "gold": [
-    "wally_update_apply"
+    "get_memory_breakdown"
    ],
    "mustNotRankFirst": [
     "rojo_syncback_apply"
    ],
-   "similarity": 0.33
+   "collision": 1
   },
   {
-   "id": "conf_rokit_detect__rojo_get_version",
-   "query": "Which binary will be used for the sync tool here, and what version is it?",
+   "id": "conf_rokit_detect__asset_manifest_scan",
+   "query": "There is a folder of .glb and .fbx files — propose a manifest for them.",
    "gold": [
-    "rojo_get_version"
+    "asset_manifest_scan"
    ],
    "mustNotRankFirst": [
     "rokit_detect"
    ],
-   "similarity": 0.229
+   "collision": 1
   },
   {
-   "id": "conf_rokit_detect__rojo_detect_projects",
-   "query": "How many project files are nested in this repository?",
+   "id": "conf_rokit_detect__get_tagged",
+   "query": "Give me everything labelled Checkpoint.",
    "gold": [
-    "rojo_detect_projects"
+    "get_tagged"
    ],
    "mustNotRankFirst": [
     "rokit_detect"
    ],
-   "similarity": 0.204
+   "collision": 1
   },
   {
-   "id": "conf_rokit_get_manifest__wally_get_manifest",
-   "query": "What does wally.toml say this project needs?",
+   "id": "conf_rokit_get_manifest__rokit_list_tools",
+   "query": "Ask the toolchain manager itself what it has.",
    "gold": [
-    "wally_get_manifest"
+    "rokit_list_tools"
    ],
    "mustNotRankFirst": [
     "rokit_get_manifest"
    ],
-   "similarity": 0.383
+   "collision": 0.625
   },
   {
-   "id": "conf_rokit_get_manifest__rokit_add_tool_plan",
-   "query": "What would adding this tool spec to the manifest do?",
+   "id": "conf_rokit_get_manifest__rokit_detect",
+   "query": "Is there a toolchain manifest above this directory?",
    "gold": [
-    "rokit_add_tool_plan"
+    "rokit_detect"
    ],
    "mustNotRankFirst": [
     "rokit_get_manifest"
    ],
-   "similarity": 0.33
+   "collision": 0.5
+  },
+  {
+   "id": "conf_rokit_list_tools__rokit_update_apply",
+   "query": "Bump the pinned tools for real.",
+   "gold": [
+    "rokit_update_apply"
+   ],
+   "mustNotRankFirst": [
+    "rokit_list_tools"
+   ],
+   "collision": 1.1
   },
   {
    "id": "conf_rokit_list_tools__rokit_add_tool_apply",
@@ -4371,194 +4382,194 @@
    "mustNotRankFirst": [
     "rokit_list_tools"
    ],
-   "similarity": 0.3
+   "collision": 1.0714
   },
   {
-   "id": "conf_rokit_list_tools__rojo_serve_start",
-   "query": "Start the live file-sync process for this project.",
-   "gold": [
-    "rojo_serve_start"
-   ],
-   "mustNotRankFirst": [
-    "rokit_list_tools"
-   ],
-   "similarity": 0.232
-  },
-  {
-   "id": "conf_rokit_status__rokit_get_manifest",
-   "query": "Parse the toolchain manifest and list what it pins.",
-   "gold": [
-    "rokit_get_manifest"
-   ],
-   "mustNotRankFirst": [
-    "rokit_status"
-   ],
-   "similarity": 0.259
-  },
-  {
-   "id": "conf_rokit_status__rojo_get_version",
-   "query": "Which binary will be used for the sync tool here, and what version is it?",
-   "gold": [
-    "rojo_get_version"
-   ],
-   "mustNotRankFirst": [
-    "rokit_status"
-   ],
-   "similarity": 0.257
-  },
-  {
-   "id": "conf_rokit_install__rokit_update_apply",
-   "query": "Bump the pinned tools for real.",
-   "gold": [
-    "rokit_update_apply"
-   ],
-   "mustNotRankFirst": [
-    "rokit_install"
-   ],
-   "similarity": 0.505
-  },
-  {
-   "id": "conf_rokit_install__rokit_add_tool_apply",
+   "id": "conf_rokit_status__rokit_add_tool_apply",
    "query": "Go ahead and add that tool spec to the manifest.",
    "gold": [
     "rokit_add_tool_apply"
    ],
    "mustNotRankFirst": [
+    "rokit_status"
+   ],
+   "collision": 1.0769
+  },
+  {
+   "id": "conf_rokit_status__get_class_info",
+   "query": "What can a ProximityPrompt actually do?",
+   "gold": [
+    "get_class_info"
+   ],
+   "mustNotRankFirst": [
+    "rokit_status"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_rokit_install__rokit_status",
+   "query": "Do the pinned tool versions match what is actually installed?",
+   "gold": [
+    "rokit_status"
+   ],
+   "mustNotRankFirst": [
     "rokit_install"
    ],
-   "similarity": 0.33
+   "collision": 0.6667
   },
   {
-   "id": "conf_rokit_add_tool_plan__rokit_update_plan",
-   "query": "What would bumping the pinned tools change?",
-   "gold": [
-    "rokit_update_plan"
-   ],
-   "mustNotRankFirst": [
-    "rokit_add_tool_plan"
-   ],
-   "similarity": 0.494
-  },
-  {
-   "id": "conf_rokit_add_tool_plan__rokit_get_manifest",
-   "query": "Parse the toolchain manifest and list what it pins.",
-   "gold": [
-    "rokit_get_manifest"
-   ],
-   "mustNotRankFirst": [
-    "rokit_add_tool_plan"
-   ],
-   "similarity": 0.33
-  },
-  {
-   "id": "conf_rokit_add_tool_apply__rokit_update_apply",
-   "query": "Bump the pinned tools for real.",
-   "gold": [
-    "rokit_update_apply"
-   ],
-   "mustNotRankFirst": [
-    "rokit_add_tool_apply"
-   ],
-   "similarity": 0.467
-  },
-  {
-   "id": "conf_rokit_add_tool_apply__wally_install_apply",
+   "id": "conf_rokit_install__wally_install_apply",
    "query": "Actually pull the dependencies down.",
    "gold": [
     "wally_install_apply"
    ],
    "mustNotRankFirst": [
-    "rokit_add_tool_apply"
-   ],
-   "similarity": 0.354
-  },
-  {
-   "id": "conf_rokit_update_plan__rokit_add_tool_plan",
-   "query": "What would adding this tool spec to the manifest do?",
-   "gold": [
-    "rokit_add_tool_plan"
-   ],
-   "mustNotRankFirst": [
-    "rokit_update_plan"
-   ],
-   "similarity": 0.494
-  },
-  {
-   "id": "conf_rokit_update_plan__rokit_update_apply",
-   "query": "Bump the pinned tools for real.",
-   "gold": [
-    "rokit_update_apply"
-   ],
-   "mustNotRankFirst": [
-    "rokit_update_plan"
-   ],
-   "similarity": 0.368
-  },
-  {
-   "id": "conf_rokit_update_apply__rokit_install",
-   "query": "Actually fetch the binaries this repository says it needs.",
-   "gold": [
     "rokit_install"
    ],
-   "mustNotRankFirst": [
-    "rokit_update_apply"
-   ],
-   "similarity": 0.505
+   "collision": 0.5
   },
   {
-   "id": "conf_rokit_update_apply__rokit_add_tool_apply",
+   "id": "conf_rokit_add_tool_plan__rokit_add_tool_apply",
    "query": "Go ahead and add that tool spec to the manifest.",
    "gold": [
     "rokit_add_tool_apply"
    ],
    "mustNotRankFirst": [
+    "rokit_add_tool_plan"
+   ],
+   "collision": 1.125
+  },
+  {
+   "id": "conf_rokit_add_tool_plan__asset_manifest_plan",
+   "query": "Show me what reconciling the art manifest would change before it does anything.",
+   "gold": [
+    "asset_manifest_plan"
+   ],
+   "mustNotRankFirst": [
+    "rokit_add_tool_plan"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_rokit_add_tool_apply__rokit_add_tool_plan",
+   "query": "What would adding this tool spec to the manifest do?",
+   "gold": [
+    "rokit_add_tool_plan"
+   ],
+   "mustNotRankFirst": [
+    "rokit_add_tool_apply"
+   ],
+   "collision": 1.125
+  },
+  {
+   "id": "conf_rokit_add_tool_apply__rokit_status",
+   "query": "Do the pinned tool versions match what is actually installed?",
+   "gold": [
+    "rokit_status"
+   ],
+   "mustNotRankFirst": [
+    "rokit_add_tool_apply"
+   ],
+   "collision": 1.0769
+  },
+  {
+   "id": "conf_rokit_update_plan__rokit_list_tools",
+   "query": "Ask the toolchain manager itself what it has.",
+   "gold": [
+    "rokit_list_tools"
+   ],
+   "mustNotRankFirst": [
+    "rokit_update_plan"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_rokit_update_plan__load_toolset",
+   "query": "I need the terrain capabilities available in this conversation.",
+   "gold": [
+    "load_toolset"
+   ],
+   "mustNotRankFirst": [
+    "rokit_update_plan"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_rokit_update_apply__rokit_list_tools",
+   "query": "Ask the toolchain manager itself what it has.",
+   "gold": [
+    "rokit_list_tools"
+   ],
+   "mustNotRankFirst": [
     "rokit_update_apply"
    ],
-   "similarity": 0.467
+   "collision": 1.1
   },
   {
-   "id": "conf_wally_get_manifest__rokit_get_manifest",
-   "query": "Parse the toolchain manifest and list what it pins.",
+   "id": "conf_rokit_update_apply__load_toolset",
+   "query": "I need the terrain capabilities available in this conversation.",
    "gold": [
-    "rokit_get_manifest"
+    "load_toolset"
+   ],
+   "mustNotRankFirst": [
+    "rokit_update_apply"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_wally_get_manifest__detect_roblox_project",
+   "query": "What tooling does this repository already use?",
+   "gold": [
+    "detect_roblox_project"
    ],
    "mustNotRankFirst": [
     "wally_get_manifest"
    ],
-   "similarity": 0.383
+   "collision": 1
   },
   {
-   "id": "conf_wally_get_manifest__wally_get_lock",
-   "query": "List the exact resolved versions from the lockfile.",
+   "id": "conf_wally_get_manifest__install_wally_packages",
+   "query": "Pull down the packages this project depends on.",
    "gold": [
-    "wally_get_lock"
+    "install_wally_packages"
    ],
    "mustNotRankFirst": [
     "wally_get_manifest"
    ],
-   "similarity": 0.281
+   "collision": 0.5
   },
   {
-   "id": "conf_wally_get_lock__wally_get_manifest",
-   "query": "What does wally.toml say this project needs?",
+   "id": "conf_wally_get_lock__list_library",
+   "query": "What is saved in the local library?",
    "gold": [
-    "wally_get_manifest"
+    "list_library"
    ],
    "mustNotRankFirst": [
     "wally_get_lock"
    ],
-   "similarity": 0.281
+   "collision": 1
   },
   {
-   "id": "conf_wally_get_lock__wally_search",
-   "query": "Is there a package in the registry called Promise?",
+   "id": "conf_wally_get_lock__search_objects",
+   "query": "Give me every part whose name starts with Coin.",
    "gold": [
-    "wally_search"
+    "search_objects"
    ],
    "mustNotRankFirst": [
     "wally_get_lock"
    ],
-   "similarity": 0.217
+   "collision": 1
+  },
+  {
+   "id": "conf_wally_dependency_graph__get_dependency_graph",
+   "query": "What does this project depend on, without installing anything?",
+   "gold": [
+    "get_dependency_graph"
+   ],
+   "mustNotRankFirst": [
+    "wally_dependency_graph"
+   ],
+   "collision": 1.0769
   },
   {
    "id": "conf_wally_dependency_graph__wally_update_plan",
@@ -4569,18 +4580,7 @@
    "mustNotRankFirst": [
     "wally_dependency_graph"
    ],
-   "similarity": 0.224
-  },
-  {
-   "id": "conf_wally_dependency_graph__wally_get_lock",
-   "query": "List the exact resolved versions from the lockfile.",
-   "gold": [
-    "wally_get_lock"
-   ],
-   "mustNotRankFirst": [
-    "wally_dependency_graph"
-   ],
-   "similarity": 0.21
+   "collision": 0.7
   },
   {
    "id": "conf_wally_validate_lock__get_dependency_graph",
@@ -4591,40 +4591,51 @@
    "mustNotRankFirst": [
     "wally_validate_lock"
    ],
-   "similarity": 0.25
+   "collision": 1.0714
   },
   {
-   "id": "conf_wally_validate_lock__validate_script_source",
-   "query": "Does this code even compile, before I write it anywhere?",
+   "id": "conf_wally_validate_lock__asset_manifest_status",
+   "query": "Which art assets are already uploaded and which are not?",
    "gold": [
-    "validate_script_source"
+    "asset_manifest_status"
    ],
    "mustNotRankFirst": [
     "wally_validate_lock"
    ],
-   "similarity": 0.186
+   "collision": 0.5
   },
   {
-   "id": "conf_wally_verify_rojo_mapping__detect_roblox_project",
-   "query": "What tooling does this repository already use?",
+   "id": "conf_wally_verify_rojo_mapping__get_file_tree",
+   "query": "Show me how this place is laid out, top to bottom.",
    "gold": [
-    "detect_roblox_project"
+    "get_file_tree"
    ],
    "mustNotRankFirst": [
     "wally_verify_rojo_mapping"
    ],
-   "similarity": 0.229
+   "collision": 0.5
   },
   {
-   "id": "conf_wally_verify_rojo_mapping__project_reconcile_plan",
-   "query": "Read the whole project and tell me what it would take to make it consistent.",
+   "id": "conf_wally_verify_rojo_mapping__rokit_status",
+   "query": "Do the pinned tool versions match what is actually installed?",
    "gold": [
-    "project_reconcile_plan"
+    "rokit_status"
    ],
    "mustNotRankFirst": [
     "wally_verify_rojo_mapping"
    ],
-   "similarity": 0.193
+   "collision": 0.4242
+  },
+  {
+   "id": "conf_wally_search__install_wally_packages",
+   "query": "Pull down the packages this project depends on.",
+   "gold": [
+    "install_wally_packages"
+   ],
+   "mustNotRankFirst": [
+    "wally_search"
+   ],
+   "collision": 0.5
   },
   {
    "id": "conf_wally_search__wally_get_lock",
@@ -4635,172 +4646,161 @@
    "mustNotRankFirst": [
     "wally_search"
    ],
-   "similarity": 0.217
+   "collision": 0.3333
   },
   {
-   "id": "conf_wally_search__wally_dependency_graph",
+   "id": "conf_wally_install_plan__install_wally_packages",
+   "query": "Pull down the packages this project depends on.",
+   "gold": [
+    "install_wally_packages"
+   ],
+   "mustNotRankFirst": [
+    "wally_install_plan"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_wally_install_plan__get_dependency_graph",
+   "query": "What does this project depend on, without installing anything?",
+   "gold": [
+    "get_dependency_graph"
+   ],
+   "mustNotRankFirst": [
+    "wally_install_plan"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_wally_install_apply__get_memory_breakdown",
+   "query": "Where is the memory in this place actually going?",
+   "gold": [
+    "get_memory_breakdown"
+   ],
+   "mustNotRankFirst": [
+    "wally_install_apply"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_wally_install_apply__rokit_install",
+   "query": "Actually fetch the binaries this repository says it needs.",
+   "gold": [
+    "rokit_install"
+   ],
+   "mustNotRankFirst": [
+    "wally_install_apply"
+   ],
+   "collision": 0.5
+  },
+  {
+   "id": "conf_wally_update_plan__get_dependency_graph",
+   "query": "What does this project depend on, without installing anything?",
+   "gold": [
+    "get_dependency_graph"
+   ],
+   "mustNotRankFirst": [
+    "wally_update_plan"
+   ],
+   "collision": 1
+  },
+  {
+   "id": "conf_wally_update_plan__wally_dependency_graph",
    "query": "Turn the lockfile into a graph of who depends on whom.",
    "gold": [
     "wally_dependency_graph"
    ],
    "mustNotRankFirst": [
-    "wally_search"
-   ],
-   "similarity": 0.208
-  },
-  {
-   "id": "conf_wally_install_plan__wally_update_plan",
-   "query": "What would updating the packages change in the resolved graph?",
-   "gold": [
     "wally_update_plan"
    ],
-   "mustNotRankFirst": [
-    "wally_install_plan"
-   ],
-   "similarity": 0.288
+   "collision": 0.7
   },
   {
-   "id": "conf_wally_install_plan__rokit_update_plan",
-   "query": "What would bumping the pinned tools change?",
+   "id": "conf_wally_update_apply__remove_tag",
+   "query": "Take the Climbable label off this part.",
    "gold": [
-    "rokit_update_plan"
-   ],
-   "mustNotRankFirst": [
-    "wally_install_plan"
-   ],
-   "similarity": 0.232
-  },
-  {
-   "id": "conf_wally_install_apply__wally_update_apply",
-   "query": "Actually move the dependencies to newer versions.",
-   "gold": [
-    "wally_update_apply"
-   ],
-   "mustNotRankFirst": [
-    "wally_install_apply"
-   ],
-   "similarity": 0.524
-  },
-  {
-   "id": "conf_wally_install_apply__rojo_syncback_apply",
-   "query": "Commit the Studio-side edits down onto disk where they do not clash.",
-   "gold": [
-    "rojo_syncback_apply"
-   ],
-   "mustNotRankFirst": [
-    "wally_install_apply"
-   ],
-   "similarity": 0.354
-  },
-  {
-   "id": "conf_wally_update_plan__rokit_update_plan",
-   "query": "What would bumping the pinned tools change?",
-   "gold": [
-    "rokit_update_plan"
-   ],
-   "mustNotRankFirst": [
-    "wally_update_plan"
-   ],
-   "similarity": 0.313
-  },
-  {
-   "id": "conf_wally_update_plan__wally_install_plan",
-   "query": "What would installing the packages do, and can it be locked?",
-   "gold": [
-    "wally_install_plan"
-   ],
-   "mustNotRankFirst": [
-    "wally_update_plan"
-   ],
-   "similarity": 0.288
-  },
-  {
-   "id": "conf_wally_update_apply__wally_install_apply",
-   "query": "Actually pull the dependencies down.",
-   "gold": [
-    "wally_install_apply"
+    "remove_tag"
    ],
    "mustNotRankFirst": [
     "wally_update_apply"
    ],
-   "similarity": 0.524
+   "collision": 1
   },
   {
-   "id": "conf_wally_update_apply__rokit_update_apply",
-   "query": "Bump the pinned tools for real.",
+   "id": "conf_wally_update_apply__character_navigation",
+   "query": "Walk the player over to that platform.",
    "gold": [
-    "rokit_update_apply"
+    "character_navigation"
    ],
    "mustNotRankFirst": [
     "wally_update_apply"
    ],
-   "similarity": 0.441
+   "collision": 0.5
   },
   {
-   "id": "conf_project_reconcile_plan__rojo_get_project_info",
-   "query": "What is inside the selected project file, including its serve settings?",
+   "id": "conf_project_reconcile_plan__project_reconcile_status",
+   "query": "Who holds the reconcile lease right now and what ran last?",
    "gold": [
-    "rojo_get_project_info"
+    "project_reconcile_status"
    ],
    "mustNotRankFirst": [
     "project_reconcile_plan"
    ],
-   "similarity": 0.24
+   "collision": 0.6429
   },
   {
-   "id": "conf_project_reconcile_plan__detect_roblox_project",
-   "query": "What tooling does this repository already use?",
+   "id": "conf_project_reconcile_plan__rojo_build_project",
+   "query": "Turn the project I picked into an .rbxl at this path.",
    "gold": [
-    "detect_roblox_project"
+    "rojo_build_project"
    ],
    "mustNotRankFirst": [
     "project_reconcile_plan"
    ],
-   "similarity": 0.217
+   "collision": 0.625
   },
   {
-   "id": "conf_project_reconcile_apply__rokit_add_tool_apply",
-   "query": "Go ahead and add that tool spec to the manifest.",
+   "id": "conf_project_reconcile_apply__environment_set_time_of_day",
+   "query": "Make it late afternoon.",
    "gold": [
-    "rokit_add_tool_apply"
+    "environment_set_time_of_day"
    ],
    "mustNotRankFirst": [
     "project_reconcile_apply"
    ],
-   "similarity": 0.168
+   "collision": 1
   },
   {
-   "id": "conf_project_reconcile_apply__rokit_update_apply",
-   "query": "Bump the pinned tools for real.",
+   "id": "conf_project_reconcile_apply__project_reconcile_status",
+   "query": "Who holds the reconcile lease right now and what ran last?",
    "gold": [
-    "rokit_update_apply"
+    "project_reconcile_status"
    ],
    "mustNotRankFirst": [
     "project_reconcile_apply"
    ],
-   "similarity": 0.168
+   "collision": 1
   },
   {
-   "id": "conf_project_reconcile_status__project_reconcile_plan",
-   "query": "Read the whole project and tell me what it would take to make it consistent.",
+   "id": "conf_project_reconcile_status__project_reconcile_apply",
+   "query": "Actually carry out those repairs, one writer at a time.",
    "gold": [
-    "project_reconcile_plan"
+    "project_reconcile_apply"
    ],
    "mustNotRankFirst": [
     "project_reconcile_status"
    ],
-   "similarity": 0.211
+   "collision": 1
   },
   {
-   "id": "conf_project_reconcile_status__rokit_status",
-   "query": "Do the pinned tool versions match what is actually installed?",
+   "id": "conf_project_reconcile_status__run_gameplay_assertions",
+   "query": "Check these named conditions hold and tell me which failed.",
    "gold": [
-    "rokit_status"
+    "run_gameplay_assertions"
    ],
    "mustNotRankFirst": [
     "project_reconcile_status"
    ],
-   "similarity": 0.179
+   "collision": 1
   }
  ]
 }

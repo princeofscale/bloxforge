@@ -14,15 +14,19 @@
  },
  "confusers": {
   "cases": 436,
-  "stolenFirstPlace": 0.0344,
+  "stolenFirstPlace": 0.2638,
   "ci": {
-   "low": 0.0183,
-   "high": 0.0528
+   "low": 0.2225,
+   "high": 0.3073
   }
  },
  "noTool": {
   "cases": 50,
   "offeredAMatch": 0.9
+ },
+ "staleCatalog": {
+  "cases": 8,
+  "namedToolAbsent": 1
  },
  "multiStep": {
   "cases": 50,
@@ -30,7 +34,7 @@
   "meanOrderDistance": 1.28
  },
  "adversarial": {
-  "cases": 30,
-  "passed": 0.8
+  "cases": 22,
+  "passed": 0.7273
  }
 }

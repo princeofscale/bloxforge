@@ -26,7 +26,7 @@ const require = createRequire(`${root}/`);
 
 interface CatalogEntry { name: string; domain: string; mode: string; whenToUse: string }
 
-const { buildCatalog } = require('./packages/core/dist/tools/tool-catalog.js');
+const { buildCatalog, searchCatalog } = require('./packages/core/dist/tools/tool-catalog.js');
 const { TOOL_DEFINITIONS } = require('./packages/core/dist/tools/definitions.js');
 const catalog: CatalogEntry[] = buildCatalog(TOOL_DEFINITIONS);
 
@@ -35,38 +35,44 @@ const positives = JSON.parse(readFileSync(`${here}/positives.json`, 'utf8')) as 
 };
 const queryOf = new Map(positives.cases.map((c) => [c.tool, c.query]));
 
-/** Content words of a tool, as a set — the space neighbours are measured in. */
-function profile(e: CatalogEntry): Set<string> {
-  return new Set(
-    `${e.name.replace(/_/g, ' ')} ${e.whenToUse}`
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((w) => w.length >= 3),
-  );
+// Neighbours are measured with the retriever itself, not with a similarity of
+// our own. An earlier draft used token-set Jaccard over name + whenToUse, which
+// sounds equivalent and is not: `searchCatalog` scores asymmetrically (a query
+// word landing on a whole name token is worth 12, a stem hit 6, a whenToUse
+// substring 3) and Jaccard is symmetric and unweighted. The two pick different
+// neighbours, and the corpus would then have been measuring a similarity
+// heuristic while its README claimed it measured retrieval collisions.
+//
+// Collision is the sum of reciprocal ranks in both directions: how highly the
+// retriever puts N when asked T's question, plus how highly it puts T when
+// asked N's. Symmetric by construction, and every term comes out of the ranking
+// under test.
+const FULL = catalog.length;
+
+const rankingFor = new Map<string, Map<string, number>>();
+for (const [name, query] of queryOf) {
+  const ranked: CatalogEntry[] = searchCatalog(catalog, { query, limit: FULL });
+  rankingFor.set(name, new Map(ranked.map((e, i) => [e.name, i + 1])));
 }
 
-const profiles = new Map(catalog.map((e) => [e.name, profile(e)]));
-
-function jaccard(a: Set<string>, b: Set<string>): number {
-  let shared = 0;
-  for (const w of a) if (b.has(w)) shared++;
-  const union = a.size + b.size - shared;
-  return union === 0 ? 0 : shared / union;
+/** 1/rank of `of` in the ranking for `queryOwner`'s query, or 0 if unranked. */
+function reciprocalRank(queryOwner: string, of: string): number {
+  const rank = rankingFor.get(queryOwner)?.get(of);
+  return rank ? 1 / rank : 0;
 }
 
 const cases: unknown[] = [];
 for (const entry of catalog) {
-  const mine = profiles.get(entry.name)!;
   const ranked = catalog
     .filter((other) => other.name !== entry.name)
     .map((other) => ({
       name: other.name,
-      // Same domain first among equals: two scene readers are a choice an agent
-      // actually faces, where a scene reader and a Wally command are not.
-      score: jaccard(mine, profiles.get(other.name)!) + (other.domain === entry.domain ? 0.05 : 0),
+      collision: reciprocalRank(entry.name, other.name) + reciprocalRank(other.name, entry.name),
     }))
-    // Deterministic to the last tie: score, then name.
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    // Deterministic to the last tie: collision, then name. Many pairs collide
+    // at exactly 0 — most of the catalog does not compete with most of it — and
+    // the name tie-break is what keeps the generated file byte-stable.
+    .sort((a, b) => b.collision - a.collision || a.name.localeCompare(b.name));
 
   for (const neighbour of ranked.slice(0, 2)) {
     const query = queryOf.get(neighbour.name);
@@ -76,7 +82,7 @@ for (const entry of catalog) {
       query,
       gold: [neighbour.name],
       mustNotRankFirst: [entry.name],
-      similarity: +neighbour.score.toFixed(3),
+      collision: +neighbour.collision.toFixed(4),
     });
   }
 }
