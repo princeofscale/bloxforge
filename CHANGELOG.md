@@ -32,6 +32,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The plugin protocol is unchanged — the compaction is server-side, because the
   expensive wire is the one to the model, not the loopback one to Studio.
 
+- `get_spatial_layout` separates what it measured from what it guessed. Bounds,
+  the occupancy grid and the SpawnLocations are facts; `ground` never was — it
+  is "the largest flat surface", which picks a roof or an upper storey whenever
+  one is wider than the floor beneath it, and it arrived looking exactly as
+  authoritative as the measurements beside it. An agent reading `ground.topY`
+  would place a level 200 studs in the air and have no way to know. The rule had
+  already been caught out once in testing by a 390x300x2 wall, which is why the
+  flatness check exists.
+
+  It now returns `inferred: true`, a `confidence` (never 1 — it is a guess), and
+  a `basis` naming the evidence. The score is deterministic and each signal is
+  something a person would check by eye: a SpawnLocation resting just above the
+  surface raises it, since players are put on the floor; a rival flat surface of
+  comparable area lowers it, because that is what a second storey looks like; a
+  large flat surface *below* it lowers it, because that is what being a roof
+  looks like. The Lune harness asserts both ends — a plain baseplate scores 0.90,
+  and a 500x2x500 roof over it still wins on area, as the rule is written, but
+  scores 0.25 and says why. The reader-facing instruction ("below about 0.5,
+  confirm the floor another way") lives in the tool description, paid once per
+  conversation rather than in every response.
+
 ### Added
 
 - `design_lint` now checks text contrast against WCAG 2.2 AA (4.5:1 for normal

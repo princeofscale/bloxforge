@@ -218,6 +218,15 @@ if layout then
 	eq("layout: ground is the wide flat part", layout.ground.path, "game.Workspace.Ground")
 	near("layout: ground.topY is the surface, not the centre", layout.ground.topY, 0.5, 0.01)
 
+	-- The floor is the one thing here that is guessed rather than measured, and
+	-- it is the thing an agent builds on top of. It has to say so.
+	eq("layout: the ground says it is inferred", layout.ground.inferred, true)
+	near("layout: a spawn above it and no rival makes it near-certain", layout.ground.confidence, 0.9, 0.001)
+	check("layout: the confidence is never 1 — it is still a guess", layout.ground.confidence < 1)
+	check("layout: the basis names the spawn that confirms it",
+		table.concat(layout.ground.basis, " | "):find("SpawnLocation") ~= nil,
+		table.concat(layout.ground.basis, " | "))
+
 	eq("layout: one spawn found", #layout.spawns, 1)
 	eq("layout: spawn path", layout.spawns[1].path, "game.Workspace.SpawnLocation")
 
@@ -390,6 +399,29 @@ wall.Parent = ws
 local layout2 = run("spatial-layout")
 if layout2 then
 	eq("layout: a tall wall is not mistaken for the ground", layout2.ground.path, "game.Workspace.Ground")
+end
+
+-- === ground detection, the case the heuristic gets wrong =====================
+-- A roof wider than the floor it covers wins on area and is flat, so the rule
+-- picks it. That is the whole reason the answer carries a confidence: the tool
+-- cannot be right here, but it can say it is unsure, and it must say so loudly
+-- enough that an agent does not build a level 200 studs in the air.
+local roof = roblox.Instance.new("Part")
+roof.Name = "Roof"
+roof.Anchored = true
+roof.Size = roblox.Vector3.new(500, 2, 500)
+roof.CFrame = roblox.CFrame.new(0, 200, 0)
+roof.Parent = ws
+
+local layout3 = run("spatial-layout")
+if layout3 then
+	eq("layout: the roof does win on area, as the rule is written", layout3.ground.path, "game.Workspace.Roof")
+	check("layout: but the confidence collapses", layout3.ground.confidence <= 0.3,
+		"confidence = " .. tostring(layout3.ground.confidence))
+	local basis = table.concat(layout3.ground.basis, " | ")
+	check("layout: and it names the floor underneath as the reason", basis:find("may be a roof over it") ~= nil, basis)
+	check("layout: and warns the storey may be wrong", basis:find("wrong storey") ~= nil, basis)
+	check("layout: no spawn sits on it, so nothing confirms it", basis:find("SpawnLocation") == nil, basis)
 end
 
 print(string.format("  %d passed, %d failed", passed, failed))

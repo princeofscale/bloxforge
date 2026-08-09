@@ -99,15 +99,28 @@ end
 
 -- The ground: the widest flat thing. A tall wall can have a large footprint too,
 -- so require it to be flat relative to its own span before calling it a floor.
+--
+-- This is a guess, and the response says so. Everything else here is measured —
+-- bounds, the occupancy grid, the SpawnLocations — but the floor is inferred,
+-- and it is the one an agent builds on top of. The rule has already been wrong
+-- once in testing (a 390x300x2 wall), and it stays wrong for a flat roof above
+-- the real floor, a water plane, or a ceiling. So the candidate carries a
+-- confidence and the evidence behind it rather than arriving as a fact.
 local ground = nil
 local groundArea = 0
+local runnerUpArea = 0
 for _, p in ipairs(parts) do
 \tlocal dx, dz = p.x1 - p.x0, p.z1 - p.z0
 \tlocal dy = p.y1 - p.y0
 \tlocal area = dx * dz
-\tif area > groundArea and dy <= 0.25 * math.min(dx, dz) then
-\t\tgroundArea = area
-\t\tground = p
+\tif dy <= 0.25 * math.min(dx, dz) then
+\t\tif area > groundArea then
+\t\t\trunnerUpArea = groundArea
+\t\t\tgroundArea = area
+\t\t\tground = p
+\t\telseif area > runnerUpArea then
+\t\t\trunnerUpArea = area
+\t\tend
 \tend
 end
 
@@ -204,11 +217,62 @@ local result = {
 }
 
 if ground then
+\t-- Deterministic evidence, scored deterministically. Three signals, each one
+\t-- something a person would check by eye:
+\t--   * a SpawnLocation resting just above it — players are put on the floor,
+\t--     so this is the strongest confirmation available without rendering;
+\t--   * no rival flat surface of comparable area, which is what a roof or a
+\t--     second storey would look like;
+\t--   * nothing large and flat below it, which is what being a roof looks like.
+\tlocal confidence = 0.5
+\tlocal basis = {}
+\ttable.insert(basis, string.format("largest flat surface, %d studs squared", math.floor(groundArea + 0.5)))
+
+\tlocal spawnAbove = nil
+\tfor _, s in ipairs(spawns) do
+\t\tlocal dy = s.position[2] - ground.y1
+\t\tif dy >= -1 and dy <= 8 then spawnAbove = r1(dy) break end
+\tend
+\tif spawnAbove then
+\t\tconfidence = confidence + 0.25
+\t\ttable.insert(basis, string.format("a SpawnLocation rests %.1f studs above it", spawnAbove))
+\tend
+
+\tif runnerUpArea < 0.6 * groundArea then
+\t\tconfidence = confidence + 0.15
+\t\ttable.insert(basis, "no rival flat surface within 60% of its area")
+\telse
+\t\ttable.insert(basis, string.format(
+\t\t\t"another flat surface covers %d studs squared, so this may be the wrong storey",
+\t\t\tmath.floor(runnerUpArea + 0.5)))
+\tend
+
+\tlocal below = nil
+\tfor _, p in ipairs(parts) do
+\t\tlocal dx, dz = p.x1 - p.x0, p.z1 - p.z0
+\t\tif p.y1 < ground.y0 - 1 and (p.y1 - p.y0) <= 0.25 * math.min(dx, dz)
+\t\t\tand dx * dz > 0.5 * groundArea then
+\t\t\tbelow = p
+\t\t\tbreak
+\t\tend
+\tend
+\tif below then
+\t\tconfidence = confidence - 0.25
+\t\ttable.insert(basis, string.format(
+\t\t\t"%s is flat, comparably large, and lower — this may be a roof over it",
+\t\t\t"game." .. below.inst:GetFullName()))
+\tend
+
 \tresult.ground = {
 \t\tpath = "game." .. ground.inst:GetFullName(),
 \t\ttopY = r1(ground.y1),
 \t\tspan = { r1(ground.x1 - ground.x0), r1(ground.z1 - ground.z0) },
 \t\tmaterial = ground.inst.Material.Name,
+\t\t-- Never 1: this is a guess, and a tool that reports certainty it does not
+\t\t-- have is worse than one that reports nothing.
+\t\tinferred = true,
+\t\tconfidence = math.max(0.05, math.min(0.95, r1(confidence))),
+\t\tbasis = basis,
 \t}
 end
 
