@@ -54,6 +54,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- A `list_changed` probe: `docs/list-changed-probe.md`, an event journal behind
+  `BLOXFORGE_LIST_CHANGED_PROBE`, `scripts/probe-report.mjs` and
+  `scripts/probe-mark.mjs`. Lazy tool loading is only worth its complexity if the
+  *model* can call a newly advertised tool, and "the client refreshed its list"
+  is not evidence that it can — MCP requires no host to make new schemas
+  available inside the turn already running, and at least one shipped a build
+  whose UI updated immediately while the current agent turn stayed stale. So the
+  criterion is not latency: a tool that did not exist when the turn started must
+  be called successfully inside that turn, 29 times in 30, or the host gets a
+  static profile and no `listChanged`. A host that scores 100% on refresh and 0%
+  on the canary is the case the probe exists for, and the report prints both
+  lines so it cannot read as a pass.
+
+  No tool is added for it — an ordinary lazily-loaded tool is the canary, marked
+  `newlyAdvertised` because it was absent from the previous generation's list.
+  The journal writes nothing and changes no behaviour unless the variable names
+  a file. Fewer than 30 repetitions is reported `INCONCLUSIVE` rather than as a
+  percentage, since 29/30 is not reachable from ten runs.
 - A frozen 784-case tool corpus under `evals/corpus/`, with `npm run
   evals:corpus-check` and `npm run evals:retrieval` in `release:check`. 218
   positive cases (one per tool), 436 nearest-neighbour confusers, 50
