@@ -1,14 +1,18 @@
-// Shared source parsing for the effect-conformance checks.
+// Shared source parsing for the conformance checks.
 //
-// Both `check-network-effects.mjs` and `check-endpoint-effects.mjs` need the
-// same three answers out of the TypeScript source: what a method's body is,
-// which facade method each tool dispatches to, and what each tool declares.
+// `check-network-effects.mjs`, `check-endpoint-effects.mjs` and
+// `check-undo-coverage.mjs` need the same answers out of the TypeScript source:
+// what a function or method's body is, which facade method each tool dispatches
+// to, and what each tool declares.
 // They read source rather than `packages/core/dist` on purpose — they run
 // inside `protocol:check`, the first step of `release:check`, which is before
 // anything is built. Reading dist would compare against whatever was built
 // last, the stale-build trap `docs:generate` already documents.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+/** Control flow that is indistinguishable from a call at the character level. */
+const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'function', 'do', 'with']);
 
 /**
  * Method bodies in a file, as `Map<name, body[]>`. A name can repeat across
@@ -20,12 +24,48 @@ export function methodBodies(src) {
   const re = /^\s{2}(?:private\s+|protected\s+|public\s+)?(?:async\s+)?([A-Za-z_]\w*)\s*\(/gm;
   let m;
   while ((m = re.exec(src))) {
+    // `  if (...) {` and `  for (...) {` at member indentation match this shape
+    // exactly, and were being recorded as methods named `if` and `for`. Nothing
+    // looks a method up by those names, so it never produced a wrong answer —
+    // but a parser that reports 1494 bodies when 1485 of them are methods is
+    // lying quietly to whatever counts them next.
+    if (KEYWORDS.has(m[1])) continue;
     const body = bodyAt(src, m.index + m[0].length - 1);
     if (body === null) continue;
     if (!out.has(m[1])) out.set(m[1], []);
     out.get(m[1]).push(body);
   }
   return out;
+}
+
+/**
+ * The body of the unambiguous `function <name>(...)` declaration in `src`, or
+ * undefined when there is none — or more than one.
+ *
+ * The plugin handlers are module functions rather than class members, so
+ * {@link methodBodies}' indentation anchor does not reach them, but they need
+ * the same `bodyAt`: `check-undo-coverage.mjs` kept its own jump-to-the-next-`{`
+ * copy, which reads `function f(): { a?: number } {` as a body of
+ * `{ a?: number }`. That direction only ever loses statements, so it reports a
+ * recording handler as unrecorded — and the natural response to a false
+ * "mutates without a recording" is to write an excuse into NO_RECORDING, which
+ * then outlives the real recording it was covering for.
+ *
+ * Refusing a repeated name is the other half. `QueryHandlers.ts` declares
+ * `searchRecursive` three times, each nested in a different handler; taking the
+ * first match hands back a body belonging to a different function, and being
+ * confidently wrong about which body it read is worse here than admitting it
+ * cannot tell. A unique top-level declaration wins over nested ones, since that
+ * is the one a module-level call resolves to.
+ */
+export function functionBody(src, name) {
+  const found = [...src.matchAll(
+    new RegExp(`^([ \\t]*)(?:export\\s+)?(?:async\\s+)?function\\s+${name}\\s*\\(`, 'gm'),
+  )];
+  const topLevel = found.filter((m) => m[1] === '');
+  const pick = topLevel.length === 1 ? topLevel[0] : found.length === 1 ? found[0] : null;
+  if (!pick) return undefined;
+  return bodyAt(src, src.indexOf('(', pick.index)) ?? undefined;
 }
 
 /**
@@ -43,6 +83,17 @@ export function methodBodies(src) {
  *   handed back the object type as the whole method body, so the
  *   `/api/execute-luau` call inside it was invisible and `get_changes_since`
  *   passed the endpoint audit by not being examined at all.
+ *
+ * ponytail: the brace scan is character-level, so a `{` or `}` inside a string
+ * literal, a template literal or a comment counts. Verified absent today — every
+ * one of the 1485 method bodies across `packages/core/src` and
+ * `studio-plugin/src/modules` parses to the same span with strings and comments
+ * blanked out — and it is worth knowing which direction it would fail in: an
+ * unmatched `}` closes a body early, and a body that ends early is a body whose
+ * endpoint calls the audits never see, which is the under-declaration invariant 1
+ * names. Upgrade path when it does turn up: TypeScript's own scanner
+ * (`ts.createScanner`), not a hand-rolled lexer — a first attempt at one here
+ * mishandled regex literals and reported this very method as truncated.
  */
 function bodyAt(src, openParen) {
   let depth = 0;
