@@ -54,6 +54,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- A frozen 784-case tool corpus under `evals/corpus/`, with `npm run
+  evals:corpus-check` and `npm run evals:retrieval` in `release:check`. 218
+  positive cases (one per tool), 436 nearest-neighbour confusers, 50
+  no-tool/clarification, 50 multi-step and 30 stale-catalog/adversarial. It
+  scores `searchCatalog` directly, so it needs no model, no provider key and no
+  Studio — a benchmark that costs money to run gets run once, at the moment it
+  flatters you.
+
+  Two properties make the numbers mean something. Positive queries are written
+  in task language and `corpus-check.ts` rejects any that reuses more than 75%
+  of its own tool's vocabulary, because a corpus paraphrased out of the tool
+  descriptions measures a lexical retriever against itself; the corpus sits at a
+  mean overlap of 0.222. And the confusers are derived rather than invented —
+  for each tool, its two nearest neighbours' own queries, asserting it does not
+  outrank them — because a hand-written negative measures its author's intuition
+  about the retriever rather than the retriever. Neighbours are measured with
+  the retriever itself, as the sum of reciprocal ranks in both directions; a
+  first draft used token-set Jaccard, which is symmetric and unweighted where
+  `searchCatalog` is neither, and it picked non-competitors: the measured
+  collision rate went from 3.4% to 26.4% once the derivation used the ranking
+  actually under test.
+
+  The first baseline says the retrieval layer is the weak one, and it is
+  committed as-is so the fix has to prove itself: the gold tool reaches the
+  8-item shortlist for **56.0%** of tools (95% CI 49.5–62.4) and ranks first for
+  23.4%; "Make Workspace.Door transparent" does not surface `set_property` at
+  all. A near neighbour takes first place on **26.4%** of confusers. A query with
+  no tool answer is still offered a match **90%** of the time, because the
+  ranking has no way to express "none of these" — the same shape as an audit that
+  passes by not looking. That last number measures presence, not confidence:
+  `searchCatalog` exposes no score to its caller, so nothing here can read one,
+  and the eight stale-catalog cases are reported apart from the 22 retrieval
+  ones for the same reason — no retrieval change can move them, so counting them
+  together would pad the rate with cases the gate cannot fail on.
 
 - `design_lint` now checks text contrast against WCAG 2.2 AA (4.5:1 for normal
   text) and reports the measured ratio with both hex colors, so a failing

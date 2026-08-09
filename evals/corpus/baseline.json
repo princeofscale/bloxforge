@@ -1,0 +1,40 @@
+{
+ "shortlist": 8,
+ "positives": {
+  "cases": 218,
+  "recallAt1": 0.2339,
+  "recallAt3": 0.3945,
+  "recallAt5": 0.4725,
+  "recallAt8": 0.5596,
+  "mrr": 0.3441,
+  "shortlistCI": {
+   "low": 0.4954,
+   "high": 0.6239
+  }
+ },
+ "confusers": {
+  "cases": 436,
+  "stolenFirstPlace": 0.2638,
+  "ci": {
+   "low": 0.2225,
+   "high": 0.3073
+  }
+ },
+ "noTool": {
+  "cases": 50,
+  "offeredAMatch": 0.9
+ },
+ "staleCatalog": {
+  "cases": 8,
+  "namedToolAbsent": 1
+ },
+ "multiStep": {
+  "cases": 50,
+  "meanStepCoverage": 0.48,
+  "meanOrderDistance": 1.28
+ },
+ "adversarial": {
+  "cases": 22,
+  "passed": 0.7273
+ }
+}

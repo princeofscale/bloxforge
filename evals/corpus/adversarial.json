@@ -1,0 +1,38 @@
+{
+  "bucket": "adversarial",
+  "note": "Thirty cases where the catalog itself is the hazard: a tool the user names does not exist, exists under a different name, is deprecated in favour of another, or has a description that reads like a neighbouring tool's. The graded question is never 'did it find something' — a retriever that always returns eight matches always finds something. It is whether the right thing outranks the plausible wrong one, and whether a named-but-absent tool is reported absent instead of silently substituted.",
+  "cases": [
+    { "id": "adv_absent_publish", "query": "Use publish_place to push this live.", "absentTool": "publish_place", "expect": "report_absent" },
+    { "id": "adv_absent_datastore", "query": "Call read_datastore and show me the saved values.", "absentTool": "read_datastore", "expect": "report_absent" },
+    { "id": "adv_absent_group", "query": "Run get_group_members for my group.", "absentTool": "get_group_members", "expect": "report_absent" },
+    { "id": "adv_absent_badge", "query": "Award a badge with award_badge.", "absentTool": "award_badge", "expect": "report_absent" },
+    { "id": "adv_absent_analytics", "query": "Pull yesterday's play sessions with get_analytics.", "absentTool": "get_analytics", "expect": "report_absent" },
+    { "id": "adv_absent_teleport", "query": "Use teleport_player to move them to the other place.", "absentTool": "teleport_player", "expect": "report_absent" },
+    { "id": "adv_absent_git", "query": "Commit this with git_commit.", "absentTool": "git_commit", "expect": "report_absent" },
+    { "id": "adv_absent_moderate", "query": "Call check_moderation_status on that asset.", "absentTool": "check_moderation_status", "expect": "report_absent" },
+
+    { "id": "adv_renamed_sync_pull", "query": "Do a sync_pull to bring the files down.", "goldTools": ["rojo_syncback_plan", "rojo_syncback_apply"], "expect": "redirect_deprecated", "why": "sync_pull is deprecated in favour of the syncback pair" },
+    { "id": "adv_renamed_sync_push", "query": "Do a sync_push.", "goldTools": ["rojo_syncback_plan", "rojo_syncback_apply"], "expect": "redirect_deprecated" },
+    { "id": "adv_renamed_sync_status", "query": "What does sync_status say?", "goldTools": ["rojo_syncback_plan"], "expect": "redirect_deprecated" },
+    { "id": "adv_legacy_wally", "query": "Run install_wally_packages.", "goldTools": ["wally_install_plan", "wally_install_apply"], "expect": "redirect_deprecated", "why": "the legacy wrapper delegates to the canonical pair" },
+    { "id": "adv_legacy_sourcemap", "query": "Run generate_rojo_sourcemap.", "goldTools": ["rojo_generate_sourcemap"], "expect": "redirect_deprecated" },
+    { "id": "adv_legacy_build", "query": "Run build_rojo_project.", "goldTools": ["rojo_build_project"], "expect": "redirect_deprecated" },
+    { "id": "adv_legacy_resolve", "query": "Run resolve_instance_source_file.", "goldTools": ["rojo_resolve_instance_source"], "expect": "redirect_deprecated" },
+    { "id": "adv_alias_generate_model", "query": "Run generate_model for a barrel.", "goldTools": ["generate_model_native", "generate_model"], "expect": "either" },
+
+    { "id": "adv_near_set_vs_mass", "query": "Set Anchored on this one part.", "goldTools": ["set_property"], "mustNotRankFirst": ["mass_set_property"] },
+    { "id": "adv_near_mass_vs_set", "query": "Set Anchored on these two hundred parts.", "goldTools": ["mass_set_property"], "mustNotRankFirst": ["set_property"] },
+    { "id": "adv_near_delete_one", "query": "Delete this single part.", "goldTools": ["delete_object"], "mustNotRankFirst": ["mass_delete_objects"] },
+    { "id": "adv_near_delete_many", "query": "Delete these hundred parts.", "goldTools": ["mass_delete_objects"], "mustNotRankFirst": ["delete_object"] },
+    { "id": "adv_near_props_one_vs_many", "query": "Change three different properties on one part.", "goldTools": ["set_properties"], "mustNotRankFirst": ["mass_set_property"] },
+    { "id": "adv_near_read_vs_write_script", "query": "I only want to look at the script, not touch it.", "goldTools": ["get_script_source"], "mustNotRankFirst": ["set_script_source", "edit_script_lines"] },
+    { "id": "adv_near_preview_vs_insert", "query": "Show me the asset but do not put it in the place.", "goldTools": ["preview_asset"], "mustNotRankFirst": ["insert_asset"] },
+    { "id": "adv_near_plan_vs_apply_fit", "query": "Just tell me what would change about the statue's size — do not change it.", "goldTools": ["asset_fit_plan"], "mustNotRankFirst": ["asset_fit_apply"] },
+    { "id": "adv_near_plan_vs_apply_wally", "query": "Do not install anything yet, just tell me what would happen.", "goldTools": ["wally_install_plan"], "mustNotRankFirst": ["wally_install_apply"] },
+    { "id": "adv_near_sync_direction", "query": "I want the files on disk to win, not Studio.", "goldTools": ["rojo_serve_start", "rojo_build_project"], "mustNotRankFirst": ["rojo_syncback_apply"], "why": "syncback is the opposite direction" },
+    { "id": "adv_near_lint_vs_review", "query": "Score the interface deterministically, no screenshots and no opinions.", "goldTools": ["design_lint"], "mustNotRankFirst": ["design_review"] },
+    { "id": "adv_near_review_vs_lint", "query": "Actually look at the interface and tell me if it is ugly.", "goldTools": ["design_review"], "mustNotRankFirst": ["design_lint"] },
+    { "id": "adv_near_edit_vs_runtime", "query": "Run this code, but the game is not playing — just in Studio.", "goldTools": ["execute_luau"], "mustNotRankFirst": ["eval_server_runtime", "eval_client_runtime"] },
+    { "id": "adv_near_runtime_vs_edit", "query": "Run this on the live server while players are connected.", "goldTools": ["eval_server_runtime"], "mustNotRankFirst": ["execute_luau"] }
+  ]
+}
