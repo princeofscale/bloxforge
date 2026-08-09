@@ -54,6 +54,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- A stable identity and ownership plane for generated instances
+  (`packages/core/src/identity/`), the roadmap's D4/D5.3 contract. Four features
+  need to answer "is this still the thing I made, and may I touch it" — the
+  place journal, scatter reconcile, stage rollback and asset insertion — and
+  without one contract each invents its own drift detection and they disagree at
+  the worst moment.
+
+  `groupKey` hashes generator, version, seed, canonicalized parameters, source
+  and style profile; `itemId` hashes that with a **stable module slot** — a grid
+  cell or named socket, never an array index, because inserting one item at the
+  front renumbers every index below it and a reconcile then deletes and
+  recreates a scene that did not change. Parameters are canonicalized with keys
+  sorted at every depth, so `{a,b}` and `{b,a}` are one configuration; array
+  order is kept because for a parameter list the order is the value; hash inputs
+  are length-prefixed so generator `tree` in zone `line1` cannot collide with
+  `treeline` in zone `1`.
+
+  `planReconcile` only ever modifies or deletes instances carrying
+  `BloxForgeOwner`. A tag a generator applies is a tag a user can apply too, so
+  ownership is a claim made at creation, not a conclusion drawn from appearance
+  — a user's hand-placed copy of the same rock survives a density change even
+  when every property and the copied id match. It fails closed on a duplicated
+  id (updating one leaves the other drifting) and on our owner tag without a
+  usable id or group, and it never resets a property the desired set does not
+  mention. The roadmap's four acceptance criteria are tests, not prose.
 - `returnMode` on the five bulk write tools: `receipt` (default, unchanged),
   `failures` to drop the successful side entirely, and `full` to get the
   plugin's unedited row-per-input response back. Every compaction on the receipt
