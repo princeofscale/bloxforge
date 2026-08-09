@@ -33,3 +33,76 @@ export function compact<T>(value: T, decimals = 3): T {
 export function compactText(payload: unknown): { content: Array<{ type: 'text'; text: string }> } {
   return { content: [{ type: 'text', text: JSON.stringify(compact(payload)) }] };
 }
+
+type BulkRow = Record<string, unknown> & { success?: unknown };
+
+/**
+ * Collapse a bulk write's `results` array into a receipt, without losing
+ * anything the caller cannot already reconstruct.
+ *
+ * The plugin answers a bulk write with one row per input. For
+ * `mass_set_property` those rows are
+ * `{ path, success: true, propertyName, propertyValue }` — and `propertyName`
+ * and `propertyValue` are the same on every row, because the caller supplied
+ * one of each for the whole call. At 200 paths that response measures ~6,600
+ * tokens to say "all 200 succeeded"; the receipt says it in 31.
+ *
+ * Two rules, both lossless:
+ *
+ * 1. A key that carries an identical value on every successful row is hoisted
+ *    out of the rows and stated once. Derived rather than named, so it also
+ *    catches `mass_delete_objects` deleting 200 Parts, and stops hoisting the
+ *    moment the rows genuinely differ.
+ * 2. If hoisting leaves every successful row as nothing but its path, the rows
+ *    go entirely. The caller sent that list of paths and every failure is named
+ *    below, so "which ones succeeded" is exactly "the ones I sent, minus these"
+ *    — the response was spending tokens reading the caller's own argument back
+ *    to it. Where a successful row still carries something of its own, the rows
+ *    stay.
+ *
+ * Failures always keep full per-row detail: that is the half of the answer that
+ * carries information, and it is never the half that is large.
+ */
+export function bulkReceipt<T extends { results?: unknown }>(payload: T, rowKey = 'path'): unknown {
+  const rows = payload?.results;
+  if (!Array.isArray(rows) || rows.length === 0) return payload;
+  if (!rows.every((row): row is BulkRow => !!row && typeof row === 'object' && !Array.isArray(row))) {
+    return payload;
+  }
+
+  const ok = rows.filter((row) => row.success === true);
+  const failed = rows.filter((row) => row.success !== true);
+  // Nothing succeeded, or the rows do not use the success flag at all: leave it
+  // alone rather than invent a shape for a response this does not describe.
+  if (ok.length === 0) return payload;
+
+  const shared: Record<string, unknown> = {};
+  for (const key of Object.keys(ok[0])) {
+    if (key === rowKey || key === 'success') continue;
+    const first = JSON.stringify(ok[0][key]);
+    if (ok.every((row) => key in row && JSON.stringify(row[key]) === first)) {
+      shared[key] = ok[0][key];
+    }
+  }
+
+  const remainder = ok.map((row) => {
+    const rest: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (key === 'success' || key in shared) continue;
+      rest[key] = value;
+    }
+    return rest;
+  });
+  const rowsCarryOnlyTheirKey = remainder.every(
+    (rest) => Object.keys(rest).length === 0 || (Object.keys(rest).length === 1 && rowKey in rest),
+  );
+
+  const { results: _dropped, ...rest } = payload as Record<string, unknown>;
+  void _dropped;
+  return {
+    ...rest,
+    ...shared,
+    ...(rowsCarryOnlyTheirKey ? {} : { succeeded: remainder }),
+    ...(failed.length > 0 ? { failures: failed.map(({ success: _s, ...f }) => f) } : {}),
+  };
+}

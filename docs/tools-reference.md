@@ -161,7 +161,7 @@ Set a property on an instance — position, size, color, material, transparency,
 
 ### `mass_set_property` (Write)
 
-Set a property on multiple instances at once — color, material, anchored, and the rest
+Set a property on multiple instances at once — color, material, anchored, and the rest. Returns a receipt, not a row per input: the summary counts, plus a `failures` list naming the ones that did not take and why. Everything you sent that is not in `failures` succeeded — restating those would only read your own argument back to you, which at 200 paths cost thousands of tokens.
 
 **Parameters:**
 
@@ -176,7 +176,7 @@ Set a property on multiple instances at once — color, material, anchored, and 
 
 ### `mass_get_property` (Read-only)
 
-Get a property from multiple instances. Primitives come back as themselves; everything else is tagged — {R,G,B,_type:"Color3"}, {X,Y,Z,_type:"Vector3"}, {Name,Value,EnumType,_type:"EnumItem"} — so reading Color, Material or Size returns a value instead of nothing.
+Get a property from multiple instances. Primitives come back as themselves; everything else is tagged — {R,G,B,_type:"Color3"}, {X,Y,Z,_type:"Vector3"}, {Name,Value,EnumType,_type:"EnumItem"} — so reading Color, Material or Size returns a value instead of nothing. Values arrive under `succeeded` as {path, propertyValue}, with the property name stated once for the whole call rather than repeated on every row; anything that could not be read is under `failures`.
 
 **Parameters:**
 
@@ -220,7 +220,7 @@ Create a new instance — a part, model, folder, GUI object, or any other class.
 
 ### `mass_create_objects` (Write)
 
-Create multiple instances at once — parts, models, folders. Each can have optional properties.
+Create multiple instances at once — parts, models, folders. Each can have optional properties. Returns a receipt: the summary counts, a `failures` list, and `succeeded` rows carrying the paths that were created.
 
 **Parameters:**
 
@@ -250,7 +250,7 @@ Delete an instance — a part, model, or any other object. Deleting a protected 
 
 ### `mass_delete_objects` (Write)
 
-Delete many instances in one round-trip, the bulk counterpart to mass_create_objects. The whole batch is one Studio undo step, so a single Ctrl+Z (or the undo tool) puts everything back. Missing paths are reported per-path rather than failing the batch. Large batches and any protected service/root in the list require confirm:true; use dryRun:true to preview.
+Delete many instances in one round-trip, the bulk counterpart to mass_create_objects. The whole batch is one Studio undo step, so a single Ctrl+Z (or the undo tool) puts everything back. Missing paths are reported per-path rather than failing the batch. Returns a receipt: the summary counts plus a `failures` list naming what did not go; everything you sent that is not named there was deleted. Large batches and any protected service/root in the list require confirm:true; use dryRun:true to preview.
 
 **Parameters:**
 
@@ -1566,7 +1566,7 @@ Diff two instances by comparing their properties. Useful for debugging why a dup
 
 ### `bulk_set_attributes` (Write)
 
-Set multiple attributes on an instance in a single call. More efficient than repeated set_attribute calls.
+Set multiple attributes on an instance in a single call. More efficient than repeated set_attribute calls. Returns a receipt: the summary counts plus a `failures` list; every attribute you sent that is not named there was set.
 
 **Parameters:**
 

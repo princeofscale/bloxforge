@@ -34,7 +34,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_set_property',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Set a property on multiple instances at once — color, material, anchored, and the rest',
+    description: 'Set a property on multiple instances at once — color, material, anchored, and the rest. Returns a receipt, not a row per input: the summary counts, plus a `failures` list naming the ones that did not take and why. Everything you sent that is not in `failures` succeeded — restating those would only read your own argument back to you, which at 200 paths cost thousands of tokens.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -63,7 +63,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_get_property',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Get a property from multiple instances. Primitives come back as themselves; everything else is tagged — {R,G,B,_type:"Color3"}, {X,Y,Z,_type:"Vector3"}, {Name,Value,EnumType,_type:"EnumItem"} — so reading Color, Material or Size returns a value instead of nothing.',
+    description: 'Get a property from multiple instances. Primitives come back as themselves; everything else is tagged — {R,G,B,_type:"Color3"}, {X,Y,Z,_type:"Vector3"}, {Name,Value,EnumType,_type:"EnumItem"} — so reading Color, Material or Size returns a value instead of nothing. Values arrive under `succeeded` as {path, propertyValue}, with the property name stated once for the whole call rather than repeated on every row; anything that could not be read is under `failures`.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -146,7 +146,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_create_objects',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Create multiple instances at once — parts, models, folders. Each can have optional properties.',
+    description: 'Create multiple instances at once — parts, models, folders. Each can have optional properties. Returns a receipt: the summary counts, a `failures` list, and `succeeded` rows carrying the paths that were created.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -224,7 +224,7 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'mass_delete_objects',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Delete many instances in one round-trip, the bulk counterpart to mass_create_objects. The whole batch is one Studio undo step, so a single Ctrl+Z (or the undo tool) puts everything back. Missing paths are reported per-path rather than failing the batch. Large batches and any protected service/root in the list require confirm:true; use dryRun:true to preview.',
+    description: 'Delete many instances in one round-trip, the bulk counterpart to mass_create_objects. The whole batch is one Studio undo step, so a single Ctrl+Z (or the undo tool) puts everything back. Missing paths are reported per-path rather than failing the batch. Returns a receipt: the summary counts plus a `failures` list naming what did not go; everything you sent that is not named there was deleted. Large batches and any protected service/root in the list require confirm:true; use dryRun:true to preview.',
     inputSchema: {
       type: 'object',
       properties: {

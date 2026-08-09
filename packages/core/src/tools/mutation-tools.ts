@@ -6,7 +6,7 @@
 // through the shared single-target runtime; the facade delegates with identical
 // public signatures so the schema-parity invariants hold.
 
-import { compactText } from '../compact.js';
+import { compactText, bulkReceipt } from '../compact.js';
 import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
 import type { OperationKind } from '../safety/safety-manager.js';
 import { normalizeExecuteLuauToolResult, wrapToolJsonText, type SafetyOptions, type ToolContent } from './runtime-support.js';
@@ -55,7 +55,7 @@ export class MutationTools {
       throw new Error('paths (non-empty array) and propertyName are required for mass_set_property');
     }
     const response = await this.runtime.callSingle('/api/mass-set-property', { paths, propertyName, propertyValue }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    return compactText(bulkReceipt(response as { results?: unknown }));
   }
 
   async massGetProperty(paths: string[], propertyName: string, instance_id?: string) {
@@ -63,7 +63,7 @@ export class MutationTools {
       throw new Error('paths (non-empty array) and propertyName are required for mass_get_property');
     }
     const response = await this.runtime.callSingle('/api/mass-get-property', { paths, propertyName }, undefined, instance_id);
-    return compactText(response);
+    return compactText(bulkReceipt(response as { results?: unknown }));
   }
 
   async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) {
@@ -82,7 +82,7 @@ export class MutationTools {
     if (gated) return gated;
     const response = await this.runtime.callSingle('/api/mass-create-objects', { objects }, undefined, instance_id);
     this.runtime.recordOperation('bulk_create', `created ${objects.length} objects`);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    return compactText(bulkReceipt(response as { results?: unknown }));
   }
 
   async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) {
@@ -125,7 +125,7 @@ export class MutationTools {
         failed > 0 ? `deleted ${succeeded} of ${paths.length} objects` : `deleted ${succeeded} objects`,
       );
     }
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    return compactText(bulkReceipt(response as { results?: unknown }));
   }
 
   async cloneObject(instancePath: string, targetParentPath: string, instance_id?: string) {
@@ -207,7 +207,8 @@ export class MutationTools {
       throw new Error('instancePath and attributes are required for bulk_set_attributes');
     }
     const response = await this.runtime.callSingle('/api/bulk-set-attributes', { instancePath, attributes }, undefined, instance_id);
-    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+    // Rows are keyed by attributeName here, not path.
+    return compactText(bulkReceipt(response as { results?: unknown }, 'attributeName'));
   }
 
   async getTags(instancePath: string, instance_id?: string) {

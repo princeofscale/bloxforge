@@ -284,6 +284,32 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
     type: 'object',
     additionalProperties: true,
     properties: {
+      // A receipt, not a row per input. Everything the caller sent that is not
+      // named in `failures` succeeded, so restating those paths would only read
+      // the caller's own argument back to it — at 200 paths that was ~5,900
+      // tokens of it. See `bulkReceipt` in compact.ts.
+      failures: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            path: { type: 'string' },
+            // A path that was already gone is reported here, not raised — one
+            // missing entry must not fail the rest of the batch.
+            error: { type: 'string' },
+          },
+          required: ['path'],
+        },
+      },
+      // Present only when a successful row carries something of its own that
+      // was not identical across the whole batch.
+      succeeded: {
+        type: 'array',
+        items: { type: 'object', additionalProperties: true, properties: { path: { type: 'string' } } },
+      },
+      // The raw per-input rows, still returned when nothing succeeded — there is
+      // no receipt to write for a batch that did nothing.
       results: {
         type: 'array',
         items: {
@@ -294,8 +320,6 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
             success: { type: 'boolean' },
             className: { type: 'string' },
             name: { type: 'string' },
-            // A path that was already gone is reported here, not raised — one
-            // missing entry must not fail the rest of the batch.
             error: { type: 'string' },
           },
           required: ['path', 'success'],

@@ -1,0 +1,100 @@
+import { bulkReceipt } from '../compact.js';
+
+const rows = (n: number, extra: (i: number) => Record<string, unknown> = () => ({})) =>
+  Array.from({ length: n }, (_, i) => ({
+    path: `game.Workspace.Props.Crate${String(i + 1).padStart(3, '0')}`,
+    success: true,
+    ...extra(i),
+  }));
+
+describe('bulkReceipt', () => {
+  it('hoists the fields every successful row repeats and drops the rows they were on', () => {
+    const receipt = bulkReceipt({
+      results: rows(200, () => ({ propertyName: 'Anchored', propertyValue: true })),
+      summary: { total: 200, succeeded: 200, failed: 0 },
+    }) as Record<string, unknown>;
+
+    expect(receipt).toEqual({
+      summary: { total: 200, succeeded: 200, failed: 0 },
+      propertyName: 'Anchored',
+      propertyValue: true,
+    });
+    expect(receipt.results).toBeUndefined();
+  });
+
+  it('is the whole point: measure it', () => {
+    const before = {
+      results: rows(200, () => ({ propertyName: 'Anchored', propertyValue: true })),
+      summary: { total: 200, succeeded: 200, failed: 0 },
+    };
+    const after = bulkReceipt(before);
+    // Not a token count — a byte count, which is what a token count is made of.
+    expect(JSON.stringify(after).length).toBeLessThan(JSON.stringify(before).length / 50);
+  });
+
+  it('names every failure in full and never folds one away', () => {
+    const receipt = bulkReceipt({
+      results: [
+        ...rows(8, () => ({ propertyName: 'Anchored', propertyValue: true })),
+        { path: 'game.Workspace.Props.Crate009', success: false, error: 'Instance not found' },
+        { path: 'game.Workspace.Props.Crate010', success: false, error: 'Property is read only' },
+      ],
+      summary: { total: 10, succeeded: 8, failed: 2 },
+    }) as { failures?: unknown[] };
+
+    expect(receipt.failures).toEqual([
+      { path: 'game.Workspace.Props.Crate009', error: 'Instance not found' },
+      { path: 'game.Workspace.Props.Crate010', error: 'Property is read only' },
+    ]);
+  });
+
+  // The hoist is derived, not a hardcoded list of field names, so it has to stop
+  // on its own when the rows stop agreeing.
+  it('keeps a field that differs between rows, and keeps the rows with it', () => {
+    const receipt = bulkReceipt({
+      results: rows(3, (i) => ({ propertyName: 'Transparency', propertyValue: i / 10 })),
+      summary: { total: 3, succeeded: 3, failed: 0 },
+    }) as { propertyName?: unknown; propertyValue?: unknown; succeeded?: unknown[] };
+
+    expect(receipt.propertyName).toBe('Transparency');
+    expect(receipt.propertyValue).toBeUndefined();
+    expect(receipt.succeeded).toEqual([
+      { path: 'game.Workspace.Props.Crate001', propertyValue: 0 },
+      { path: 'game.Workspace.Props.Crate002', propertyValue: 0.1 },
+      { path: 'game.Workspace.Props.Crate003', propertyValue: 0.2 },
+    ]);
+  });
+
+  it('honors a different row key', () => {
+    const receipt = bulkReceipt({
+      results: [
+        { attributeName: 'Tier', success: true },
+        { attributeName: 'Weight', success: true },
+      ],
+      summary: { total: 2, succeeded: 2, failed: 0 },
+    }) as Record<string, unknown>;
+    // With the default key the attributeName is what differs, so the rows stay.
+    expect(receipt.succeeded).toEqual([{ attributeName: 'Tier' }, { attributeName: 'Weight' }]);
+
+    const keyed = bulkReceipt({
+      results: [
+        { attributeName: 'Tier', success: true },
+        { attributeName: 'Weight', success: true },
+      ],
+      summary: { total: 2, succeeded: 2, failed: 0 },
+    }, 'attributeName') as Record<string, unknown>;
+    expect(keyed.succeeded).toBeUndefined();
+  });
+
+  // Fail closed: a response this does not describe is passed through untouched
+  // rather than reshaped into something that looks like a receipt.
+  it.each<[string, unknown]>([
+    ['no results array', { summary: { total: 0 } }],
+    ['an empty results array', { results: [], summary: { total: 0 } }],
+    ['rows that are not objects', { results: ['ok', 'ok'] }],
+    ['rows with no success flag', { results: [{ path: 'a' }, { path: 'b' }] }],
+    ['nothing that succeeded', { results: [{ path: 'a', success: false, error: 'x' }] }],
+  ])('passes through %s unchanged', (_label, payload) => {
+    expect(bulkReceipt(payload as { results?: unknown })).toBe(payload);
+  });
+});
