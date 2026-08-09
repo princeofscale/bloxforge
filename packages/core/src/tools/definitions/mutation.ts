@@ -51,6 +51,11 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: ['string', 'number', 'boolean', 'object', 'array'],
           description: 'Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string.'
         },
+        returnMode: {
+          type: 'string',
+          enum: ['receipt', 'failures', 'full'],
+          description: "How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust."
+        },
         instance_id: {
           type: 'string',
           description: 'Connected Studio place id. Required only when multiple places are open.'
@@ -75,6 +80,11 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
         propertyName: {
           type: 'string',
           description: 'Property name'
+        },
+        returnMode: {
+          type: 'string',
+          enum: ['receipt', 'failures', 'full'],
+          description: "How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust."
         },
         instance_id: {
           type: 'string',
@@ -184,6 +194,11 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'boolean',
           description: 'Approve a large bulk creation the safety layer would otherwise gate (default false).'
         },
+        returnMode: {
+          type: 'string',
+          enum: ['receipt', 'failures', 'full'],
+          description: "How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust."
+        },
         instance_id: {
           type: 'string',
           description: 'Connected Studio place id. Required only when multiple places are open.'
@@ -240,6 +255,11 @@ export const MUTATION_TOOL_DEFINITIONS: ToolDefinition[] = [
         confirm: {
           type: 'boolean',
           description: 'Approve a deletion the safety layer would otherwise gate — a large batch, or a protected service/root in the list (default false).'
+        },
+        returnMode: {
+          type: 'string',
+          enum: ['receipt', 'failures', 'full'],
+          description: "How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust."
         },
         instance_id: {
           type: 'string',

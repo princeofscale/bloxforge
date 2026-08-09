@@ -1,0 +1,29 @@
+{
+ "parts": 28,
+ "routes": [
+  {
+   "route": "A",
+   "toolCalls": 28,
+   "schemaBytes": 887,
+   "argBytes": 5398,
+   "resultBytes": 2932,
+   "totalBytes": 9217
+  },
+  {
+   "route": "B",
+   "toolCalls": 1,
+   "schemaBytes": 1657,
+   "argBytes": 5439,
+   "resultBytes": 69,
+   "totalBytes": 7165
+  },
+  {
+   "route": "C",
+   "toolCalls": 1,
+   "schemaBytes": 1985,
+   "argBytes": 1116,
+   "resultBytes": 43,
+   "totalBytes": 3144
+  }
+ ]
+}

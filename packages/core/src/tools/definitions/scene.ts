@@ -235,6 +235,11 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'object',
           description: 'Map of attribute names to values. Supports Vector3, Color3, UDim2 via _type convention.'
         },
+        returnMode: {
+          type: 'string',
+          enum: ['receipt', 'failures', 'full'],
+          description: "How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust."
+        },
         instance_id: {
           type: 'string',
           description: 'Connected Studio place id. Required only when multiple places are open.'

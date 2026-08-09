@@ -60,11 +60,12 @@
     "protocol:compat-check": "node scripts/check-mcp-protocol-compat.mjs",
     "evals:corpus-check": "npm run build -w packages/core && npx tsx evals/corpus-check.ts",
     "evals:retrieval": "npm run build -w packages/core && npx tsx evals/retrieval.ts --check",
+    "evals:room-payload": "npm run build -w packages/core && npx tsx evals/room-benchmark/payload-report.ts --check",
     "docs:generate": "node scripts/generate-tool-docs.mjs",
     "docs:check": "node scripts/generate-tool-docs.mjs --check && node scripts/check-doc-links.mjs",
     "metadata:check": "node scripts/check-package-metadata.mjs",
     "verify-package": "node scripts/verify-package.mjs",
-    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run tools:token-report -- --check && npm run protocol:compat-check && npm run evals:corpus-check && npm run evals:retrieval && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run test:luau:runtime && npm run test:fault-injection:10k && npm run verify-package"
+    "release:check": "npm run protocol:check && npm run lint && npm run typecheck && npm test && npm run build:all && npm run tools:legacy-report -- --check && npm run tools:token-report -- --check && npm run protocol:compat-check && npm run evals:corpus-check && npm run evals:retrieval && npm run evals:room-payload && npm run docs:check && npm run metadata:check && npm run test:plugin:smoke && npm run test:plugin:installer && npm run test:plugin:runtime && npm run test:luau:runtime && npm run test:fault-injection:10k && npm run verify-package"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

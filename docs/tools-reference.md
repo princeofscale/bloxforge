@@ -170,6 +170,7 @@ Set a property on multiple instances at once — color, material, anchored, and 
 | `paths` | `array` | Yes | Instance paths |
 | `propertyName` | `string` | Yes | Property name |
 | `propertyValue` | `string \| number \| boolean \| object \| array` | Yes | Value to set. String, number or boolean for simple properties; for Vector3 use {x,y,z} or [x,y,z], for Color3 {r,g,b} or [r,g,b] (0-255 and 0-1 are both accepted), for UDim2 {x:{scale,offset},y:{scale,offset}} or [xScale,xOffset,yScale,yOffset]. Key casing does not matter. An Enum takes its member name as a string. |
+| `returnMode` | `string` | No | How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -184,6 +185,7 @@ Get a property from multiple instances. Primitives come back as themselves; ever
 |---|---|---|---|
 | `paths` | `array` | Yes | Instance paths |
 | `propertyName` | `string` | Yes | Property name |
+| `returnMode` | `string` | No | How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -229,6 +231,7 @@ Create multiple instances at once — parts, models, folders. Each can have opti
 | `objects` | `array` | Yes | Objects to create |
 | `dryRun` | `boolean` | No | Preview the bulk creation without creating anything (default false). |
 | `confirm` | `boolean` | No | Approve a large bulk creation the safety layer would otherwise gate (default false). |
+| `returnMode` | `string` | No | How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -259,6 +262,7 @@ Delete many instances in one round-trip, the bulk counterpart to mass_create_obj
 | `paths` | `array` | Yes | Instance paths to delete (dot notation). |
 | `dryRun` | `boolean` | No | Preview the deletion without removing anything (default false). |
 | `confirm` | `boolean` | No | Approve a deletion the safety layer would otherwise gate — a large batch, or a protected service/root in the list (default false). |
+| `returnMode` | `string` | No | How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -1574,6 +1578,7 @@ Set multiple attributes on an instance in a single call. More efficient than rep
 |---|---|---|---|
 | `instancePath` | `string` | Yes | Instance path |
 | `attributes` | `object` | Yes | Map of attribute names to values. Supports Vector3, Color3, UDim2 via _type convention. |
+| `returnMode` | `string` | No | How much to report. `receipt` (default) gives counts plus every failure. `failures` drops the successful side. `full` returns the plugin's unedited row-per-input response — for debugging a compaction you do not trust. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---

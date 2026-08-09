@@ -63,7 +63,18 @@ type BulkRow = Record<string, unknown> & { success?: unknown };
  * Failures always keep full per-row detail: that is the half of the answer that
  * carries information, and it is never the half that is large.
  */
-export function bulkReceipt<T extends { results?: unknown }>(payload: T, rowKey = 'path'): unknown {
+export type ReturnMode = 'receipt' | 'failures' | 'full';
+
+export function bulkReceipt<T extends { results?: unknown }>(
+  payload: T,
+  rowKey = 'path',
+  mode: ReturnMode = 'receipt',
+): unknown {
+  // `full` is the debugging escape hatch: whatever the plugin actually said,
+  // unedited. Every compaction below is lossless by construction, but "I
+  // believe it is lossless" is not the same as being able to look.
+  if (mode === 'full') return payload;
+
   const rows = payload?.results;
   if (!Array.isArray(rows) || rows.length === 0) return payload;
   if (!rows.every((row): row is BulkRow => !!row && typeof row === 'object' && !Array.isArray(row))) {
@@ -72,6 +83,24 @@ export function bulkReceipt<T extends { results?: unknown }>(payload: T, rowKey 
 
   const ok = rows.filter((row) => row.success === true);
   const failed = rows.filter((row) => row.success !== true);
+
+  // `failures` drops the successful side entirely — for a caller that has
+  // already decided it only acts on what went wrong.
+  //
+  // No counters are invented for it. A first draft added `changed`/`failed` on
+  // the reasoning that "no failures" and "nothing ran" would otherwise be the
+  // same response; the plugin's own `summary: { total, succeeded, failed }`
+  // already answers that and rides along in `head`. Restating it under new
+  // names would have been the same waste #98 removed, one field smaller — and
+  // the existing test caught it.
+  if (mode === 'failures') {
+    const { results: _all, ...head } = payload as Record<string, unknown>;
+    void _all;
+    return {
+      ...head,
+      ...(failed.length > 0 ? { failures: failed.map(({ success: _s, ...f }) => f) } : {}),
+    };
+  }
   // Nothing succeeded, or the rows do not use the success flag at all: leave it
   // alone rather than invent a shape for a response this does not describe.
   if (ok.length === 0) return payload;

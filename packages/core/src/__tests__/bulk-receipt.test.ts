@@ -97,4 +97,59 @@ describe('bulkReceipt', () => {
   ])('passes through %s unchanged', (_label, payload) => {
     expect(bulkReceipt(payload as { results?: unknown })).toBe(payload);
   });
+
+  describe('returnMode', () => {
+    const payload = () => ({
+      results: [
+        ...rows(3, () => ({ propertyName: 'Anchored', propertyValue: true })),
+        { path: 'game.Workspace.Gone', success: false, error: 'not found' },
+      ],
+      summary: { total: 4, succeeded: 3, failed: 1 },
+    });
+
+    it('full returns exactly what the plugin said', () => {
+      const before = payload();
+      expect(bulkReceipt(before, 'path', 'full')).toEqual(before);
+    });
+
+    it('failures drops the successful side and keeps every failure', () => {
+      const out = bulkReceipt(payload(), 'path', 'failures') as Record<string, unknown>;
+      expect(out.results).toBeUndefined();
+      expect(out.succeeded).toBeUndefined();
+      expect(out.failures).toEqual([{ path: 'game.Workspace.Gone', error: 'not found' }]);
+    });
+
+    it('failures still says how many ran, via the summary the plugin already sent', () => {
+      // The counters are not re-invented; this asserts the field they would
+      // have duplicated is carried through, which is why they are not needed.
+      const out = bulkReceipt(payload(), 'path', 'failures') as Record<string, unknown>;
+      expect(out.summary).toEqual({ total: 4, succeeded: 3, failed: 1 });
+      expect(out.changed).toBeUndefined();
+      expect(out.failed).toBeUndefined();
+    });
+
+    it('a clean run in failures mode carries no failures key at all', () => {
+      const out = bulkReceipt(
+        { results: rows(5), summary: { total: 5, succeeded: 5, failed: 0 } },
+        'path',
+        'failures',
+      ) as Record<string, unknown>;
+      expect(out.failures).toBeUndefined();
+      expect(out.summary).toEqual({ total: 5, succeeded: 5, failed: 0 });
+    });
+
+    it('failures is smaller than receipt whenever the receipt still carries rows', () => {
+      const differing = {
+        results: rows(60, (i) => ({ value: i })),
+        summary: { total: 60, succeeded: 60, failed: 0 },
+      };
+      const receipt = JSON.stringify(bulkReceipt(differing, 'path', 'receipt')).length;
+      const failuresOnly = JSON.stringify(bulkReceipt(differing, 'path', 'failures')).length;
+      expect(failuresOnly).toBeLessThan(receipt);
+    });
+
+    it('defaults to receipt when no mode is given', () => {
+      expect(bulkReceipt(payload())).toEqual(bulkReceipt(payload(), 'path', 'receipt'));
+    });
+  });
 });
