@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `design_lint` now checks text contrast against WCAG 2.2 AA (4.5:1 for normal
+  text) and reports the measured ratio with both hex colors, so a failing
+  finding says what to change rather than only that something is wrong. The
+  background is composited: it walks outward accumulating front-to-back "over"
+  blending, because a semi-transparent veil over a dark panel is neither the
+  veil's own color nor the panel's. Where a ratio cannot be computed honestly —
+  a `UIGradient`, an image backdrop, a translucent `CanvasGroup` (which fades
+  the text and its backdrop together, so the layer walk would otherwise report
+  the ratio the group would have had at full opacity), or a stack that never
+  reaches an opaque ancestor — the finding is `contrast_unknown` at info
+  severity rather than a guess. Text that fails the ratio while carrying a
+  stroke is `contrast_unknown` too, since an outline can rescue legibility and
+  WCAG models none; a stroke on text that already passes raises nothing, because
+  the outline sits at the glyph edge and cannot pull a passing ratio under the
+  bar. The sRGB linearization uses WCAG 2.2's 0.04045 breakpoint, not the
+  0.03928 of the pre-May-2021 text. The large-text
+  exemption (3:1) is never applied automatically: `TextSize` is a line height,
+  not the font's em size, so it cannot decide the WCAG 24px/18.66px threshold;
+  a possibly-large case at or above 3:1 is reported at info severity instead.
+
+### Fixed
+
+- The built-in design palette failed the rule `design_lint` now enforces.
+  `onPrimary` on `primary` measured 4.32:1 in both themes — the exact pair the
+  `button` recipe emits — so every button produced by `apply_theme` was below
+  AA. Three tokens moved: `primary` to `rgb(66, 99, 235)` (4.98:1 under white),
+  light `muted` to `rgb(92, 99, 106)` (was 3.15:1 on `bg`), and light `danger`
+  to `rgb(201, 42, 42)` (was 4.28:1 on `bg`, passing only on `surface`). A test
+  asserts every foreground/background pair the recipes actually use, so a future
+  palette edit that reintroduces the failure breaks the build.
+
 ## [4.3.1] - 2026-08-08
 
 ### Added

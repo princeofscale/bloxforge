@@ -18,9 +18,30 @@ describe('buildDesignLintLuau', () => {
   });
   it('emits every lint rule', () => {
     const code = buildDesignLintLuau();
-    for (const rule of ['tiny_text', 'offscreen', 'overlap_interactive', 'non_responsive_size', 'no_layout_container', 'stretched_image_no_slice']) {
+    for (const rule of ['tiny_text', 'offscreen', 'overlap_interactive', 'non_responsive_size', 'no_layout_container', 'stretched_image_no_slice', 'low_contrast', 'contrast_unknown']) {
       expect(code).toContain(rule);
     }
+  });
+
+  // Contrast is only worth reporting where it can be computed. Each of these is
+  // a case where a single number would be a fabrication, so the emitted Luau
+  // has to reach the `contrast_unknown` branch instead of the ratio.
+  it.each([
+    ['a gradient backdrop', 'UIGradient'],
+    ['an image backdrop', 'ImageTransparency < 1'],
+    ['nothing opaque behind the text', 'nothing opaque behind the text'],
+    ['a text stroke', 'TextStrokeTransparency < 1'],
+  ])('refuses to invent a ratio for %s', (_label, marker) => {
+    expect(buildDesignLintLuau()).toContain(marker);
+  });
+
+  it('decides severity on the 4.5:1 minimum and never applies the large-text exemption itself', () => {
+    const code = buildDesignLintLuau();
+    expect(code).toContain('MIN_CONTRAST = 4.5');
+    expect(code).toContain('LARGE_TEXT_CONTRAST = 3');
+    // The exemption downgrades severity to info and says it cannot be decided;
+    // it must never raise the bar the warning is measured against.
+    expect(code).toContain('cannot be decided here');
   });
 });
 

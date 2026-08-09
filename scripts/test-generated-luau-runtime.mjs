@@ -35,6 +35,7 @@ const { buildNodeBatchLuau } = await load('world-model.js');
 const { buildSceneSearchLuau } = await load('scene-search.js');
 const { buildWorldFingerprintLuau } = await load('world-fingerprint.js');
 const { buildFitScanLuau } = await load('asset-fit.js');
+const { buildDesignLintLuau } = await load('design-builders.js');
 
 // Names are what the Luau side asserts on; keep them in step.
 const generated = {
@@ -47,6 +48,10 @@ const generated = {
   'scene-search': buildSceneSearchLuau('ground', 'game.Workspace', 10),
   'world-fingerprint': buildWorldFingerprintLuau('game.Workspace'),
   'fit-scan': buildFitScanLuau('game.Workspace.Nope'),
+  // design_lint's contrast rule is arithmetic over composited colours, which is
+  // exactly the kind of thing that looks right in a diff and is wrong on a
+  // screen. Jest can only assert the emitted text contains a rule name.
+  'design-lint': buildDesignLintLuau({ rootPath: 'StarterGui.Menu' }),
 };
 
 const dir = await mkdtemp(path.join(tmpdir(), 'bloxforge-luau-'));
