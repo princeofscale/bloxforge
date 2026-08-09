@@ -71,11 +71,29 @@ export function isReturnMode(value: unknown): value is ReturnMode {
   return typeof value === 'string' && (RETURN_MODES as readonly string[]).includes(value);
 }
 
+/**
+ * Absent means `receipt`; anything else unrecognised is an error.
+ *
+ * The check lives here rather than only at the call sites because `ReturnMode`
+ * is a TypeScript type and nothing else — erased at runtime, while the value
+ * arrives raw from an HTTP body. A guard in the function that acts on the mode
+ * covers every caller, present and future; a guard at one caller covers one.
+ */
+export function assertReturnMode(value: unknown): ReturnMode {
+  if (value === undefined) return 'receipt';
+  if (!isReturnMode(value)) {
+    throw new Error(`returnMode must be one of ${RETURN_MODES.join(', ')} — got ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
 export function bulkReceipt<T extends { results?: unknown }>(
   payload: T,
   rowKey = 'path',
-  mode: ReturnMode = 'receipt',
+  requestedMode?: ReturnMode,
 ): unknown {
+  const mode = assertReturnMode(requestedMode);
+
   // `full` is the debugging escape hatch: whatever the plugin actually said,
   // unedited. Every compaction below is lossless by construction, but "I
   // believe it is lossless" is not the same as being able to look.

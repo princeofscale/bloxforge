@@ -1,4 +1,4 @@
-import { bulkReceipt, isReturnMode } from '../compact.js';
+import { bulkReceipt, isReturnMode, assertReturnMode } from '../compact.js';
 
 const rows = (n: number, extra: (i: number) => Record<string, unknown> = () => ({})) =>
   Array.from({ length: n }, (_, i) => ({
@@ -172,7 +172,22 @@ describe('bulkReceipt', () => {
   });
 });
 
-describe('isReturnMode', () => {
+describe('returnMode validation', () => {
+  it('bulkReceipt itself rejects an unrecognised mode, not only its callers', () => {
+    // The guard belongs in the function that acts on the mode: a TypeScript
+    // type is erased at runtime and the value arrives raw from an HTTP body.
+    const payload = { results: [{ path: 'a', success: true }] };
+    expect(() => bulkReceipt(payload, 'path', 'raw' as never)).toThrow(/returnMode must be one of/);
+    expect(() => bulkReceipt(payload, 'path', undefined)).not.toThrow();
+  });
+
+  it('assertReturnMode defaults only for undefined', () => {
+    expect(assertReturnMode(undefined)).toBe('receipt');
+    expect(assertReturnMode('full')).toBe('full');
+    expect(() => assertReturnMode(null)).toThrow(/returnMode must be one of/);
+    expect(() => assertReturnMode('')).toThrow(/returnMode must be one of/);
+  });
+
   it('accepts exactly the three modes and nothing else', () => {
     for (const mode of ['receipt', 'failures', 'full']) expect(isReturnMode(mode)).toBe(true);
     // The value arrives raw from an HTTP body; a typo that silently became

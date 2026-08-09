@@ -6,7 +6,7 @@
 // through the shared single-target runtime; the facade delegates with identical
 // public signatures so the schema-parity invariants hold.
 
-import { compactText, bulkReceipt, isReturnMode, type ReturnMode } from '../compact.js';
+import { compactText, bulkReceipt, assertReturnMode, type ReturnMode } from '../compact.js';
 
 /**
  * One place where a bulk response becomes a tool result.
@@ -21,13 +21,14 @@ import { compactText, bulkReceipt, isReturnMode, type ReturnMode } from '../comp
  * exactly the wrong evidence.
  */
 function bulkResult(response: unknown, rowKey: string, returnMode?: ReturnMode) {
-  if (returnMode !== undefined && !isReturnMode(returnMode)) {
-    throw new Error(`returnMode must be one of receipt, failures, full — got ${JSON.stringify(returnMode)}`);
-  }
-  if (returnMode === 'full') {
+  // Validated here too, not out of distrust of `bulkReceipt` but because this
+  // function branches on the mode before ever reaching it — an unrecognised
+  // value would otherwise take the compacting path and only then be rejected.
+  const mode = assertReturnMode(returnMode);
+  if (mode === 'full') {
     return { content: [{ type: 'text' as const, text: JSON.stringify(response) }] };
   }
-  return compactText(bulkReceipt(response as { results?: unknown }, rowKey, returnMode));
+  return compactText(bulkReceipt(response as { results?: unknown }, rowKey, mode));
 }
 import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
 import type { OperationKind } from '../safety/safety-manager.js';
