@@ -29,6 +29,7 @@ import { RESOURCE_LIST, RESOURCE_TEMPLATES, readResource } from './resources.js'
 import { parseCapabilities, requiredCapabilities, type Capability } from './capability-policy.js';
 import { isInspectorTool } from './tools/tool-effects.js';
 import { isLoopbackHost } from './network.js';
+import { initProbeJournal, recordListChanged, recordListServed, recordToolCall as recordProbeToolCall } from './probe-journal.js';
 
 export { isLoopbackHost } from './network.js';
 
@@ -142,10 +143,12 @@ export class BloxForgeServer {
   }
 
   private setupToolHandlers() {
+    initProbeJournal();
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       const visible = (this.lazyTools
         ? this.config.tools.filter(t => this.activeToolNames.has(t.name))
         : this.config.tools).filter(t => this.allowedToolNames.has(t.name));
+      recordListServed(visible.map((t) => t.name));
       return {
         tools: visible.map(toolDefinitionToMcpTool),
       };
@@ -218,6 +221,7 @@ export class BloxForgeServer {
             ok: !failed,
             errorCode: failed ? 'TOOL_ERROR' : undefined,
           });
+          recordProbeToolCall(name, !failed);
           return registryResult;
         }
 
@@ -241,6 +245,7 @@ export class BloxForgeServer {
           ok: !shapedFailed,
           errorCode: shapedFailed ? 'TOOL_ERROR' : undefined,
         });
+        recordProbeToolCall(name, !shapedFailed);
         return shaped;
       } catch (error) {
         if (error instanceof RoutingFailure) {
@@ -302,6 +307,11 @@ export class BloxForgeServer {
       }
     }
     if (changed) {
+      // Journalled before the notification goes out, so the recorded instant is
+      // "the server decided the list changed" rather than "the transport got
+      // round to flushing it" — the refresh latency being measured belongs to
+      // the host, and folding our own write latency into it would flatter us.
+      recordListChanged();
       this.server.sendToolListChanged?.();
     }
   }
