@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bulk write tools return a receipt instead of a row per input. `mass_set_property`
+  on 200 paths answered with 200 rows of
+  `{path, success: true, propertyName, propertyValue}` — repeating on every row
+  the property name and value the caller had supplied once for the whole call —
+  which measures about **6,600 tokens to say "all 200 succeeded"**. The receipt
+  says it in 31. `mass_delete_objects`, `mass_create_objects`,
+  `mass_get_property` and `bulk_set_attributes` get the same treatment.
+
+  The compaction is lossless by construction, and derived rather than a list of
+  field names to keep in step: a key whose value is identical on every
+  successful row is stated once and dropped from the rows, and if that leaves a
+  row as nothing but its path, the rows go — the caller sent that list, every
+  failure is named, so "which ones succeeded" is "the ones I sent, minus these".
+  The moment rows genuinely differ the hoisting stops and the rows stay, which
+  is why `mass_get_property` keeps its per-path values. Failures always keep
+  full per-row detail; a response whose shape this does not describe (nothing
+  succeeded, no `success` flag, rows that are not objects) passes through
+  untouched. The sentence explaining the receipt lives in the tool description,
+  where it is paid once per conversation, rather than in every response.
+
+  The plugin protocol is unchanged — the compaction is server-side, because the
+  expensive wire is the one to the model, not the loopback one to Studio.
+
 ### Added
 
 - `design_lint` now checks text contrast against WCAG 2.2 AA (4.5:1 for normal

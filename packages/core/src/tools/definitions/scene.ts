@@ -223,7 +223,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'bulk_set_attributes',
     category: 'write',
     effects: ['studio.write'],
-    description: 'Set multiple attributes on an instance in a single call. More efficient than repeated set_attribute calls.',
+    description: 'Set multiple attributes on an instance in a single call. More efficient than repeated set_attribute calls. Returns a receipt: the summary counts plus a `failures` list; every attribute you sent that is not named there was set.',
     inputSchema: {
       type: 'object',
       properties: {
