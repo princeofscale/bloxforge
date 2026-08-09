@@ -12,6 +12,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { functionBody } from './lib/tool-source.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // endpoint -> why it legitimately opens no recording.
@@ -43,18 +45,6 @@ const routes = readFileSync(`${root}/studio-plugin/src/modules/PluginRoutes.ts`,
 const handlerOf = new Map();
 for (const m of routes.matchAll(/"([^"]+)":\s*(\w+)\.(\w+)/g)) handlerOf.set(m[1], { mod: m[2], fn: m[3] });
 
-function bodyOf(source, fn) {
-  const at = source.search(new RegExp(`function\\s+${fn}\\s*\\(`));
-  if (at < 0) return undefined;
-  const open = source.indexOf('{', at);
-  let depth = 0;
-  for (let j = open; j < source.length; j++) {
-    if (source[j] === '{') depth++;
-    else if (source[j] === '}' && --depth === 0) return source.slice(open, j + 1);
-  }
-  return undefined;
-}
-
 // One hop into same-module helpers: smartDuplicate delegates its recording to
 // performSmartDuplicate, and a body-only check would misread that as a gap.
 function records(source, body, depth) {
@@ -62,12 +52,23 @@ function records(source, body, depth) {
   if (body.includes('beginRecording')) return true;
   if (depth === 0) return false;
   for (const call of body.matchAll(/\b([a-z]\w+)\s*\(/g)) {
-    if (records(source, bodyOf(source, call[1]), depth - 1)) return true;
+    if (records(source, functionBody(source, call[1]), depth - 1)) return true;
   }
   return false;
 }
 
 const problems = [];
+
+// An excuse outlives the endpoint it excused. Nothing below walks NO_RECORDING,
+// so an entry whose endpoint has been renamed or reclassified sits there reading
+// like deliberate policy, and the next endpoint to take that path inherits it.
+const mutation = new Set(endpoints.mutation);
+for (const endpoint of Object.keys(NO_RECORDING)) {
+  if (!mutation.has(endpoint)) {
+    problems.push(`${endpoint}: in NO_RECORDING but not declared a mutation — remove the stale exception.`);
+  }
+}
+
 for (const endpoint of endpoints.mutation) {
   const handler = handlerOf.get(endpoint);
   if (!handler) {
@@ -81,7 +82,7 @@ for (const endpoint of endpoints.mutation) {
     problems.push(`${endpoint}: handler module ${handler.mod} not found`);
     continue;
   }
-  const recorded = records(source, bodyOf(source, handler.fn), 2);
+  const recorded = records(source, functionBody(source, handler.fn), 2);
   const excused = Object.hasOwn(NO_RECORDING, endpoint);
   if (!recorded && !excused) {
     problems.push(

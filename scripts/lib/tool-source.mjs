@@ -1,8 +1,9 @@
-// Shared source parsing for the effect-conformance checks.
+// Shared source parsing for the conformance checks.
 //
-// Both `check-network-effects.mjs` and `check-endpoint-effects.mjs` need the
-// same three answers out of the TypeScript source: what a method's body is,
-// which facade method each tool dispatches to, and what each tool declares.
+// `check-network-effects.mjs`, `check-endpoint-effects.mjs` and
+// `check-undo-coverage.mjs` need the same answers out of the TypeScript source:
+// what a function or method's body is, which facade method each tool dispatches
+// to, and what each tool declares.
 // They read source rather than `packages/core/dist` on purpose — they run
 // inside `protocol:check`, the first step of `release:check`, which is before
 // anything is built. Reading dist would compare against whatever was built
@@ -26,6 +27,24 @@ export function methodBodies(src) {
     out.get(m[1]).push(body);
   }
   return out;
+}
+
+/**
+ * The body of the first top-level `function <name>(...)` in `src`, or undefined.
+ *
+ * The plugin handlers are module functions rather than class members, so
+ * {@link methodBodies}' indentation anchor does not reach them — but they need
+ * the same `bodyAt`, for the same reason: `check-undo-coverage.mjs` kept its own
+ * jump-to-the-next-`{` copy, which reads `function f(): { a?: number } {` as a
+ * body of `{ a?: number }`. That direction only ever loses statements, so it
+ * reports a recording handler as unrecorded — and the natural response to a
+ * false "mutates without a recording" is to write an excuse into NO_RECORDING,
+ * which then outlives the real recording it was covering for.
+ */
+export function functionBody(src, name) {
+  const at = src.search(new RegExp(`\\bfunction\\s+${name}\\s*\\(`));
+  if (at < 0) return undefined;
+  return bodyAt(src, src.indexOf('(', at)) ?? undefined;
 }
 
 /**

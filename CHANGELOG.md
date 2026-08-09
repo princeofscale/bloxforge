@@ -121,6 +121,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returned runtime logs and playtest state. **This tightens the capability
   gate**: a client with an explicit capability allowlist now needs `read.scene`
   for these tools as well as the write or playtest capability it already had.
+- `check-undo-coverage.mjs` kept its own copy of the signature parser, with the
+  blind spot the shared one was just fixed for: it jumped to the next `{`, so
+  `function handler(...): { ok: boolean } {` reads as a body of `{ ok: boolean }`
+  and a handler that does record an undo waypoint reports as one that does not.
+  No handler triggers it today — that direction only ever loses statements, so
+  it fails closed — but the natural response to a false "mutates without a
+  recording" is to write an excuse into `NO_RECORDING`, which then outlives the
+  real recording it was covering for. The copy is gone; the check now imports
+  `functionBody` from `scripts/lib/tool-source.mjs`, and `tests/tool-source-parser.mjs`
+  holds that parser to every shape that has defeated it. Stale `NO_RECORDING`
+  entries are rejected too: nothing walked that list, so an exception whose
+  endpoint had been renamed or reclassified sat there reading like policy.
 - The signature parser behind the effect audits treated a return type
   annotation as the method body, so `private async _captureFingerprint(...):
   Promise<{ fp: Fingerprint; ... }>` reported the object type as the whole

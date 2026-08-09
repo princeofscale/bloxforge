@@ -16,7 +16,7 @@
   "scripts": {
     "build": "npm run build -w packages/core && npm run build -w packages/robloxstudio-mcp && npm run build -w packages/robloxstudio-mcp-inspector",
     "protocol:generate": "node scripts/generate-protocol-policy.mjs",
-    "protocol:check": "node scripts/generate-protocol-policy.mjs --check && node tests/protocol-policy-generator.mjs && node scripts/check-undo-coverage.mjs && node scripts/check-argument-errors.mjs && node scripts/check-network-effects.mjs && node scripts/check-endpoint-effects.mjs",
+    "protocol:check": "node scripts/generate-protocol-policy.mjs --check && node tests/protocol-policy-generator.mjs && node scripts/check-undo-coverage.mjs && node scripts/check-argument-errors.mjs && node tests/tool-source-parser.mjs && node scripts/check-network-effects.mjs && node scripts/check-endpoint-effects.mjs",
     "compile:plugin": "npm run protocol:check && npm --prefix studio-plugin ci && npm --prefix studio-plugin run build",
     "build:plugin": "npm run compile:plugin && node scripts/build-plugin.mjs",
     "build:plugin:inspector": "npm run compile:plugin && node scripts/build-plugin.mjs --variant inspector",
