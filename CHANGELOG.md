@@ -54,6 +54,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- A frozen 784-case tool corpus under `evals/corpus/`, with `npm run
+  evals:corpus-check` and `npm run evals:retrieval` in `release:check`. 218
+  positive cases (one per tool), 436 nearest-neighbour confusers, 50
+  no-tool/clarification, 50 multi-step and 30 stale-catalog/adversarial. It
+  scores `searchCatalog` directly, so it needs no model, no provider key and no
+  Studio — a benchmark that costs money to run gets run once, at the moment it
+  flatters you.
+
+  Two properties make the numbers mean something. Positive queries are written
+  in task language and `corpus-check.ts` rejects any that reuses more than 75%
+  of its own tool's vocabulary, because a corpus paraphrased out of the tool
+  descriptions measures a lexical retriever against itself; the corpus sits at a
+  mean overlap of 0.222. And the confusers are derived rather than invented —
+  for each tool, its two nearest neighbours' own queries, asserting it does not
+  outrank them — because a hand-written negative measures its author's intuition
+  about the retriever rather than the retriever.
+
+  The first baseline says the retrieval layer is the weak one, and it is
+  committed as-is so the fix has to prove itself: the gold tool reaches the
+  8-item shortlist for **56.0%** of tools (95% CI 49.5–62.4) and ranks first for
+  23.4%; "Make Workspace.Door transparent" does not surface `set_property` at
+  all. A query with no tool answer still receives a confident match **90%** of
+  the time, because the ranking has no way to express "none of these" — the same
+  shape as an audit that passes by not looking. 48% of multi-step gold steps are
+  reachable from a single shortlist.
 
 - `design_lint` now checks text contrast against WCAG 2.2 AA (4.5:1 for normal
   text) and reports the measured ratio with both hex colors, so a failing
