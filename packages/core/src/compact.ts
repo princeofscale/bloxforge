@@ -63,15 +63,75 @@ type BulkRow = Record<string, unknown> & { success?: unknown };
  * Failures always keep full per-row detail: that is the half of the answer that
  * carries information, and it is never the half that is large.
  */
-export function bulkReceipt<T extends { results?: unknown }>(payload: T, rowKey = 'path'): unknown {
+export type ReturnMode = 'receipt' | 'failures' | 'full';
+
+const RETURN_MODES: readonly ReturnMode[] = ['receipt', 'failures', 'full'];
+
+export function isReturnMode(value: unknown): value is ReturnMode {
+  return typeof value === 'string' && (RETURN_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * Absent means `receipt`; anything else unrecognised is an error.
+ *
+ * The check lives here rather than only at the call sites because `ReturnMode`
+ * is a TypeScript type and nothing else — erased at runtime, while the value
+ * arrives raw from an HTTP body. A guard in the function that acts on the mode
+ * covers every caller, present and future; a guard at one caller covers one.
+ */
+export function assertReturnMode(value: unknown): ReturnMode {
+  if (value === undefined) return 'receipt';
+  if (!isReturnMode(value)) {
+    throw new Error(`returnMode must be one of ${RETURN_MODES.join(', ')} — got ${JSON.stringify(value)}`);
+  }
+  return value;
+}
+
+export function bulkReceipt<T extends { results?: unknown }>(
+  payload: T,
+  rowKey = 'path',
+  requestedMode?: ReturnMode,
+): unknown {
+  const mode = assertReturnMode(requestedMode);
+
+  // `full` is the debugging escape hatch: whatever the plugin actually said,
+  // unedited. Every compaction below is lossless by construction, but "I
+  // believe it is lossless" is not the same as being able to look.
+  if (mode === 'full') return payload;
+
   const rows = payload?.results;
   if (!Array.isArray(rows) || rows.length === 0) return payload;
   if (!rows.every((row): row is BulkRow => !!row && typeof row === 'object' && !Array.isArray(row))) {
     return payload;
   }
 
+  // A response whose rows carry no `success` flag is not a bulk write result
+  // this function describes, and it is left alone — checked here rather than
+  // after the `failures` branch, where it was letting that mode reclassify
+  // every row of an unrecognised shape as a failure. Receipt mode had the
+  // guard; `failures` ran ahead of it.
+  if (!rows.some((row) => 'success' in row)) return payload;
+
   const ok = rows.filter((row) => row.success === true);
   const failed = rows.filter((row) => row.success !== true);
+
+  // `failures` drops the successful side entirely — for a caller that has
+  // already decided it only acts on what went wrong.
+  //
+  // No counters are invented for it. A first draft added `changed`/`failed` on
+  // the reasoning that "no failures" and "nothing ran" would otherwise be the
+  // same response; the plugin's own `summary: { total, succeeded, failed }`
+  // already answers that and rides along in `head`. Restating it under new
+  // names would have been the same waste #98 removed, one field smaller — and
+  // the existing test caught it.
+  if (mode === 'failures') {
+    const { results: _all, ...head } = payload as Record<string, unknown>;
+    void _all;
+    return {
+      ...head,
+      ...(failed.length > 0 ? { failures: failed.map(({ success: _s, ...f }) => f) } : {}),
+    };
+  }
   // Nothing succeeded, or the rows do not use the success flag at all: leave it
   // alone rather than invent a shape for a response this does not describe.
   if (ok.length === 0) return payload;

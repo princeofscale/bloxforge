@@ -21,6 +21,7 @@ import { SafetyTools } from './safety-tools.js';
 import { SceneReadTools } from './scene-read-tools.js';
 import { ScriptTools } from './script-tools.js';
 import { MutationTools } from './mutation-tools.js';
+import type { ReturnMode } from '../compact.js';
 import { AssetTools } from './asset-tools.js';
 import { assetManifestPlan, assetManifestScan, assetManifestStatus } from '../asset-manifest.js';
 import { searchAssetSources, type AssetSourceProvider } from './asset-sources.js';
@@ -783,14 +784,14 @@ export class RobloxStudioTools {
 
   async setProperties(instancePath: string, properties: Record<string, any>, instance_id?: string) { return this.mutationTools.setProperties(instancePath, properties, instance_id); }
 
-  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) { return this.mutationTools.massSetProperty(paths, propertyName, propertyValue, instance_id); }
+  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string, returnMode?: ReturnMode) { return this.mutationTools.massSetProperty(paths, propertyName, propertyValue, instance_id, returnMode); }
 
-  async massGetProperty(paths: string[], propertyName: string, instance_id?: string) { return this.mutationTools.massGetProperty(paths, propertyName, instance_id); }
+  async massGetProperty(paths: string[], propertyName: string, instance_id?: string, returnMode?: ReturnMode) { return this.mutationTools.massGetProperty(paths, propertyName, instance_id, returnMode); }
 
   async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) { return this.mutationTools.createObject(className, parent, name, properties, instance_id); }
 
-  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) { return this.mutationTools.massCreateObjects(objects, instance_id, options); }
-  async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions) { return this.mutationTools.massDeleteObjects(paths, instance_id, options); }
+  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions, returnMode?: ReturnMode) { return this.mutationTools.massCreateObjects(objects, instance_id, options, returnMode); }
+  async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions, returnMode?: ReturnMode) { return this.mutationTools.massDeleteObjects(paths, instance_id, options, returnMode); }
 
   async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) { return this.mutationTools.deleteObject(instancePath, instance_id, options); }
 
@@ -2341,7 +2342,7 @@ export class RobloxStudioTools {
 
   async compareInstances(instancePathA: string, instancePathB: string, instance_id?: string) { return this.sceneReadTools.compareInstances(instancePathA, instancePathB, instance_id); }
 
-  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) { return this.mutationTools.bulkSetAttributes(instancePath, attributes, instance_id); }
+  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string, returnMode?: ReturnMode) { return this.mutationTools.bulkSetAttributes(instancePath, attributes, instance_id, returnMode); }
 
   async findAndReplaceInScripts(
     pattern: string,

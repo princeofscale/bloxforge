@@ -1,4 +1,4 @@
-import { bulkReceipt } from '../compact.js';
+import { bulkReceipt, isReturnMode, assertReturnMode } from '../compact.js';
 
 const rows = (n: number, extra: (i: number) => Record<string, unknown> = () => ({})) =>
   Array.from({ length: n }, (_, i) => ({
@@ -96,5 +96,105 @@ describe('bulkReceipt', () => {
     ['nothing that succeeded', { results: [{ path: 'a', success: false, error: 'x' }] }],
   ])('passes through %s unchanged', (_label, payload) => {
     expect(bulkReceipt(payload as { results?: unknown })).toBe(payload);
+  });
+
+  describe('returnMode', () => {
+    const payload = () => ({
+      results: [
+        ...rows(3, () => ({ propertyName: 'Anchored', propertyValue: true })),
+        { path: 'game.Workspace.Gone', success: false, error: 'not found' },
+      ],
+      summary: { total: 4, succeeded: 3, failed: 1 },
+    });
+
+    it('full returns exactly what the plugin said', () => {
+      const before = payload();
+      expect(bulkReceipt(before, 'path', 'full')).toEqual(before);
+    });
+
+    it('failures drops the successful side and keeps every failure', () => {
+      const out = bulkReceipt(payload(), 'path', 'failures') as Record<string, unknown>;
+      expect(out.results).toBeUndefined();
+      expect(out.succeeded).toBeUndefined();
+      expect(out.failures).toEqual([{ path: 'game.Workspace.Gone', error: 'not found' }]);
+    });
+
+    it('failures still says how many ran, via the summary the plugin already sent', () => {
+      // The counters are not re-invented; this asserts the field they would
+      // have duplicated is carried through, which is why they are not needed.
+      const out = bulkReceipt(payload(), 'path', 'failures') as Record<string, unknown>;
+      expect(out.summary).toEqual({ total: 4, succeeded: 3, failed: 1 });
+      expect(out.changed).toBeUndefined();
+      expect(out.failed).toBeUndefined();
+    });
+
+    it('a clean run in failures mode carries no failures key at all', () => {
+      const out = bulkReceipt(
+        { results: rows(5), summary: { total: 5, succeeded: 5, failed: 0 } },
+        'path',
+        'failures',
+      ) as Record<string, unknown>;
+      expect(out.failures).toBeUndefined();
+      expect(out.summary).toEqual({ total: 5, succeeded: 5, failed: 0 });
+    });
+
+    it('failures is smaller than receipt whenever the receipt still carries rows', () => {
+      const differing = {
+        results: rows(60, (i) => ({ value: i })),
+        summary: { total: 60, succeeded: 60, failed: 0 },
+      };
+      const receipt = JSON.stringify(bulkReceipt(differing, 'path', 'receipt')).length;
+      const failuresOnly = JSON.stringify(bulkReceipt(differing, 'path', 'failures')).length;
+      expect(failuresOnly).toBeLessThan(receipt);
+    });
+
+
+    it('leaves a response whose rows carry no success flag alone, in every mode', () => {
+      // Receipt mode always had this guard; `failures` ran ahead of it and
+      // reclassified every row of an unrecognised shape as a failure.
+      const foreign = { results: [{ path: 'a', value: 1 }, { path: 'b', value: 2 }] };
+      expect(bulkReceipt(foreign, 'path', 'receipt')).toEqual(foreign);
+      expect(bulkReceipt(foreign, 'path', 'failures')).toEqual(foreign);
+      expect(bulkReceipt(foreign, 'path', 'full')).toEqual(foreign);
+    });
+
+    it('still treats a row that explicitly failed as a failure', () => {
+      const out = bulkReceipt(
+        { results: [{ path: 'a', success: true }, { path: 'b', success: false, error: 'nope' }] },
+        'path',
+        'failures',
+      ) as Record<string, unknown>;
+      expect(out.failures).toEqual([{ path: 'b', error: 'nope' }]);
+    });
+    it('defaults to receipt when no mode is given', () => {
+      expect(bulkReceipt(payload())).toEqual(bulkReceipt(payload(), 'path', 'receipt'));
+    });
+  });
+});
+
+describe('returnMode validation', () => {
+  it('bulkReceipt itself rejects an unrecognised mode, not only its callers', () => {
+    // The guard belongs in the function that acts on the mode: a TypeScript
+    // type is erased at runtime and the value arrives raw from an HTTP body.
+    const payload = { results: [{ path: 'a', success: true }] };
+    expect(() => bulkReceipt(payload, 'path', 'raw' as never)).toThrow(/returnMode must be one of/);
+    expect(() => bulkReceipt(payload, 'path', undefined)).not.toThrow();
+  });
+
+  it('assertReturnMode defaults only for undefined', () => {
+    expect(assertReturnMode(undefined)).toBe('receipt');
+    expect(assertReturnMode('full')).toBe('full');
+    expect(() => assertReturnMode(null)).toThrow(/returnMode must be one of/);
+    expect(() => assertReturnMode('')).toThrow(/returnMode must be one of/);
+  });
+
+  it('accepts exactly the three modes and nothing else', () => {
+    for (const mode of ['receipt', 'failures', 'full']) expect(isReturnMode(mode)).toBe(true);
+    // The value arrives raw from an HTTP body; a typo that silently became
+    // `receipt` would hand a caller who asked for `full` the compacted answer
+    // they were trying to check against.
+    for (const bad of ['Full', 'raw', '', 'receipts', null, undefined, 3, {}]) {
+      expect(isReturnMode(bad)).toBe(false);
+    }
   });
 });

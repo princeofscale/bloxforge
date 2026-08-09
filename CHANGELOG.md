@@ -54,6 +54,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- `returnMode` on the five bulk write tools: `receipt` (default, unchanged),
+  `failures` to drop the successful side entirely, and `full` to get the
+  plugin's unedited row-per-input response back. Every compaction on the receipt
+  path is lossless by construction, but "I believe it is lossless" is not the
+  same as being able to look.
+- `evals/room-benchmark/`, the roadmap's A3 fixture — one 8x8 room with fixed
+  names, materials, colours, anchoring and seed, reached three ways: many
+  `create_object`, one `mass_create_objects`, one `execute_luau`. Three of the
+  seven categories in the measurement contract are deterministic given the
+  routes, so `npm run evals:room-payload` computes and gates them with no model,
+  key or Studio; the other four are named as absent rather than implied away.
+
+  The deterministic half already contradicts the obvious reading. The batch
+  route's **arguments are larger** than the per-part route's (5439 bytes against
+  5398) — the same 28 parts have to be described either way — and its whole
+  advantage is the response, 2932 bytes down to 69. Its schema is nearly double
+  (1657 against 887), and schemas sit in the cached prefix where arguments do
+  not, so the two trade a recurring cost against a per-call one. The `execute_luau`
+  route is cheapest on the wire at 3204 bytes and gives up a declarative diff and
+  a narrow capability for it.
 - A `list_changed` probe: `docs/list-changed-probe.md`, an event journal behind
   `BLOXFORGE_LIST_CHANGED_PROBE`, `scripts/probe-report.mjs` and
   `scripts/probe-mark.mjs`. Lazy tool loading is only worth its complexity if the

@@ -6,7 +6,30 @@
 // through the shared single-target runtime; the facade delegates with identical
 // public signatures so the schema-parity invariants hold.
 
-import { compactText, bulkReceipt } from '../compact.js';
+import { compactText, bulkReceipt, assertReturnMode, type ReturnMode } from '../compact.js';
+
+/**
+ * One place where a bulk response becomes a tool result.
+ *
+ * `full` must not go through `compactText`: that rounds floats and drops null
+ * fields, so "the plugin's unedited response" would have arrived edited — the
+ * one mode whose entire purpose is to be trustworthy when the others are not.
+ *
+ * An unrecognised mode is rejected rather than quietly treated as `receipt`.
+ * The value arrives raw from an HTTP body, and a caller who asked for `full`
+ * and got a compacted receipt because of a typo would be debugging against
+ * exactly the wrong evidence.
+ */
+function bulkResult(response: unknown, rowKey: string, returnMode?: ReturnMode) {
+  // Validated here too, not out of distrust of `bulkReceipt` but because this
+  // function branches on the mode before ever reaching it — an unrecognised
+  // value would otherwise take the compacting path and only then be rejected.
+  const mode = assertReturnMode(returnMode);
+  if (mode === 'full') {
+    return { content: [{ type: 'text' as const, text: JSON.stringify(response) }] };
+  }
+  return compactText(bulkReceipt(response as { results?: unknown }, rowKey, mode));
+}
 import { buildMutationPlanLuau, type MutationOp } from '../builders/mutation-plan.js';
 import type { OperationKind } from '../safety/safety-manager.js';
 import { normalizeExecuteLuauToolResult, wrapToolJsonText, type SafetyOptions, type ToolContent } from './runtime-support.js';
@@ -50,20 +73,20 @@ export class MutationTools {
   // string's length — mass_create_objects then told the safety gate "create 24
   // objects" and wrote "created 24 objects" into the operation history for a
   // batch that never existed. `bulkMutate` below already guarded this way.
-  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string) {
+  async massSetProperty(paths: string[], propertyName: string, propertyValue: any, instance_id?: string, returnMode?: ReturnMode) {
     if (!Array.isArray(paths) || paths.length === 0 || !propertyName) {
       throw new Error('paths (non-empty array) and propertyName are required for mass_set_property');
     }
     const response = await this.runtime.callSingle('/api/mass-set-property', { paths, propertyName, propertyValue }, undefined, instance_id);
-    return compactText(bulkReceipt(response as { results?: unknown }));
+    return bulkResult(response, 'path', returnMode);
   }
 
-  async massGetProperty(paths: string[], propertyName: string, instance_id?: string) {
+  async massGetProperty(paths: string[], propertyName: string, instance_id?: string, returnMode?: ReturnMode) {
     if (!Array.isArray(paths) || paths.length === 0 || !propertyName) {
       throw new Error('paths (non-empty array) and propertyName are required for mass_get_property');
     }
     const response = await this.runtime.callSingle('/api/mass-get-property', { paths, propertyName }, undefined, instance_id);
-    return compactText(bulkReceipt(response as { results?: unknown }));
+    return bulkResult(response, 'path', returnMode);
   }
 
   async createObject(className: string, parent: string, name?: string, properties?: Record<string, any>, instance_id?: string) {
@@ -74,7 +97,7 @@ export class MutationTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions) {
+  async massCreateObjects(objects: Array<{className: string, parent: string, name?: string, properties?: Record<string, any>}>, instance_id?: string, options?: SafetyOptions, returnMode?: ReturnMode) {
     if (!Array.isArray(objects) || objects.length === 0) {
       throw new Error('objects (non-empty array) is required for mass_create_objects');
     }
@@ -82,7 +105,7 @@ export class MutationTools {
     if (gated) return gated;
     const response = await this.runtime.callSingle('/api/mass-create-objects', { objects }, undefined, instance_id);
     this.runtime.recordOperation('bulk_create', `created ${objects.length} objects`);
-    return compactText(bulkReceipt(response as { results?: unknown }));
+    return bulkResult(response, 'path', returnMode);
   }
 
   async deleteObject(instancePath: string, instance_id?: string, options?: SafetyOptions) {
@@ -96,7 +119,7 @@ export class MutationTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions) {
+  async massDeleteObjects(paths: string[], instance_id?: string, options?: SafetyOptions, returnMode?: ReturnMode) {
     if (!Array.isArray(paths) || paths.length === 0) {
       throw new Error('paths (non-empty array) is required for mass_delete_objects');
     }
@@ -125,7 +148,7 @@ export class MutationTools {
         failed > 0 ? `deleted ${succeeded} of ${paths.length} objects` : `deleted ${succeeded} objects`,
       );
     }
-    return compactText(bulkReceipt(response as { results?: unknown }));
+    return bulkResult(response, 'path', returnMode);
   }
 
   async cloneObject(instancePath: string, targetParentPath: string, instance_id?: string) {
@@ -202,13 +225,13 @@ export class MutationTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
-  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string) {
+  async bulkSetAttributes(instancePath: string, attributes: Record<string, unknown>, instance_id?: string, returnMode?: ReturnMode) {
     if (!instancePath || !attributes) {
       throw new Error('instancePath and attributes are required for bulk_set_attributes');
     }
     const response = await this.runtime.callSingle('/api/bulk-set-attributes', { instancePath, attributes }, undefined, instance_id);
     // Rows are keyed by attributeName here, not path.
-    return compactText(bulkReceipt(response as { results?: unknown }, 'attributeName'));
+    return bulkResult(response, 'attributeName', returnMode);
   }
 
   async getTags(instancePath: string, instance_id?: string) {
