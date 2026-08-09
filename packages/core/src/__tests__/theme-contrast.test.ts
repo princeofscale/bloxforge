@@ -1,4 +1,4 @@
-import { THEMES, ThemeTokens, getDesignCatalog } from '../builders/design-builders.js';
+import { THEMES, ThemeTokens, getDesignCatalog, buildDesignLintLuau } from '../builders/design-builders.js';
 
 // design_lint now fails UI whose text is under WCAG 2.2 AA. The palette that
 // `apply_theme` writes, and that `ui_component_catalog` tells an agent to build
@@ -13,9 +13,14 @@ import { THEMES, ThemeTokens, getDesignCatalog } from '../builders/design-builde
 // through Studio: an edit to THEMES that drops a pair below its threshold fails
 // on the next run, naming the pair and the ratio.
 
+// 0.04045, per WCAG 2.2: "Before May 2021 the value of 0.04045 in the
+// definition was different (0.03928). It was taken from an older version of the
+// specification and has been updated."
+const SRGB_LINEAR_BREAKPOINT = 0.04045;
+
 const srgbToLinear = (channel: number) => {
   const c = channel / 255;
-  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  return c <= SRGB_LINEAR_BREAKPOINT ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 };
 
 const luminance = ([r, g, b]: [number, number, number]) =>
@@ -73,5 +78,23 @@ describe('contrast maths', () => {
   it('is symmetric', () => {
     expect(contrastRatio([12, 34, 56], [210, 180, 140]))
       .toBeCloseTo(contrastRatio([210, 180, 140], [12, 34, 56]), 10);
+  });
+
+  // The two candidate breakpoints bracket no 8-bit channel — 0.03928 and
+  // 0.04045 are 10.02/255 and 10.31/255 — so an 8-bit test cannot tell them
+  // apart. Roblox Color3 channels are floats, which can land between them, so
+  // the branch is checked directly.
+  it('takes the linear branch at the WCAG 2.2 breakpoint and the power branch past it', () => {
+    expect(srgbToLinear(SRGB_LINEAR_BREAKPOINT * 255)).toBeCloseTo(SRGB_LINEAR_BREAKPOINT / 12.92, 12);
+    const justOver = SRGB_LINEAR_BREAKPOINT + 1e-9;
+    expect(srgbToLinear(justOver * 255)).toBeCloseTo(((justOver + 0.055) / 1.055) ** 2.4, 12);
+    // A value the old 0.03928 would have sent down the power branch.
+    expect(srgbToLinear(0.04 * 255)).toBeCloseTo(0.04 / 12.92, 12);
+  });
+
+  it('ships the same breakpoint in the generated Luau', () => {
+    const code = buildDesignLintLuau();
+    expect(code).toContain('if c <= 0.04045 then return c / 12.92 end');
+    expect(code).not.toContain('0.03928');
   });
 });

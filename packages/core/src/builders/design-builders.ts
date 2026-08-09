@@ -219,14 +219,38 @@ export interface DesignLintOptions {
 //     "a human may apply this" — never applied here.
 //   * `TextStrokeTransparency` is documented as "multiple renderings ...
 //     essentially multiplicative on itself four times over". WCAG has no model
-//     for an outline, and an outline usually helps legibility, so a stroked
-//     label reports its ratio at `info` rather than `warn`, saying why.
+//     for an outline. A stroke is drawn at the glyph edge and leaves the glyph
+//     body sitting on the same background, so it cannot pull a passing ratio
+//     under the bar — a stroked label that already measures 4.5:1 needs no
+//     finding. It can rescue a failing one, though, which is the case the
+//     measurement cannot settle: a failing stroked label is reported as
+//     `contrast_unknown` at `info`, carrying its ratio, rather than as
+//     `low_contrast`.
 //
 // `UIGradient` blends with the rendering of its *parent* only and never
 // descendants (verified: create.roblox.com UIGradient), so finding one on an
 // ancestor is enough to give up on a single number for that layer.
+//
+// ponytail: every unmeasurable case — gradient, image backdrop, translucent
+// CanvasGroup, nothing opaque behind — is refused rather than approximated.
+// Ceiling: those elements get no ratio at all, only a reason. Upgrade path is
+// the same one for all of them: `capture_screenshot` already exists, so sample
+// the rendered pixels under the text's AbsolutePosition/AbsoluteSize and
+// measure that. Worth doing when the refusals outnumber the measurements.
+//
+// ponytail: severity uses the 4.5:1 normal-text bar for everything, because
+// TextSize cannot decide WCAG's large-text threshold. Ceiling: genuinely large
+// text between 3:1 and 4.5:1 is reported at info instead of passing outright.
+// Upgrade path: a per-font em-size-to-line-height table, or `TextBounds` on a
+// single glyph, would let the 3:1 bar be applied rather than only mentioned.
+// The breakpoint is 0.04045, not the 0.03928 that circulates widely. W3C states
+// it outright: "Before May 2021 the value of 0.04045 in the definition was
+// different (0.03928). It was taken from an older version of the specification
+// and has been updated." (Understanding SC 1.4.3). Only 8-bit channel value 10
+// falls between the two, so nothing here changes by much — but a file that
+// claims WCAG 2.2 should use WCAG 2.2's constant.
 const CONTRAST_LUA = `local function srgbToLinear(c)
-\tif c <= 0.03928 then return c / 12.92 end
+\tif c <= 0.04045 then return c / 12.92 end
 \treturn ((c + 0.055) / 1.055) ^ 2.4
 end
 
@@ -265,6 +289,14 @@ local function effectiveBackground(textObject)
 \t\t\tend
 \t\t\tif (node:IsA("ImageLabel") or node:IsA("ImageButton")) and node.Image ~= "" and node.ImageTransparency < 1 then
 \t\t\t\treturn nil, string.format("an image backdrop on %s; no static answer, sample it in a screenshot", node.Name)
+\t\t\tend
+\t\t\t-- A CanvasGroup renders its whole subtree to a buffer and then draws that
+\t\t\t-- buffer at GroupTransparency, so it fades the text and everything already
+\t\t\t-- accumulated behind it together, against whatever is outside the group.
+\t\t\t-- The layer-by-layer walk cannot express that, and continuing would report
+\t\t\t-- the ratio the group would have had at full opacity.
+\t\t\tif node:IsA("CanvasGroup") and node.GroupTransparency > 0 then
+\t\t\t\treturn nil, string.format("%s is a CanvasGroup at GroupTransparency %.2f; it fades the text and its backdrop together", node.Name, node.GroupTransparency)
 \t\t\tend
 \t\t\tlocal alpha = 1 - node.BackgroundTransparency
 \t\t\tif alpha > 0 then

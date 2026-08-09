@@ -151,6 +151,28 @@ local strokeHost = panel("StrokeHost", screen, roblox.Color3.fromRGB(26, 27, 30)
 local stroked = label("Stroked", strokeHost, roblox.Color3.fromRGB(60, 62, 66), roblox.Vector2.new(200, 20), roblox.Vector2.new(404, 264))
 stroked.TextStrokeTransparency = 0
 
+-- A stroke on text that already passes changes nothing: the outline sits at the
+-- glyph edge and the glyph body is still on the same backdrop, so a passing
+-- ratio cannot be pulled under the bar. Reporting these would make every
+-- well-designed stroked label an "unknown".
+local strokedOk = label("StrokedOk", strokeHost, roblox.Color3.fromRGB(233, 236, 239), roblox.Vector2.new(200, 20), roblox.Vector2.new(404, 288))
+strokedOk.TextStrokeTransparency = 0.2
+
+-- A CanvasGroup draws its subtree to a buffer and fades the buffer, so the text
+-- and its backdrop fade together against whatever is outside the group. The
+-- layer walk cannot express that: without this branch it would report the ratio
+-- the group would have had at full opacity, which here is a comfortable pass.
+local fadedGroup = roblox.Instance.new("CanvasGroup")
+fadedGroup.Name = "Faded"
+fadedGroup.GroupTransparency = 0.6
+fadedGroup.BackgroundColor3 = roblox.Color3.fromRGB(26, 27, 30)
+fadedGroup.BackgroundTransparency = 0
+fadedGroup.AbsolutePosition = roblox.Vector2.new(700, 0)
+fadedGroup.AbsoluteSize = roblox.Vector2.new(300, 200)
+fadedGroup.Visible = true
+fadedGroup.Parent = screen
+label("InFadedGroup", fadedGroup, roblox.Color3.fromRGB(233, 236, 239), roblox.Vector2.new(200, 20), roblox.Vector2.new(704, 4))
+
 local function env()
 	return {
 		game = dm,
@@ -283,7 +305,7 @@ if lint then
 	local function finding(name)
 		return byPath["StarterGui.Menu." .. name] or byPath["StarterGui.Menu.Dark." .. name]
 			or byPath["StarterGui.Menu.Black.Veil." .. name] or byPath["StarterGui.Menu.Gradient." .. name]
-			or byPath["StarterGui.Menu.StrokeHost." .. name]
+			or byPath["StarterGui.Menu.StrokeHost." .. name] or byPath["StarterGui.Menu.Faded." .. name]
 	end
 
 	check("contrast: the palette's own text/bg pair raises nothing", finding("Readable") == nil,
@@ -339,6 +361,20 @@ if lint then
 		check("contrast: says the stroke is why", stroked.detail:find("stroke") ~= nil, stroked.detail)
 	else
 		check("contrast: stroked low-contrast text is still reported", false)
+	end
+
+	-- A stroke on text that already clears the bar is not an unknown. Reporting
+	-- it would turn every well-designed stroked label into a finding, which is
+	-- how a lint stops being read.
+	check("contrast: a stroke on passing text raises nothing", finding("StrokedOk") == nil,
+		finding("StrokedOk") and finding("StrokedOk").detail or "")
+
+	local faded = finding("InFadedGroup")
+	if faded then
+		eq("contrast: a translucent CanvasGroup is unknown, not the opaque ratio", faded.rule, "contrast_unknown")
+		check("contrast: names the CanvasGroup", faded.detail:find("CanvasGroup") ~= nil, faded.detail)
+	else
+		check("contrast: text inside a faded CanvasGroup is reported as unknown", false)
 	end
 end
 

@@ -15,9 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   background is composited: it walks outward accumulating front-to-back "over"
   blending, because a semi-transparent veil over a dark panel is neither the
   veil's own color nor the panel's. Where a ratio cannot be computed honestly —
-  a `UIGradient`, an image backdrop, a stack that never reaches an opaque
-  ancestor, or a `TextStrokeTransparency` below 1 — the finding is
-  `contrast_unknown` at info severity rather than a guess. The large-text
+  a `UIGradient`, an image backdrop, a translucent `CanvasGroup` (which fades
+  the text and its backdrop together, so the layer walk would otherwise report
+  the ratio the group would have had at full opacity), or a stack that never
+  reaches an opaque ancestor — the finding is `contrast_unknown` at info
+  severity rather than a guess. Text that fails the ratio while carrying a
+  stroke is `contrast_unknown` too, since an outline can rescue legibility and
+  WCAG models none; a stroke on text that already passes raises nothing, because
+  the outline sits at the glyph edge and cannot pull a passing ratio under the
+  bar. The sRGB linearization uses WCAG 2.2's 0.04045 breakpoint, not the
+  0.03928 of the pre-May-2021 text. The large-text
   exemption (3:1) is never applied automatically: `TextSize` is a line height,
   not the font's em size, so it cannot decide the WCAG 24px/18.66px threshold;
   a possibly-large case at or above 3:1 is reported at info severity instead.
