@@ -106,4 +106,51 @@ const only = (map, name) => {
   assert.match(functionBody(src, 'other'), /used\(\)/);
 }
 
-console.error('tool-source-parser: return types, object params, interface members and module functions all parse.');
+// A repeated name is refused rather than guessed at. QueryHandlers.ts declares
+// searchRecursive three times, each nested in a different handler, so taking the
+// first match returns a body belonging to a different function entirely.
+{
+  const src = [
+    'function outerA(): void {',
+    '\tfunction shared(): void {',
+    '\t\tfirst();',
+    '\t}',
+    '}',
+    'function outerB(): void {',
+    '\tfunction shared(): void {',
+    '\t\tsecond();',
+    '\t}',
+    '}',
+  ].join('\n');
+  assert.equal(functionBody(src, 'shared'), undefined, 'an ambiguous name must not resolve to the first match');
+  assert.match(functionBody(src, 'outerA'), /first\(\)/);
+}
+
+// A unique top-level declaration wins over nested ones, because that is what a
+// module-level call resolves to.
+{
+  const src = [
+    'function wrapper(): void {',
+    '\tfunction helper(): void {',
+    '\t\tnested();',
+    '\t}',
+    '}',
+    'export function helper(): void {',
+    '  topLevel();',
+    '}',
+  ].join('\n');
+  assert.match(functionBody(src, 'helper'), /topLevel\(\)/);
+}
+
+// `if (...) {` at member indentation is not a method named "if".
+{
+  const src = ['class C {', '  if (x) {', '    y();', '  }', '  real(): void {', '    z();', '  }', '}'].join('\n');
+  const parsed = methodBodies(src);
+  assert.equal(parsed.get('if'), undefined, 'control flow must not be recorded as a method');
+  assert.match(only(parsed, 'real'), /z\(\)/);
+}
+
+console.error(
+  'tool-source-parser: return types, object params, interface members, control flow, ' +
+  'repeated names and module functions all resolve as declared.',
+);

@@ -133,6 +133,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   holds that parser to every shape that has defeated it. Stale `NO_RECORDING`
   entries are rejected too: nothing walked that list, so an exception whose
   endpoint had been renamed or reclassified sat there reading like policy.
+- The shared parser resolved a repeated function name to whichever declaration
+  came first in the file. `QueryHandlers.ts` declares `searchRecursive` three
+  times, each nested in a different handler, so a lookup returned a body
+  belonging to a different function — confidently, with nothing to say it had
+  guessed. A unique top-level declaration now wins over nested ones, and an
+  otherwise ambiguous name resolves to nothing at all. It also counted `if (…)`
+  and `for (…)` at member indentation as methods named `if` and `for`: no caller
+  looks a method up by those names, so no verdict was ever wrong, but the counts
+  the checks print were. None of the three audits changes its result.
 - The signature parser behind the effect audits treated a return type
   annotation as the method body, so `private async _captureFingerprint(...):
   Promise<{ fp: Fingerprint; ... }>` reported the object type as the whole
