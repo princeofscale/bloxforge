@@ -33,7 +33,7 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'set_script_source',
     category: 'write',
-    effects: ['studio.write'],
+    effects: ['studio.read', 'studio.write'],
     description: 'Replace entire script source. The previous source is backed up first (restore via restore_script_backup). For partial edits use edit/insert/delete_script_lines. NOTE for ModuleScripts: editing Source does NOT invalidate Roblox\'s per-instance require() cache, so a subsequent require() in execute_luau returns the stale copy — re-verify with fresh_require(module) or a playtest, not a plain require().',
     inputSchema: {
       type: 'object',

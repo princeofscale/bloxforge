@@ -477,6 +477,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_world_snapshot',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Token-lean world model for reasoning before drill-down. Returns place info, descendant counts (total, distinct classes, tagged, sounds + playing/looped, scripts/localScripts/moduleScripts), top classes, notable subtree roots, and an environment summary (clock time, lighting technology, atmosphere/sky/terrain presence). Use this first to answer "where is the UI", "is there music", "is the scene heavy" without dumping the tree. At game level the counts cover the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to snapshot anything else verbatim.',
     inputSchema: {
       type: 'object',
@@ -505,6 +506,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_spatial_layout',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Where things physically are, at fixed token cost. Every other scene read answers a question about the tree (what classes, what names, which script); this answers the one an agent must settle before placing anything: how big is the built area, where is the ground, and which patch of it is empty. Returns the bounding volume, the ground plane and the y to stand things on, the largest children with position and size, SpawnLocations, and a coarse occupancy grid over the XZ plane — "." empty, 1-9 that many parts, "#" ten or more, north (high Z) first. Baseplate-sized parts are excluded from the grid so it does not read as uniformly full. Use before create_object or insert_asset to pick a location that does not land inside something.',
     inputSchema: {
       type: 'object',
@@ -523,6 +525,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_node_batch',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Read several instances in one round-trip, returning only the requested fields per node. Use after a snapshot or summary, when you already know which paths you want — cheaper than a cascade of get_instance_properties or an expensive get_descendants. Values are serialized compactly (Vector3 -> [x,y,z], Color3 -> [r,g,b], CFrame -> [x,y,z,pitch,yaw,roll] with the angles in degrees, Instance -> full path). A CFrame is six numbers, not three: the first three stay the position, so reading by index still works, and the orientation follows instead of being dropped.',
     inputSchema: {
       type: 'object',
@@ -553,6 +556,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_changes_since',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Incremental changefeed: returns which instances were added, removed, or changed (class/child-count) since a prior snapshot, so you refresh only what moved instead of re-pulling the world after each action. Call with no snapshotId to start a baseline (returns a snapshotId); call again with that snapshotId to get everything that changed since that baseline — it holds still, so this stays answerable across a whole session. Pass rebaseline:true instead to poll ("what moved since I last looked"), which advances the baseline to now. The "since" field in the response says which question was answered. At game level it tracks the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to track anything else verbatim.',
     inputSchema: {
       type: 'object',
@@ -580,6 +584,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'scene_search',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Ranked, multi-signal scene search for "where is X" questions ("find the door system", "where is the shop UI", "what controls day/night"). Scores each instance across name, tags, attribute keys, parent name, and class, and returns the top matches with a score and which terms matched. More intent-aware than search_objects (which is single-field); use it when you do not know exact names/paths. At game level it searches the services a place stores, not Studio internals like CoreGui and Stats — the returned "scope" field says which; pass an explicit path to search anything else verbatim.',
     inputSchema: {
       type: 'object',

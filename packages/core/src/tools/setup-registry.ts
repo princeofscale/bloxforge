@@ -63,6 +63,7 @@ export function registerContractedTools(
       description: findDef(SCENE_TOOL_DEFINITIONS, 'get_world_snapshot')?.description ?? 'Get scene overview.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_world_snapshot')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.get_world_snapshot,
       handler: (runtime, args) => asTools(runtime).getWorldSnapshot(
@@ -77,6 +78,7 @@ export function registerContractedTools(
       description: findDef(SCENE_TOOL_DEFINITIONS, 'get_spatial_layout')?.description ?? 'Where things physically are.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_spatial_layout')?.inputSchema ?? {},
       handler: (runtime, args) => asTools(runtime).getSpatialLayout(
         (args as any).path,
@@ -90,6 +92,7 @@ export function registerContractedTools(
       description: findDef(SCENE_TOOL_DEFINITIONS, 'get_node_batch')?.description ?? 'Read instance properties in batch.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_node_batch')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.get_node_batch,
       handler: (runtime, args) => asTools(runtime).getNodeBatch(
@@ -104,6 +107,7 @@ export function registerContractedTools(
       description: findDef(SCENE_TOOL_DEFINITIONS, 'get_changes_since')?.description ?? 'Incremental scene diff.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'get_changes_since')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.get_changes_since,
       handler: (runtime, args) => asTools(runtime).getChangesSince(
@@ -118,6 +122,7 @@ export function registerContractedTools(
       description: findDef(SCENE_TOOL_DEFINITIONS, 'scene_search')?.description ?? 'Search the scene hierarchy.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(SCENE_TOOL_DEFINITIONS, 'scene_search')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.scene_search,
       handler: (runtime, args) => asTools(runtime).sceneSearch(
@@ -136,6 +141,7 @@ export function registerContractedTools(
       description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_preflight_insert')?.description ?? 'Check asset insertability.',
       category: 'read',
       effects: ['studio.read', 'network.external'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_preflight_insert')?.inputSchema ?? {},
       outputSchema: OUTPUT_SCHEMAS.asset_preflight_insert,
       handler: (runtime, args) => asTools(runtime).assetPreflightInsert(
@@ -153,6 +159,7 @@ export function registerContractedTools(
       description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_sanitize_plan')?.description ?? 'Report what the scripts inside a model do.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_sanitize_plan')?.inputSchema ?? {},
       handler: (runtime, args) => asTools(runtime).assetSanitizePlan(
         (args as any).instancePath,
@@ -183,6 +190,7 @@ export function registerContractedTools(
       description: findDef(ASSET_TOOL_DEFINITIONS, 'asset_fit_plan')?.description ?? 'Measure a model against the scene.',
       category: 'read',
       effects: ['studio.read'],
+      bridgeEndpoints: ['/api/execute-luau'],
       inputSchema: findDef(ASSET_TOOL_DEFINITIONS, 'asset_fit_plan')?.inputSchema ?? {},
       handler: (runtime, args) => asTools(runtime).assetFitPlan(
         (args as any).instancePath,
@@ -331,6 +339,7 @@ function registerLocalTools(registry: ToolRegistry): void {
     description: definition.description,
     category: definition.category,
     effects: definition.effects,
+    bridgeEndpoints: definition.bridgeEndpoints,
     inputSchema: definition.inputSchema,
     outputSchema: definition.outputSchema,
     handler: (runtime, args) => handlers[definition.name](asTools(runtime), args),

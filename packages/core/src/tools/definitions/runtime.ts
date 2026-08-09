@@ -5,7 +5,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'solo_playtest',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'Compatibility wrapper for start_playtest/stop_playtest/status. Use action="start" with mode="play" or "run", action="stop" to stop, or action="status" to inspect runtime roles.',
     inputSchema: {
       type: 'object',
@@ -21,7 +21,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_playtest',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'Compatibility wrapper for multiplayer_test_* tools. Supports action="start", "status", "add_players", "leave_client", and "end".',
     inputSchema: {
       type: 'object',
@@ -65,7 +65,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'stop_playtest',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'Stop playtest and wait for runtime peers to disconnect.',
     inputSchema: {
       type: 'object',
@@ -145,6 +145,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_simulation_state',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Inspect current NetworkSettings and/or StudioDeviceSimulatorService state for edit and connected playtest clients only. Defaults to include="both" and target="edit-and-clients"; server peers are skipped. Use before diagnosing network or device-sensitive tests, especially because normal Play can write client simulator changes back to edit and StudioTestService clients can inherit stale device simulator state.',
     inputSchema: {
       type: 'object',
@@ -196,6 +197,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_device_simulator_state',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Inspect StudioDeviceSimulatorService state and supported built-in device presets. Defaults to target="edit"; also supports a regular playtest client target such as "client-1". Server targets are not supported. When no simulated device is active, active-only fields are omitted and isSimulating=false.',
     inputSchema: {
       type: 'object',
@@ -277,7 +279,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'capture_device_matrix',
     category: 'write',
-    effects: ['studio.write'],
+    effects: ['studio.read', 'studio.write'],
     description: 'Apply up to 6 ordered Studio device simulator settings, capture each viewport screenshot, and restore the previous simulator state by default when the prior state is default or a built-in preset. Custom device persistence is intentionally unsupported. Defaults to target="edit"; supports regular playtest client targets but not server or all-clients targets.',
     inputSchema: {
       type: 'object',
@@ -360,7 +362,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_start',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'Start a StudioTestService multiplayer test and wait for the server plus requested client peers to connect. Use this for multi-client runtime testing.',
     inputSchema: {
       type: 'object',
@@ -403,7 +405,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_add_players',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'Add client players to a running StudioTestService multiplayer test and wait for the new clients to connect.',
     inputSchema: {
       type: 'object',
@@ -427,7 +429,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_leave_client',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'Disconnect a specific client from a running StudioTestService multiplayer test, then wait for that client peer to leave.',
     inputSchema: {
       type: 'object',
@@ -450,7 +452,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'multiplayer_test_end',
     category: 'write',
-    effects: ['studio.write', 'playtest.control'],
+    effects: ['studio.read', 'studio.write', 'playtest.control'],
     description: 'End a running StudioTestService multiplayer test with an optional return value, then wait for all runtime peers to disconnect.',
     inputSchema: {
       type: 'object',
@@ -772,7 +774,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'run_playtest_episode',
     category: 'write',
-    effects: ['studio.execute', 'playtest.control'],
+    effects: ['studio.read', 'studio.execute', 'playtest.control'],
     description: 'One-shot runtime episode: start a playtest, let it run briefly, then gather the evidence an agent needs to reason about behaviour — runtime logs (error/warning counts + entries), optional gameplay assertions, an optional live state sample — and stop the playtest, returning a single episode object with a pass/fail verdict. Collapses the start_playtest → (sample/assert/logs) → stop_playtest loop into one call so the agent can drive an edit→playtest→observe→assert→fix cycle without hand-orchestrating the lifecycle. Verdict is "fail" if any assertion fails or runtime errors are logged, "error" if the playtest never reaches a ready runtime.',
     inputSchema: {
       type: 'object',
@@ -846,6 +848,7 @@ export const RUNTIME_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_reproduction_bundle',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Capture a point-in-time reproduction/audit bundle in one call: connected Studio places, a world overview snapshot, the recent mutating-operation history, and the stored playtest episodes. Use it to answer "what state is this place in and how did it get here" — for handing off, auditing an agent run, or pairing with get_changes_since for before/after deltas. Also readable as a resource at roblox://repro/bundle.',
     inputSchema: {
       type: 'object',

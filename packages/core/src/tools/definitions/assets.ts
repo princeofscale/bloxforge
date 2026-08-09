@@ -215,6 +215,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'asset_fit_plan',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Measure how a model sits in the scene and report what would have to change to make it usable: its size against a Roblox character (about 5 studs tall, the one absolute reference the platform gives you), where its pivot sits inside its own bounding box, and how many of its parts are unanchored. A model from the marketplace, a Package or an .rbxm arrives at whatever scale its author worked in, with its pivot wherever their modelling tool left it — often the world origin, which makes every later move and rotate swing it around a point far outside the model. Returns an immutable planHash covering the current size and pivot; pass it to asset_fit_apply.',
     inputSchema: {
       type: 'object',
@@ -248,6 +249,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'asset_sanitize_plan',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Report what the scripts inside a model actually do, for a model that is ALREADY in the scene — from a Package, an .rbxm, a collaborator, or an insert nobody preflighted. Walks the subtree, reads each script (the open editor buffer when there is one), and flags the capabilities that matter in code you did not write: loading another asset at runtime, network access, loadstring, getfenv/setfenv, purchase prompts, kicks, DataStore and TeleportService use, and runtime remote creation. Script source is never returned — only the matched capabilities, their counts and sizes — so a 40-script model does not cost more to report than to read. Returns an immutable planHash covering every script and its content; pass it to asset_sanitize_apply. Use asset_preflight_insert instead when you have an assetId and have not inserted it yet.',
     inputSchema: {
       type: 'object',
@@ -302,6 +304,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'asset_preflight_insert',
     category: 'read',
     effects: ['studio.read', 'network.external'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Authoritatively check whether an asset can be inserted, BEFORE touching the live scene. Loads the asset with AssetService:LoadAssetAsync into an isolated, unparented container, inspects it (root summary, descendant + script counts), then destroys it. Returns insertabilityVerdict ("yes"/"no") with a typed error code on failure (AUTH for copy-locked/unowned assets) and hasScripts as a safety signal. Use this between marketplace_search and insert_asset — metadata like isFree is only a hint; a real load is the source of truth.',
     inputSchema: {
       type: 'object',
@@ -322,6 +325,7 @@ export const ASSET_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'plan_asset_insert',
     category: 'read',
     effects: ['studio.read', 'network.external'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'One-shot asset discovery: marketplace-search a keyword, run the authoritative insertability preflight (asset_preflight_insert) on the top candidates IN ONE BATCH, and return a ranked, vetted plan — insertable + free + script-free first, with per-candidate warnings (scripts, paid/copy-locked, preflight error). Collapses the search→preflight→search churn an agent otherwise does as many separate round-trips into a single call; then insert the recommended assetId with insert_asset. Use this instead of hand-looping marketplace_search + asset_preflight_insert.',
     inputSchema: {
       type: 'object',
