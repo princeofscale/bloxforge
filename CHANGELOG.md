@@ -54,6 +54,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- The place journal, three-way drift detection and the stage acceptance
+  contract (`packages/core/src/journal/`), roadmap B5 and D2.
+
+  **Three-way, not two.** If the live scene differs from the plan, a two-way
+  diff knows only that they differ — not whether the plan is stale or someone
+  edited the scene since. Those want opposite responses, and guessing wrong
+  either discards a user's work or re-applies a change they deliberately
+  reverted. The third side is the journal baseline. Divergence on an owned path
+  stops the write and comes back as `adopt`, `replan` or `review`; it is never
+  resolved automatically, because every automatic answer destroys one side of a
+  disagreement between a person and a machine. A duplicated id offers only
+  `review` — there is no single current state to adopt.
+
+  **The journal refuses to choose where it lives.** A Studio-only place has two
+  surfaces and they are not interchangeable: plugin settings are machine-local,
+  so a teammate opening the same place sees no history, and DataModel metadata
+  is shared with the place, so writing history modifies the artefact being
+  recorded. There is no default; the error names both. A torn last line is
+  tolerated, since an append can be interrupted, but damage anywhere else is
+  refused — a baseline with holes that reports itself complete is worse than no
+  baseline.
+
+  **An `unknown` hard invariant is not a pass.** Every audit this repository has
+  had to repair failed by reporting success for something it never examined, and
+  an acceptance contract is where that costs most, because it is the thing that
+  says "ship it". A soft gate may be `unknown` — a vision rubric that could not
+  be rendered is a missing opinion, not a violated rule — and the wording keeps
+  "could not be evaluated" distinct from "was evaluated and was wrong". A
+  contract with no gates cannot be satisfied, and one evaluated against a
+  different revision is reported inapplicable rather than failing.
 - A stable identity and ownership plane for generated instances
   (`packages/core/src/identity/`), the roadmap's D4/D5.3 contract. Four features
   need to answer "is this still the thing I made, and may I touch it" — the
