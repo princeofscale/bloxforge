@@ -184,6 +184,10 @@ if (flags.includes('--check')) {
     ['confusers.stolenFirstPlace', report.confusers.stolenFirstPlace, baseline.confusers?.stolenFirstPlace, 'lower'],
     ['multiStep.meanStepCoverage', report.multiStep.meanStepCoverage, baseline.multiStep?.meanStepCoverage, 'higher'],
     ['adversarial.passed', report.adversarial.passed, baseline.adversarial?.passed, 'higher'],
+    // The README calls 90% here a finding; leaving it out of the gate would let
+    // it climb to 100% while release:check stayed green, which is naming a
+    // defect and then declining to watch it.
+    ['noTool.offeredAMatch', report.noTool.offeredAMatch, baseline.noTool?.offeredAMatch, 'lower'],
   ];
 
   // A baseline missing a field compares as `now < undefined - 0.01`, which is
