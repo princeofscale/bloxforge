@@ -64,9 +64,14 @@ export function routeB(): ToolCall[] {
  */
 export function routeC(): ToolCall[] {
   const { modules, moduleStuds, wallHeight, wallThickness, floorThickness, parent, material, color, doorwayModule } = ROOM;
-  const code = `local root = Instance.new("Folder")
-root.Name = "BenchmarkRoom"
-root.Parent = workspace
+  const container = parent.replace(/^game\./, '');
+  // Resolves the container rather than creating it. An earlier draft had this
+  // route call Instance.new("Folder") while A and B parented into an existing
+  // ROOM.parent — so C was doing one piece of work the others were not, and the
+  // three columns were not comparing the same job. The container is a setup
+  // step, identical for every route and outside the measurement.
+  const code = `local root = ${container}
+if not root then error("${parent} does not exist; create it before running the benchmark") end
 local SPAN, M, H, T, F = ${modules * moduleStuds}, ${moduleStuds}, ${wallHeight}, ${wallThickness}, ${floorThickness}
 local HALF, COLOR = SPAN / 2, Color3.fromRGB(${color[0]}, ${color[1]}, ${color[2]})
 local function part(name, size, pos)

@@ -65,6 +65,12 @@ type BulkRow = Record<string, unknown> & { success?: unknown };
  */
 export type ReturnMode = 'receipt' | 'failures' | 'full';
 
+const RETURN_MODES: readonly ReturnMode[] = ['receipt', 'failures', 'full'];
+
+export function isReturnMode(value: unknown): value is ReturnMode {
+  return typeof value === 'string' && (RETURN_MODES as readonly string[]).includes(value);
+}
+
 export function bulkReceipt<T extends { results?: unknown }>(
   payload: T,
   rowKey = 'path',
@@ -80,6 +86,13 @@ export function bulkReceipt<T extends { results?: unknown }>(
   if (!rows.every((row): row is BulkRow => !!row && typeof row === 'object' && !Array.isArray(row))) {
     return payload;
   }
+
+  // A response whose rows carry no `success` flag is not a bulk write result
+  // this function describes, and it is left alone — checked here rather than
+  // after the `failures` branch, where it was letting that mode reclassify
+  // every row of an unrecognised shape as a failure. Receipt mode had the
+  // guard; `failures` ran ahead of it.
+  if (!rows.some((row) => 'success' in row)) return payload;
 
   const ok = rows.filter((row) => row.success === true);
   const failed = rows.filter((row) => row.success !== true);

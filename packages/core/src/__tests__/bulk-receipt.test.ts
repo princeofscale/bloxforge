@@ -1,4 +1,4 @@
-import { bulkReceipt } from '../compact.js';
+import { bulkReceipt, isReturnMode } from '../compact.js';
 
 const rows = (n: number, extra: (i: number) => Record<string, unknown> = () => ({})) =>
   Array.from({ length: n }, (_, i) => ({
@@ -148,8 +148,38 @@ describe('bulkReceipt', () => {
       expect(failuresOnly).toBeLessThan(receipt);
     });
 
+
+    it('leaves a response whose rows carry no success flag alone, in every mode', () => {
+      // Receipt mode always had this guard; `failures` ran ahead of it and
+      // reclassified every row of an unrecognised shape as a failure.
+      const foreign = { results: [{ path: 'a', value: 1 }, { path: 'b', value: 2 }] };
+      expect(bulkReceipt(foreign, 'path', 'receipt')).toEqual(foreign);
+      expect(bulkReceipt(foreign, 'path', 'failures')).toEqual(foreign);
+      expect(bulkReceipt(foreign, 'path', 'full')).toEqual(foreign);
+    });
+
+    it('still treats a row that explicitly failed as a failure', () => {
+      const out = bulkReceipt(
+        { results: [{ path: 'a', success: true }, { path: 'b', success: false, error: 'nope' }] },
+        'path',
+        'failures',
+      ) as Record<string, unknown>;
+      expect(out.failures).toEqual([{ path: 'b', error: 'nope' }]);
+    });
     it('defaults to receipt when no mode is given', () => {
       expect(bulkReceipt(payload())).toEqual(bulkReceipt(payload(), 'path', 'receipt'));
     });
+  });
+});
+
+describe('isReturnMode', () => {
+  it('accepts exactly the three modes and nothing else', () => {
+    for (const mode of ['receipt', 'failures', 'full']) expect(isReturnMode(mode)).toBe(true);
+    // The value arrives raw from an HTTP body; a typo that silently became
+    // `receipt` would hand a caller who asked for `full` the compacted answer
+    // they were trying to check against.
+    for (const bad of ['Full', 'raw', '', 'receipts', null, undefined, 3, {}]) {
+      expect(isReturnMode(bad)).toBe(false);
+    }
   });
 });

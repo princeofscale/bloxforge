@@ -24,12 +24,12 @@ concluded. They are not here. Three of seven categories is not the answer to
 
 ## The deterministic half
 
-```
+```text
 room payload, 28 parts (schemas + args + results; assistant tokens not included)
   route   calls   schema     args  results     total
   A          28      887     5398     2932      9217   many create_object
   B           1     1657     5439       69      7165   one mass_create_objects
-  C           1     1985     1116       43      3144   one execute_luau
+  C           1     1985     1176       43      3204   one execute_luau
 ```
 
 Three things in that table are worth saying out loud, because the obvious
@@ -51,7 +51,7 @@ per-call one, and which is better depends on how many rooms you build per
 conversation. The roadmap's warning that tool count does not predict schema
 footprint shows up here at the smallest possible scale.
 
-**C is cheapest on the wire and not obviously cheapest.** 3144 bytes, because it
+**C is cheapest on the wire and not obviously cheapest.** 3204 bytes, because it
 re-derives the geometry instead of listing it — but it is Luau the model had to
 write correctly on the first try, it needs the broad `studio.execute`
 capability, and what it did is not visible as a declarative diff. The bytes it

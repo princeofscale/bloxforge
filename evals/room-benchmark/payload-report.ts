@@ -134,7 +134,23 @@ if (flags.includes('--update')) {
   process.exit(0);
 }
 if (flags.includes('--check')) {
-  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8')) as typeof report;
+  // Fail closed on a damaged baseline rather than crashing inside the
+  // comparison. `{}` and `{"routes":{}}` are both valid JSON and neither is a
+  // baseline; reading `.routes.find` on them throws a TypeError that reads like
+  // a bug in the report instead of a corrupt file the operator can fix.
+  let baseline: typeof report;
+  try {
+    baseline = JSON.parse(readFileSync(baselinePath, 'utf8')) as typeof report;
+  } catch (error) {
+    console.error(`payload-report: ${baselinePath} is not readable JSON — ${error instanceof Error ? error.message : String(error)}`);
+    console.error('Regenerate it with --update.');
+    process.exit(1);
+  }
+  if (!baseline || typeof baseline !== 'object' || !Array.isArray(baseline.routes) || !Number.isFinite(baseline.parts)) {
+    console.error(`payload-report: ${baselinePath} has no usable { parts, routes[] } shape. Regenerate it with --update.`);
+    process.exit(1);
+  }
+
   const problems: string[] = [];
   if (baseline.parts !== report.parts) problems.push(`part count ${report.parts} vs baseline ${baseline.parts}`);
   for (const now of report.routes) {

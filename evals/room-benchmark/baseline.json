@@ -21,9 +21,9 @@
    "route": "C",
    "toolCalls": 1,
    "schemaBytes": 1985,
-   "argBytes": 1116,
+   "argBytes": 1176,
    "resultBytes": 43,
-   "totalBytes": 3144
+   "totalBytes": 3204
   }
  ]
 }

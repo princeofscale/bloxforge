@@ -72,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   advantage is the response, 2932 bytes down to 69. Its schema is nearly double
   (1657 against 887), and schemas sit in the cached prefix where arguments do
   not, so the two trade a recurring cost against a per-call one. The `execute_luau`
-  route is cheapest on the wire at 3144 bytes and gives up a declarative diff and
+  route is cheapest on the wire at 3204 bytes and gives up a declarative diff and
   a narrow capability for it.
 - A `list_changed` probe: `docs/list-changed-probe.md`, an event journal behind
   `BLOXFORGE_LIST_CHANGED_PROBE`, `scripts/probe-report.mjs` and
