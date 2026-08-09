@@ -28,6 +28,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exemption (3:1) is never applied automatically: `TextSize` is a line height,
   not the font's em size, so it cannot decide the WCAG 24px/18.66px threshold;
   a possibly-large case at or above 3:1 is reported at info severity instead.
+- `scripts/check-endpoint-effects.mjs`, run in `protocol:check`, cross-checks
+  every tool's declaration against the bridge endpoints its handler actually
+  reaches, using `protocol-endpoints.json`'s own read/mutation classification.
+  A tool that drives a mutating endpoint must declare a Studio write; one that
+  reads must declare `studio.read`; an endpoint string in neither list is
+  rejected outright. This is the sibling of `check-network-effects.mjs` and
+  exists for the same reason: under-declaration is the failure invariant 1
+  names, and the capability gate cannot see it. The call graph is class-aware —
+  keying methods by bare name merged unrelated classes and produced 44 false
+  findings, including the claim that `get_file_tree` reaches
+  `/api/set-script-source`.
+- `ToolDefinition.bridgeEndpoints`, an optional declaration of the non-read
+  endpoints a tool drives, required only where the effects do not already imply
+  them. Declared rather than derived, for the same reason `effects` is, and
+  audited in both directions by the new check: a stale declaration fails as
+  loudly as a missing one.
 
 ### Fixed
 
@@ -39,6 +55,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to `rgb(201, 42, 42)` (was 4.28:1 on `bg`, passing only on `surface`). A test
   asserts every foreground/background pair the recipes actually use, so a future
   palette edit that reintroduces the failure breaks the build.
+- The inspector advertised eleven tools it could never serve. `get_world_snapshot`,
+  `scene_search`, `get_node_batch`, `get_spatial_layout`, `get_changes_since`,
+  `design_lint`, `asset_fit_plan`, `asset_sanitize_plan`,
+  `get_reproduction_bundle`, `get_device_simulator_state` and
+  `get_simulation_state` compute a read-only answer by running server-generated
+  Luau, so `studio.read` is an honest effect — but the transport is
+  `/api/execute-luau`, and the inspector plugin refuses every endpoint outside
+  the manifest's read set. Each call cost a round trip and came back "BloxForge
+  Inspector is read-only and rejected endpoint", which reads to an agent as a
+  broken server rather than a tool that was never available. The inspector's
+  surface is 67 tools rather than 78, and the eleven are gone from it.
+- Ten tools read from Studio without declaring `studio.read`.
+  `capture_device_matrix` was the sharpest: it drives `/api/capture-screenshot`
+  and returns pictures of the user's place while declaring only `studio.write`,
+  so a client granted `write.instances` and deliberately not `read.scene` could
+  take them. `set_script_source` read the existing source through
+  `/api/get-script-source`, and the seven playtest and multiplayer-test tools
+  returned runtime logs and playtest state. **This tightens the capability
+  gate**: a client with an explicit capability allowlist now needs `read.scene`
+  for these tools as well as the write or playtest capability it already had.
+- The signature parser behind the effect audits treated a return type
+  annotation as the method body, so `private async _captureFingerprint(...):
+  Promise<{ fp: Fingerprint; ... }>` reported the object type as the whole
+  method and everything it actually called was invisible. `get_changes_since`
+  passed the endpoint audit by never being examined, and the network audit had
+  the same blind spot. Both now read whole bodies.
 
 ## [4.3.1] - 2026-08-08
 

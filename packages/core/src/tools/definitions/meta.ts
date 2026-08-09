@@ -114,6 +114,7 @@ export const META_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'validate_script_source', category: 'read',
     effects: ['local.files.write', 'local.process.execute'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Check Luau source without writing it to the DataModel. Compile-checks through a connected Studio (loadstring, which parses without executing) and reports the Luau parser message and line under "syntax" — so a typo is caught in one round-trip instead of a playtest cycle. Read "syntax.available" first: false means no compile check ran (no Studio connected, or the request failed), so "syntax.ok" is absent and the source is unverified, NOT valid. Additionally runs luau-analyze, Selene and StyLua when those optional binaries are installed; missing ones are reported explicitly rather than skipped.',
     inputSchema: { type: 'object', properties: { source: { type: 'string' }, fileName: { type: 'string' }, instance_id: { type: 'string', description: 'Connected Studio place id. Required only when multiple places are open.' } }, required: ['source'] },
   },

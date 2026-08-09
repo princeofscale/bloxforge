@@ -1,4 +1,4 @@
-import type { ToolEffect } from './definitions.js';
+import type { ToolDefinition, ToolEffect } from './definitions.js';
 
 /**
  * Effects are declared per tool, never inferred. They used to be guessed from
@@ -14,4 +14,19 @@ import type { ToolEffect } from './definitions.js';
  */
 export function isInspectorEffect(effect: ToolEffect): boolean {
   return effect === 'studio.read' || effect === 'local.files.read';
+}
+
+/**
+ * Whether the inspector build can both advertise and actually serve this tool.
+ *
+ * Inspector-safe effects are necessary but not sufficient. The inspector plugin
+ * answers only the manifest's `read` endpoints and rejects everything else, so a
+ * tool that declares `bridgeEndpoints` — by definition, endpoints outside that
+ * set — cannot work there however read-only its effects are. Advertising one
+ * costs a round trip and returns "BloxForge Inspector is read-only and rejected
+ * endpoint", which reads to an agent as a broken server rather than a tool that
+ * was never available.
+ */
+export function isInspectorTool(tool: ToolDefinition): boolean {
+  return tool.effects.every(isInspectorEffect) && (tool.bridgeEndpoints ?? []).length === 0;
 }

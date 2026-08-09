@@ -28,6 +28,8 @@ export interface ToolSpec {
   description: string;
   category: 'read' | 'write';
   effects: readonly ToolEffect[];
+  /** See `ToolDefinition.bridgeEndpoints`. */
+  bridgeEndpoints?: readonly string[];
   inputSchema: object;
   outputSchema?: JsonSchema;
   /** Handler matching the existing ToolHandler pattern (tools, args) => result. */
@@ -64,6 +66,7 @@ export function defineTool(spec: ToolSpec): RegisteredTool {
     description: spec.description,
     category: spec.category,
     effects: spec.effects,
+    ...(spec.bridgeEndpoints ? { bridgeEndpoints: spec.bridgeEndpoints } : {}),
     inputSchema: spec.inputSchema,
     ...(spec.outputSchema ? { outputSchema: spec.outputSchema } : {}),
   };

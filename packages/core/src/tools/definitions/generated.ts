@@ -577,6 +577,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'design_lint',
     category: 'read',
     effects: ['studio.read'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Deterministically lint a UI for common quality problems and return scored, structured findings — a cheap, reproducible design-quality metric. Catches: low_contrast (WCAG 2.2 AA, 4.5:1 for normal text, with the measured ratio and both hex colors), tiny_text (TextSize < 9), offscreen elements, overlapping interactive elements, non_responsive_size (large pure-offset sizing that won\'t scale), no_layout_container (4+ children with no UIListLayout/UIGridLayout), and stretched_image_no_slice. Use it to drive "make this UI better" and to verify before/after. Geometric checks use edit-mode layout; topbar/safe-area need a playtest. Contrast is computed exactly only over an opaque solid backdrop: a gradient, an image, a translucent CanvasGroup, or a stack with nothing opaque behind it comes back as contrast_unknown with the reason, never as a guessed number. Text that fails the ratio but carries a stroke is also contrast_unknown — an outline can rescue legibility and WCAG cannot model one — and reports its measured ratio alongside. TextSize is a line height, not a font size, so WCAG\'s large-text exemption is reported as possibly applying and never applied automatically.',
     inputSchema: {
       type: 'object',
@@ -596,6 +597,7 @@ export const GENERATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     // resolved to the `read.scene` capability, so a client granted nothing but
     // the narrowest read could still upload a picture of the user's place.
     effects: ['studio.read', 'network.external'],
+    bridgeEndpoints: ['/api/execute-luau'],
     description: 'Vision-based UI critique: screenshots a ScreenGui (temporarily staged so it renders) and SENDS THAT SCREENSHOT to Pollinations (gen.pollinations.ai), which rates visual hierarchy, spacing, color/contrast, alignment and "AI slop" risk and returns specific Roblox-phrased fixes. This is the one design tool that leaves the machine — design_lint does the same class of check locally and deterministically. Run AFTER design_lint passes (lint is the cheap local gate; this is the qualitative amplifier). Requires POLLINATIONS_API_KEY. Pass a ScreenGui path.',
     inputSchema: {
       type: 'object',

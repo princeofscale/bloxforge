@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { methodBodies, loadDispatch, loadEffects } from './lib/tool-source.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -43,39 +44,11 @@ const FACADES = [
   'packages/core/src/tools/asset-tools.ts',
 ];
 
-/** `async name(...) { ... }` bodies, by brace matching past the signature. */
-function methodBodies(src) {
-  const out = new Map();
-  const re = /^\s{2}(?:private\s+)?async\s+([A-Za-z_]\w*)\s*\(/gm;
-  let m;
-  while ((m = re.exec(src))) {
-    // Close the parameter list first: a signature can hold `{ ... }` object
-    // types, and jumping to the next `{` would land inside one and cut the
-    // body short — which silently hid design_review from an earlier draft.
-    let depth = 0;
-    let i = m.index + m[0].length - 1;
-    for (; i < src.length; i++) {
-      if (src[i] === '(') depth++;
-      else if (src[i] === ')') { depth--; if (depth === 0) break; }
-    }
-    const start = src.indexOf('{', i);
-    if (start < 0) continue;
-    depth = 0;
-    let j = start;
-    for (; j < src.length; j++) {
-      if (src[j] === '{') depth++;
-      else if (src[j] === '}') { depth--; if (depth === 0) break; }
-    }
-    const body = src.slice(start, j + 1);
-    // A method can appear in both facades; either mentioning the network counts.
-    if (!out.has(m[1]) || NETWORK_CLIENTS.test(body)) out.set(m[1], body);
-  }
-  return out;
-}
-
 const allMethods = new Map();
 for (const file of FACADES) {
-  for (const [name, body] of methodBodies(readFileSync(resolve(root, file), 'utf8'))) {
+  for (const [name, bodies] of methodBodies(readFileSync(resolve(root, file), 'utf8'))) {
+    // A method can appear in both facades; either mentioning the network counts.
+    const body = bodies.join('\n');
     if (!allMethods.has(name) || NETWORK_CLIENTS.test(body)) allMethods.set(name, body);
   }
 }
@@ -102,67 +75,17 @@ for (let changed = true; changed; ) {
 
 // toolName -> facade method, from the dispatch table both transports share and
 // from the registries that use `asTools(runtime).method(...)`.
-const dispatch = new Map();
-for (const file of [
-  'packages/core/src/http-server.ts',
-  'packages/core/src/tools/rojo-registry.ts',
-  'packages/core/src/tools/toolchain-registry.ts',
-  'packages/core/src/tools/setup-registry.ts',
-  'packages/core/src/tools/discovery-tools.ts',
-]) {
-  let src;
-  try { src = readFileSync(resolve(root, file), 'utf8'); } catch { continue; }
-  for (const m of src.matchAll(/^\s*([a-z][a-z0-9_]*)\s*:\s*\((?:tools|runtime)[^)]*\)\s*=>\s*(?:asTools\(runtime\)|tools)\.([A-Za-z_]\w*)\s*\(/gm)) {
-    dispatch.set(m[1], m[2]);
-  }
-  for (const m of src.matchAll(/name:\s*'([a-z][a-z0-9_]*)'[\s\S]{0,2000}?asTools\(runtime\)\.([A-Za-z_]\w*)\s*\(/g)) {
-    if (!dispatch.has(m[1])) dispatch.set(m[1], m[2]);
-  }
-}
+const dispatch = loadDispatch(root);
 
 // Effects are read from source, not from `packages/core/dist`: this runs inside
 // `protocol:check`, which is the first step of `release:check` and therefore
 // runs before any build. Reading dist here would compare against whatever was
 // built last — the same stale-build trap `docs:generate` already documents.
-const DEFINITION_FILES = [
-  'packages/core/src/tools/definitions/assets.ts',
-  'packages/core/src/tools/definitions/browsing.ts',
-  'packages/core/src/tools/definitions/builds.ts',
-  'packages/core/src/tools/definitions/generated.ts',
-  'packages/core/src/tools/definitions/meta.ts',
-  'packages/core/src/tools/definitions/mutation.ts',
-  'packages/core/src/tools/definitions/runtime.ts',
-  'packages/core/src/tools/definitions/scene.ts',
-  'packages/core/src/tools/definitions/scripting.ts',
-  'packages/core/src/tools/rojo-registry.ts',
-  'packages/core/src/tools/toolchain-registry.ts',
-  'packages/core/src/tools/setup-registry.ts',
-  'packages/core/src/tools/discovery-tools.ts',
-];
-
-const TOOL_DEFINITIONS = [];
-for (const file of DEFINITION_FILES) {
-  let src;
-  try { src = readFileSync(resolve(root, file), 'utf8'); } catch { continue; }
-  // No character window between `name:` and `effects:` — just a refusal to
-  // cross into the next tool. A fixed window silently dropped design_review the
-  // moment a comment was added above its effects, and a check that quietly
-  // stops checking is worse than no check.
-  for (const m of src.matchAll(
-    /name:\s*'([a-z][a-z0-9_]*)',((?:(?!\bname:\s*')[\s\S])*?)effects:\s*\[([^\]]*)\]/g,
-  )) {
-    TOOL_DEFINITIONS.push({
-      name: m[1],
-      effects: [...m[3].matchAll(/'([^']+)'/g)].map((e) => e[1]),
-    });
-  }
-}
-if (TOOL_DEFINITIONS.length === 0) {
+const effectsByTool = loadEffects(root);
+if (effectsByTool.size === 0) {
   console.error('network-effects: parsed no tool definitions — the source shape changed.');
   process.exit(1);
 }
-
-const effectsByTool = new Map(TOOL_DEFINITIONS.map((t) => [t.name, t.effects]));
 
 const failures = [];
 let checked = 0;
@@ -195,6 +118,11 @@ for (const [toolName, method] of dispatch) {
 // method unclaimed here.
 const HELPERS = {
   universeIdForPlace: 'private helper; its callers are the tools that declare the effect',
+  // image_generate and image_generate_and_upload both declare network.external.
+  // It only became visible to this check once the signature parser learned to
+  // step over a return type annotation: `Promise<{ file: string; ... }>` had
+  // been handed back as the entire method body.
+  _generateImageToFile: 'private helper; its callers are the tools that declare the effect',
 };
 const claimed = new Set(dispatch.values());
 for (const method of networkMethods) {

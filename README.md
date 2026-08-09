@@ -235,7 +235,7 @@ Profiles keep tool discovery focused and reduce context use:
 | `builder` | UI, terrain, templates, assets, and scene construction; arbitrary Luau execution denied |
 | `tester` | Playtests, runtime debugging, input simulation, and assertions |
 | `full` | Every available BloxForge tool |
-| `inspector` | Studio/local read authorization only; local writes, process execution, network access, and Studio mutation/execute tools are omitted |
+| `inspector` | Studio/local read authorization only; local writes, process execution, network access, and Studio mutation/execute tools are omitted, as are read tools that compute their answer by running generated Luau — the inspector plugin refuses that endpoint |
 
 Some pre-4.0 toolchain wrappers (`install_wally_packages`,
 `generate_rojo_sourcemap`, `build_rojo_project`) remain discoverable for
