@@ -173,6 +173,26 @@ fadedGroup.Visible = true
 fadedGroup.Parent = screen
 label("InFadedGroup", fadedGroup, roblox.Color3.fromRGB(233, 236, 239), roblox.Vector2.new(200, 20), roblox.Vector2.new(704, 4))
 
+-- A token reference nobody checks is a comment. These three cover the whole
+-- point of stamping one: a panel whose rendered colour still matches the token
+-- it claims, one that was hand-edited away from it, and one naming a token the
+-- theme does not have.
+local tokenHost = panel("TokenHost", screen, roblox.Color3.fromRGB(37, 38, 43), 0, roblox.Vector2.new(980, 0))
+tokenHost:SetAttribute("BloxForgeTheme", "dark")
+tokenHost:SetAttribute("BloxForgeBgToken", "surface")
+
+local tokenDrifted = panel("TokenDrifted", screen, roblox.Color3.fromRGB(90, 12, 12), 0, roblox.Vector2.new(980, 180))
+tokenDrifted:SetAttribute("BloxForgeTheme", "dark")
+tokenDrifted:SetAttribute("BloxForgeBgToken", "surface")
+
+local tokenBogus = panel("TokenBogusRole", screen, roblox.Color3.fromRGB(37, 38, 43), 0, roblox.Vector2.new(980, 360))
+tokenBogus:SetAttribute("BloxForgeTheme", "dark")
+tokenBogus:SetAttribute("BloxForgeBgToken", "chartreuse")
+
+local tokenBogusTheme = panel("TokenBogusTheme", screen, roblox.Color3.fromRGB(37, 38, 43), 0, roblox.Vector2.new(980, 520))
+tokenBogusTheme:SetAttribute("BloxForgeTheme", "midnight")
+tokenBogusTheme:SetAttribute("BloxForgeBgToken", "surface")
+
 local function env()
 	return {
 		game = dm,
@@ -315,6 +335,7 @@ if lint then
 		return byPath["StarterGui.Menu." .. name] or byPath["StarterGui.Menu.Dark." .. name]
 			or byPath["StarterGui.Menu.Black.Veil." .. name] or byPath["StarterGui.Menu.Gradient." .. name]
 			or byPath["StarterGui.Menu.StrokeHost." .. name] or byPath["StarterGui.Menu.Faded." .. name]
+			or byPath["StarterGui.Menu." .. name]
 	end
 
 	check("contrast: the palette's own text/bg pair raises nothing", finding("Readable") == nil,
@@ -384,6 +405,37 @@ if lint then
 		check("contrast: names the CanvasGroup", faded.detail:find("CanvasGroup") ~= nil, faded.detail)
 	else
 		check("contrast: text inside a faded CanvasGroup is reported as unknown", false)
+	end
+
+	-- The token stamp is only worth writing if something reads it back and can
+	-- disagree with it. Comparing a token to itself always passes, which is
+	-- what "the theme was applied" has meant until now.
+	check("token: a panel still rendering its token's colour raises nothing",
+		finding("TokenHost") == nil,
+		finding("TokenHost") and finding("TokenHost").detail or "")
+
+	local drifted = finding("TokenDrifted")
+	if drifted then
+		eq("token: a hand-edited colour is drift", drifted.rule, "token_drift")
+		eq("token: names the token it claims", drifted.token, "surface")
+		eq("token: reports what it actually renders", drifted.rendered, "#5A0C0C")
+		eq("token: reports what the token says", drifted.expected, "#25262B")
+	else
+		check("token: a panel edited away from its token is reported", false)
+	end
+
+	local bogusRole = finding("TokenBogusRole")
+	if bogusRole then
+		eq("token: a role the theme does not define is reported, not guessed", bogusRole.rule, "token_unknown_role")
+	else
+		check("token: an undefined role is reported", false)
+	end
+
+	local bogusTheme = finding("TokenBogusTheme")
+	if bogusTheme then
+		eq("token: a theme this build does not define cannot be checked", bogusTheme.rule, "token_unknown_theme")
+	else
+		check("token: an unknown theme is reported", false)
 	end
 end
 

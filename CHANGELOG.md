@@ -54,6 +54,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- A checked design-token contract, roadmap B4. `apply_theme` now stamps the
+  token *role* it applied — `BloxForgeBgToken`, `BloxForgeFgToken`,
+  `BloxForgeTheme` — and `design_lint` reads them back and compares them against
+  the **rendered** value.
+
+  That comparison is the point. Without a reference back to the role, "this
+  button is #4263EB" and "this button is the primary colour" are the same fact,
+  and nothing can afterwards tell a deliberate one-off from a token that drifted
+  — either because someone edited the instance by hand or because the palette
+  moved under it. A check that compares a token to itself always passes, which
+  is what "the theme was applied" has meant until now.
+
+  `token_drift` names the rendered colour and the token's colour side by side.
+  A role the theme does not define and a theme this build does not have are
+  reported as their own findings rather than silently skipped, because "no
+  drift" and "not checked" must not read alike. Colours are compared in 8-bit
+  channels: `Color3` round-trips through floats, and exact float equality would
+  report drift on every value that survived serialization unchanged. The lint's
+  token table is emitted from `THEMES` rather than duplicated, so a palette edit
+  cannot leave it checking against yesterday's values.
 - The semantic scene graph (`packages/core/src/scene/semantic-graph.ts`),
   roadmap B1, as **two layers rather than one**. Facts are measured — zones,
   portals, widths, clearances, vertical deltas, and the share of shortest
