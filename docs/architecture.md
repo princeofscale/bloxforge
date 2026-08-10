@@ -14,7 +14,7 @@
                     │     (Node.js / TypeScript)           │
                     │                                      │
                     │  ┌────────────────────────────────┐  │
-                    │  │  Tool handlers (218 tools)     │  │
+                    │  │  Tool handlers (222 tools)     │  │
                     │  │  · Scene read / mutation       │  │
                     │  │  · Script / Luau               │  │
                     │  │  · UI / Terrain / Environment  │  │
@@ -147,6 +147,35 @@ from one belonging to no source at all, and never writes the manifest itself.
 
 All three tools are local and offline. Publishing and importing are separate
 Studio/Open-Cloud steps that consume a plan produced here.
+
+## Integration packs
+
+Third-party ecosystems — roblox-ts, Adonis, pesde, a UI library — arrive as
+*packs* behind four fixed tools, not as a tool set each:
+
+| Tool | Does |
+|---|---|
+| `integration_inspect` | list the registered packs, or detect one and report the evidence |
+| `integration_plan` | ordered steps, each automatic or blocked, plus a `planHash` |
+| `integration_apply` | run the automatic steps, re-reading each step's files first |
+| `integration_validate` | the postconditions the pack declared for itself |
+
+The catalog costs roughly 50k tokens per request in full mode. Three tools per
+library would put that widening on every agent on every call, including the ones
+that never touch the library, so a new pack adds a row to `integration_inspect`
+rather than rows to the catalog.
+
+`packages/core/src/integrations/pack.ts` holds the invariants once instead of
+each pack re-deriving them: the plan hash covers the pack version, the request,
+the steps, every file the plan depends on and every remote identity it resolved;
+files are re-read immediately before the step that writes them; a step that
+*decides* rather than *repairs* comes back blocked and is never run; an `unknown`
+blocking check fails validation.
+
+Each pack declares its licence, the primary source it encodes, and its effects.
+`PACK_EFFECT_CEILING` bounds those effects and excludes every `studio.*` one — a
+pack works on the project on disk, and reaching a place means widening the
+ceiling deliberately.
 
 ## Packages
 

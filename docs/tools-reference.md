@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 218
+## Total Tools: 222
 
 ### `get_file_tree` (Read-only)
 
@@ -3271,5 +3271,61 @@ The current plan plus the reconcile lease holder and the most recent run journal
 |---|---|---|---|
 | `root` | `string` | No | Search root inside BLOXFORGE_PROJECT_ROOT; the nearest manifest at or above it is used. |
 | `projectFile` | `string` | No |  |
+
+---
+
+### `integration_inspect` (Read-only)
+
+List the registered integration packs, or detect one in this project: whether it is present, which version and variant, and the evidence that decided it. Reads only. Each pack reports its licence and the primary source it was written against.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `packId` | `string` | No | Integration pack id. Omit on integration_inspect to list every registered pack. |
+| `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
+
+---
+
+### `integration_plan` (Read-only · sends data off this machine)
+
+Preview what a pack would change, as ordered steps each marked automatic or blocked. Writes nothing. Returns a planHash covering the pack version, the request, the steps, every file the plan depends on, and every remote identity it resolved.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `packId` | `string` | Yes | Integration pack id. Omit on integration_inspect to list every registered pack. |
+| `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
+| `request` | `object` | No | Pack-specific arguments. Hashed into planHash by content, so key order does not matter but every value does. |
+
+---
+
+### `integration_apply` (Write · sends data off this machine)
+
+Run the automatic steps of a previously planned integration, in order, re-reading each step's files immediately before it writes. Requires confirm=true and an expectedPlanHash that still matches; a blocked step is never run and is reported with what would permit it.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `packId` | `string` | Yes | Integration pack id. Omit on integration_inspect to list every registered pack. |
+| `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
+| `request` | `object` | No | Pack-specific arguments. Hashed into planHash by content, so key order does not matter but every value does. |
+| `confirm` | `boolean` | Yes | Required to execute. Modifies the project. |
+| `expectedPlanHash` | `string` | Yes | planHash returned by integration_plan for the same packId and request. |
+
+---
+
+### `integration_validate` (Read-only)
+
+Run the postconditions a pack declares for itself and report each as pass, fail or unknown. An unknown blocking check fails the validation: a check that could not run is not a check that passed.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `packId` | `string` | Yes | Integration pack id. Omit on integration_inspect to list every registered pack. |
+| `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
 
 ---

@@ -9,6 +9,7 @@ import { GENERATED_TOOL_DEFINITIONS } from './definitions/generated.js';
 import { META_TOOL_DEFINITIONS } from './definitions/meta.js';
 import { ROJO_TOOL_DEFINITIONS } from './rojo-registry.js';
 import { TOOLCHAIN_TOOL_DEFINITIONS } from './toolchain-registry.js';
+import { INTEGRATION_TOOL_DEFINITIONS } from './integration-registry.js';
 import { withOutputSchemas } from './output-schemas.js';
 import { isInspectorTool } from './tool-effects.js';
 
@@ -65,6 +66,7 @@ const RAW_TOOL_DEFINITIONS: ToolDefinition[] = [
   ...META_TOOL_DEFINITIONS,
   ...ROJO_TOOL_DEFINITIONS,
   ...TOOLCHAIN_TOOL_DEFINITIONS,
+  ...INTEGRATION_TOOL_DEFINITIONS,
 ];
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = withOutputSchemas(RAW_TOOL_DEFINITIONS);

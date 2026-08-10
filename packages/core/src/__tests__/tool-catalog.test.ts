@@ -293,6 +293,12 @@ describe('core tool set and toolchain domains', () => {
     }
   });
 
+  test('routes the integration pack tools into sync for the same reason', () => {
+    for (const name of ['integration_inspect', 'integration_plan', 'integration_apply', 'integration_validate']) {
+      expect(classifyDomain(name)).toBe('sync');
+    }
+  });
+
   test('keeps mutating toolchain tools out of the always-on core set', () => {
     // `install_wally_packages` ran a bare `wally install` with no lock policy and
     // was the first thing an agent saw. Only read-only checks stay in core.
