@@ -101,6 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   re-evaluate the tree. Bindings become `Computed` too, so a label follows its
   value instead of being written once.
 
+  Two things the generated code has to get right that a static tree never faces:
+  releasing the mouse over a button that also declares `hover` returns it to
+  **hover**, not to default — `MouseButton1Up` only fires while the cursor is
+  there, and resetting to default made the button flash back to its resting
+  colour under a stationary pointer; and `AutoButtonColor` is turned off,
+  because Roblox's own shading otherwise fights whatever the pressed state
+  computed and the visible colour is neither the one the tokens name nor one
+  anybody chose.
+
   It refuses a state no event drives rather than emitting a style that silently
   never applies: a hover colour that never appears is harder to notice than one
   that was never generated. The generated header states the Fusion release it

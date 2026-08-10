@@ -135,8 +135,13 @@ function emitNode(screen: UiScreen, node: UiNode, out: string[], depth: number, 
 
   for (const state of states) {
     const { enter, leave } = STATE_EVENTS[state];
+    // Releasing the mouse over a button that also declares `hover` returns it
+    // to hover, not to default: the cursor is still there, and
+    // `MouseButton1Up` only fires while it is. Resetting to default made the
+    // button flash back to its resting colour under a stationary pointer.
+    const resting = state === 'pressed' && states.includes('hover') ? 'hover' : 'default';
     out.push(`${propIndent}[OnEvent "${enter}"] = function() ${stateVar}:set("${state}") end,`);
-    out.push(`${propIndent}[OnEvent "${leave}"] = function() ${stateVar}:set("default") end,`);
+    out.push(`${propIndent}[OnEvent "${leave}"] = function() ${stateVar}:set("${resting}") end,`);
   }
 
   const children = childLines(screen, node, depth + (states.length > 0 ? 2 : 1), varName);
@@ -196,6 +201,10 @@ function propertyLines(screen: UiScreen, node: UiNode, states: string[], stateVa
   if (node.accessibility?.focusOrder !== undefined) {
     lines.push('Selectable = true,', `SelectionOrder = ${node.accessibility.focusOrder},`);
   }
+  // Roblox darkens a pressed TextButton by itself. Left on, that shading fights
+  // whatever the pressed state computed, and the visible colour is neither the
+  // one the tokens name nor a colour anybody chose.
+  if (node.kind === 'button' || node.kind === 'input') lines.push('AutoButtonColor = false,');
   return lines;
 }
 

@@ -51,6 +51,24 @@ describe('what a reactive target can do that a static tree cannot', () => {
     expect(luau).toMatch(/OnEvent "MouseButton1Down"/);
     expect(luau).toMatch(/OnEvent "MouseButton1Up"/);
   });
+
+  it('returns a released button to hover when hover is also declared', () => {
+    // `MouseButton1Up` only fires while the cursor is over the button, so
+    // resetting to default made it flash back to its resting colour under a
+    // stationary pointer.
+    const both = luauOf(button({ states: { hover: { background: 'color.accentHover' }, pressed: { background: 'color.surface' } } }));
+    expect(both).toMatch(/\[OnEvent "MouseButton1Up"\] = function\(\) playState:set\("hover"\) end,/);
+
+    const pressedOnly = luauOf(button({ states: { pressed: { background: 'color.surface' } } }));
+    expect(pressedOnly).toMatch(/\[OnEvent "MouseButton1Up"\] = function\(\) playState:set\("default"\) end,/);
+  });
+
+  it('turns off the shading Roblox applies to a pressed button by itself', () => {
+    // Left on, it fights whatever the pressed state computed, and the visible
+    // colour is neither the one the tokens name nor one anybody chose.
+    expect(luauOf(button())).toMatch(/AutoButtonColor = false,/);
+    expect(luauOf({ id: 'x', kind: 'frame' })).not.toMatch(/AutoButtonColor/);
+  });
 });
 
 describe('refusals', () => {
