@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 222
+## Total Tools: 224
 
 ### `get_file_tree` (Read-only)
 
@@ -3328,5 +3328,30 @@ Run the postconditions a pack declares for itself and report each as pass, fail 
 | `packId` | `string` | Yes | Integration pack id. Omit on integration_inspect to list every registered pack. |
 | `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
 | `request` | `object` | No | Pack-specific arguments a check needs but cannot discover — an allowlist, a project file name. |
+
+---
+
+### `ui_validate_screen` (Read-only)
+
+Check a UI screen description before anything is built: every token reference resolves, every interactive node has a label and a place in the focus ring that nothing else claims, every responsive override names a declared breakpoint, and no two nodes share an id. Errors are what no exporter can render correctly; warnings are what it can render but nobody meant.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `screen` | `object` | Yes | A UiScreen: id, name, tokens {color,space,text}, optional breakpoints, and a root node tree. Every style value is a token reference such as "color.accent", never a literal. |
+
+---
+
+### `ui_export_screen` (Read-only)
+
+Turn a validated UI screen into a Roblox Instance tree specification — classes, properties, and the token each resolved value came from stamped as an attribute beside it. Returns the specification; it does not create anything. Refuses an invalid screen rather than emitting a partial tree.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `screen` | `object` | Yes | A UiScreen: id, name, tokens {color,space,text}, optional breakpoints, and a root node tree. Every style value is a token reference such as "color.accent", never a literal. |
+| `target` | `string` | No | Export target. Only "native" (Roblox Instances) exists today; Fusion, React and Vide are roadmap items and are deliberately absent rather than stubbed. |
 
 ---

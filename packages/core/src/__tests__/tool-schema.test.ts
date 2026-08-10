@@ -12,6 +12,7 @@ import { META_TOOL_DEFINITIONS } from '../tools/definitions/meta.js';
 import { ROJO_TOOL_DEFINITIONS } from '../tools/rojo-registry.js';
 import { TOOLCHAIN_TOOL_DEFINITIONS } from '../tools/toolchain-registry.js';
 import { INTEGRATION_TOOL_DEFINITIONS } from '../tools/integration-registry.js';
+import { UI_IR_TOOL_DEFINITIONS } from '../tools/ui-ir-registry.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
@@ -116,6 +117,7 @@ describe('Tool schema compatibility', () => {
       ...ROJO_TOOL_DEFINITIONS,
       ...TOOLCHAIN_TOOL_DEFINITIONS,
       ...INTEGRATION_TOOL_DEFINITIONS,
+      ...UI_IR_TOOL_DEFINITIONS,
     ]);
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
@@ -233,6 +235,7 @@ describe('Tool schema compatibility', () => {
       ...ROJO_TOOL_DEFINITIONS.map((tool) => tool.name),
       ...TOOLCHAIN_TOOL_DEFINITIONS.map((tool) => tool.name),
       ...INTEGRATION_TOOL_DEFINITIONS.map((tool) => tool.name),
+      ...UI_IR_TOOL_DEFINITIONS.map((tool) => tool.name),
     ]);
     const offenders = TOOL_DEFINITIONS
       .filter((tool) => tool.outputSchema && !allowed.has(tool.name))
@@ -355,6 +358,10 @@ describe('Tool schema compatibility', () => {
     'integration_plan',
     'integration_apply',
     'integration_validate',
+    // The UI IR tools read a description and return another one. No place is
+    // involved: applying the exported tree is the existing mutation path's job.
+    'ui_validate_screen',
+    'ui_export_screen',
   ]);
 
   function toolHandlerBody(toolName: string): string {

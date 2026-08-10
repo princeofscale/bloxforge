@@ -54,6 +54,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- **Engine capability registry** (`packages/core/src/engine/capability-registry.ts`)
+  — what this Studio can actually do, as a thing you can ask rather than assume.
+
+  The failure it exists to prevent is not "we called a method that does not
+  exist"; that one announces itself. It is the quieter shape: **the property
+  exists, and its type is not what we thought.** That is how rotation went
+  missing from a serialized `CFrame` — nothing errored, the write succeeded, and
+  the part came back facing the wrong way. `checkRoundTrip` names the nine types
+  a flat `{x,y,z}`-shaped value truncates, each with what it drops.
+
+  Two rules hold it up. **The authority is the Studio in front of us** — a dump
+  from a tracking repository describes some Studio, on some day, and the
+  registry says which kind it is holding. **An unknown class is not a permissive
+  one** — `canWrite` distinguishes `no` ("asked and refused") from `unknown`
+  ("this registry cannot answer"), because the first is a reason to stop and the
+  second is a reason to go and look. A dump that does not parse, or that
+  declares a class twice, is refused rather than treated as an empty one: an
+  empty registry answers `unknown` to everything, which reads like caution and
+  is actually a parse failure nobody noticed.
+
+  `scripts/check-api-dump-diff.mjs` is the CI half. Roblox ships every week; the
+  changes that matter are the quiet ones — a property whose type moved, a member
+  that gained a security tag, a class that went away — each of which breaks code
+  that still type-checks. Additions are reported and do not fail. Exit 2 is
+  reserved for "could not run", so a dump that would not parse never shares an
+  exit code with an API that is fine.
+
+- **UI intermediate representation** (`packages/core/src/ui/ir.ts`) with
+  `ui_validate_screen` and `ui_export_screen`.
+
+  One description of an interface, validated once, with exporters that are dumb
+  translations of it. The alternative is a tool per UI library, each generating
+  its own tree from its own half of the requirements — and then "make the
+  disabled state match" is a change in four places that drift apart the first
+  week.
+
+  **A style value is a token reference, never a literal.** `Color3.fromRGB(37,
+  99, 235)` in a component is a number nobody can re-theme and nobody can audit;
+  `color.accent` is a decision with a name. This is the contract `design_lint`
+  already enforces on live instances, pushed one step earlier — to before the
+  instance exists. Validation also refuses an interactive node with no label or
+  no place in the focus ring, two nodes claiming the same focus position (the
+  ring's path is then undefined and which node wins is up to the exporter), a
+  responsive override for a breakpoint the screen never declared, and duplicate
+  ids.
+
+  The native exporter emits Roblox Instances and stamps the token each resolved
+  value came from beside it, so a later reader can tell a themed colour from a
+  hand-set one. States and variants travel as data rather than as five copies of
+  a button. It refuses an invalid screen instead of emitting a partial tree:
+  half a UI in a place looks like a bug in the design rather than a refusal to
+  build one, and is much harder to find. Fusion, React and Vide targets are
+  roadmap items and are **absent rather than stubbed** — `ui_export_screen`
+  fails closed on a target it does not have, instead of quietly returning native
+  and letting the caller believe otherwise.
+
 - **Integration Pack SDK** (`packages/core/src/integrations/pack.ts`) — four
   tools for every third-party integration instead of a tool set each:
   `integration_inspect`, `integration_plan`, `integration_apply`,
