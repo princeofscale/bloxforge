@@ -14,7 +14,7 @@
                     │     (Node.js / TypeScript)           │
                     │                                      │
                     │  ┌────────────────────────────────┐  │
-                    │  │  Tool handlers (222 tools)     │  │
+                    │  │  Tool handlers (224 tools)     │  │
                     │  │  · Scene read / mutation       │  │
                     │  │  · Script / Luau               │  │
                     │  │  · UI / Terrain / Environment  │  │
@@ -176,6 +176,43 @@ Each pack declares its licence, the primary source it encodes, and its effects.
 `PACK_EFFECT_CEILING` bounds those effects and excludes every `studio.*` one — a
 pack works on the project on disk, and reaching a place means widening the
 ceiling deliberately.
+
+## UI intermediate representation
+
+`ui_validate_screen` and `ui_export_screen` work on one description of an
+interface — screen, tokens, breakpoints, and a tree of nodes carrying layout,
+style, states, variants, bindings, accessibility and responsive overrides.
+
+A style value is a **token reference**, never a literal. `color.accent` is a
+decision with a name; `Color3.fromRGB(37, 99, 235)` is a number nobody can
+re-theme or audit. Validation refuses a reference that resolves to nothing, an
+interactive node without a label or a focus position, two nodes claiming the
+same focus position, an override for an undeclared breakpoint, and duplicate
+ids. Errors are what no exporter could render correctly; warnings are what it
+can render but nobody meant.
+
+`exportNative` emits Roblox Instances and stamps the token that produced each
+value beside it, so a later reader can tell a themed colour from a hand-set one.
+States and variants travel as attributes rather than as five copies of a button.
+Fusion, React and Vide targets are roadmap items: `ui_export_screen` fails on a
+target it does not have rather than returning native under another name.
+
+## Engine capability registry
+
+`packages/core/src/engine/capability-registry.ts` answers what a given Studio
+can do: does this class exist, is this property writable, what type does it
+declare, is it deprecated or security-tagged. The authority is the Studio in
+front of the user; a dump from a tracking repository describes *some* Studio on
+*some* day, and the registry records which kind it holds.
+
+`unknown` and `no` are kept apart on purpose — the first is a reason to go and
+look, the second a reason to stop. `checkRoundTrip` names the types a flat
+`{x,y,z}`-shaped value truncates; `CFrame` heads that list because losing its
+rotation is silent.
+
+`scripts/check-api-dump-diff.mjs` compares two dumps and fails on a removal, a
+changed type or a new security tag — the changes that break code which still
+type-checks. Additions are reported and pass.
 
 ## Packages
 
