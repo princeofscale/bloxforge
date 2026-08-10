@@ -54,6 +54,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- The stage snapshot coordinator (`packages/core/src/stage/coordinator.ts`),
+  roadmap D3. The eight steps come in a specific order and the order *is* the
+  safety property, so it is a state machine that refuses to skip one rather than
+  a documented procedure someone follows.
+
+  Two of the orderings are load-bearing. The snapshot is serialized **before**
+  the recorded write opens, because a `ChangeHistoryService` recording cannot
+  safely span an await — held open across a yield it blocks the user's own edits
+  and can be left dangling when the job is cancelled, which is why
+  `/api/execute-luau-async` is already a declared exception in the undo-coverage
+  audit. And the live reread happens before the snapshot, so the snapshot
+  corresponds to a state someone measured rather than to whatever the scene was
+  when serialization got round to it.
+
+  An apply without a snapshot is refused: the coordinator exists so a failed
+  apply has somewhere to go back to, and one that runs without a snapshot has
+  quietly opted out of that. A zero-byte or unhashed snapshot is refused for the
+  same reason — it would give the failure path something to restore from that
+  restores nothing, and report success for doing it.
+
+  **Rollback is a plan, not a privileged undo.** It carries the digest it
+  expects to find, and a scene that moved between planning and running the
+  rollback stops it and asks: most likely a person was reacting to the same
+  failure, and restoring over them is exactly what an undo would do. A restore
+  that does not bring the baseline digest back is not reported as done. Gates
+  follow the same rule as the acceptance contract — an `unknown` is not a pass,
+  and an empty gate list does not pass vacuously.
+
+  The snapshot never enters model context: it is a URI, a hash and a size.
 - The place journal, three-way drift detection and the stage acceptance
   contract (`packages/core/src/journal/`), roadmap B5 and D2.
 
