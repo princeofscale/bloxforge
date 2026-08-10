@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 224
+## Total Tools: 227
 
 ### `get_file_tree` (Read-only)
 
@@ -3346,13 +3346,53 @@ Check a UI screen description before anything is built: every token reference re
 
 ### `ui_export_screen` (Read-only)
 
-Turn a validated UI screen into a Roblox Instance tree specification — classes, properties, and the token each resolved value came from stamped as an attribute beside it. Returns the specification; it does not create anything. Refuses an invalid screen rather than emitting a partial tree.
+Turn a validated UI screen into a Roblox Instance tree specification, or into a Fusion component — classes, properties, and the token each resolved value came from stamped as an attribute beside it. Returns the specification; it does not create anything. Refuses an invalid screen rather than emitting a partial tree.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `screen` | `object` | Yes | A UiScreen: id, name, tokens {color,space,text}, optional breakpoints, and a root node tree. Every style value is a token reference such as "color.accent", never a literal. |
-| `target` | `string` | No | Export target. Only "native" (Roblox Instances) exists today; Fusion, React and Vide are roadmap items and are deliberately absent rather than stubbed. |
+| `target` | `string` | No | Export target. "native" emits a Roblox Instance tree; "fusion" emits a Fusion 0.3 component whose states actually render and whose bindings are live. React and Vide are roadmap items and are deliberately absent rather than stubbed. |
+
+---
+
+### `network_validate_surface` (Read-only)
+
+Check a game's network surface before a remote exists. Refuses client-to-server traffic with no rate limit (a client can fire a remote in a loop — that is the exploit, not a performance note), with no declared permission, or with an argument type nothing can be checked against. Also refuses a request from server to client, where the client can never return and the server thread waits forever.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `surface` | `object` | Yes | A NetworkSurface: folder, plus messages each carrying direction, kind (event or request), reliable, args, and — for client-to-server — a rateLimit and a permission. |
+
+---
+
+### `network_generate` (Read-only)
+
+Generate the remotes and the Luau that guards them: a per-player token bucket, a permission check, and a type guard per argument, all from the declared surface. Returns the instance list and the server and client modules; it creates nothing. Refuses an invalid surface rather than generating half a network layer, because the missing half would be a guard and an absent guard looks exactly like one that passed.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `surface` | `object` | Yes | A NetworkSurface: folder, plus messages each carrying direction, kind (event or request), reliable, args, and — for client-to-server — a rateLimit and a permission. |
+| `target` | `string` | No | Only "native" (RemoteEvent/RemoteFunction plus generated guards) exists. ByteNet, Remo and TypedRemote targets are roadmap items and are absent rather than stubbed. |
+
+---
+
+### `scene_diff_trees` (Read-only)
+
+Compare two instance trees and report what changed: a reparent as one move rather than a delete and an add, a class change as its own kind rather than as a property, and float differences inside a tolerance as no change at all. Unchanged subtrees are named once instead of walked. Works on any tree — a Studio read, a generated one, or a committed fixture.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `before` | `object` | Yes | Tree node: name, className, optional properties and children. |
+| `after` | `object` | Yes | The same shape, after whatever happened. |
+| `ignoreProperties` | `array` | No | Properties to leave out entirely — timestamps, generated ids. |
+| `epsilon` | `number` | No | Numbers closer than this count as equal. Defaults to 1e-6. |
 
 ---

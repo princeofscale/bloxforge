@@ -13,6 +13,7 @@ import { ROJO_TOOL_DEFINITIONS } from '../tools/rojo-registry.js';
 import { TOOLCHAIN_TOOL_DEFINITIONS } from '../tools/toolchain-registry.js';
 import { INTEGRATION_TOOL_DEFINITIONS } from '../tools/integration-registry.js';
 import { UI_IR_TOOL_DEFINITIONS } from '../tools/ui-ir-registry.js';
+import { NETWORK_TOOL_DEFINITIONS } from '../tools/network-registry.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
@@ -118,6 +119,7 @@ describe('Tool schema compatibility', () => {
       ...TOOLCHAIN_TOOL_DEFINITIONS,
       ...INTEGRATION_TOOL_DEFINITIONS,
       ...UI_IR_TOOL_DEFINITIONS,
+      ...NETWORK_TOOL_DEFINITIONS,
     ]);
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
@@ -236,6 +238,7 @@ describe('Tool schema compatibility', () => {
       ...TOOLCHAIN_TOOL_DEFINITIONS.map((tool) => tool.name),
       ...INTEGRATION_TOOL_DEFINITIONS.map((tool) => tool.name),
       ...UI_IR_TOOL_DEFINITIONS.map((tool) => tool.name),
+      ...NETWORK_TOOL_DEFINITIONS.map((tool) => tool.name),
     ]);
     const offenders = TOOL_DEFINITIONS
       .filter((tool) => tool.outputSchema && !allowed.has(tool.name))
@@ -362,6 +365,11 @@ describe('Tool schema compatibility', () => {
     // involved: applying the exported tree is the existing mutation path's job.
     'ui_validate_screen',
     'ui_export_screen',
+    // The network IR and the tree diff read a description and return another
+    // one. Creating the remotes is the existing mutation path's job.
+    'network_validate_surface',
+    'network_generate',
+    'scene_diff_trees',
   ]);
 
   function toolHandlerBody(toolName: string): string {

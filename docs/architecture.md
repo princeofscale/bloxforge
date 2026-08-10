@@ -14,7 +14,7 @@
                     │     (Node.js / TypeScript)           │
                     │                                      │
                     │  ┌────────────────────────────────┐  │
-                    │  │  Tool handlers (224 tools)     │  │
+                    │  │  Tool handlers (227 tools)     │  │
                     │  │  · Scene read / mutation       │  │
                     │  │  · Script / Luau               │  │
                     │  │  · UI / Terrain / Environment  │  │
@@ -196,6 +196,47 @@ value beside it, so a later reader can tell a themed colour from a hand-set one.
 States and variants travel as attributes rather than as five copies of a button.
 Fusion, React and Vide targets are roadmap items: `ui_export_screen` fails on a
 target it does not have rather than returning native under another name.
+
+## Network intermediate representation
+
+`network_validate_surface` and `network_generate` work on one description of a
+game's network surface: a folder, and messages carrying direction, kind, whether
+they are reliable, their argument types, and — for anything a client can send —
+a rate limit and a permission.
+
+What this replaces is an agent creating a `RemoteEvent` named `BuyItem` and a
+server script that trusts whatever arrives on it. Four things are missing from
+that and none of them announces itself: a rate limit (a client can fire a remote
+in a loop — the exploit, not a performance note), a type check, a permission, and
+a direction that does not let one client freeze the server by never returning
+from a `RemoteFunction`.
+
+So validation refuses all four, and `network_generate` emits Luau that
+*enforces* what was declared: a per-player token bucket, a role check that
+defaults to refusing, and a guard per argument with its range and length. An
+invalid surface is refused rather than half-generated, because the missing half
+would be a guard and an absent guard looks exactly like one that passed.
+
+ByteNet, Remo and TypedRemote targets are absent rather than stubbed. All MIT,
+all plausible, and none has shipped in the last eight months — committing every
+game's generated network layer to one of them is the coupling the IR exists to
+avoid.
+
+## Scene tree diff
+
+`scene_diff_trees` compares two instance trees and answers what a comparison of
+serialized JSON cannot:
+
+- a reparent is **one move**, not a delete plus an add — reported as two, a
+  reviewer reads a rebuild;
+- a class change is its own kind, not a property change, because every property
+  on the instance means something different afterwards;
+- floats are compared inside a tolerance that reaches into nested values, so a
+  `Vector3` rounded in transit is not a change;
+- identical subtrees are named once rather than walked.
+
+Children are matched by id, then by name — never by class. It works on any tree:
+a Studio read, the UI exporter's output, or a committed fixture.
 
 ## Engine capability registry
 
