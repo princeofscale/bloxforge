@@ -8,8 +8,9 @@
 // back without importing each pack by hand.
 
 import { registerPack, type IntegrationPack } from './pack.js';
+import { PESDE_PACK } from './packs/pesde.js';
 import { ROBLOX_TS_PACK } from './packs/roblox-ts.js';
 
-export const BUILTIN_PACKS: readonly IntegrationPack[] = [ROBLOX_TS_PACK];
+export const BUILTIN_PACKS: readonly IntegrationPack[] = [PESDE_PACK, ROBLOX_TS_PACK];
 
 for (const pack of BUILTIN_PACKS) registerPack(pack);

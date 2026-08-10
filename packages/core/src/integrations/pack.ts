@@ -24,6 +24,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import type { ToolEffect } from '../tools/definitions.js';
+import { resolveToolCommand } from '../toolchain/resolver.js';
 
 /**
  * The most any pack may declare.
@@ -240,7 +241,10 @@ export function fileContext(root: string, host?: Record<string, unknown>): PackC
         done({ code: error ? code ?? 1 : 0, stdout, stderr });
       });
     }),
-    ...(host ? { host } : {}),
+    // Supplied by default rather than left to each caller to remember: a pack
+    // that asks "is this tool pinned" and gets no resolver cannot tell a
+    // missing pin from a missing resolver, and would report the first forever.
+    host: { resolveToolCommand, ...host },
   };
 }
 
