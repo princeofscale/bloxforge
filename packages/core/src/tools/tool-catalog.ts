@@ -152,7 +152,11 @@ const PREFIX_RULES: Array<[RegExp, ToolDomain]> = [
   [/^sync_/, 'sync'],
   // Rojo, Rokit and Wally are one workflow: without these the toolchain tools
   // fell through to the `scene` default and never loaded with the sync toolset.
-  [/^rojo_|^rokit_|^wally_|^project_reconcile_/, 'sync'],
+  // Integration packs are the same workflow: they inspect, plan against and
+  // repair the project on disk. Without this rule they fall through to the
+  // `scene` default and never arrive with the toolset that needs them —
+  // exactly what happened to the Rojo tools above.
+  [/^rojo_|^rokit_|^wally_|^project_reconcile_|^integration_/, 'sync'],
   [/^audio_|^animation_/, 'media'],
   [/^image_/, 'assets'],
   [/^marketplace_/, 'assets'],

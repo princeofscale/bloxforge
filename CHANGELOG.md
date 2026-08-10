@@ -54,6 +54,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- **Integration Pack SDK** (`packages/core/src/integrations/pack.ts`) — four
+  tools for every third-party integration instead of a tool set each:
+  `integration_inspect`, `integration_plan`, `integration_apply`,
+  `integration_validate`.
+
+  The alternative was the reason to build it. Three tools per library —
+  `adonis_install`, `pesde_add`, `fusion_generate_component` — is not an
+  integration but a tax: the catalog already costs about 50k tokens per request
+  in full mode, and every library would widen that for every agent on every
+  call, including the ones that never touch it. Four tools total cost 1.9k once;
+  a pack after that adds a row to `integration_inspect`, not four rows to the
+  catalog. Core stays at 4,849 tokens, inside its 6,000 budget.
+
+  The repository invariants live in the engine rather than in each pack. A
+  `planHash` covers the pack version, the request by content, the ordered steps,
+  every file the plan depends on, and every remote identity it resolved — so a
+  plan that pinned release 1.2.3 stops applying the moment that tag means
+  something else. Each step's files are re-read immediately before that step
+  runs, not only once at the start, because step one can take a minute and step
+  three's file can move inside it. A step that makes a decision rather than
+  restoring declared state comes back `blocked` naming what would permit it, and
+  is never run. A plan whose step touches a file the plan never recorded is
+  rejected at plan time — otherwise reread-before-write is defeated by omission
+  rather than by edit. `validate` treats an `unknown` blocking check as a
+  failure, on the same grounds as the asset gates: a check that could not run is
+  not a check that passed.
+
+  Each pack declares its own licence and the primary source it was written
+  against, because a pack that installs somebody else's code has to say under
+  what terms, and a reviewer needs to know what to check it against.
+  `PACK_EFFECT_CEILING` bounds what any pack may declare and excludes every
+  `studio.*` effect — which is what lets the four tools be exempt from the
+  `instance_id` requirement without that exemption being an assumption.
+
+  The `root` argument is clamped to `BLOXFORGE_PROJECT_ROOT`. `resolve(base,
+  '/etc')` is `/etc`, so an absolute `root` would otherwise discard the base
+  entirely — and the engine's own containment check could not catch it, because
+  it measures paths against whatever root it is handed. Relative paths inside a
+  pack resolve against that root too, so the check and the read never look at
+  two different files. `complete` is true only when at least one automatic step
+  ran: a plan of nothing is reported as nothing, not as success.
+
+- **roblox-ts integration pack** — the first pack, and mostly `inspect` and
+  `validate` on purpose. BloxForge already compiles its own Studio plugin with
+  roblox-ts but did not recognise a *user's* rbxts project as a distinct kind of
+  project, so an agent that landed in one edited the generated `.luau`: the edit
+  worked, and the next compile deleted it with no error anywhere.
+
+  Four checks, each naming a way that happens:
+
+  - `project-local-compiler` — `node_modules/.bin/rbxtsc` or nothing. A bare
+    `rbxtsc` on PATH is deliberately not a fallback; a globally installed
+    compiler and the one this project's lockfile resolved are different
+    programs, and preferring whichever is on PATH is how a build stops being
+    reproducible without anybody choosing that.
+  - `no-handwritten-luau` — Luau at the root of `outDir` with no `.ts` under
+    `rootDir` was written by hand into the compiled tree and is about to vanish.
+  - `compiler-plugins` — an unlisted plugin **fails** rather than reporting
+    unknown: the plugin is right there in the tsconfig, and what is missing is
+    the approval, not the information. `request.allowedPlugins` approves by name.
+  - `rojo-mounts-out-dir` — `unknown`, never `pass`, when the project file
+    cannot be read.
+
+  Detection requires both a `roblox-ts` dependency and a tsconfig that parses,
+  not either — a tsconfig alone is an ordinary TypeScript project. The declared
+  range and the installed version are reported as two facts, because `^3.0.0` is
+  what the project asked for and `3.0.0` is what would actually run. `npm
+  install` comes back **blocked**: it resolves and can rewrite the lockfile,
+  which is the user's state.
+
+  Verified against the primary source — roblox-ts `package.json` at master
+  (3.0.0), `"bin": { "rbxtsc": "out/CLI/cli.js" }`.
+
 - Asset provenance completeness and style ranking with hard gates
   (`packages/core/src/assets/provenance.ts`), roadmap C3.
 

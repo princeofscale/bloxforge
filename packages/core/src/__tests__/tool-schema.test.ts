@@ -11,6 +11,7 @@ import { SCRIPTING_TOOL_DEFINITIONS } from '../tools/definitions/scripting.js';
 import { META_TOOL_DEFINITIONS } from '../tools/definitions/meta.js';
 import { ROJO_TOOL_DEFINITIONS } from '../tools/rojo-registry.js';
 import { TOOLCHAIN_TOOL_DEFINITIONS } from '../tools/toolchain-registry.js';
+import { INTEGRATION_TOOL_DEFINITIONS } from '../tools/integration-registry.js';
 import { TOOL_HANDLERS } from '../http-server.js';
 import { RobloxStudioTools } from '../tools/index.js';
 import { toolDefinitionToMcpTool } from '../tools/tool-shape.js';
@@ -114,6 +115,7 @@ describe('Tool schema compatibility', () => {
       ...META_TOOL_DEFINITIONS,
       ...ROJO_TOOL_DEFINITIONS,
       ...TOOLCHAIN_TOOL_DEFINITIONS,
+      ...INTEGRATION_TOOL_DEFINITIONS,
     ]);
     expect(grouped.map((tool) => tool.name)).toEqual(TOOL_DEFINITIONS.map((tool) => tool.name));
     expect(grouped).toEqual(TOOL_DEFINITIONS);
@@ -230,6 +232,7 @@ describe('Tool schema compatibility', () => {
       ...CONTRACTED_OUTPUT_TOOL_NAMES,
       ...ROJO_TOOL_DEFINITIONS.map((tool) => tool.name),
       ...TOOLCHAIN_TOOL_DEFINITIONS.map((tool) => tool.name),
+      ...INTEGRATION_TOOL_DEFINITIONS.map((tool) => tool.name),
     ]);
     const offenders = TOOL_DEFINITIONS
       .filter((tool) => tool.outputSchema && !allowed.has(tool.name))
@@ -343,6 +346,15 @@ describe('Tool schema compatibility', () => {
     'asset_manifest_status',
     'asset_manifest_plan',
     'asset_manifest_scan',
+    // The integration packs work on the project on disk. This exemption is not
+    // an assumption: PACK_EFFECT_CEILING excludes every studio.* effect, so a
+    // pack that wanted to reach a place is refused at registration. The day one
+    // legitimately needs the bridge, that ceiling has to be widened first — and
+    // widening it is what makes these four tools need instance_id.
+    'integration_inspect',
+    'integration_plan',
+    'integration_apply',
+    'integration_validate',
   ]);
 
   function toolHandlerBody(toolName: string): string {

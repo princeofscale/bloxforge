@@ -18,6 +18,7 @@ import type { RobloxStudioTools } from './index.js';
 import type { ToolDefinition } from './definitions.js';
 import { registerRojoTools } from './rojo-registry.js';
 import { registerToolchainTools } from './toolchain-registry.js';
+import { registerIntegrationTools } from './integration-registry.js';
 
 /**
  * Register first-wave contracted tools from the RobloxStudioTools instance
@@ -33,6 +34,7 @@ export function registerContractedTools(
 ): void {
   registerRojoTools(registry);
   registerToolchainTools(registry);
+  registerIntegrationTools(registry);
   registerLocalTools(registry);
   // Discovery / meta — always-on
   registry.register(
