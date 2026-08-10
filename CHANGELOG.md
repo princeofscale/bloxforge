@@ -54,6 +54,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- The semantic scene graph (`packages/core/src/scene/semantic-graph.ts`),
+  roadmap B1, as **two layers rather than one**. Facts are measured — zones,
+  portals, widths, clearances, vertical deltas, and the share of shortest
+  spawn-to-objective routes each portal carries. Interpretations are concluded —
+  dead ends, bottlenecks, unreachable objectives — and every one arrives with a
+  confidence below 1, the evidence behind it, the algorithm version that
+  produced it and the source revision it was computed from. This is the
+  correction `get_spatial_layout`'s inferred floor needed, generalised: a
+  conclusion returned in the same shape as a measurement invites an agent to
+  act on a guess with the confidence it would give a fact, and one with no
+  version or evidence cannot be re-checked later, only believed or ignored.
+
+  Bottlenecks use edge betweenness restricted to spawn x objective pairs —
+  the share of shortest routes through each portal — and the interpretation says
+  plainly when that share proves nothing: with one spawn and one objective every
+  portal on the single route scores 1.0, so the confidence drops to 0.3 and the
+  evidence says why. A degree-one zone is a dead-end candidate, but a teleport,
+  a one-way portal or a large vertical delta each lower the confidence, because
+  each is a way out the portal graph does not model. A spawn or objective zone
+  with one portal is not reported at all: an entrance corridor and a vault at
+  the end of one are normal level shapes, and a finding list that is mostly
+  noise is one an agent learns to skip.
 - The stage snapshot coordinator (`packages/core/src/stage/coordinator.ts`),
   roadmap D3. The eight steps come in a specific order and the order *is* the
   safety property, so it is a state machine that refuses to skip one rather than
