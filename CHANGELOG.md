@@ -54,6 +54,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- The vision-QA policy and camera plan (`packages/core/src/vision/`), roadmap
+  B3. **Vision proposes, it never disposes.** The published evidence is that VLM
+  judges rank far more reliably than they score — absolute intervals move
+  substantially with the visual task, and compositional biases are common across
+  multimodal models — so a score from one look at one render is not a fact about
+  the scene, and a pipeline that treats it as one will confidently rewrite good
+  work.
+
+  A finding may become a plan only when it is localized to an instance or
+  region, an independent deterministic check confirms it, and it reproduced in
+  at least 80% of identical runs. Even then "auto-fixable" means it has earned
+  the right to become an ordinary plan with expected values and validation —
+  nothing in this module writes. A finding a deterministic check *disagreed*
+  with is discarded, since that check is reproducible by construction and the
+  judge is not. Everything that fails the bar without being contradicted becomes
+  a warning rather than being dropped, because noticing things is the half of
+  vision QA that works. A repeat rate from a single run is refused outright: one
+  run gives 1.0 or 0.0 and means neither.
+
+  Ranking is pairwise and reports the pairs the judge decided both ways instead
+  of averaging them, because the average of an unstable comparison looks exactly
+  like a confident one.
+
+  Camera selection reads the semantic graph rather than orbiting a ring, which
+  photographs walls in an interior: objectives, spawns, dead ends and the
+  approaches to high-betweenness portals, with each interpretation's confidence
+  riding along so a shaky guess cannot outrank a measured objective. Six
+  canonical views, then greedy additions until the next earns under 5% new
+  coverage — and the nodes no camera covers are named, not folded into a
+  percentage that reads as success.
 - A checked design-token contract, roadmap B4. `apply_theme` now stamps the
   token *role* it applied — `BloxForgeBgToken`, `BloxForgeFgToken`,
   `BloxForgeTheme` — and `design_lint` reads them back and compares them against
