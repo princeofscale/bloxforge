@@ -21,7 +21,7 @@ import {
   planIntegration,
   validateIntegration,
 } from '../integrations/pack.js';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 // Side-effect import: registers the packs that ship with BloxForge.
 import '../integrations/builtin.js';
 
@@ -41,9 +41,22 @@ const REQUEST = {
   },
 };
 
-function rootOf(args: Record<string, unknown>): string {
-  const base = process.env.BLOXFORGE_PROJECT_ROOT?.trim() || process.cwd();
-  return resolve(base, (args.root as string | undefined) ?? '.');
+/**
+ * The project root, clamped to `BLOXFORGE_PROJECT_ROOT`.
+ *
+ * `resolve(base, '/etc')` is `/etc`: an absolute `root` discards the base
+ * entirely, which would let a caller plan and write anywhere on the machine.
+ * The pack engine's own containment check would not catch it either — it
+ * measures paths against whatever root it is handed.
+ */
+export function rootOf(args: Record<string, unknown>): string {
+  const base = resolve(process.env.BLOXFORGE_PROJECT_ROOT?.trim() || process.cwd());
+  const candidate = resolve(base, (args.root as string | undefined) ?? '.');
+  const rel = relative(base, candidate);
+  if (rel !== '' && (rel.startsWith('..') || isAbsolute(rel))) {
+    throw new Error(`root must stay within ${base}; ${candidate} is outside it.`);
+  }
+  return candidate;
 }
 
 const INTEGRATION_TOOLS: RegisteredTool[] = [

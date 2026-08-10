@@ -120,10 +120,12 @@ export interface PackContext {
   /** Entry names in a directory, or null when it is not one. Non-recursive. */
   list?: (path: string) => string[] | null;
   /**
-   * Run a command. `file` must be an absolute path a pack resolved itself:
-   * passing a bare name would search PATH, which is the toolchain-pin invariant
-   * in npm clothing — a project-local `rbxtsc` and whatever global one happens
-   * to be installed are not the same compiler.
+   * Run a command. `file` is a path the pack resolved itself, taken relative to
+   * the root when it is not already absolute — never a bare name looked up on
+   * PATH. That is the toolchain-pin invariant in npm clothing: a project-local
+   * `rbxtsc` and whatever global one happens to be installed are not the same
+   * compiler, and preferring whichever PATH offers is how a build stops being
+   * reproducible without anybody choosing that.
    */
   exec?: (file: string, args: readonly string[], opts: { cwd: string; timeoutMs?: number }) => Promise<ExecResult>;
   /** Anything the host wants to expose to packs — the Studio bridge, a runner. */
@@ -200,11 +202,17 @@ export function _resetPacks(): void {
 // ─── Context ─────────────────────────────────────────────────────────
 
 export function fileContext(root: string, host?: Record<string, unknown>): PackContext {
+  // Every path goes through `resolve(root, …)`, matching what `withinRoot`
+  // measures. Handing a relative path straight to `readFileSync` would resolve
+  // it against `process.cwd()` instead, so the containment check and the read
+  // would be looking at two different files — and `verifyFiles` would happily
+  // pass while the in-root file it claimed to be watching changed.
+  const inRoot = (path: string) => resolve(root, path);
   return {
     root,
     readFile: (path) => {
       try {
-        return readFileSync(path, 'utf8');
+        return readFileSync(inRoot(path), 'utf8');
       } catch (error) {
         const code = (error as NodeJS.ErrnoException).code;
         // EISDIR and ENOTDIR are "there is no file here" just as much as ENOENT
@@ -214,16 +222,16 @@ export function fileContext(root: string, host?: Record<string, unknown>): PackC
         throw error;
       }
     },
-    exists: (path) => existsSync(path),
+    exists: (path) => existsSync(inRoot(path)),
     list: (path) => {
       try {
-        return readdirSync(path);
+        return readdirSync(inRoot(path));
       } catch {
         return null;
       }
     },
     exec: (file, args, opts) => new Promise((done, fail) => {
-      execFile(file, [...args], { cwd: opts.cwd, timeout: opts.timeoutMs ?? 120_000, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+      execFile(inRoot(file), [...args], { cwd: opts.cwd, timeout: opts.timeoutMs ?? 120_000, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
         // A non-zero exit is a result, not a failure: `rbxtsc` reports
         // diagnostics that way and the pack has to read them. Only a command
         // that could not run at all is thrown.
@@ -340,7 +348,14 @@ export interface ApplyResult {
   applied: { stepId: string; result: Record<string, unknown> }[];
   /** Steps that were never run, and why. A skipped step is reported, not dropped. */
   skipped: { stepId: string; reason: string }[];
-  /** True only when every automatic step ran. A plan of nothing is not a success. */
+  /**
+   * Every automatic step ran, and there was at least one.
+   *
+   * A plan of nothing reports `false`. A caller branching on `complete` is
+   * asking "is the integration applied now", and answering yes because there
+   * was nothing to do is how "nothing happened" gets recorded as "it worked".
+   * The summary says which of the two it was.
+   */
   complete: boolean;
   summary: string;
 }
@@ -392,7 +407,7 @@ export async function applyIntegration(
     planHash: plan.planHash,
     applied,
     skipped,
-    complete: applied.length === automatic,
+    complete: automatic > 0 && applied.length === automatic,
     summary: automatic === 0
       ? `Nothing to apply: the plan has ${plan.steps.length} step(s), none automatic.`
       : `Applied ${applied.length}/${automatic} automatic step(s), skipped ${skipped.length} blocked.`,

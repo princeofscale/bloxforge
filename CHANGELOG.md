@@ -88,6 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `studio.*` effect — which is what lets the four tools be exempt from the
   `instance_id` requirement without that exemption being an assumption.
 
+  The `root` argument is clamped to `BLOXFORGE_PROJECT_ROOT`. `resolve(base,
+  '/etc')` is `/etc`, so an absolute `root` would otherwise discard the base
+  entirely — and the engine's own containment check could not catch it, because
+  it measures paths against whatever root it is handed. Relative paths inside a
+  pack resolve against that root too, so the check and the read never look at
+  two different files. `complete` is true only when at least one automatic step
+  ran: a plan of nothing is reported as nothing, not as success.
+
 - **roblox-ts integration pack** — the first pack, and mostly `inspect` and
   `validate` on purpose. BloxForge already compiles its own Studio plugin with
   roblox-ts but did not recognise a *user's* rbxts project as a distinct kind of

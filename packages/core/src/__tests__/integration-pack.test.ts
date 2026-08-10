@@ -1,7 +1,12 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { rootOf } from '../tools/integration-registry.js';
 import {
   _resetPacks,
   applyIntegration,
   digestOf,
+  fileContext,
   getPack,
   inspectIntegration,
   listPacks,
@@ -300,6 +305,10 @@ describe('apply', () => {
     const plan = await planIntegration('demo', ctx);
     const result = await applyIntegration('demo', ctx, plan, plan.planHash, true);
     expect(result.summary).toMatch(/Nothing to apply/);
+    // A caller branching on `complete` is asking "is it applied now". Answering
+    // yes because there was nothing to do records "nothing happened" as "it
+    // worked".
+    expect(result.complete).toBe(false);
   });
 });
 
@@ -326,6 +335,55 @@ describe('validate', () => {
   it('lets an advisory check be unknown without blocking', async () => {
     withChecks([{ id: 'nice-to-have', status: 'unknown', message: 'no data', advisory: true }]);
     expect((await validateIntegration('demo', ctxOf({}))).passed).toBe(true);
+  });
+});
+
+describe('the project root a tool resolves', () => {
+  const previous = process.env.BLOXFORGE_PROJECT_ROOT;
+  beforeEach(() => { process.env.BLOXFORGE_PROJECT_ROOT = '/tmp/bloxforge-root-test'; });
+  afterEach(() => {
+    if (previous === undefined) delete process.env.BLOXFORGE_PROJECT_ROOT;
+    else process.env.BLOXFORGE_PROJECT_ROOT = previous;
+  });
+
+  it('defaults to the configured root', () => {
+    expect(rootOf({})).toBe('/tmp/bloxforge-root-test');
+    expect(rootOf({ root: 'sub/dir' })).toBe('/tmp/bloxforge-root-test/sub/dir');
+  });
+
+  it('refuses an absolute root, which would otherwise discard the base entirely', () => {
+    // `resolve(base, '/etc')` is `/etc`. The pack engine's containment check
+    // would not catch it either: it measures paths against whatever root it is
+    // handed, and this is where that root is chosen.
+    expect(() => rootOf({ root: '/etc' })).toThrow(/must stay within \/tmp\/bloxforge-root-test/);
+  });
+
+  it('refuses a traversal out of the base', () => {
+    expect(() => rootOf({ root: '../../elsewhere' })).toThrow(/must stay within/);
+  });
+});
+
+describe('the real file context', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'bloxforge-pack-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('resolves a relative path against the root, not the working directory', () => {
+    // Otherwise the containment check and the read look at two different files,
+    // and verifyFiles passes while the in-root file it claimed to watch changed.
+    writeFileSync(join(dir, 'config.toml'), 'a = 1');
+    const ctx = fileContext(dir);
+    expect(ctx.readFile('config.toml')).toBe('a = 1');
+    expect(ctx.exists!('config.toml')).toBe(true);
+    expect(ctx.list!('.')).toContain('config.toml');
+  });
+
+  it('reports an absent file as null rather than throwing', () => {
+    expect(fileContext(dir).readFile('nope.toml')).toBeNull();
+  });
+
+  it('reports a directory where a file was expected as absent, not as a crash', () => {
+    mkdirSync(join(dir, 'adir'), { recursive: true });
+    expect(fileContext(dir).readFile('adir')).toBeNull();
   });
 });
 
