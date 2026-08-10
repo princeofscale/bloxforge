@@ -72,17 +72,52 @@ interface Adjacency {
   portal: Portal;
 }
 
+/**
+ * Reject a graph that cannot be reasoned about, before reasoning about it.
+ *
+ * Each of these was silently survivable and each produced a confident wrong
+ * answer: an unknown `from` dropped its portal without a word, an unknown `to`
+ * became a neighbour no traversal could resolve, and a `NaN` cost slipped
+ * through a `cost <= 0` test — `NaN <= 0` is false — to poison every distance
+ * it touched. A partial graph yields partial betweenness and false unreachable
+ * objectives, which is worse than refusing.
+ */
+export function validateFacts(facts: SceneFacts): void {
+  const zoneIds = new Set<string>();
+  for (const zone of facts.zones) {
+    if (!zone.id) throw new Error('every zone needs an id');
+    if (zoneIds.has(zone.id)) throw new Error(`zone ${zone.id} is declared twice`);
+    zoneIds.add(zone.id);
+  }
+  const portalIds = new Set<string>();
+  for (const portal of facts.portals) {
+    if (!portal.id) throw new Error('every portal needs an id');
+    if (portalIds.has(portal.id)) throw new Error(`portal ${portal.id} is declared twice`);
+    portalIds.add(portal.id);
+    if (!zoneIds.has(portal.from)) throw new Error(`portal ${portal.id} starts at unknown zone ${portal.from}`);
+    if (!zoneIds.has(portal.to)) throw new Error(`portal ${portal.id} ends at unknown zone ${portal.to}`);
+    if (!Number.isFinite(portal.cost) || portal.cost <= 0) {
+      // A zero or non-finite cost makes every path through it free or
+      // undefined, so shortest-path counting stops distinguishing routes and
+      // the bottleneck score collapses without saying so.
+      throw new Error(`portal ${portal.id} has cost ${portal.cost}; costs must be finite and positive`);
+    }
+  }
+  for (const id of facts.spawns) {
+    if (!zoneIds.has(id)) throw new Error(`spawn names unknown zone ${id}`);
+  }
+  for (const id of facts.objectives) {
+    if (!zoneIds.has(id)) throw new Error(`objective names unknown zone ${id}`);
+  }
+}
+
 function adjacency(facts: SceneFacts): Map<string, Adjacency[]> {
+  validateFacts(facts);
   const out = new Map<string, Adjacency[]>();
   for (const zone of facts.zones) out.set(zone.id, []);
   for (const portal of facts.portals) {
-    if (portal.cost <= 0) {
-      // A zero-cost edge makes every path through it free, so shortest-path
-      // counting stops distinguishing routes and the bottleneck score collapses.
-      throw new Error(`portal ${portal.id} has cost ${portal.cost}; costs must be positive`);
-    }
-    out.get(portal.from)?.push({ to: portal.to, portal });
-    if (!portal.oneWay) out.get(portal.to)?.push({ to: portal.from, portal });
+    out.get(portal.from)!.push({ to: portal.to, portal });
+    if (!portal.oneWay) out.get(portal.to)!.push({ to: portal.from, portal });
   }
   return out;
 }
@@ -230,31 +265,53 @@ export function buildSemanticGraph(facts: SceneFacts): SemanticGraph {
   // false findings in front of every real one, and a finding list that is
   // mostly noise is one an agent learns to skip.
   const terminals = new Set([...facts.objectives, ...facts.spawns]);
+
+  // Candidacy counts portals *incident* to the zone, not outgoing edges.
+  // Directed adjacency is right for reachability and wrong here: a one-way
+  // `hall -> closet` leaves the closet with zero outgoing edges, so a degree
+  // test over `adj` skipped the most dead-end-shaped thing in the graph.
+  const incident = new Map<string, Portal[]>();
+  for (const zone of facts.zones) incident.set(zone.id, []);
+  for (const portal of facts.portals) {
+    incident.get(portal.from)!.push(portal);
+    if (portal.to !== portal.from) incident.get(portal.to)!.push(portal);
+  }
+
   const deadEnds: string[] = [];
   const deadEndEvidence: string[] = [];
   let confidenceFloor = 0.8;
   for (const zone of facts.zones) {
-    const edges = adj.get(zone.id) ?? [];
-    if (edges.length !== 1 || terminals.has(zone.id)) continue;
+    const portals = incident.get(zone.id) ?? [];
+    if (portals.length !== 1 || terminals.has(zone.id)) continue;
     deadEnds.push(zone.id);
-    const only = edges[0].portal;
-    deadEndEvidence.push(`${zone.id} has one portal (${only.id}) and holds no objective`);
-    // The roadmap names three things that make degree-1 unreliable, and each
-    // one is a way out that the portal graph does not model.
+    const only = portals[0];
+    deadEndEvidence.push(`${zone.id} has one portal (${only.id}) and is neither a spawn nor an objective`);
+
+    if (only.oneWay && only.to === zone.id) {
+      // Entered and not left: a one-way portal restricts direction, it does not
+      // hide a route. This is the strongest dead end the graph can describe,
+      // and an earlier draft lowered confidence for it by mistaking the
+      // restriction for a gap in the model.
+      confidenceFloor = Math.min(confidenceFloor, 0.9);
+      deadEndEvidence.push(`${only.id} is one-way into ${zone.id}, so nothing walks back out`);
+    } else if (only.oneWay) {
+      confidenceFloor = Math.min(confidenceFloor, 0.6);
+      deadEndEvidence.push(`${only.id} is one-way out of ${zone.id}, so it can be left but not re-entered this way`);
+    }
+    // These two are genuine gaps in what the portal graph models: a way out it
+    // cannot see.
     if (only.teleport) {
       confidenceFloor = Math.min(confidenceFloor, 0.4);
       deadEndEvidence.push(`${only.id} is a teleport, so the graph may not model every way out of ${zone.id}`);
-    }
-    if (only.oneWay) {
-      confidenceFloor = Math.min(confidenceFloor, 0.5);
-      deadEndEvidence.push(`${only.id} is one-way, so ${zone.id} may be exited by a route this graph does not hold`);
     }
     if (Math.abs(only.verticalDelta) > 4) {
       confidenceFloor = Math.min(confidenceFloor, 0.5);
       deadEndEvidence.push(`${only.id} has a ${only.verticalDelta} stud vertical delta, which a jump or a drop may bypass`);
     }
   }
-  if (deadEnds.length === 0) deadEndEvidence.push('every zone has more than one portal, or holds an objective');
+  if (deadEnds.length === 0) {
+    deadEndEvidence.push('every zone has more than one incident portal, or is a spawn or an objective');
+  }
 
   // --- bottlenecks
   const bottlenecks = [...betweenness.entries()]

@@ -65,11 +65,24 @@ describe('portalBetweenness', () => {
     expect([...portalBetweenness(facts({ objectives: [] })).values()]).toEqual([0, 0]);
   });
 
-  it('refuses a zero-cost portal rather than degenerating', () => {
+  it('refuses a cost that is zero, negative or not a number', () => {
     // A free edge makes every route through it shortest, and the share stops
-    // distinguishing anything.
-    expect(() => portalBetweenness(facts({ portals: [portal('p1', 'lobby', 'hall', { cost: 0 })] })))
-      .toThrow(/costs must be positive/);
+    // distinguishing anything. NaN slipped through a `cost <= 0` test, because
+    // `NaN <= 0` is false, and then poisoned every distance it touched.
+    for (const cost of [0, -1, NaN, Infinity]) {
+      expect(() => portalBetweenness(facts({ portals: [portal('p1', 'lobby', 'hall', { cost })] })))
+        .toThrow(/finite and positive/);
+    }
+  });
+
+  it('refuses a graph it cannot resolve rather than answering partially', () => {
+    const bad = (over: Partial<SceneFacts>) => () => portalBetweenness(facts(over));
+    expect(bad({ portals: [portal('p1', 'nowhere', 'hall')] })).toThrow(/unknown zone nowhere/);
+    expect(bad({ portals: [portal('p1', 'lobby', 'nowhere')] })).toThrow(/unknown zone nowhere/);
+    expect(bad({ spawns: ['nowhere'] })).toThrow(/spawn names unknown zone/);
+    expect(bad({ objectives: ['nowhere'] })).toThrow(/objective names unknown zone/);
+    expect(bad({ zones: [{ id: 'lobby', floorArea: 1 }, { id: 'lobby', floorArea: 2 }] })).toThrow(/declared twice/);
+    expect(bad({ portals: [portal('p1', 'lobby', 'hall'), portal('p1', 'hall', 'vault')] })).toThrow(/declared twice/);
   });
 });
 
@@ -97,7 +110,7 @@ describe('buildSemanticGraph', () => {
     expect(graph.interpretations.deadEnds.confidence).toBeCloseTo(0.8, 2);
   });
 
-  it('lowers confidence when the only way out is a teleport, a one-way or a drop', () => {
+  it('lowers confidence for a way out the graph cannot see', () => {
     const base = facts().zones;
     const withPortal = (over: Partial<Portal>) => buildSemanticGraph(facts({
       zones: [...base, { id: 'closet', floorArea: 50 }],
@@ -107,6 +120,25 @@ describe('buildSemanticGraph', () => {
     expect(withPortal({ teleport: true }).confidence).toBeLessThan(0.5);
     expect(withPortal({ verticalDelta: 20 }).confidence).toBeLessThanOrEqual(0.5);
     expect(withPortal({ teleport: true }).evidence.join(' ')).toMatch(/teleport/);
+  });
+
+  it('reports a room reachable only through a one-way portal, and is more sure of it', () => {
+    // Directed adjacency gives this closet zero outgoing edges, so a degree
+    // test over the adjacency map skipped the most dead-end-shaped thing in
+    // the graph. Candidacy counts incident portals instead.
+    const graph = buildSemanticGraph(facts({
+      zones: [...facts().zones, { id: 'closet', floorArea: 50 }],
+      portals: [...facts().portals, portal('p3', 'hall', 'closet', { oneWay: true })],
+    }));
+    expect(graph.interpretations.deadEnds.value).toEqual(['closet']);
+    // A one-way portal restricts direction; it does not hide a route.
+    expect(graph.interpretations.deadEnds.confidence).toBeGreaterThanOrEqual(0.8);
+    expect(graph.interpretations.deadEnds.evidence.join(' ')).toMatch(/one-way into closet, so nothing walks back out/);
+  });
+
+  it('says spawns as well as objectives are excluded when nothing is a dead end', () => {
+    expect(buildSemanticGraph(facts()).interpretations.deadEnds.evidence.join(' '))
+      .toMatch(/is a spawn or an objective/);
   });
 
   it('does not call the objective zone a dead end', () => {

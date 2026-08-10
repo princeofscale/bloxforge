@@ -70,9 +70,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the share of shortest routes through each portal — and the interpretation says
   plainly when that share proves nothing: with one spawn and one objective every
   portal on the single route scores 1.0, so the confidence drops to 0.3 and the
-  evidence says why. A degree-one zone is a dead-end candidate, but a teleport,
-  a one-way portal or a large vertical delta each lower the confidence, because
-  each is a way out the portal graph does not model. A spawn or objective zone
+  evidence says why. A zone with one *incident* portal is a dead-end candidate —
+  incidence rather than outgoing edges, because a one-way portal into a room
+  leaves it with no outgoing edge at all and a directed degree test skips the
+  most dead-end-shaped thing in the graph. A teleport or a large vertical delta
+  lowers the confidence, since each is a way out the graph cannot see; a
+  one-way portal *into* the zone raises it, because that restricts direction
+  rather than hiding a route. A spawn or objective zone
   with one portal is not reported at all: an entrance corridor and a vault at
   the end of one are normal level shapes, and a finding list that is mostly
   noise is one an agent learns to skip.
