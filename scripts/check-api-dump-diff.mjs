@@ -51,7 +51,10 @@ if (asJson) {
   };
   say('Removed classes', diff.removedClasses);
   say('Removed members', diff.removedMembers);
+  say('Changed superclass', diff.changedSuperclasses.map((c) => `${c.className}: ${c.from} -> ${c.to}`));
   say('Changed types', diff.changedTypes.map((c) => `${c.member}: ${c.from} -> ${c.to}`));
+  say('Lost declared type', diff.lostTypes);
+  say('Newly read-only', diff.newlyReadOnly.map((c) => `${c.member}: ${c.tags.join(', ')}`));
   say('Newly secured', diff.newlySecured.map((c) => `${c.member}: ${c.from} -> ${c.to}`));
   say('Newly deprecated', diff.newlyDeprecated);
   process.stdout.write(

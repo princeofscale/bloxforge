@@ -74,12 +74,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   empty registry answers `unknown` to everything, which reads like caution and
   is actually a parse failure nobody noticed.
 
+  `checkRoundTrip` also consults writability first: a round trip is a read *and
+  a write back*, and a scalar the engine will not let anybody set is not
+  round-trippable however faithfully it reads. `Deprecated` is deliberately not
+  a write restriction — a deprecated property still works, which is what
+  deprecation means.
+
   `scripts/check-api-dump-diff.mjs` is the CI half. Roblox ships every week; the
-  changes that matter are the quiet ones — a property whose type moved, a member
-  that gained a security tag, a class that went away — each of which breaks code
-  that still type-checks. Additions are reported and do not fail. Exit 2 is
-  reserved for "could not run", so a dump that would not parse never shares an
-  exit code with an API that is fine.
+  changes that matter are the quiet ones, each of which breaks code that still
+  type-checks: a property whose type moved *or disappeared*, a member that
+  gained a security tag *or a `ReadOnly`*, a class that went away — **or a class
+  whose superclass moved**, taking everything it inherited with it. Additions
+  and deprecations are reported and do not fail. Exit 2 is reserved for "could
+  not run", so a dump that would not parse never shares an exit code with an API
+  that is fine.
 
 - **UI intermediate representation** (`packages/core/src/ui/ir.ts`) with
   `ui_validate_screen` and `ui_export_screen`.
@@ -98,7 +106,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no place in the focus ring, two nodes claiming the same focus position (the
   ring's path is then undefined and which node wins is up to the exporter), a
   responsive override for a breakpoint the screen never declared, and duplicate
-  ids.
+  ids. Each style property is bound to its own token group: `radius:
+  'color.surface'` resolves happily and then becomes `NaN` in `CornerRadius`,
+  which is a bug that renders.
+
+  `validateScreen` is **total**. A screen arrives as unchecked JSON at the tool
+  boundary, and a validator that throws on a null child, a missing token set, a
+  non-numeric breakpoint, a colour that is not `#rrggbb`, or five thousand
+  levels of nesting would return an internal error where the caller asked for a
+  list of problems.
 
   The native exporter emits Roblox Instances and stamps the token each resolved
   value came from beside it, so a later reader can tell a themed colour from a

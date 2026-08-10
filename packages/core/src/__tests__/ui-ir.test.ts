@@ -55,6 +55,62 @@ describe('token references', () => {
   });
 });
 
+describe('malformed input', () => {
+  // A screen arrives as unchecked JSON at the tool boundary. A validator that
+  // throws returns an internal error where the caller asked for a list of
+  // problems, which is the one thing it must never do.
+  const asScreen = (value: unknown) => value as UiScreen;
+  const asNode = (value: unknown) => value as UiNode;
+
+  it('reports a missing token set instead of crashing on it', () => {
+    const verdict = validateScreen(asScreen({ id: 'x', name: 'x', root: { id: 'r', kind: 'frame' } }));
+    expect(verdict.ok).toBe(false);
+    expect(verdict.issues.map((i) => i.rule)).toContain('tokens');
+  });
+
+  it('reports a null child rather than dereferencing it', () => {
+    const verdict = validateScreen(screenOf(asNode({ id: 'r', kind: 'frame', children: [null] })));
+    expect(verdict.ok).toBe(false);
+    expect(verdict.issues.some((i) => i.rule === 'children')).toBe(true);
+  });
+
+  it('reports children that are not a list', () => {
+    expect(validateScreen(screenOf(asNode({ id: 'r', kind: 'frame', children: 'nope' }))).issues[0].rule).toBe('children');
+  });
+
+  it('stops descending at the depth ceiling instead of overflowing the stack', () => {
+    // `visit` and `instanceOf` both recurse over caller-supplied data.
+    let node: UiNode = { id: 'leaf', kind: 'frame' };
+    for (let i = 0; i < 5000; i++) node = { id: `n${i}`, kind: 'frame', children: [node] };
+    const verdict = validateScreen(screenOf(node));
+    expect(verdict.ok).toBe(false);
+    expect(verdict.issues.some((i) => i.rule === 'depth')).toBe(true);
+  });
+
+  it('reports a breakpoint that is not a width', () => {
+    const verdict = validateScreen(screenOf(button(), { breakpoints: { wide: 'big' } as unknown as Record<string, number> }));
+    expect(verdict.issues.some((i) => i.rule === 'breakpoints')).toBe(true);
+  });
+
+  it('reports a token whose value the exporter could not use', () => {
+    // `#fff` and `"8px"` both resolve happily and then reach hexToRgb and
+    // Number(...) in the exporter, where one throws and the other writes NaN.
+    const badColor = validateScreen(screenOf(button(), { tokens: { ...tokens, color: { ...tokens.color, accent: '#fff' } } }));
+    expect(badColor.issues.some((i) => i.rule === 'token-value')).toBe(true);
+    const badSpace = validateScreen(screenOf(button(), { tokens: { ...tokens, space: { ...tokens.space, radius: '6px' } } as never }));
+    expect(badSpace.issues.some((i) => i.rule === 'token-value')).toBe(true);
+  });
+
+  it('refuses a token reference from the wrong group', () => {
+    // `radius: 'color.surface'` resolves to #101014, and the exporter then
+    // writes Number('#101014') — NaN — into CornerRadius. A bug that renders.
+    const verdict = validateScreen(screenOf(button({ style: { radius: 'color.surface' as never } })));
+    expect(verdict.ok).toBe(false);
+    expect(verdict.issues[0]).toMatchObject({ rule: 'token-group' });
+    expect(verdict.issues[0].message).toMatch(/must come from the space group/);
+  });
+});
+
 describe('accessibility', () => {
   it('refuses an interactive node with no label', () => {
     const unlabelled = validateScreen(screenOf(button({ accessibility: { focusOrder: 1 } })));

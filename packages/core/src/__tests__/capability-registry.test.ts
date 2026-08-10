@@ -41,6 +41,22 @@ describe('construction', () => {
     expect(() => new CapabilityRegistry(twice, { source: 'fixture' })).toThrow(/declares Part twice/);
   });
 
+  it('refuses a class record with no usable name instead of dropping it', () => {
+    // Dropped, the registry constructs successfully and answers `unknown` for
+    // whatever went missing — indistinguishable from a class Roblox removed.
+    for (const bad of [{}, { Name: '' }, null]) {
+      expect(() => new CapabilityRegistry({ Classes: [bad] } as ApiDump, { source: 'fixture' }))
+        .toThrow(/has no usable Name/);
+    }
+  });
+
+  it('refuses a class whose Members is not a list, and a member with no name', () => {
+    expect(() => new CapabilityRegistry({ Classes: [{ Name: 'X', Members: {} }] } as unknown as ApiDump, { source: 'fixture' }))
+      .toThrow(/Members field that is not an array/);
+    expect(() => new CapabilityRegistry({ Classes: [{ Name: 'X', Members: [{ Name: 'a' }] }] } as unknown as ApiDump, { source: 'fixture' }))
+      .toThrow(/no usable Name or MemberType/);
+  });
+
   it('names a superclass it cannot resolve instead of quietly rooting the class', () => {
     const orphan = new CapabilityRegistry(dump({ Classes: [{ Name: 'Widget', Superclass: 'Gizmo' }] }), { source: 'fixture' });
     expect(orphan.danglingSuperclasses).toEqual(['Widget -> Gizmo']);
@@ -98,6 +114,16 @@ describe('canWrite', () => {
   it('reads write security in both shapes the dump uses', () => {
     expect(registry.canWrite('BasePart', 'BrickColor').reasons).toEqual(['write security is PluginSecurity']);
     expect(registry.canWrite('BasePart', 'archivable').reasons).toEqual(['write security is RobloxScriptSecurity']);
+  });
+
+  it('does not treat Deprecated as a write restriction', () => {
+    // A deprecated property still works — that is what deprecation means — and
+    // blocking writes on it contradicted the diff, which correctly calls a
+    // newly deprecated member compatible.
+    const old = new CapabilityRegistry(dump({
+      Classes: [{ Name: 'Thing', Members: [{ Name: 'X', MemberType: 'Property', Tags: ['Deprecated'], ValueType: { Name: 'bool' } }] }],
+    }), { source: 'fixture' });
+    expect(old.canWrite('Thing', 'X')).toEqual({ verdict: 'yes', reasons: [] });
   });
 
   it('does not read writability off a Security object that names no Write', () => {
@@ -158,6 +184,14 @@ describe('round-trip safety', () => {
     // A serializer that assumes it round-trips whatever it does not recognise
     // is exactly how the rotation went missing.
     expect(checkRoundTrip(registry, 'BasePart', 'Invented')).toMatchObject({ safe: false, verdict: 'unknown' });
+  });
+
+  it('will not call a property safe that nothing can write back', () => {
+    // A round trip is a read *and a write back*. `Instance.ClassName` was
+    // reporting safe on the strength of being a string.
+    const verdict = checkRoundTrip(registry, 'BasePart', 'ClassName');
+    expect(verdict.safe).toBe(false);
+    expect(verdict.note).toMatch(/cannot be written back: tagged ReadOnly/);
   });
 
   it('covers the inherited CFrame too, not only the one declared here', () => {
@@ -224,6 +258,39 @@ describe('diffing two dumps', () => {
     ));
     const diff = diffRegistries(before, studio(dump({ Classes: classes })));
     expect(diff.newlySecured).toEqual([{ member: 'BasePart.Anchored', from: 'None', to: 'PluginSecurity' }]);
+    expect(diff.compatible).toBe(false);
+  });
+
+  it('fails a class whose superclass moved, taking what it inherited', () => {
+    // Comparing only own members called this compatible while
+    // BasePart.PivotOffset quietly stopped existing for every caller.
+    const classes = dump().Classes.map((c) => (c.Name === 'BasePart' ? { ...c, Superclass: 'Instance' } : c));
+    const diff = diffRegistries(before, studio(dump({ Classes: classes })));
+    expect(diff.changedSuperclasses).toEqual([{ className: 'BasePart', from: 'PVInstance', to: 'Instance' }]);
+    expect(diff.compatible).toBe(false);
+  });
+
+  it('fails a member that lost its declared type', () => {
+    // checkWrite goes from allowed to unknown, so every caller that relied on
+    // it stops being able to check anything.
+    const classes = dump().Classes.map((c) => (
+      c.Name === 'BasePart'
+        ? { ...c, Members: c.Members!.map((m) => (m.Name === 'Position' ? { Name: m.Name, MemberType: m.MemberType } : m)) }
+        : c
+    ));
+    const diff = diffRegistries(before, studio(dump({ Classes: classes })));
+    expect(diff.lostTypes).toEqual(['BasePart.Position']);
+    expect(diff.compatible).toBe(false);
+  });
+
+  it('fails a member that gained a tag stopping scripts writing it', () => {
+    const classes = dump().Classes.map((c) => (
+      c.Name === 'BasePart'
+        ? { ...c, Members: c.Members!.map((m) => (m.Name === 'Anchored' ? { ...m, Tags: ['ReadOnly'] } : m)) }
+        : c
+    ));
+    const diff = diffRegistries(before, studio(dump({ Classes: classes })));
+    expect(diff.newlyReadOnly).toEqual([{ member: 'BasePart.Anchored', tags: ['ReadOnly'] }]);
     expect(diff.compatible).toBe(false);
   });
 

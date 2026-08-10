@@ -54,7 +54,15 @@ export interface ResolvedMember extends ApiMember {
   declaredOn: string;
 }
 
-const READ_ONLY_TAGS = new Set(['ReadOnly', 'Deprecated', 'NotScriptable', 'Hidden']);
+/**
+ * Tags that stop a script writing the property.
+ *
+ * `Deprecated` is deliberately not here. A deprecated property still works —
+ * that is what deprecation means — and listing it would have contradicted the
+ * diff, which correctly treats a newly deprecated member as compatible. It is
+ * reported as its own fact instead.
+ */
+const READ_ONLY_TAGS = new Set(['ReadOnly', 'NotScriptable', 'Hidden']);
 
 export class CapabilityRegistry {
   private readonly classes = new Map<string, ApiClass>();
@@ -66,13 +74,26 @@ export class CapabilityRegistry {
     if (!dump || !Array.isArray(dump.Classes)) {
       throw new Error('API dump has no Classes array. A dump that does not parse is not a dump with defaults.');
     }
-    for (const cls of dump.Classes) {
-      if (!cls?.Name) continue;
+    // Skipping a malformed record would let a damaged dump construct
+    // successfully and answer `unknown` for whatever it dropped — which is
+    // indistinguishable from a class Roblox genuinely removed.
+    dump.Classes.forEach((cls, index) => {
+      if (!cls || typeof cls !== 'object' || typeof cls.Name !== 'string' || cls.Name === '') {
+        throw new Error(`API dump entry ${index} has no usable Name. A dump missing part of itself is not a smaller dump.`);
+      }
+      if (cls.Members !== undefined && !Array.isArray(cls.Members)) {
+        throw new Error(`API dump entry ${cls.Name} has a Members field that is not an array.`);
+      }
+      for (const [position, member] of (cls.Members ?? []).entries()) {
+        if (!member || typeof member !== 'object' || typeof member.Name !== 'string' || typeof member.MemberType !== 'string') {
+          throw new Error(`API dump entry ${cls.Name} member ${position} has no usable Name or MemberType.`);
+        }
+      }
       if (this.classes.has(cls.Name)) {
         throw new Error(`API dump declares ${cls.Name} twice; which one wins is not something to guess at.`);
       }
       this.classes.set(cls.Name, cls);
-    }
+    });
     this.origin = origin;
     this.danglingSuperclasses = [...this.classes.values()]
       .filter((c) => c.Superclass && c.Superclass !== '<<<ROOT>>>' && !this.classes.has(c.Superclass))
@@ -100,6 +121,11 @@ export class CapabilityRegistry {
   /** Members declared on this class itself, not inherited. Used by the diff. */
   ownMembers(className: string): readonly ApiMember[] {
     return this.classes.get(className)?.Members ?? [];
+  }
+
+  /** The declared superclass, or undefined for a root or an unknown class. */
+  superclassOf(className: string): string | undefined {
+    return this.classes.get(className)?.Superclass;
   }
 
   /** A class and every ancestor, nearest first. Empty when the class is unknown. */
@@ -235,6 +261,21 @@ export interface RoundTripVerdict {
 export function checkRoundTrip(registry: CapabilityRegistry, className: string, propertyName: string): RoundTripVerdict {
   const found = registry.member(className, propertyName);
   if (!found) return { safe: false, verdict: 'unknown', note: `${className}.${propertyName} is not in this dump` };
+
+  // A round trip is a read *and a write back*. A scalar the engine will not let
+  // anybody set is not round-trippable however faithfully it reads —
+  // `Instance.ClassName` was reporting `safe: true` on the strength of being a
+  // string.
+  const write = registry.canWrite(className, propertyName);
+  if (write.verdict !== 'yes') {
+    return {
+      safe: false,
+      verdict: write.verdict,
+      expectedType: found.ValueType?.Name,
+      note: `cannot be written back: ${write.reasons.join('; ')}`,
+    };
+  }
+
   const type = found.ValueType?.Name;
   if (!type) return { safe: false, verdict: 'unknown', expectedType: undefined, note: 'no declared value type' };
   const lossy = LOSSY_WITHOUT_FULL_SHAPE[type];
@@ -252,6 +293,12 @@ export interface RegistryDiff {
   addedMembers: string[];
   /** A member whose declared type changed. The one that breaks code that still compiles. */
   changedTypes: { member: string; from: string; to: string }[];
+  /** A member that had a declared type and no longer does; `checkWrite` goes from allowed to unknown. */
+  lostTypes: string[];
+  /** A class whose superclass moved, taking whatever it inherited with it. */
+  changedSuperclasses: { className: string; from: string; to: string }[];
+  /** A member that gained a tag which stops a script writing it. */
+  newlyReadOnly: { member: string; tags: string[] }[];
   newlyDeprecated: string[];
   newlySecured: { member: string; from: string; to: string }[];
   /** True when nothing here can break an existing caller. */
@@ -269,7 +316,8 @@ export interface RegistryDiff {
 export function diffRegistries(before: CapabilityRegistry, after: CapabilityRegistry): RegistryDiff {
   const diff: RegistryDiff = {
     removedClasses: [], addedClasses: [], removedMembers: [], addedMembers: [],
-    changedTypes: [], newlyDeprecated: [], newlySecured: [], compatible: true,
+    changedTypes: [], lostTypes: [], changedSuperclasses: [], newlyReadOnly: [],
+    newlyDeprecated: [], newlySecured: [], compatible: true,
   };
 
   const beforeClasses = new Set(before.classNames());
@@ -279,6 +327,16 @@ export function diffRegistries(before: CapabilityRegistry, after: CapabilityRegi
 
   for (const className of before.classNames()) {
     if (!afterClasses.has(className)) continue;
+
+    // A class that changed superclass takes everything it inherited with it.
+    // Comparing only own members would call that compatible while
+    // `BasePart.PivotOffset` quietly stopped existing for every caller.
+    const wasSuper = before.superclassOf(className);
+    const nowSuper = after.superclassOf(className);
+    if (wasSuper !== nowSuper) {
+      diff.changedSuperclasses.push({ className, from: wasSuper ?? '(none)', to: nowSuper ?? '(none)' });
+    }
+
     const was = new Map(before.ownMembers(className).map((m) => [m.Name, m]));
     const now = new Map(after.ownMembers(className).map((m) => [m.Name, m]));
 
@@ -292,6 +350,16 @@ export function diffRegistries(before: CapabilityRegistry, after: CapabilityRegi
       const from = member.ValueType?.Name;
       const to = current.ValueType?.Name;
       if (from && to && from !== to) diff.changedTypes.push({ member: qualified, from, to });
+      // Losing the declared type is not a non-event: `checkWrite` goes from
+      // allowed to `unknown`, so every caller that relied on it stops being
+      // able to check anything.
+      if (from && !to) diff.lostTypes.push(qualified);
+
+      const gainedReadOnly = [...READ_ONLY_TAGS].filter(
+        (tag) => !(member.Tags ?? []).includes(tag) && (current.Tags ?? []).includes(tag),
+      );
+      if (gainedReadOnly.length > 0) diff.newlyReadOnly.push({ member: qualified, tags: gainedReadOnly });
+
       if (!(member.Tags ?? []).includes('Deprecated') && (current.Tags ?? []).includes('Deprecated')) {
         diff.newlyDeprecated.push(qualified);
       }
@@ -306,10 +374,15 @@ export function diffRegistries(before: CapabilityRegistry, after: CapabilityRegi
     }
   }
 
-  for (const key of ['removedMembers', 'addedMembers', 'newlyDeprecated'] as const) diff[key].sort();
+  for (const key of ['removedMembers', 'addedMembers', 'newlyDeprecated', 'lostTypes'] as const) diff[key].sort();
+  // Every category here changes what an existing caller can do. Additions and
+  // deprecations are the two that do not, and they are excluded on purpose.
   diff.compatible = diff.removedClasses.length === 0
     && diff.removedMembers.length === 0
     && diff.changedTypes.length === 0
+    && diff.lostTypes.length === 0
+    && diff.changedSuperclasses.length === 0
+    && diff.newlyReadOnly.length === 0
     && diff.newlySecured.length === 0;
   return diff;
 }
