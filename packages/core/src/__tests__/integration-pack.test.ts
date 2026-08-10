@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { rootOf } from '../tools/integration-registry.js';
 import {
   _resetPacks,
@@ -340,26 +340,30 @@ describe('validate', () => {
 
 describe('the project root a tool resolves', () => {
   const previous = process.env.BLOXFORGE_PROJECT_ROOT;
-  beforeEach(() => { process.env.BLOXFORGE_PROJECT_ROOT = '/tmp/bloxforge-root-test'; });
+  // Built with resolve/join rather than written as a POSIX literal: on Windows
+  // `resolve('/tmp/x')` is `D:\tmp\x`, and a hardcoded expectation would be
+  // testing the separator instead of the clamping.
+  const base = resolve(join(tmpdir(), 'bloxforge-root-test'));
+  beforeEach(() => { process.env.BLOXFORGE_PROJECT_ROOT = base; });
   afterEach(() => {
     if (previous === undefined) delete process.env.BLOXFORGE_PROJECT_ROOT;
     else process.env.BLOXFORGE_PROJECT_ROOT = previous;
   });
 
   it('defaults to the configured root', () => {
-    expect(rootOf({})).toBe('/tmp/bloxforge-root-test');
-    expect(rootOf({ root: 'sub/dir' })).toBe('/tmp/bloxforge-root-test/sub/dir');
+    expect(rootOf({})).toBe(base);
+    expect(rootOf({ root: join('sub', 'dir') })).toBe(join(base, 'sub', 'dir'));
   });
 
   it('refuses an absolute root, which would otherwise discard the base entirely', () => {
     // `resolve(base, '/etc')` is `/etc`. The pack engine's containment check
     // would not catch it either: it measures paths against whatever root it is
     // handed, and this is where that root is chosen.
-    expect(() => rootOf({ root: '/etc' })).toThrow(/must stay within \/tmp\/bloxforge-root-test/);
+    expect(() => rootOf({ root: resolve('/etc') })).toThrow(/must stay within/);
   });
 
   it('refuses a traversal out of the base', () => {
-    expect(() => rootOf({ root: '../../elsewhere' })).toThrow(/must stay within/);
+    expect(() => rootOf({ root: join('..', '..', 'elsewhere') })).toThrow(/must stay within/);
   });
 });
 
