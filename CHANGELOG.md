@@ -54,6 +54,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- Asset provenance completeness and style ranking with hard gates
+  (`packages/core/src/assets/provenance.ts`), roadmap C3.
+
+  **`unknown` blocks.** An unread licence is not a permissive one, an asset
+  whose permission state has not come back is not an approved one, and a model
+  whose scripts were never examined is not a safe one. `licenseAllowed`,
+  `permissionAllowed` and `scriptRiskAllowed` each block on `unknown` exactly as
+  they block on `no`, and the wording keeps the two apart so a reader knows
+  whether to go and look or to give up. Treating unknown as permission is how a
+  pipeline ships something nobody ever decided to ship.
+
+  A blocked candidate is **not ranked low, it is not ranked** — returning it at
+  position nine with a good style score invites the exact mistake the gates
+  exist to prevent.
+
+  The provenance audit reports which of the roadmap's fields are present and
+  which are missing, with four essential ones below which a record cannot answer
+  the question it exists for. A partial record that names its gaps is useful; one
+  that reports itself complete is not, and an empty string or empty list counts
+  as absent rather than as filled in.
+
+  Style scoring **drops an absent signal and names it** instead of defaulting
+  it. Scored as 0 a missing embedding pushes a candidate down for a reason that
+  has nothing to do with the candidate; scored as 1 it pushes it up for the same
+  non-reason. The remaining weights are renormalized, so two candidates measured
+  on different signals are not silently compared on different scales.
 - The vision-QA policy and camera plan (`packages/core/src/vision/`), roadmap
   B3. **Vision proposes, it never disposes.** The published evidence is that VLM
   judges rank far more reliably than they score — absolute intervals move
