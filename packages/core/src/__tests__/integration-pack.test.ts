@@ -252,7 +252,7 @@ describe('apply', () => {
   it('re-reads before each step, not only once at the start', async () => {
     // Step one can take a minute, and step three's file can move inside it.
     // An up-front check alone would let that write land on changed content.
-    let ctx = ctxOf({ '/proj/a': '1', '/proj/b': '2' });
+    const ctx = ctxOf({ '/proj/a': '1', '/proj/b': '2' });
     registerPack(packOf({
       plan: async (c) => ({
         steps: [

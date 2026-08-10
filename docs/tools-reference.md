@@ -3327,5 +3327,6 @@ Run the postconditions a pack declares for itself and report each as pass, fail 
 |---|---|---|---|
 | `packId` | `string` | Yes | Integration pack id. Omit on integration_inspect to list every registered pack. |
 | `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
+| `request` | `object` | No | Pack-specific arguments a check needs but cannot discover — an allowlist, a project file name. |
 
 ---

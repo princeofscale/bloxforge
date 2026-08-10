@@ -22,6 +22,8 @@ import {
   validateIntegration,
 } from '../integrations/pack.js';
 import { resolve } from 'node:path';
+// Side-effect import: registers the packs that ship with BloxForge.
+import '../integrations/builtin.js';
 
 const OUTPUT = { type: 'object', additionalProperties: true };
 
@@ -112,11 +114,23 @@ const INTEGRATION_TOOLS: RegisteredTool[] = [
     effects: ['local.files.read', 'local.process.execute'],
     inputSchema: {
       type: 'object',
-      properties: { ...PACK_ID, ...ROOT },
+      properties: {
+        ...PACK_ID,
+        ...ROOT,
+        request: {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Pack-specific arguments a check needs but cannot discover — an allowlist, a project file name.',
+        },
+      },
       required: ['packId'],
     },
     outputSchema: OUTPUT,
-    handler: async (_runtime, args) => validateIntegration(args.packId as string, fileContext(rootOf(args))),
+    handler: async (_runtime, args) => validateIntegration(
+      args.packId as string,
+      fileContext(rootOf(args)),
+      (args.request as Record<string, unknown> | undefined) ?? {},
+    ),
   }),
 ];
 

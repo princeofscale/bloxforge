@@ -3,7 +3,13 @@ import * as path from 'node:path';
 import { resolveProjectPath, resolveProjectRoot } from './source-mapper.js';
 import type { RojoProject } from './types.js';
 
-function parseJsonc(raw: string): unknown {
+/**
+ * String-aware JSONC: comments and trailing commas removed without touching a
+ * `//` that lives inside a string. Exported because `tsconfig.json` is JSONC
+ * too and the roblox-ts pack has to read one — a second copy of this is a
+ * second place to get the string handling wrong.
+ */
+export function parseJsonc(raw: string): unknown {
   let output = '';
   let inString = false;
   let escaped = false;

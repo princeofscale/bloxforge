@@ -20,7 +20,8 @@
 // stops the operation instead of being guessed at.
 
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import type { ToolEffect } from '../tools/definitions.js';
 
@@ -103,11 +104,28 @@ export interface Check {
   advisory?: boolean;
 }
 
+export interface ExecResult {
+  code: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 export interface PackContext {
   /** Project root every path in the pack is relative to. */
   root: string;
   /** Read a file, or null when it does not exist. Injected so packs stay testable. */
   readFile: (path: string) => string | null;
+  /** Whether a path exists at all — directories included, which readFile cannot answer. */
+  exists?: (path: string) => boolean;
+  /** Entry names in a directory, or null when it is not one. Non-recursive. */
+  list?: (path: string) => string[] | null;
+  /**
+   * Run a command. `file` must be an absolute path a pack resolved itself:
+   * passing a bare name would search PATH, which is the toolchain-pin invariant
+   * in npm clothing — a project-local `rbxtsc` and whatever global one happens
+   * to be installed are not the same compiler.
+   */
+  exec?: (file: string, args: readonly string[], opts: { cwd: string; timeoutMs?: number }) => Promise<ExecResult>;
   /** Anything the host wants to expose to packs — the Studio bridge, a runner. */
   host?: Readonly<Record<string, unknown>>;
 }
@@ -132,7 +150,12 @@ export interface IntegrationPack {
   plan(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<DraftPlan>;
   /** Execute one automatic step. The engine has already re-verified its files. */
   apply(ctx: PackContext, step: PackStep): Promise<Record<string, unknown>>;
-  validate(ctx: PackContext): Promise<readonly Check[]>;
+  /**
+   * `request` carries what a check needs but cannot discover — an allowlist,
+   * a project file name. Without it a pack has to either fail every check that
+   * needs an approval or invent the approval, and both are worse than asking.
+   */
+  validate(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<readonly Check[]>;
 }
 
 export class PackError extends Error {}
@@ -183,10 +206,32 @@ export function fileContext(root: string, host?: Record<string, unknown>): PackC
       try {
         return readFileSync(path, 'utf8');
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        const code = (error as NodeJS.ErrnoException).code;
+        // EISDIR and ENOTDIR are "there is no file here" just as much as ENOENT
+        // is; letting them through would turn a directory named like a config
+        // file into a crash instead of an absent expectation.
+        if (code === 'ENOENT' || code === 'EISDIR' || code === 'ENOTDIR') return null;
         throw error;
       }
     },
+    exists: (path) => existsSync(path),
+    list: (path) => {
+      try {
+        return readdirSync(path);
+      } catch {
+        return null;
+      }
+    },
+    exec: (file, args, opts) => new Promise((done, fail) => {
+      execFile(file, [...args], { cwd: opts.cwd, timeout: opts.timeoutMs ?? 120_000, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+        // A non-zero exit is a result, not a failure: `rbxtsc` reports
+        // diagnostics that way and the pack has to read them. Only a command
+        // that could not run at all is thrown.
+        const code = (error as (Error & { code?: number }) | null)?.code;
+        if (error && typeof code !== 'number') return fail(error);
+        done({ code: error ? code ?? 1 : 0, stdout, stderr });
+      });
+    }),
     ...(host ? { host } : {}),
   };
 }
@@ -387,9 +432,13 @@ export interface ValidationResult {
  * a check that could not run is not a check that passed. An advisory check may
  * be unknown without blocking, because it was never load-bearing.
  */
-export async function validateIntegration(id: string, ctx: PackContext): Promise<ValidationResult> {
+export async function validateIntegration(
+  id: string,
+  ctx: PackContext,
+  request: Readonly<Record<string, unknown>> = {},
+): Promise<ValidationResult> {
   const pack = getPack(id);
-  const checks = await pack.validate(ctx);
+  const checks = await pack.validate(ctx, request);
   const blocking = checks
     .filter((c) => !c.advisory && c.status !== 'pass')
     .map((c) => `${c.id}: ${c.status} — ${c.message}`);
