@@ -24,6 +24,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import type { ToolEffect } from '../tools/definitions.js';
+import { resolveToolCommand } from '../toolchain/resolver.js';
 
 /**
  * The most any pack may declare.
@@ -148,7 +149,8 @@ export interface IntegrationPack {
   /** Declared, never inferred from the name. Same rule as ToolDefinition.effects. */
   effects: readonly ToolEffect[];
 
-  detect(ctx: PackContext): Promise<Detection>;
+  /** `request` carries what detection cannot discover — where to look. */
+  detect(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<Detection>;
   plan(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<DraftPlan>;
   /** Execute one automatic step. The engine has already re-verified its files. */
   apply(ctx: PackContext, step: PackStep): Promise<Record<string, unknown>>;
@@ -240,7 +242,10 @@ export function fileContext(root: string, host?: Record<string, unknown>): PackC
         done({ code: error ? code ?? 1 : 0, stdout, stderr });
       });
     }),
-    ...(host ? { host } : {}),
+    // Supplied by default rather than left to each caller to remember: a pack
+    // that asks "is this tool pinned" and gets no resolver cannot tell a
+    // missing pin from a missing resolver, and would report the first forever.
+    host: { resolveToolCommand, ...host },
   };
 }
 
@@ -289,9 +294,13 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
-export async function inspectIntegration(id: string, ctx: PackContext): Promise<Detection & { packId: string; license: string; sourceOfTruth: string }> {
+export async function inspectIntegration(
+  id: string,
+  ctx: PackContext,
+  request: Readonly<Record<string, unknown>> = {},
+): Promise<Detection & { packId: string; license: string; sourceOfTruth: string }> {
   const pack = getPack(id);
-  const detection = await pack.detect(ctx);
+  const detection = await pack.detect(ctx, request);
   return { ...detection, packId: pack.id, license: pack.license, sourceOfTruth: pack.sourceOfTruth };
 }
 

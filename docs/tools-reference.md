@@ -3284,6 +3284,7 @@ List the registered integration packs, or detect one in this project: whether it
 |---|---|---|---|
 | `packId` | `string` | No | Integration pack id. Omit on integration_inspect to list every registered pack. |
 | `root` | `string` | No | Project root, inside BLOXFORGE_PROJECT_ROOT. Defaults to it. |
+| `request` | `object` | No | Pack-specific arguments. Hashed into planHash by content, so key order does not matter but every value does. |
 
 ---
 
