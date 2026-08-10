@@ -117,6 +117,7 @@ local ON_PRIMARY = ${color3(t.onPrimary)}
 local TEXT = ${color3(t.text)}
 local MIN_TEXT = ${luaNumber(Number(minTextSize))}
 local ROUND = ${roundCorners ? 'true' : 'false'}
+local THEME_NAME = ${luaString(themeName)}
 local styled = 0
 local function ensureCorner(o)
 \tif not ROUND then return end
@@ -126,6 +127,16 @@ local function ensureCorner(o)
 \t\tc.Parent = o
 \tend
 end
+-- The token key is written onto the instance, not merely applied to it. Without
+-- a reference back to the role, "this button is #4263EB" and "this button is
+-- the primary colour" are the same fact, and nothing can later tell a
+-- deliberate one-off from a drifted token. design_lint reads these back and
+-- compares them against the *rendered* value.
+local function stamp(o, bg, fg)
+\tif bg then o:SetAttribute("BloxForgeBgToken", bg) end
+\tif fg then o:SetAttribute("BloxForgeFgToken", fg) end
+\to:SetAttribute("BloxForgeTheme", THEME_NAME)
+end
 for _, o in ipairs(root:GetDescendants()) do
 \tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \tif o:IsA("GuiButton") then
@@ -134,17 +145,22 @@ for _, o in ipairs(root:GetDescendants()) do
 \t\tif o:IsA("TextButton") then
 \t\t\to.TextColor3 = ON_PRIMARY
 \t\t\tif not o.TextScaled and o.TextSize < MIN_TEXT then o.TextSize = MIN_TEXT end
+\t\t\tstamp(o, "primary", "onPrimary")
+\t\telse
+\t\t\tstamp(o, "primary", nil)
 \t\tend
 \t\tensureCorner(o)
 \t\tstyled = styled + 1
 \telseif o:IsA("Frame") or o:IsA("ScrollingFrame") then
 \t\to.BackgroundColor3 = SURFACE
 \t\to.BorderSizePixel = 0
+\t\tstamp(o, "surface", nil)
 \t\tensureCorner(o)
 \t\tstyled = styled + 1
 \telseif o:IsA("TextLabel") or o:IsA("TextBox") then
 \t\to.TextColor3 = TEXT
 \t\tif not o.TextScaled and o.TextSize < MIN_TEXT then o.TextSize = MIN_TEXT end
+\t\tstamp(o, nil, "text")
 \t\tstyled = styled + 1
 \tend
 end
@@ -328,6 +344,14 @@ end`;
 
 export function buildDesignLintLuau(options: DesignLintOptions = {}): string {
   const minTextSize = options.minTextSize ?? 9;
+  // Emitted from THEMES rather than duplicated, so a palette edit cannot leave
+  // the lint checking against yesterday's tokens — which would report drift on
+  // correctly themed UI and pass on the one that actually drifted.
+  const themeTable = `{ ${Object.entries(THEMES)
+    .map(([name, tokens]) => `${name} = { ${Object.entries(tokens)
+      .map(([role, [r, g, b]]) => `${role} = { ${r}, ${g}, ${b} }`)
+      .join(', ')} }`)
+    .join(', ')} }`;
   const rootResolution = options.rootPath
     ? `local r = resolvePath(${luaString(options.rootPath)})
 if r == nil then error("Root not found: " .. ${luaString(options.rootPath)}) end
@@ -345,6 +369,10 @@ local MIN_CONTRAST = 4.5
 local LARGE_TEXT_CONTRAST = 3.0
 
 ${CONTRAST_LUA}
+
+-- Every theme, so a stamped instance can be checked against the palette it
+-- claims rather than against whichever one happens to be default.
+local TOKENS = ${themeTable}
 
 local findings = {}
 local function add(rule, severity, inst, detail, extra)
@@ -393,6 +421,45 @@ local function checkContrast(o)
 \tend
 end
 
+-- A token reference nobody verifies is a comment. This compares the value the
+-- instance actually renders with the value its declared token names, which is
+-- the only version of the check that can fail: comparing the token to itself
+-- always passes, and that is what "the theme was applied" has meant so far.
+local function checkTokenDrift(o)
+\tlocal theme = o:GetAttribute("BloxForgeTheme")
+\tif theme == nil then return end
+\tlocal palette = TOKENS[theme]
+\tif palette == nil then
+\t\tadd("token_unknown_theme", "info", o, string.format(
+\t\t\t"claims theme %q, which this build does not define — the reference cannot be checked", tostring(theme)))
+\t\treturn
+\tend
+\tlocal function compare(attr, role, actual, prop)
+\t\tlocal key = o:GetAttribute(attr)
+\t\tif key == nil then return end
+\t\tlocal want = palette[key]
+\t\tif want == nil then
+\t\t\tadd("token_unknown_role", "info", o, string.format("%s names token %q, which theme %q does not define", attr, tostring(key), theme))
+\t\t\treturn
+\t\tend
+\t\t-- Compared in 8-bit channels: Color3 round-trips through floats, and an
+\t\t-- exact float equality would report drift for every value that survived a
+\t\t-- serialize/deserialize unchanged.
+\t\tlocal function ch(v) return math.floor(v * 255 + 0.5) end
+\t\tif ch(actual.R) ~= want[1] or ch(actual.G) ~= want[2] or ch(actual.B) ~= want[3] then
+\t\t\tadd("token_drift", "warn", o, string.format(
+\t\t\t\t"%s is %s but its %s token %q in theme %q is %s — either the value was changed by hand or the theme moved under it",
+\t\t\t\tprop, hex(actual), role, tostring(key), theme,
+\t\t\t\tstring.format("#%02X%02X%02X", want[1], want[2], want[3])),
+\t\t\t\t{ token = key, rendered = hex(actual), expected = string.format("#%02X%02X%02X", want[1], want[2], want[3]) })
+\t\tend
+\tend
+\tif o:IsA("GuiObject") then compare("BloxForgeBgToken", "background", o.BackgroundColor3, "BackgroundColor3") end
+\tif o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
+\t\tcompare("BloxForgeFgToken", "foreground", o.TextColor3, "TextColor3")
+\tend
+end
+
 local function rectsOverlap(aPos, aSize, bPos, bSize)
 \treturn aPos.X < bPos.X + bSize.X and aPos.X + aSize.X > bPos.X
 \t\tand aPos.Y < bPos.Y + bSize.Y and aPos.Y + aSize.Y > bPos.Y
@@ -403,6 +470,7 @@ local function lintRoot(root)
 \tfor _, o in ipairs(root:GetDescendants()) do
 \t\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 \t\tif o:IsA("GuiObject") then
+\t\t\tcheckTokenDrift(o)
 \t\t\tif o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox") then
 \t\t\t\tif not o.TextScaled and o.TextSize < MIN_TEXT_SIZE then
 \t\t\t\t\tadd("tiny_text", "warn", o, string.format("TextSize %d < %d; hard to read — raise it or use TextScaled + UITextSizeConstraint", o.TextSize, MIN_TEXT_SIZE))
