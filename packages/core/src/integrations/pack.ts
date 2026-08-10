@@ -149,7 +149,8 @@ export interface IntegrationPack {
   /** Declared, never inferred from the name. Same rule as ToolDefinition.effects. */
   effects: readonly ToolEffect[];
 
-  detect(ctx: PackContext): Promise<Detection>;
+  /** `request` carries what detection cannot discover — where to look. */
+  detect(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<Detection>;
   plan(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<DraftPlan>;
   /** Execute one automatic step. The engine has already re-verified its files. */
   apply(ctx: PackContext, step: PackStep): Promise<Record<string, unknown>>;
@@ -293,9 +294,13 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
-export async function inspectIntegration(id: string, ctx: PackContext): Promise<Detection & { packId: string; license: string; sourceOfTruth: string }> {
+export async function inspectIntegration(
+  id: string,
+  ctx: PackContext,
+  request: Readonly<Record<string, unknown>> = {},
+): Promise<Detection & { packId: string; license: string; sourceOfTruth: string }> {
   const pack = getPack(id);
-  const detection = await pack.detect(ctx);
+  const detection = await pack.detect(ctx, request);
   return { ...detection, packId: pack.id, license: pack.license, sourceOfTruth: pack.sourceOfTruth };
 }
 

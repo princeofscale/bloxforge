@@ -91,7 +91,7 @@ function localCompiler(ctx: PackContext): string | undefined {
   return undefined;
 }
 
-async function detect(ctx: PackContext): Promise<Detection> {
+async function detect(ctx: PackContext, _request: Readonly<Record<string, unknown>>): Promise<Detection> {
   const pkg = readJson(ctx, PACKAGE_JSON);
   const tsconfig = readJson(ctx, TSCONFIG);
   const ranges = dependencyRanges(pkg);

@@ -105,7 +105,7 @@ function readManifest(ctx: PackContext): Manifest | undefined {
   };
 }
 
-async function detect(ctx: PackContext): Promise<Detection> {
+async function detect(ctx: PackContext, _request: Readonly<Record<string, unknown>>): Promise<Detection> {
   const raw = ctx.readFile(at(ctx, MANIFEST));
   const manifest = readManifest(ctx);
   const lock = ctx.readFile(at(ctx, LOCKFILE));

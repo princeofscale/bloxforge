@@ -65,12 +65,12 @@ const INTEGRATION_TOOLS: RegisteredTool[] = [
     description: 'List the registered integration packs, or detect one in this project: whether it is present, which version and variant, and the evidence that decided it. Reads only. Each pack reports its licence and the primary source it was written against.',
     category: 'read',
     effects: ['local.files.read', 'local.process.execute'],
-    inputSchema: { type: 'object', properties: { ...PACK_ID, ...ROOT } },
+    inputSchema: { type: 'object', properties: { ...PACK_ID, ...ROOT, ...REQUEST } },
     outputSchema: OUTPUT,
     handler: async (_runtime, args) => {
       const packId = args.packId as string | undefined;
       if (!packId) return { packs: listPacks() };
-      return inspectIntegration(packId, fileContext(rootOf(args)));
+      return inspectIntegration(packId, fileContext(rootOf(args)), (args.request as Record<string, unknown> | undefined) ?? {});
     },
   }),
   defineTool({

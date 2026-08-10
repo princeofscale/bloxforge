@@ -96,6 +96,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   two different files. `complete` is true only when at least one automatic step
   ran: a plan of nothing is reported as nothing, not as success.
 
+- **Adonis integration pack** — checked rather than installed, and every step it
+  plans is **blocked by design**.
+
+  Adonis installs in about a minute and then ships to production with two wrong
+  settings, neither of which announces itself. Both are verified in the source
+  rather than remembered: `Loader/Loader/Loader.server.luau` sets `DebugMode =
+  true`, and `Loader/Config/Settings/General.luau` ships `DataStoreKey =
+  "CHANGE_THIS"` — a value anyone who knows Adonis knows, which makes every
+  saved entry readable and writable by anyone who can reach the datastore.
+
+  Neither is repaired automatically. Whether a place is production cannot be
+  read off the disk, and a pack that generated a datastore key would put a
+  secret into a plan, a response and a log. So the plan names the file and the
+  block, and a person makes the change. **The key's value is never read back,
+  returned or logged** — the check reports which of four states it is in, because
+  proving the key was set by quoting it would be the leak it exists to prevent.
+
+  It also checks that the Rojo project mounts the loader into
+  `ServerScriptService` (its README: "Do not leave it in the `Workspace`!"), and
+  reports a checkout with no version file as the bleeding-edge build the same
+  README calls "highly unstable".
+
+  When no Adonis is on disk, the pack says **it cannot see one** rather than that
+  there is none: an Adonis inserted as a model lives inside the place, and a
+  place is outside `PACK_EFFECT_CEILING`.
+
 - **pesde integration pack** — a second package provider beside Wally rather
   than instead of it, and the first evidence that the pack SDK carries more than
   one pack: it adds **zero tools**, only a row in `integration_inspect`.

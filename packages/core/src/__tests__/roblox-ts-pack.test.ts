@@ -50,42 +50,42 @@ describe('detection', () => {
   it('needs both a roblox-ts dependency and a tsconfig, not either', async () => {
     // A tsconfig alone is an ordinary TypeScript project, and treating one as
     // rbxts is how a pack starts giving Roblox advice about a web app.
-    expect((await ROBLOX_TS_PACK.detect(projectOf())).present).toBe(true);
-    expect((await ROBLOX_TS_PACK.detect(projectOf({ [`${ROOT}/tsconfig.json`]: null }))).present).toBe(false);
+    expect((await ROBLOX_TS_PACK.detect(projectOf(), {})).present).toBe(true);
+    expect((await ROBLOX_TS_PACK.detect(projectOf({ [`${ROOT}/tsconfig.json`]: null }), {})).present).toBe(false);
     expect((await ROBLOX_TS_PACK.detect(projectOf({
       [`${ROOT}/package.json`]: JSON.stringify({ devDependencies: { typescript: '5.5.3' } }),
-    }))).present).toBe(false);
+    }), {})).present).toBe(false);
   });
 
   it('separates the version declared from the version installed', async () => {
     // "^3.0.0" is what the project asked for; "3.0.0" is what would run. A pack
     // reporting one number could not tell a caller which it had.
-    const installed = await ROBLOX_TS_PACK.detect(projectOf());
+    const installed = await ROBLOX_TS_PACK.detect(projectOf(), {});
     expect(installed.variant).toBe('installed');
     expect(installed.detail).toMatchObject({ declaredRange: '^3.0.0', installedVersion: '3.0.0' });
 
     const declaredOnly = await ROBLOX_TS_PACK.detect(projectOf({
       [`${ROOT}/node_modules/roblox-ts/package.json`]: null,
       [`${ROOT}/node_modules/.bin/rbxtsc`]: null,
-    }));
+    }), {});
     expect(declaredOnly.variant).toBe('declared-not-installed');
     expect(declaredOnly.detail).toMatchObject({ declaredRange: '^3.0.0', installedVersion: undefined });
   });
 
   it('reads a tsconfig with comments and a trailing comma', async () => {
-    expect((await ROBLOX_TS_PACK.detect(projectOf())).detail).toMatchObject({ outDir: 'out' });
+    expect((await ROBLOX_TS_PACK.detect(projectOf(), {})).detail).toMatchObject({ outDir: 'out' });
   });
 
   it('treats an unparsable tsconfig as absent rather than as defaults', async () => {
     // Guessing the defaults of a file that does not parse is how a pack reports
     // an outDir nobody configured.
-    const broken = await ROBLOX_TS_PACK.detect(projectOf({ [`${ROOT}/tsconfig.json`]: '{ "compilerOptions": ' }));
+    const broken = await ROBLOX_TS_PACK.detect(projectOf({ [`${ROOT}/tsconfig.json`]: '{ "compilerOptions": ' }), {});
     expect(broken.present).toBe(false);
     expect(broken.evidence).toContain('no readable tsconfig.json');
   });
 
   it('lists the evidence rather than only the verdict', async () => {
-    const found = await ROBLOX_TS_PACK.detect(projectOf());
+    const found = await ROBLOX_TS_PACK.detect(projectOf(), {});
     expect(found.evidence.join(' ')).toMatch(/project-local compiler at node_modules\/\.bin\/rbxtsc/);
   });
 });

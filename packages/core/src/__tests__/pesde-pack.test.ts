@@ -59,7 +59,7 @@ describe('detection', () => {
   it('reads the manifest and separates pesde dependencies from Wally ones', async () => {
     // Two providers in one manifest is normal for pesde, and "which registry
     // did this come from" therefore has two possible answers.
-    const found = await PESDE_PACK.detect(projectOf());
+    const found = await PESDE_PACK.detect(projectOf(), {});
     expect(found.present).toBe(true);
     expect(found.detail!.packageName).toBe('acme/game');
     expect(found.detail!.dependencies).toEqual([
@@ -70,14 +70,14 @@ describe('detection', () => {
   });
 
   it('says locked or unlocked, since it decides what an install would do', async () => {
-    expect((await PESDE_PACK.detect(projectOf())).variant).toBe('locked');
-    expect((await PESDE_PACK.detect(projectOf({ [`${ROOT}/pesde.lock`]: null }))).variant).toBe('unlocked');
+    expect((await PESDE_PACK.detect(projectOf(), {})).variant).toBe('locked');
+    expect((await PESDE_PACK.detect(projectOf({ [`${ROOT}/pesde.lock`]: null }), {})).variant).toBe('unlocked');
   });
 
   it('treats a manifest that does not parse as unusable, not as an empty one', async () => {
     // An empty manifest reports zero dependencies, which is a sentence about
     // the project rather than about the parse.
-    const broken = await PESDE_PACK.detect(projectOf({ [`${ROOT}/pesde.toml`]: '[target\nenvironment =' }));
+    const broken = await PESDE_PACK.detect(projectOf({ [`${ROOT}/pesde.toml`]: '[target\nenvironment =' }), {});
     expect(broken.present).toBe(false);
     expect(broken.evidence.join(' ')).toMatch(/exists but does not parse as TOML/);
   });
