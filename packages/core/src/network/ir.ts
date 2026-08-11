@@ -246,6 +246,41 @@ export interface GeneratedNetwork {
   serverLuau: string;
   /** Client module with one typed sender per message. */
   clientLuau: string;
+  /** The bucket alone, exactly as the server module embeds it. See `rateLimiterLuau`. */
+  rateLimiterLuau: string;
+}
+
+/**
+ * The token bucket, as its own source.
+ *
+ * Separated so it can be *run*, not only asserted against as text. It is the
+ * security path in everything this file generates — the rest is type guards a
+ * reader can check by eye, and a rate limiter that refills wrong is a rate
+ * limiter that is not there. `serverModule` embeds this verbatim, so the thing
+ * under test and the thing that ships cannot drift.
+ *
+ * `os.clock` rather than `tick` or `os.time`: monotonic, and in seconds, which
+ * is what `perSecond` means.
+ */
+export function rateLimiterLuau(): string {
+  return [
+    '-- Token bucket per player per message. Cleared when the player leaves, so a',
+    '-- long-running server does not accumulate a row per player who ever joined.',
+    'local buckets = {}',
+    '',
+    'local function allow(player, id, perSecond, burst)',
+    '\tlocal now = os.clock()',
+    '\tlocal byPlayer = buckets[player]',
+    '\tif not byPlayer then byPlayer = {} buckets[player] = byPlayer end',
+    '\tlocal bucket = byPlayer[id]',
+    '\tif not bucket then bucket = { tokens = burst, last = now } byPlayer[id] = bucket end',
+    '\tbucket.tokens = math.min(burst, bucket.tokens + (now - bucket.last) * perSecond)',
+    '\tbucket.last = now',
+    '\tif bucket.tokens < 1 then return false end',
+    '\tbucket.tokens = bucket.tokens - 1',
+    '\treturn true',
+    'end',
+  ].join('\n');
 }
 
 /**
@@ -268,7 +303,12 @@ export function generateNative(surface: NetworkSurface): GeneratedNetwork {
     ...surface.messages.map((m) => ({ className: classOf(m), name: m.id, parent: root })),
   ];
 
-  return { instances, serverLuau: serverModule(surface), clientLuau: clientModule(surface) };
+  return {
+    instances,
+    serverLuau: serverModule(surface),
+    clientLuau: clientModule(surface),
+    rateLimiterLuau: rateLimiterLuau(),
+  };
 }
 
 function classOf(message: NetworkMessage): string {
@@ -321,23 +361,11 @@ function serverModule(surface: NetworkSurface): string {
     'local Network = {}',
     'local handlers = {}',
     '',
-    '-- Token bucket per player per message. Cleared when the player leaves, so a',
-    '-- long-running server does not accumulate a row per player who ever joined.',
-    'local buckets = {}',
+    // Embedded verbatim from `rateLimiterLuau`, which the runtime harness runs
+    // on its own. Embedding rather than re-deriving is what keeps the tested
+    // bucket and the shipped bucket the same source.
+    rateLimiterLuau(),
     'Players.PlayerRemoving:Connect(function(player) buckets[player] = nil end)',
-    '',
-    'local function allow(player, id, perSecond, burst)',
-    '\tlocal now = os.clock()',
-    '\tlocal byPlayer = buckets[player]',
-    '\tif not byPlayer then byPlayer = {} buckets[player] = byPlayer end',
-    '\tlocal bucket = byPlayer[id]',
-    '\tif not bucket then bucket = { tokens = burst, last = now } byPlayer[id] = bucket end',
-    '\tbucket.tokens = math.min(burst, bucket.tokens + (now - bucket.last) * perSecond)',
-    '\tbucket.last = now',
-    '\tif bucket.tokens < 1 then return false end',
-    '\tbucket.tokens = bucket.tokens - 1',
-    '\treturn true',
-    'end',
     '',
     '-- Replace with the project\'s own role lookup. Returning false by default is',
     '-- deliberate: an unimplemented permission check that admits everyone is the',

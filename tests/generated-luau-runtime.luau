@@ -476,6 +476,66 @@ if layout3 then
 	check("layout: no spawn sits on it, so nothing confirms it", basis:find("SpawnLocation") == nil, basis)
 end
 
+-- === generated for the user's game, not for us ==============================
+-- These emit Luau that runs in a player's experience, so nothing else in this
+-- repository would ever parse them. A generator that emits unparseable Luau is
+-- a failure that reaches a player, and every Jest assertion on them is a string
+-- match that passes on text no compiler would accept.
+--
+-- ponytail: compiled, not executed. Ceiling: this catches a syntax error and
+-- nothing else, so a guard that is present but wrong still passes here.
+-- Accepted because the server module needs ReplicatedStorage and Players and
+-- the Fusion module needs Fusion, and this host has none of them. Upgrade path:
+-- stub the services and vendor Fusion, then run them. The bucket below is the
+-- part where being wrong matters most, and it is executed for that reason.
+for _, name in { "network-server", "network-client", "ui-fusion" } do
+	local source = fs.readFile(dir .. "/" .. name .. ".luau")
+	local ok, err = pcall(function() return luau.compile(source) end)
+	check(name .. ": compiles", ok, tostring(err))
+end
+
+-- === the token bucket, run rather than read =================================
+-- The security path in everything the network generator emits. A limiter that
+-- refills wrong is a limiter that is not there, and that is invisible to a
+-- string assertion. The server module embeds this source verbatim.
+do
+	local clock = 0
+	local chunk = table.concat({
+		"local os = { clock = function() return CLOCK() end }",
+		fs.readFile(dir .. "/network-rate-limiter.luau"),
+		"return allow",
+	}, "\n")
+	local ok, loaded = pcall(function()
+		return luau.load(chunk, { environment = { CLOCK = function() return clock end } })()
+	end)
+	if not ok then
+		check("rate limiter: loads", false, tostring(loaded))
+	else
+		local allow = loaded
+
+		local admitted = 0
+		for _ = 1, 12 do if allow("p1", "BuyItem", 4, 8) then admitted += 1 end end
+		eq("rate limiter: a burst of 8 admits exactly 8", admitted, 8)
+
+		clock += 1
+		admitted = 0
+		for _ = 1, 12 do if allow("p1", "BuyItem", 4, 8) then admitted += 1 end end
+		eq("rate limiter: one second at 4/s refills 4", admitted, 4)
+
+		-- The cap is the whole point: without it an idle player banks an
+		-- unbounded burst and the limit stops being one.
+		clock += 3600
+		admitted = 0
+		for _ = 1, 50 do if allow("p1", "BuyItem", 4, 8) then admitted += 1 end end
+		eq("rate limiter: an hour idle still caps at the burst", admitted, 8)
+
+		clock += 3600
+		check("rate limiter: a second player has their own bucket", allow("p2", "BuyItem", 4, 8))
+		check("rate limiter: a second message has its own bucket", allow("p1", "GetBalance", 1, 1))
+		check("rate limiter: and that second message is then spent", not allow("p1", "GetBalance", 1, 1))
+	end
+end
+
 print(string.format("  %d passed, %d failed", passed, failed))
 if failed > 0 then
 	process.exit(1)

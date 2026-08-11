@@ -54,6 +54,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- The generated-Luau runtime harness (`npm run test:luau:runtime`, already part
+  of `release:check`) now covers what the network and UI generators emit.
+
+  Those two emit Luau for the *user's* game rather than for BloxForge to run, so
+  nothing else in the repository would ever have parsed them: every assertion on
+  them was a string match, which passes happily on text no compiler would
+  accept. All three modules — network server, network client, Fusion component —
+  are now compiled under Lune.
+
+  The token bucket is **executed**, not compiled. It is the security path in
+  everything the network generator emits, and a limiter that refills wrong is a
+  limiter that is not there — invisible to any string assertion. The harness
+  checks that a burst admits exactly its size, that a second refills the rate,
+  that an idle hour still caps at the burst (without which a player banks an
+  unbounded burst and the limit stops being one), and that players and messages
+  hold separate buckets. `rateLimiterLuau()` is exported for this and embedded
+  verbatim by the server module, so the tested bucket and the shipped one cannot
+  drift.
+
 - **Network intermediate representation** (`packages/core/src/network/ir.ts`)
   with `network_validate_surface` and `network_generate`.
 
