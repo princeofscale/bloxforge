@@ -34,6 +34,7 @@ const load = async (file) => {
 const { buildSpatialLayoutLuau } = await load('scene-layout.js');
 const { buildNodeBatchLuau } = await load('world-model.js');
 const { buildSceneSearchLuau } = await load('scene-search.js');
+const { buildSceneSummaryLuau } = await load('scene-summary.js');
 const { buildWorldFingerprintLuau } = await load('world-fingerprint.js');
 const { buildFitScanLuau } = await load('asset-fit.js');
 const { buildDesignLintLuau } = await load('design-builders.js');
@@ -129,6 +130,7 @@ const generated = {
     false,
   ),
   'scene-search': buildSceneSearchLuau('ground', 'game.Workspace', 10),
+  'scene-summary': buildSceneSummaryLuau('game.Workspace', 20),
   'world-fingerprint': buildWorldFingerprintLuau('game.Workspace'),
   'fit-scan': buildFitScanLuau('game.Workspace.Nope'),
   // design_lint's contrast rule is arithmetic over composited colours, which is

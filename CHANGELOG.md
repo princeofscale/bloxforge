@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Four ranked lists had no tie-break, so entries with equal scores came back in
+  `pairs()` order — which Lua leaves unspecified. Two reads of an **unchanged**
+  scene could disagree, and an agent diffing them sees changes that did not
+  happen: exactly the noise `scene_diff_trees` exists to remove, produced by the
+  tools feeding it.
+
+  `get_scene_summary` and `get_world_snapshot` now break class-count ties by
+  name; `scene_search` breaks score ties by path, so "the top result" is no
+  longer whichever equally-scored instance the traversal reached first; and
+  `get_spatial_layout` breaks landmark-volume ties by name and then position —
+  a pair of walls or a row of crates is the common case, not the odd one.
+
+  This repository already knew determinism mattered here: `world-fingerprint`
+  sorts its keys for exactly this reason. The four ranked lists simply never got
+  the same treatment.
+
+- `run_playtest_episode` no longer reports "no runtime errors and all assertions
+  held" when **no assertions were supplied**. That sentence is true of zero
+  assertions, and an agent that passed none reads it as verification of the
+  game. A pass with nothing asserted now says so, and says what would make it
+  mean something.
+
 - The value serializer behind `get_node_batch` structures every type the
   capability registry calls lossy, instead of nine of them falling through to
   `tostring()`.

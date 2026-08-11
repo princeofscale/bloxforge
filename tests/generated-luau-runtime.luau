@@ -476,6 +476,52 @@ if layout3 then
 	check("layout: no spawn sits on it, so nothing confirms it", basis:find("SpawnLocation") == nil, basis)
 end
 
+-- === ordering is a property, not an accident ================================
+-- Every one of these lists used to sort on one key only, so entries that tied
+-- came back in `pairs` order — unspecified, and different between two reads of
+-- an unchanged scene. An agent diffing those reads sees changes that did not
+-- happen, which is the same noise the tree diff exists to remove.
+local function nonDecreasing(label, list, key, tie)
+	for i = 2, #list do
+		local a, b = list[i - 1], list[i]
+		if a[key] < b[key] then
+			check(label, false, string.format("%s went up at %d", key, i))
+			return
+		end
+		if a[key] == b[key] and tie and a[tie] > b[tie] then
+			check(label, false, string.format("tie at %d not broken by %s: %s then %s", i, tie, tostring(a[tie]), tostring(b[tie])))
+			return
+		end
+	end
+	check(label, true)
+end
+
+local summary = run("scene-summary")
+if summary and summary.topClasses then
+	nonDecreasing("summary: classes descend by count, ties by name", summary.topClasses, "count", "className")
+end
+
+local search = run("scene-search")
+if search and search.results then
+	nonDecreasing("search: results descend by score, ties by path", search.results, "score", "path")
+end
+
+local ordered = run("spatial-layout")
+if ordered and ordered.landmarks then
+	-- The landmark sort drops `_v` before returning, so volume is checked through
+	-- the size it was computed from.
+	for i = 2, #ordered.landmarks do
+		local a, b = ordered.landmarks[i - 1], ordered.landmarks[i]
+		local va = a.size[1] * a.size[2] * a.size[3]
+		local vb = b.size[1] * b.size[2] * b.size[3]
+		if va == vb and a.name > b.name then
+			check("layout: landmarks of equal volume are ordered by name", false,
+				string.format("%s came before %s", a.name, b.name))
+		end
+	end
+	check("layout: landmarks of equal volume are ordered by name", true)
+end
+
 -- === the value serializer, against real Roblox values =======================
 -- Every type here is on the capability registry's lossy list. That list is only
 -- a guard if the serializer structures them; CFrame was on it once, and losing

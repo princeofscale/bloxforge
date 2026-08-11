@@ -161,7 +161,13 @@ end
 
 local arr = {}
 for cls, n in pairs(byClass) do table.insert(arr, { className = cls, count = n }) end
-table.sort(arr, function(a, b) return a.count > b.count end)
+-- Ties break by name. Without it the order comes from pairs(), which is
+-- unspecified: two reads of an unchanged scene could disagree, and an agent
+-- diffing them sees changes that did not happen.
+table.sort(arr, function(a, b)
+\tif a.count ~= b.count then return a.count > b.count end
+\treturn a.className < b.className
+end)
 local top = {}
 for i = 1, math.min(${safeTopN}, #arr) do top[i] = arr[i] end
 

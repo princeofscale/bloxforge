@@ -20,9 +20,13 @@ describe('buildSceneSearchLuau', () => {
     expect(buildSceneSearchLuau('x', 'game', 999)).toContain('math.min(50, #scored)');
   });
 
-  it('ranks by score and returns a bounded result set', () => {
+  it('ranks by score, breaks ties by path, and returns a bounded result set', () => {
+    // Score alone left "the top result" to be whichever equally-scored instance
+    // the traversal happened to reach first — unspecified, and different
+    // between two searches of an unchanged scene.
     const code = buildSceneSearchLuau('tree');
-    expect(code).toContain('table.sort(scored, function(a, b) return a.score > b.score end)');
+    expect(code).toContain('if a.score ~= b.score then return a.score > b.score end');
+    expect(code).toContain('return a.path < b.path');
     expect(code).toContain('results = top');
   });
 

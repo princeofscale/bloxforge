@@ -82,3 +82,17 @@ describe('run_playtest_episode log window', () => {
     expect(out.hint).toContain('Runtime errors were logged');
   });
 });
+
+describe('what a passing episode actually claims', () => {
+  it('does not say assertions held when none were supplied', async () => {
+    // "All assertions held" is true of zero assertions, and an agent that
+    // supplied none reads it as verification of the game rather than of
+    // nothing. A vacuous truth in a hint is still a claim.
+    const { tools } = harness([]);
+    const episode = readJson(await tools.runPlaytestEpisode('run', undefined, undefined, 0));
+    expect(episode.verdict).toBe('pass');
+    expect(episode.hint).not.toMatch(/all assertions held/);
+    expect(episode.hint).toMatch(/No assertions were supplied/);
+    expect(episode.hint).toMatch(/nothing about the game's behaviour was checked/);
+  });
+});
