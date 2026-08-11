@@ -54,6 +54,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- The roblox-ts pack maps a compiled file back to the TypeScript it came from
+  (`integration_inspect` with `request.resolve`).
+
+  This is the other half of the `no-handwritten-luau` check. That one says an
+  edit in the compiled tree will vanish; this one says where to make it instead,
+  which is the difference between a warning and a fix.
+
+  The rules come from `PathTranslator.getInputPaths` in
+  `roblox-ts/path-translator`, read rather than remembered: `out/X.luau` maps to
+  `src/X.ts` then `src/X.tsx`; `out/Foo/init.luau` also maps to
+  `src/Foo/index.ts` and `.tsx`, because roblox-ts renames `index` to `init` on
+  the way out; a file named `index.luau` maps to **nothing**, since the
+  translator guards on `fileName !== INDEX_NAME`; and both `.lua` and `.luau`
+  are accepted. Candidates are returned with whether each exists, and when two
+  exist at once the pack **refuses to choose** and says so — picking one
+  silently would be a guess in the shape of an answer.
+
+- Every integration pack now declares the `request` keys it understands, and
+  `integration_inspect` reports them along with **any key you passed that the
+  pack does not recognise**. The four tools take a free-form `request`, so
+  without this a pack's arguments existed only in its source: a capability
+  nobody can discover is not a capability, and a misspelled key was silently
+  dropped, leaving the caller reading the default answer as the answer to their
+  question.
+
 - The generated-Luau runtime harness (`npm run test:luau:runtime`, already part
   of `release:check`) now covers what the network and UI generators emit.
 

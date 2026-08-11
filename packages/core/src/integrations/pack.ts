@@ -148,6 +148,14 @@ export interface IntegrationPack {
   sourceOfTruth: string;
   /** Declared, never inferred from the name. Same rule as ToolDefinition.effects. */
   effects: readonly ToolEffect[];
+  /**
+   * The `request` keys this pack understands, each with what it does.
+   *
+   * The four tools take a free-form `request`, so without this a pack's
+   * arguments exist only in its source. A capability nobody can discover is not
+   * a capability — it is code that happens to be there.
+   */
+  requestKeys?: Readonly<Record<string, string>>;
 
   /** `request` carries what detection cannot discover — where to look. */
   detect(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<Detection>;
@@ -180,9 +188,15 @@ export function registerPack(pack: IntegrationPack): void {
   packs.set(pack.id, pack);
 }
 
-export function listPacks(): { id: string; title: string; version: string; license: string; sourceOfTruth: string; effects: readonly ToolEffect[] }[] {
+export function listPacks(): {
+  id: string; title: string; version: string; license: string; sourceOfTruth: string;
+  effects: readonly ToolEffect[]; requestKeys: Readonly<Record<string, string>>;
+}[] {
   return [...packs.values()]
-    .map((p) => ({ id: p.id, title: p.title, version: p.version, license: p.license, sourceOfTruth: p.sourceOfTruth, effects: p.effects }))
+    .map((p) => ({
+      id: p.id, title: p.title, version: p.version, license: p.license,
+      sourceOfTruth: p.sourceOfTruth, effects: p.effects, requestKeys: p.requestKeys ?? {},
+    }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -298,10 +312,21 @@ export async function inspectIntegration(
   id: string,
   ctx: PackContext,
   request: Readonly<Record<string, unknown>> = {},
-): Promise<Detection & { packId: string; license: string; sourceOfTruth: string }> {
+): Promise<Detection & { packId: string; license: string; sourceOfTruth: string; requestKeys: Readonly<Record<string, string>>; unknownRequestKeys: string[] }> {
   const pack = getPack(id);
   const detection = await pack.detect(ctx, request);
-  return { ...detection, packId: pack.id, license: pack.license, sourceOfTruth: pack.sourceOfTruth };
+  const known = pack.requestKeys ?? {};
+  // Named rather than ignored: a misspelled key is silently dropped otherwise,
+  // and the caller reads the default answer as the answer to their question.
+  const unknownRequestKeys = Object.keys(request).filter((key) => !(key in known)).sort();
+  return {
+    ...detection,
+    packId: pack.id,
+    license: pack.license,
+    sourceOfTruth: pack.sourceOfTruth,
+    requestKeys: known,
+    unknownRequestKeys,
+  };
 }
 
 // ponytail: containment is textual, so a symlink inside the root that points

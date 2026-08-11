@@ -90,6 +90,69 @@ describe('detection', () => {
   });
 });
 
+describe('mapping a compiled file back to its source', () => {
+  // The other half of `no-handwritten-luau`: that check says an edit here will
+  // vanish, this says where to make it instead. Rules read from
+  // `PathTranslator.getInputPaths`, not remembered.
+  const resolve = async (outPath: string, files: Record<string, string | null> = {}) =>
+    (await ROBLOX_TS_PACK.detect(projectOf(files), { resolve: outPath })).detail!.resolved as Record<string, unknown>;
+
+  it('maps a compiled file to the source beside it', async () => {
+    const found = await resolve('out/Main.luau');
+    expect(found.source).toBe('src/Main.ts');
+    expect(found.candidates).toEqual([
+      { path: 'src/Main.ts', exists: true },
+      { path: 'src/Main.tsx', exists: false },
+    ]);
+  });
+
+  it('knows init came from index, because roblox-ts renames it on the way out', async () => {
+    const found = await resolve('out/Widgets/init.luau', { [`${ROOT}/src/Widgets/index.tsx`]: 'export {}' });
+    expect(found.source).toBe('src/Widgets/index.tsx');
+    expect((found.candidates as { path: string }[]).map((c) => c.path)).toEqual([
+      'src/Widgets/init.ts', 'src/Widgets/init.tsx', 'src/Widgets/index.ts', 'src/Widgets/index.tsx',
+    ]);
+  });
+
+  it('maps nothing for index.luau, which no TypeScript file compiles to', async () => {
+    const found = await resolve('out/index.luau');
+    expect(found.candidates).toEqual([]);
+    expect(String(found.note)).toMatch(/index\.luau has no TypeScript source/);
+  });
+
+  it('accepts the older .lua extension as well as .luau', async () => {
+    expect((await resolve('out/Main.lua')).source).toBe('src/Main.ts');
+  });
+
+  it('maps nothing outside the output directory', async () => {
+    expect((await resolve('src/Main.ts')).candidates).toEqual([]);
+  });
+
+  it('reports a stale compiled tree rather than pointing at a file that is gone', async () => {
+    const found = await resolve('out/Gone.luau');
+    expect(found.source).toBeUndefined();
+    expect(String(found.note)).toMatch(/The compiled tree may be stale/);
+  });
+
+  it('refuses to choose when two candidates exist at once', async () => {
+    // A real if odd project state. Picking one silently would be a guess in the
+    // shape of an answer.
+    const found = await resolve('out/Main.luau', { [`${ROOT}/src/Main.tsx`]: 'export {}' });
+    expect(found.source).toBeUndefined();
+    expect(String(found.note)).toMatch(/2 candidates exist at once/);
+  });
+
+  it('says what is missing when the tsconfig cannot answer', async () => {
+    const noRoot = projectOf({ [`${ROOT}/tsconfig.json`]: '{"compilerOptions":{"outDir":"out"}}' });
+    const found = (await ROBLOX_TS_PACK.detect(noRoot, { resolve: 'out/Main.luau' })).detail!.resolved as Record<string, unknown>;
+    expect(String(found.note)).toMatch(/outDir and rootDir are both needed/);
+  });
+
+  it('says nothing about resolution when none was asked for', async () => {
+    expect((await ROBLOX_TS_PACK.detect(projectOf(), {})).detail!.resolved).toBeUndefined();
+  });
+});
+
 describe('planning', () => {
   it('blocks the install rather than running npm on the user\'s lockfile', async () => {
     const ctx = projectOf({ [`${ROOT}/node_modules/.bin/rbxtsc`]: null });

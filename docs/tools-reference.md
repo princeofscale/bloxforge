@@ -3276,7 +3276,7 @@ The current plan plus the reconcile lease holder and the most recent run journal
 
 ### `integration_inspect` (Read-only)
 
-List the registered integration packs, or detect one in this project: whether it is present, which version and variant, and the evidence that decided it. Reads only. Each pack reports its licence and the primary source it was written against.
+List the registered integration packs, or detect one in this project: whether it is present, which version and variant, and the evidence that decided it. Reads only. Each pack reports its licence, the primary source it was written against, and the `request` keys it understands — and names any key you passed that it does not recognise, rather than dropping it.
 
 **Parameters:**
 

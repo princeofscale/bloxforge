@@ -253,6 +253,10 @@ export const ADONIS_PACK: IntegrationPack = {
   license: 'MIT',
   sourceOfTruth: 'https://github.com/Epix-Incorporated/Adonis — Loader/Loader/Loader.server.luau, Loader/Config/Settings/General.luau and README.md at master',
   effects: ['local.files.read'],
+  requestKeys: {
+    path: 'Where the Adonis checkout is, when it is not under one of the usual paths.',
+    projectFile: 'Rojo project file name, for the loader-placement check.',
+  },
   detect,
   plan,
   apply,

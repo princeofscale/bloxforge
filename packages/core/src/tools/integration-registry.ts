@@ -62,7 +62,7 @@ export function rootOf(args: Record<string, unknown>): string {
 const INTEGRATION_TOOLS: RegisteredTool[] = [
   defineTool({
     name: 'integration_inspect',
-    description: 'List the registered integration packs, or detect one in this project: whether it is present, which version and variant, and the evidence that decided it. Reads only. Each pack reports its licence and the primary source it was written against.',
+    description: 'List the registered integration packs, or detect one in this project: whether it is present, which version and variant, and the evidence that decided it. Reads only. Each pack reports its licence, the primary source it was written against, and the `request` keys it understands — and names any key you passed that it does not recognise, rather than dropping it.',
     category: 'read',
     effects: ['local.files.read', 'local.process.execute'],
     inputSchema: { type: 'object', properties: { ...PACK_ID, ...ROOT, ...REQUEST } },
