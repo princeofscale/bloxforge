@@ -42,6 +42,15 @@ const { buildDesignLintLuau } = await load('design-builders.js');
 // BloxForge to run, so nothing else here would ever parse them. A generator
 // that emits unparseable Luau is the failure that would otherwise reach a
 // player, and it is invisible to every string assertion in Jest.
+//
+// ponytail: these three are compiled, not executed. Ceiling: compiling catches
+// a syntax error and nothing else — a guard that is present but wrong still
+// compiles. Accepted because the server module needs ReplicatedStorage and a
+// Players service, and the Fusion module needs Fusion itself, neither of which
+// the host has. Upgrade path: stub those services and require a vendored
+// Fusion, then run them. The token bucket below is the part where being wrong
+// matters most, and it is executed rather than compiled for exactly that
+// reason.
 const loadDist = async (file) => {
   try {
     return await import(path.join(dist, file));
