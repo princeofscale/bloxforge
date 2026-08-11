@@ -75,7 +75,24 @@ describe('the registry', () => {
       id: 'demo', title: 'Demo', version: '1.0.0', license: 'MIT',
       sourceOfTruth: 'https://example.org/demo',
       effects: ['local.files.read', 'local.files.write'],
+      requestKeys: {},
     }]);
+  });
+
+  it('advertises the request keys a pack understands', async () => {
+    // The four tools take a free-form `request`, so without this a pack's
+    // arguments exist only in its source, and an agent cannot find them.
+    registerPack(packOf({ requestKeys: { depth: 'how far to look' } }));
+    expect(listPacks()[0].requestKeys).toEqual({ depth: 'how far to look' });
+    expect((await inspectIntegration('demo', ctxOf({}), {})).requestKeys).toEqual({ depth: 'how far to look' });
+  });
+
+  it('names a request key it does not recognise instead of dropping it', async () => {
+    // Dropped silently, a misspelled key leaves the caller reading the default
+    // answer as the answer to their question.
+    registerPack(packOf({ requestKeys: { depth: 'how far to look' } }));
+    const found = await inspectIntegration('demo', ctxOf({}), { dpeth: 3, resolve: 'x' });
+    expect(found.unknownRequestKeys).toEqual(['dpeth', 'resolve']);
   });
 });
 

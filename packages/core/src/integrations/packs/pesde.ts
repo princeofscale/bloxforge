@@ -279,6 +279,9 @@ export const PESDE_PACK: IntegrationPack = {
   license: 'MIT',
   sourceOfTruth: 'https://github.com/pesde-pkg/pesde — src/lib.rs (pesde.toml, pesde.lock) and docs/reference/{manifest,cli}.mdx at main',
   effects: ['local.files.read', 'local.files.write', 'local.process.execute', 'network.external'],
+  requestKeys: {
+    timeoutMs: 'How long to allow the install before giving up. Defaults to ten minutes.',
+  },
   detect,
   plan,
   apply,

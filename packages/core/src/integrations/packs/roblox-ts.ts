@@ -75,6 +75,44 @@ function projectFileOf(request: Readonly<Record<string, unknown>>): string {
 }
 
 /**
+ * Which TypeScript file a compiled Luau file came from.
+ *
+ * This is the other half of `no-handwritten-luau`. That check says an edit in
+ * the compiled tree will vanish; this one says where to make it instead, which
+ * is the difference between a warning and a fix.
+ *
+ * The rules are `PathTranslator.getInputPaths` in `roblox-ts/path-translator`,
+ * read rather than remembered:
+ *
+ *   - `out/X.luau` → `src/X.ts`, then `src/X.tsx`.
+ *   - `out/Foo/init.luau` also → `src/Foo/index.ts` and `src/Foo/index.tsx`,
+ *     because roblox-ts renames `index` to `init` on the way out.
+ *   - A file named `index.luau` is **not** mapped at all: the translator guards
+ *     on `fileName !== INDEX_NAME`, since no `.ts` compiles to that name.
+ *   - The extension is `.lua` or `.luau` depending on the project's setting, so
+ *     both are accepted.
+ *
+ * Candidates are returned in the translator's own order and each is reported
+ * with whether it exists, rather than collapsing to a single guess: two of them
+ * existing at once is a real (if odd) project state, and picking one silently
+ * would be a guess wearing the shape of an answer.
+ */
+export function resolveSourceCandidates(outPath: string, outDir: string, rootDir: string): string[] {
+  const normalized = outPath.replace(/^\.\//, '');
+  const prefix = `${outDir}/`;
+  if (!normalized.startsWith(prefix)) return [];
+
+  const relative = normalized.slice(prefix.length);
+  const matched = /^(.*?)([^/]+)\.(lua|luau)$/.exec(relative);
+  if (!matched) return [];
+  const [, directory, stem] = matched;
+  if (stem === 'index') return [];
+
+  const names = stem === 'init' ? ['init', 'index'] : [stem];
+  return names.flatMap((name) => ['ts', 'tsx'].map((ext) => `${rootDir}/${directory}${name}.${ext}`));
+}
+
+/**
  * The compiler this project pinned, or nothing.
  *
  * A bare `rbxtsc` on PATH is deliberately not a fallback. That is invariant 4
@@ -91,7 +129,7 @@ function localCompiler(ctx: PackContext): string | undefined {
   return undefined;
 }
 
-async function detect(ctx: PackContext, _request: Readonly<Record<string, unknown>>): Promise<Detection> {
+async function detect(ctx: PackContext, request: Readonly<Record<string, unknown>>): Promise<Detection> {
   const pkg = readJson(ctx, PACKAGE_JSON);
   const tsconfig = readJson(ctx, TSCONFIG);
   const ranges = dependencyRanges(pkg);
@@ -129,7 +167,44 @@ async function detect(ctx: PackContext, _request: Readonly<Record<string, unknow
       rbxtsPackages,
       outDir: outDirOf(tsconfig),
       localCompiler: compiler,
+      ...(typeof request.resolve === 'string' ? { resolved: resolveFor(ctx, tsconfig, request.resolve) } : {}),
     },
+  };
+}
+
+/** Answer `request.resolve`, or say why it could not be answered. */
+function resolveFor(
+  ctx: PackContext,
+  tsconfig: Record<string, unknown> | null,
+  outPath: string,
+): Record<string, unknown> {
+  const outDir = outDirOf(tsconfig);
+  const rootDirRaw = compilerOptions(tsconfig).rootDir;
+  const rootDir = typeof rootDirRaw === 'string' && rootDirRaw.trim() !== ''
+    ? rootDirRaw.replace(/^\.\//, '').replace(/\/+$/, '')
+    : undefined;
+  if (!outDir || !rootDir) {
+    return { outPath, candidates: [], note: 'compilerOptions.outDir and rootDir are both needed to map a compiled file back to its source.' };
+  }
+
+  const exists = ctx.exists ?? ((p: string) => ctx.readFile(p) !== null);
+  const candidates = resolveSourceCandidates(outPath, outDir, rootDir)
+    .map((path) => ({ path, exists: exists(at(ctx, path)) }));
+  const present = candidates.filter((c) => c.exists);
+
+  return {
+    outPath,
+    candidates,
+    // Reported, not chosen. Two candidates existing at once is a real if odd
+    // project state, and silently picking one would be a guess in the shape of
+    // an answer.
+    source: present.length === 1 ? present[0].path : undefined,
+    ...(present.length === 0
+      ? { note: candidates.length === 0
+        ? `${outPath} is not a compiled file this mapping covers; a file named index.luau has no TypeScript source, and anything outside ${outDir} was not produced by this compiler.`
+        : 'No candidate exists on disk. The compiled tree may be stale, or the source was deleted without a rebuild.' }
+      : {}),
+    ...(present.length > 1 ? { note: `${present.length} candidates exist at once; which one the compiler used is not something this mapping can decide.` } : {}),
   };
 }
 
@@ -358,6 +433,11 @@ export const ROBLOX_TS_PACK: IntegrationPack = {
   license: 'MIT',
   sourceOfTruth: 'https://github.com/roblox-ts/roblox-ts — package.json@master (3.0.0), bin.rbxtsc',
   effects: ['local.files.read', 'local.process.execute'],
+  requestKeys: {
+    projectFile: 'Rojo project file name when the project does not use default.project.json.',
+    allowedPlugins: 'Compiler plugins approved by name. Without this every configured plugin fails the compiler-plugins check.',
+    resolve: 'A path under outDir, such as "out/Foo/Bar.luau". Returns which TypeScript file it was compiled from.',
+  },
   detect,
   plan,
   apply,
