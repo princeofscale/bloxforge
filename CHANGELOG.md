@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The value serializer behind `get_node_batch` structures every type the
+  capability registry calls lossy, instead of nine of them falling through to
+  `tostring()`.
+
+  `CFrame` was fixed once, on its own, after rotation went missing from a
+  serialized value. The same fallback was still swallowing `NumberSequence`,
+  `ColorSequence`, `NumberRange`, `PhysicalProperties`, `Ray`, `Region3`,
+  `Faces` and `Axes` — each arriving as an opaque string that reads like a value
+  and cannot be written back. `UDim`, `UDim2`, `Rect` and `BrickColor` are
+  structured too.
+
+  The list and the serializer are now checked against each other: a type on
+  `LOSSY_WITHOUT_FULL_SHAPE` that the serializer does not handle fails a test.
+  Without that the list is documentation — which is exactly what it was when
+  `CFrame` was on it and nothing consulted it.
+
+  Two things the serializer used to conflate are now distinct. **An unset
+  property says it is unset** (`{ __unset: true }`) rather than arriving as the
+  string `"nil"` — found by running the serializer against a real DataModel,
+  where `CustomPhysicalProperties` on a fresh `Part` is genuinely nil. And **a
+  type it could not structure names itself** (`{ __opaque, __type }`) instead of
+  returning a bare string, because a blob that looks like a value is how a
+  caller writes back something that is not what it read.
+
 - Bulk write tools return a receipt instead of a row per input. `mass_set_property`
   on 200 paths answered with 200 rows of
   `{path, success: true, propertyName, propertyValue}` — repeating on every row
