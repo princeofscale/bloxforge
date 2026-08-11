@@ -10,6 +10,7 @@
 import { defineTool, type RegisteredTool, type ToolRegistry } from './tool-pipeline.js';
 import type { ToolDefinition } from './definitions.js';
 import { exportNative, validateScreen, type UiScreen } from '../ui/ir.js';
+import { exportFusion, FUSION_TARGET } from '../ui/fusion.js';
 
 const OUTPUT = { type: 'object', additionalProperties: true };
 
@@ -41,24 +42,28 @@ const UI_IR_TOOLS: RegisteredTool[] = [
   }),
   defineTool({
     name: 'ui_export_screen',
-    description: 'Turn a validated UI screen into a Roblox Instance tree specification — classes, properties, and the token each resolved value came from stamped as an attribute beside it. Returns the specification; it does not create anything. Refuses an invalid screen rather than emitting a partial tree.',
+    description: 'Turn a validated UI screen into a Roblox Instance tree specification, or into a Fusion component — classes, properties, and the token each resolved value came from stamped as an attribute beside it. Returns the specification; it does not create anything. Refuses an invalid screen rather than emitting a partial tree.',
     category: 'read',
     effects: [],
     inputSchema: {
       type: 'object',
       properties: {
         ...SCREEN,
-        target: { type: 'string', enum: ['native'], description: 'Export target. Only "native" (Roblox Instances) exists today; Fusion, React and Vide are roadmap items and are deliberately absent rather than stubbed.' },
+        target: { type: 'string', enum: ['native', 'fusion'], description: `Export target. "native" emits a Roblox Instance tree; "fusion" emits a Fusion ${FUSION_TARGET} component whose states actually render and whose bindings are live. React and Vide are roadmap items and are deliberately absent rather than stubbed.` },
       },
       required: ['screen'],
     },
     outputSchema: OUTPUT,
     handler: async (_runtime, args) => {
       const target = (args.target as string | undefined) ?? 'native';
+      const screen = screenOf(args);
       // Fail closed on a target that does not exist rather than silently
-      // emitting native and letting the caller believe they got Fusion.
-      if (target !== 'native') throw new Error(`Unknown export target ${JSON.stringify(target)}. Only "native" exists today.`);
-      return { target, tree: exportNative(screenOf(args)) };
+      // emitting native and letting the caller believe they got React.
+      if (target === 'native') return { target, tree: exportNative(screen) };
+      // `exportFusion` reports the Fusion release it targets, which is more
+      // specific than the caller's "fusion" and is the one that matters.
+      if (target === 'fusion') return exportFusion(screen);
+      throw new Error(`Unknown export target ${JSON.stringify(target)}. "native" and "fusion" exist today.`);
     },
   }),
 ];

@@ -146,6 +146,9 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
 // Ordered prefix rules, applied after CORE and OVERRIDES.
 const PREFIX_RULES: Array<[RegExp, ToolDomain]> = [
   [/^ui_/, 'ui'],
+  // Without this `network_*` falls through to the `scene` default, exactly as
+  // the Rojo tools once did.
+  [/^network_/, 'scripts'],
   [/^environment_/, 'environment'],
   [/^terrain_/, 'terrain'],
   [/^template_/, 'build'],

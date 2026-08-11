@@ -54,6 +54,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversation rather than in every response.
 
 ### Added
+- **Network intermediate representation** (`packages/core/src/network/ir.ts`)
+  with `network_validate_surface` and `network_generate`.
+
+  What it replaces is an agent creating a `RemoteEvent` named `BuyItem` and a
+  server script that trusts whatever arrives on it. Four things are missing from
+  that, and none announces itself: a **rate limit** (a client can fire a remote
+  in a loop — that is the exploit, not a performance note), a **type check**, a
+  **permission**, and a **direction** that does not let one client freeze the
+  server by never returning from a `RemoteFunction`. Validation refuses all four.
+
+  `network_generate` emits Luau that *enforces* the declaration rather than
+  documenting it: a per-player token bucket cleared when the player leaves, a
+  role lookup that **defaults to refusing** (an unimplemented permission check
+  that admits everyone is the failure the module exists to prevent), and a guard
+  per argument carrying its range, its length and its class. An optional field
+  is checked as absent-or-valid, never as "absent, so skip the rest". A failing
+  call is dropped rather than answered, since telling a client which guard it
+  failed is a hint about what to try next.
+
+  An invalid surface is refused rather than half-generated: the missing half
+  would be a guard, and an absent guard looks exactly like one that passed.
+  ByteNet, Remo and TypedRemote targets are **absent rather than stubbed** — all
+  MIT, all plausible, and none has shipped in the last eight months.
+
+- **Scene tree diff** (`packages/core/src/scene/tree-diff.ts`) with
+  `scene_diff_trees` — the half of the rbx-dom proposal that needs no binary.
+  Parsing `.rbxl` is the replaceable part; the diff is the payoff, and one that
+  works on any tree works on a Studio read, on the UI exporter's output and on a
+  committed fixture alike.
+
+  It answers what comparing serialized JSON cannot: a reparent is **one move**,
+  not a delete plus an add (reported as two, a reviewer reads a rebuild); a
+  class change is its own kind, because every property on the instance means
+  something different afterwards; floats are compared inside a tolerance that
+  reaches into nested values, so a `Vector3` rounded in transit is not a change;
+  and identical subtrees are named once instead of walked. Children are matched
+  by id, then by name — never by class.
+
+- **Fusion export target** for the UI IR (`packages/core/src/ui/fusion.ts`). The
+  native exporter produces a tree; this one produces a tree that reacts, which
+  is the only reason a second target earns its place. `states.hover` becomes an
+  `OnEvent` pair driving one `Value` per node — not one per state, which would
+  let a node be hovered and not hovered at once — and only the properties that
+  actually differ between states become `Computed`, so a mouse move does not
+  re-evaluate the tree. Bindings become `Computed` too, so a label follows its
+  value instead of being written once.
+
+  Two things the generated code has to get right that a static tree never faces:
+  releasing the mouse over a button that also declares `hover` returns it to
+  **hover**, not to default — `MouseButton1Up` only fires while the cursor is
+  there, and resetting to default made the button flash back to its resting
+  colour under a stationary pointer; and `AutoButtonColor` is turned off,
+  because Roblox's own shading otherwise fights whatever the pressed state
+  computed and the visible colour is neither the one the tokens name nor one
+  anybody chose.
+
+  It refuses a state no event drives rather than emitting a style that silently
+  never applies: a hover colour that never appears is harder to notice than one
+  that was never generated. The generated header states the Fusion release it
+  targets, verified against `dphfox/Fusion@main` (0.3-beta) — `scoped`, `New`,
+  `Children`, `OnEvent`, `Computed` — because pre-0.3 has no scopes and would
+  reject every line of it.
+
 - **Engine capability registry** (`packages/core/src/engine/capability-registry.ts`)
   — what this Studio can actually do, as a thing you can ask rather than assume.
 
