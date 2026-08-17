@@ -98,6 +98,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the place is half-mutated — the one state a caller must not be told is clean.
   Failed restores are now collected and returned as `rollbackFailures`, with
   `rollbackComplete` and `partiallyApplied` saying which of the two happened.
+  `rollbackComplete` is absent when no rollback was attempted rather than
+  vacuously true, and `partiallyApplied` also covers an `atomic: false` plan
+  where some operations landed and others did not — which is the other way the
+  place ends up in a state the caller did not ask for.
 
   All five are now run rather than read: `tests/generated-luau-runtime.luau`
   executes the generated plan against a real DataModel, with `game` stubbed only

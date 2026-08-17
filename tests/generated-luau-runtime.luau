@@ -580,6 +580,12 @@ do
 	mut:SetAttribute("Owner", "someone-else")
 	mut:AddTag("Existing")
 
+	-- ponytail: two services are stubbed, the rest is the real host. Ceiling: a
+	-- change in how Roblox's HttpService decodes JSON, or in CollectionService's
+	-- own semantics, would not show up here — only the plan's use of them is
+	-- covered. Accepted because Lune implements neither, and every path lookup,
+	-- property write, tag and attribute below is genuine. Upgrade path: run the
+	-- plan through a live Studio in the plugin integration job.
 	local httpStub = { JSONDecode = function(_, text) return serde.decode("json", text) end }
 	local collectionStub = {
 		HasTag = function(_, inst, tag) return inst:HasTag(tag) end,
@@ -647,6 +653,18 @@ do
 		-- became a raw Luau error instead of a report of which check failed.
 		eq("mutation: a precondition on a property that does not exist conflicts", unreadable.conflict, true)
 		eq("mutation: and says the value could not be read", conflict(unreadable).unreadable, true)
+	end
+
+	local loose = run("mutation-non-atomic", mutEnv())
+	if loose then
+		-- Nothing was rolled back, so "the restore finished" is not a fact about
+		-- this plan at all. Reported unconditionally it read as "the place is
+		-- back where it started" over a place that is half-changed by design.
+		eq("mutation: a non-atomic plan does not claim a completed rollback", loose.rollbackComplete, nil)
+		eq("mutation: it says the place is partly changed", loose.partiallyApplied, true)
+		eq("mutation: the operation that worked stayed", mut:GetAttribute("Kept"), "yes")
+		eq("mutation: and the one that failed is counted", loose.summary.failed, 1)
+		eq("mutation: alongside the one that worked", loose.summary.succeeded, 1)
 	end
 
 	local rolled = run("mutation-rollback", mutEnv())

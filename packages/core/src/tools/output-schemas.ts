@@ -275,9 +275,24 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       rollback: { type: 'array', items: mutationOperation },
       rolledBack: { type: 'boolean' },
       // `rolledBack` alone said a restore was attempted, never whether it
-      // worked. These two say whether the place is back where it started.
+      // worked. These say whether the place is back where it started, and which
+      // restores did not get there. `rollbackComplete` is absent when no
+      // rollback was attempted, rather than vacuously true.
       rollbackComplete: { type: 'boolean' },
       partiallyApplied: { type: 'boolean' },
+      rollbackFailures: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            op: { type: 'string' },
+            target: { type: 'string' },
+            error: { type: 'string' },
+          },
+          required: ['op', 'target', 'error'],
+        },
+      },
       summary: {
         type: 'object',
         additionalProperties: false,

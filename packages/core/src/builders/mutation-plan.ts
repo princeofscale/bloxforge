@@ -170,14 +170,30 @@ if atomic and not dryRun and failed > 0 then
 \tend
 end
 
+-- Only meaningful when a rollback was attempted. Reported unconditionally it
+-- read as "the place is back where it started" for a plan that never rolled
+-- anything back — including the atomic = false plan below, which leaves the
+-- successful operations in place by design.
+local rollbackComplete = nil
+if rolledBack then rollbackComplete = #rollbackFailures == 0 end
+
+-- Whether the place is in a state the caller did not ask for. Three ways in:
+-- a rollback that could not finish, and a non-atomic plan where some operations
+-- landed and others did not.
+local partiallyApplied = false
+if not dryRun then
+\tif rolledBack then partiallyApplied = #rollbackFailures > 0
+\telse partiallyApplied = failed > 0 and succeeded > 0 end
+end
+
 return {
 \tapplied = not dryRun and not rolledBack,
 \tdryRun = dryRun,
 \tatomic = atomic,
 \trolledBack = rolledBack,
-\trollbackComplete = #rollbackFailures == 0,
+\trollbackComplete = rollbackComplete,
 \trollbackFailures = #rollbackFailures > 0 and rollbackFailures or nil,
-\tpartiallyApplied = rolledBack and #rollbackFailures > 0,
+\tpartiallyApplied = partiallyApplied,
 \tresults = results,
 \trollback = rollback,
 \tsummary = { total = #ops, succeeded = succeeded, failed = failed },

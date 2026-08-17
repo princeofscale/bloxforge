@@ -217,6 +217,13 @@ const generated = {
     horizontalAlignment: 'Center', sortOrder: 'LayoutOrder',
   }),
   'ui-mobile': buildMobileFriendlyLuau('StarterGui.Generated'),
+  // atomic = false is a different promise: the operations that worked stay.
+  // A receipt that calls that state clean is the same mistake as a rollback
+  // that never checked.
+  'mutation-non-atomic': buildMutationPlanLuau([
+    { op: 'set_attribute', target: MUT, name: 'Kept', value: 'yes' },
+    { op: 'set_property', target: MUT, property: 'Anchored', value: 'not a boolean' },
+  ], false, false),
   // Executed. The bucket is the security path in everything the network
   // generator emits, and a limiter that refills wrong is a limiter that is not
   // there. The server module embeds this verbatim.

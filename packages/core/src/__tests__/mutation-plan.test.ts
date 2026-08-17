@@ -58,8 +58,12 @@ describe('buildMutationPlanLuau', () => {
 
   it('reports a restore that failed instead of calling the rollback done', () => {
     const code = buildMutationPlanLuau(ops, false, true);
-    expect(code).toContain('rollbackComplete = #rollbackFailures == 0');
-    expect(code).toContain('partiallyApplied = rolledBack and #rollbackFailures > 0');
+    expect(code).toContain('if rolledBack then rollbackComplete = #rollbackFailures == 0 end');
+    // `atomic: false` keeps whatever worked, by design. A receipt that reports
+    // a completed rollback there describes a rollback that never happened, and
+    // one that says nothing at all leaves the caller to infer the split from
+    // two counts.
+    expect(code).toContain('else partiallyApplied = failed > 0 and succeeded > 0 end');
     // The bare pcall that swallowed every restore error is what made
     // `rolledBack = true` mean "trust me" rather than "checked".
     expect(code).not.toContain('if inst then pcall(function()');
