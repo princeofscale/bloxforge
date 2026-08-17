@@ -219,6 +219,12 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       players: { type: 'array', items: { type: 'object', additionalProperties: true } },
       playerCount: { type: 'number' },
       worldValues: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      // How many there were, against how many came back: the list is capped, and
+      // a capped list reported as the whole one is how a caller concludes a
+      // value does not exist.
+      worldValueCount: { type: 'number' },
+      worldValuesTruncated: { type: 'boolean' },
+      worldValuesLimit: { type: 'number' },
       activeAudio: { type: 'array', items: { type: 'object', additionalProperties: true } },
       activeAudioCount: { type: 'number' },
     },

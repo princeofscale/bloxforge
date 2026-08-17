@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `playtest_sample_state` read `RunService.IsRunning` without calling it. In
+  Luau that yields the method itself, which is truthy, so `not` on it was false
+  in edit mode too — the one case the branch exists for. The same call is made
+  correctly ten lines above it.
+
+- `playtest_sample_state` also capped its world-value list at 100 and reported
+  the remainder as if it did not exist. It now returns `worldValueCount` and,
+  when the cap applied, `worldValuesTruncated` — a capped list read as the whole
+  list is how an agent concludes a flag is missing and writes a second one.
+
 - The `ui_*` tools turned an unusable enum name into a syntax error. A `font`,
   `sortOrder`, `fillDirection` or alignment is stripped to letters and digits
   before it is emitted as `Enum.Font.X`; a value with nothing left after
