@@ -659,6 +659,61 @@ do
 	end
 end
 
+-- === asset_sanitize_apply ===================================================
+-- Neutralises the scripts in a model the user did not write, from a list of
+-- paths. Two children may share a name, and in a foreign model that usually
+-- means two `Script`s called "Script": resolving that path twice returned the
+-- same instance twice, so one was disabled twice and the other stayed live
+-- behind a receipt that said two were disabled.
+do
+	local function scriptIn(parent, name, class)
+		local s = roblox.Instance.new(class or "Script")
+		s.Name = name
+		if class ~= "ModuleScript" then s.Enabled = true end
+		s.Parent = parent
+		return s
+	end
+
+	local foreign = roblox.Instance.new("Model")
+	foreign.Name = "Foreign"
+	foreign.Parent = ws
+	local first = scriptIn(foreign, "Script")
+	local second = scriptIn(foreign, "Script")
+	local moduleScript = scriptIn(foreign, "Mod", "ModuleScript")
+	-- Named by nobody: added after the plan was made, and must be left alone.
+	local unlisted = scriptIn(foreign, "Unlisted")
+
+	local disabled = run("sanitize-disable")
+	if disabled then
+		eq("sanitize: the first of two same-named scripts is disabled", first.Enabled, false)
+		eq("sanitize: and so is the second", second.Enabled, false)
+		eq("sanitize: a script the plan did not name is untouched", unlisted.Enabled, true)
+		eq("sanitize: two disables are two disables", disabled.appliedCount, 2)
+		-- A ModuleScript has no Enabled. Saying so is the difference between a
+		-- model that was neutralised and one that only looks it.
+		eq("sanitize: the ModuleScript is reported, not silently left live", disabled.skippedCount, 1)
+		check("sanitize: and the reason names the problem",
+			tostring((disabled.skipped[1] or {}).reason):find("ModuleScript") ~= nil,
+			tostring((disabled.skipped[1] or {}).reason))
+		eq("sanitize: the ModuleScript is still there to audit", moduleScript.Parent, foreign)
+	end
+
+	local foreign2 = roblox.Instance.new("Model")
+	foreign2.Name = "Foreign2"
+	foreign2.Parent = ws
+	local keep = scriptIn(foreign2, "Script")
+	local alsoKeep = scriptIn(foreign2, "Script")
+
+	local removed = run("sanitize-remove")
+	if removed then
+		eq("sanitize: both same-named scripts are removed", removed.appliedCount, 2)
+		eq("sanitize: the first is unparented", keep.Parent, nil)
+		eq("sanitize: and so is the second", alsoKeep.Parent, nil)
+		-- Unparented, not destroyed: that is what keeps the change undoable.
+		eq("sanitize: the instance survives the unparenting", keep.Name, "Script")
+	end
+end
+
 -- === generated for the user's game, not for us ==============================
 -- These emit Luau that runs in a player's experience, so nothing else in this
 -- repository would ever parse them. A generator that emits unparseable Luau is

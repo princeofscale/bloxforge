@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `asset_sanitize_apply` left one of two same-named scripts live. Its targets
+  arrive as paths, and it resolved each with `FindFirstChild`, which returns the
+  first match — so two `Script`s called "Script" under the same model (the
+  common shape of a model you did not write) resolved to the same instance
+  twice. The first was disabled twice, the second stayed enabled, and the
+  receipt reported two disabled. Under `action: "remove"` the second resolve
+  unparented an instance the caller had never seen.
+
+  The apply now walks the subtree it was given and matches each script's own
+  full name against the counts the plan recorded, so duplicates are separate
+  instances again. A script the plan did not name is still left alone, and
+  anything the plan named that the walk did not reach is reported instead of
+  passing silently. This is the security-facing tool in the set: the whole point
+  of it is that a foreign script is not running afterwards.
+
 - `apply_mutation_plan` ignored `expected: null`. That is the one precondition
   whose whole purpose is "do not write over something that is already there" —
   and the tool schema advertises it. Operations travel to Studio as JSON, JSON
