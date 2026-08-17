@@ -22,8 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first match — so two `Script`s called "Script" under the same model (the
   common shape of a model you did not write) resolved to the same instance
   twice. The first was disabled twice, the second stayed enabled, and the
-  receipt reported two disabled. Under `action: "remove"` the second resolve
-  unparented an instance the caller had never seen.
+  receipt reported two disabled.
+
+  `action: "remove"` survived that particular case by accident — unparenting the
+  first made the second resolvable — but not the other way a path is ambiguous.
+  A name may contain a dot and `GetFullName()` joins names with dots, so a
+  Script called `A.B` and a Script `B` inside a Folder `A` report the same path:
+  the resolve reached the folder's one and reported the other as not found,
+  leaving it in the place and running.
 
   The apply now walks the subtree it was given and matches each script's own
   full name against the counts the plan recorded, so duplicates are separate

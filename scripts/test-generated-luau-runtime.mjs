@@ -190,6 +190,15 @@ const generated = {
     ['game.Workspace.Foreign2.Script', 'game.Workspace.Foreign2.Script'],
     'remove',
   ),
+  // A dot in a name makes GetFullName() ambiguous: a Script called "A.B" and a
+  // Script "B" inside a Folder "A" have the same full name. Roblox writes both
+  // that way, so the scan reports both, and resolving the path found the folder
+  // one twice.
+  'sanitize-remove-dotted': buildSanitizeApplyLuau(
+    'game.Workspace.Foreign3',
+    ['game.Workspace.Foreign3.A.B', 'game.Workspace.Foreign3.A.B'],
+    'remove',
+  ),
   // The ui_create_* family writes real instances into StarterGui from typed
   // options. Every property here is a typed Roblox value assembled by string
   // concatenation, and a UDim2 with the arguments in the wrong order looks

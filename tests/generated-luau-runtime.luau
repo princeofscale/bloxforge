@@ -777,6 +777,27 @@ do
 		-- Unparented, not destroyed: that is what keeps the change undoable.
 		eq("sanitize: the instance survives the unparenting", keep.Name, "Script")
 	end
+
+	-- A name may contain a dot, and GetFullName() joins names with dots, so a
+	-- Script called "A.B" and a Script "B" inside a Folder "A" report the same
+	-- path. Walking distinguishes them; resolving that path reached the folder's
+	-- one twice and left the other running under a receipt that said otherwise.
+	local foreign3 = roblox.Instance.new("Model")
+	foreign3.Name = "Foreign3"
+	foreign3.Parent = ws
+	local folder = roblox.Instance.new("Folder")
+	folder.Name = "A"
+	folder.Parent = foreign3
+	local inFolder = scriptIn(folder, "B")
+	local dotted = scriptIn(foreign3, "A.B")
+	eq("sanitize: the two scripts really do share a path", inFolder:GetFullName(), dotted:GetFullName())
+
+	local dottedResult = run("sanitize-remove-dotted")
+	if dottedResult then
+		eq("sanitize: both scripts at the ambiguous path are removed", dottedResult.appliedCount, 2)
+		eq("sanitize: the one inside the folder is gone", inFolder.Parent, nil)
+		eq("sanitize: and so is the one whose own name holds the dot", dotted.Parent, nil)
+	end
 end
 
 -- === generated for the user's game, not for us ==============================
