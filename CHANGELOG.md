@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `apply_recipe`, the game templates and
+  `environment_create_day_night_cycle_script` replaced a same-named instance
+  with `Destroy()`. `Destroy` locks the parent permanently, so if the name
+  belonged to something the user had built rather than to a previous run, the
+  undo waypoint these tools open could not put it back. They now unparent, which
+  is what `asset_sanitize_apply` already does and for the same stated reason.
+
 - `playtest_sample_state` read `RunService.IsRunning` without calling it. In
   Luau that yields the method itself, which is truthy, so `not` on it was false
   in edit mode too — the one case the branch exists for. The same call is made

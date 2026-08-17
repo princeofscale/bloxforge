@@ -16,7 +16,9 @@ local StarterGui = game:GetService("StarterGui")
 local function ensure(parent, name, className)
 \tlocal existing = parent:FindFirstChild(name)
 \tif existing and existing.ClassName == className then return existing end
-\tif existing then existing:Destroy() end
+\t-- Unparent rather than Destroy: a template re-run replaces whatever holds
+\t-- the name, and Destroy would put the user's own instance beyond an undo.
+\tif existing then existing.Parent = nil end
 \tlocal inst = Instance.new(className)
 \tinst.Name = name
 \tinst.Parent = parent

@@ -219,7 +219,9 @@ end)`;
     'local ServerScriptService = game:GetService("ServerScriptService")',
     'if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `local existing = ServerScriptService:FindFirstChild(${luaString(scriptName)})`,
-    'if existing then existing:Destroy() end',
+    // Unparent rather than Destroy: Destroy locks the parent permanently and
+    // takes the replaced script out of reach of an undo.
+    'if existing then existing.Parent = nil end',
     'local script = Instance.new("Script")',
     `script.Name = ${luaString(scriptName)}`,
     `script.Source = [==[\n${cycleSource}\n]==]`,

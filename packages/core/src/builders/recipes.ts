@@ -38,7 +38,10 @@ const proximityDoor: RecipeFn = (p) => {
 local parent = resolvePath(${luaString(parent)})
 if not parent then return { error = "Parent not found: " .. ${luaString(parent)} } end
 local existing = parent:FindFirstChild(${luaString(name)})
-if existing then existing:Destroy() end
+-- Unparent rather than Destroy. Destroy locks the parent permanently, so a
+-- recipe that replaced something the user had built by that name could not be
+-- undone; unparenting leaves the name free and the instance recoverable.
+if existing then existing.Parent = nil end
 if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local door = Instance.new("Part")
 door.Name = ${luaString(name)}
@@ -77,7 +80,10 @@ local groupName = "MCPMusicGroup"
 local group = SoundService:FindFirstChild(groupName)
 if not group then group = Instance.new("SoundGroup") group.Name = groupName group.Parent = SoundService end
 local existing = SoundService:FindFirstChild(${luaString(name)})
-if existing then existing:Destroy() end
+-- Unparent rather than Destroy. Destroy locks the parent permanently, so a
+-- recipe that replaced something the user had built by that name could not be
+-- undone; unparenting leaves the name free and the instance recoverable.
+if existing then existing.Parent = nil end
 if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local sound = Instance.new("Sound")
 sound.Name = ${luaString(name)}
@@ -100,7 +106,10 @@ const killBrick: RecipeFn = (p) => {
 local parent = resolvePath(${luaString(parent)})
 if not parent then return { error = "Parent not found: " .. ${luaString(parent)} } end
 local existing = parent:FindFirstChild(${luaString(name)})
-if existing then existing:Destroy() end
+-- Unparent rather than Destroy. Destroy locks the parent permanently, so a
+-- recipe that replaced something the user had built by that name could not be
+-- undone; unparenting leaves the name free and the instance recoverable.
+if existing then existing.Parent = nil end
 if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
 local brick = Instance.new("Part")
 brick.Name = ${luaString(name)}
