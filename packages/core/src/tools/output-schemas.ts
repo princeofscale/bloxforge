@@ -122,6 +122,10 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       counts: { type: 'object', additionalProperties: true },
       topClasses: { type: 'array', items: { type: 'object', additionalProperties: true } },
       roots: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      // The roots list is capped. Without these a subtree with more populated
+      // children came back looking like it had exactly the cap.
+      rootCount: { type: 'number' },
+      rootsTruncated: { type: 'boolean' },
       environment: { type: 'object', additionalProperties: true },
       error: { type: 'string' },
     },

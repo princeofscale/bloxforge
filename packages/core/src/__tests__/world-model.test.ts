@@ -88,7 +88,13 @@ describe('buildWorldSnapshotLuau', () => {
     const code = buildWorldSnapshotLuau();
     expect(code).toContain('local ROOT_LIMIT = 30');
     expect(code).toContain('if childCount > 0 and inPlaceScope(root, c) then');
-    expect(code).toContain('if #roots >= ROOT_LIMIT then break end');
+    // Capped, not stopped: breaking out of the loop at thirty made a subtree
+    // with more populated children come back looking like it had exactly
+    // thirty, and that is the number an agent then plans around. Asserted
+    // end-to-end in tests/generated-luau-runtime.luau on a subtree of 34.
+    expect(code).toContain('if #roots < ROOT_LIMIT then');
+    expect(code).not.toContain('if #roots >= ROOT_LIMIT then break end');
+    expect(code).toContain('rootsTruncated = rootTotal > #roots');
   });
 
   it('reads capability-gated Lighting.Technology through pcall (PluginSecurity safe)', () => {

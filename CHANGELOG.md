@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   undo waypoint these tools open could not put it back. They now unparent, which
   is what `asset_sanitize_apply` already does and for the same stated reason.
 
+- `get_world_snapshot` stopped **collecting** notable subtree roots at thirty
+  rather than reporting thirty, so a Workspace with more populated children came
+  back looking like it had exactly thirty — the number an agent then plans
+  around. It counts them all and reports `rootCount` and `rootsTruncated`.
+
 - `get_spatial_layout` stopped **collecting** spawn points at twelve, not just
   reporting twelve. The floor it returns is a guess scored on evidence, and the
   strongest piece of that evidence is "a SpawnLocation rests just above it" — so
@@ -77,11 +82,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `tests/generated-luau-runtime.luau` now also runs `apply_mutation_plan`,
-  `asset_sanitize_apply` and the four `ui_*` generators against a real
-  DataModel, taking the harness from 84 checks to 144. Three of the four bugs
-  above were found by running the generated Luau rather than matching strings
-  against it; the `ui_*` family passed on the first run, which is the other
-  thing a check is for.
+  `asset_sanitize_apply`, `get_world_snapshot` and the four `ui_*` generators
+  against a real DataModel, taking the harness from 84 checks to 174. Most of
+  the bugs above were found by running the generated Luau rather than matching
+  strings against it; the `ui_*` family passed on the first run, which is the
+  other thing a check is for.
+
+  `get_world_snapshot` was previously unrunnable here because rbx-dom has no
+  default for `game.PlaceId`. It runs against a `game` stub carrying that one
+  property and proxying everything else to the real DataModel — a ceiling the
+  file states, along with what would lift it.
 
 - `apply_mutation_plan` ignored `expected: null`. That is the one precondition
   whose whole purpose is "do not write over something that is already there" —

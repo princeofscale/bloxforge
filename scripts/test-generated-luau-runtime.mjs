@@ -32,7 +32,7 @@ const load = async (file) => {
 };
 
 const { buildSpatialLayoutLuau } = await load('scene-layout.js');
-const { buildNodeBatchLuau } = await load('world-model.js');
+const { buildNodeBatchLuau, buildWorldSnapshotLuau } = await load('world-model.js');
 const { buildSceneSearchLuau } = await load('scene-search.js');
 const { buildSceneSummaryLuau } = await load('scene-summary.js');
 const { buildWorldFingerprintLuau } = await load('world-fingerprint.js');
@@ -139,6 +139,12 @@ const generated = {
   'spatial-layout-spawns': buildSpatialLayoutLuau('game.Workspace.SpawnField', 8, 6),
   'scene-search': buildSceneSearchLuau('ground', 'game.Workspace', 10),
   'scene-summary': buildSceneSummaryLuau('game.Workspace', 20),
+  // The token-lean overview an agent reads before anything else. Its class
+  // counts, its tie-break and its notable-roots cap were all string assertions.
+  'world-snapshot': buildWorldSnapshotLuau('game.Workspace', 'overview', 20),
+  // More populated children than the notable-roots list holds. Breaking out of
+  // the loop at thirty made a subtree with more look like it had exactly thirty.
+  'world-snapshot-crowd': buildWorldSnapshotLuau('game.Workspace.Crowd', 'overview', 20),
   'world-fingerprint': buildWorldFingerprintLuau('game.Workspace'),
   'fit-scan': buildFitScanLuau('game.Workspace.Nope'),
   // design_lint's contrast rule is arithmetic over composited colours, which is

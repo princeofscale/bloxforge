@@ -680,6 +680,97 @@ do
 	end
 end
 
+-- === get_world_snapshot =====================================================
+-- The overview an agent reads before anything else, so what it leaves out is
+-- what the agent never looks for. rbx-dom has no default for game.PlaceId, so
+-- `game` is a stub carrying that one property and proxying everything else to
+-- the real DataModel — every count, class and child below is genuine.
+--
+-- ponytail: PlaceId and Name come from the stub. Ceiling: this cannot catch a
+-- change in what Studio reports for a published place. Upgrade path: the plugin
+-- integration job, which has a real one.
+do
+	local terrain = roblox.Instance.new("Terrain")
+	terrain.Parent = ws
+	ws.Terrain = terrain
+
+	local fakeGame = {
+		PlaceId = 0,
+		Name = "RuntimeTestPlace",
+		GetService = function(_, name) return dm:GetService(name) end,
+		FindFirstChild = function(_, name) return dm:FindFirstChild(name) end,
+	}
+	local snapshotEnv = env()
+	snapshotEnv.game = fakeGame
+
+	local snap = run("world-snapshot", snapshotEnv)
+	if snap then
+		eq("snapshot: the root it was asked for", snap.root, "game.Workspace")
+		eq("snapshot: an explicit path is the exact subtree", snap.scope, "exact subtree")
+		check("snapshot: it counted the descendants", snap.counts.totalDescendants > 0,
+			tostring(snap.counts.totalDescendants))
+		check("snapshot: and distinct classes", snap.counts.distinctClasses > 1,
+			tostring(snap.counts.distinctClasses))
+
+		-- Ranked by count, ties by name. Both halves asserted: descending
+		-- counts, and alphabetical order within a tie.
+		local ordered, tiesOrdered = true, true
+		for i = 2, #snap.topClasses do
+			local a, b = snap.topClasses[i - 1], snap.topClasses[i]
+			if b.count > a.count then ordered = false end
+			if a.count == b.count and a.className > b.className then tiesOrdered = false end
+		end
+		check("snapshot: classes come back most-common first", ordered)
+		check("snapshot: and equal counts are ordered by name, not by pairs()", tiesOrdered)
+
+		eq("snapshot: nothing is truncated at this size", snap.rootsTruncated, false)
+		eq("snapshot: and the count agrees with the list", snap.rootCount, #snap.roots)
+
+		eq("snapshot: terrain is seen", snap.environment.hasTerrain, true)
+		eq("snapshot: and no clouds were invented", snap.environment.hasClouds, false)
+		-- ClockTime has no default in rbx-dom, and the builder reads every
+		-- Lighting property through pcall for exactly this class of reason.
+		check("snapshot: an unreadable Lighting property omits itself rather than throwing",
+			snap.environment.clockTime == nil or type(snap.environment.clockTime) == "number")
+	end
+
+	-- More populated children than the list holds. The loop used to break at
+	-- thirty, so a Workspace with more came back looking like it had exactly
+	-- thirty — which is then the number an agent plans around.
+	local crowd = roblox.Instance.new("Folder")
+	crowd.Name = "Crowd"
+	crowd.Parent = ws
+	for i = 1, 34 do
+		local holder = roblox.Instance.new("Folder")
+		holder.Name = string.format("Group%02d", i)
+		holder.Parent = crowd
+		local child = roblox.Instance.new("Part")
+		child.Name = "Item"
+		child.Parent = holder
+	end
+	-- One childless folder, which must not be listed and must not be counted.
+	local empty = roblox.Instance.new("Folder")
+	empty.Name = "Empty"
+	empty.Parent = crowd
+
+	local crowded = run("world-snapshot-crowd", snapshotEnv)
+	if crowded then
+		eq("snapshot: the notable-roots list is capped at thirty", #crowded.roots, 30)
+		eq("snapshot: the count is what was actually there", crowded.rootCount, 34)
+		eq("snapshot: and the list says it was cut off", crowded.rootsTruncated, true)
+		-- A notable root has children by definition. A childless one in the list
+		-- is how a token-lean overview fills up with nothing, and a childless one
+		-- in the count is how the caller is told there is more than there is.
+		local allPopulated, listedEmpty = true, false
+		for _, r in ipairs(crowded.roots) do
+			if r.childCount <= 0 then allPopulated = false end
+			if r.name == "Empty" then listedEmpty = true end
+		end
+		check("snapshot: every notable root contains something", allPopulated)
+		check("snapshot: the childless folder is neither listed nor counted", not listedEmpty)
+	end
+end
+
 -- === get_spatial_layout, with more spawns than it reports ===================
 -- The reported spawn list is capped at twelve. The cap used to stop the
 -- collection itself, so in a place with more, whether the floor was confirmed
