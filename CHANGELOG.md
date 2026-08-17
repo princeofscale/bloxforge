@@ -19,13 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when the cap applied, `worldValuesTruncated` — a capped list read as the whole
   list is how an agent concludes a flag is missing and writes a second one.
 
-- The `ui_*` tools turned an unusable enum name into a syntax error. A `font`,
-  `sortOrder`, `fillDirection` or alignment is stripped to letters and digits
-  before it is emitted as `Enum.Font.X`; a value with nothing left after
-  stripping produced `Enum.Font.`, which does not parse — so the caller got a
-  Luau parser message about a snippet it never sees, instead of a sentence about
-  the value it passed. The shape is now checked, and a well-formed name Roblox
-  does not know still reaches Roblox, which rejects it by name.
+- The `ui_*`, `terrain_*` and `asset_apply_texture` tools turned an unusable
+  name into a syntax error. A `font`, `sortOrder`, `fillDirection`, alignment,
+  terrain `material` or texture `property` is stripped to letters and digits
+  before it is interpolated into the generated Luau; a value with nothing left
+  after stripping produced `Enum.Font.`, `Enum.Material.` or `target. =`, none
+  of which parse — so the caller got a Luau parser message about a snippet it
+  never sees, instead of a sentence about the value it passed. The three
+  independent copies of that stripping are now one checked helper in
+  `luau-emit.ts`, and a well-formed name Roblox does not know still reaches
+  Roblox, which rejects it by name.
+
+- `terrain_generate_mountains` was gated on volume, which is the right measure
+  for one `FillBlock` and the wrong one for a grid of them. The grid is
+  quadratic in `resolution`: extent 2000×2000 at the minimum resolution is
+  ~250,000 `FillBlock` calls whatever `maxHeight` makes the volume. Freezing
+  Studio is the thing the terrain gates exist to prevent, so the call count is
+  now a measure too, with an error that names `resolution` as the knob. The
+  ceiling is a chosen number, not a measured one, and says so in the code.
 
 - `asset_sanitize_apply` left one of two same-named scripts live. Its targets
   arrive as paths, and it resolved each with `FindFirstChild`, which returns the

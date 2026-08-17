@@ -59,7 +59,7 @@ describe('buildGuiObjectLuau', () => {
   // it by name.
   it('refuses an enum name that would not survive stripping', () => {
     const parent = 'StarterGui.MainGui';
-    expect(() => buildGuiObjectLuau('TextLabel', { parentPath: parent, font: '🙂' })).toThrow(/font must name an Enum member/);
+    expect(() => buildGuiObjectLuau('TextLabel', { parentPath: parent, font: '🙂' })).toThrow(/font must name an Enum\.Font member/);
     expect(() => buildGuiObjectLuau('TextLabel', { parentPath: parent, font: '2Fast' })).toThrow(/font/);
     expect(() => buildApplyLayoutLuau(parent, { layout: 'list', sortOrder: '---' })).toThrow(/sortOrder/);
     expect(() => buildApplyLayoutLuau(parent, { layout: 'list', fillDirection: ' ' })).toThrow(/fillDirection/);

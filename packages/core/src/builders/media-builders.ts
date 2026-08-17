@@ -3,7 +3,7 @@
 // edit context, so they handle asset URIs and class-specific properties cleanly
 // without a plugin rebuild.
 
-import { luaString, luaNumber, luaBool, PATH_RESOLVER_LUA } from './luau-emit.js';
+import { luaString, luaNumber, luaBool, luaIdentifier, PATH_RESOLVER_LUA } from './luau-emit.js';
 
 /** Normalize an asset reference to a usable Roblox content URI. */
 export function assetUri(asset: number | string): string {
@@ -119,7 +119,7 @@ export function buildApplyTextureLuau(options: ApplyTextureOptions): string {
     const body = `local target = resolvePath(${luaString(options.targetPath)})
 if target == nil then error("Target not found: " .. ${luaString(options.targetPath)}) end
 if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end
-target.${options.property.replace(/[^A-Za-z0-9]/g, '')} = ${uri}
+target.${luaIdentifier('a property name', 'property', options.property)} = ${uri}
 return { path = target:GetFullName(), property = ${luaString(options.property)}, success = true }`;
     return wrap(body);
   }
