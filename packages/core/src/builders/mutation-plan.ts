@@ -177,8 +177,8 @@ end
 local rollbackComplete = nil
 if rolledBack then rollbackComplete = #rollbackFailures == 0 end
 
--- Whether the place is in a state the caller did not ask for. Three ways in:
--- a rollback that could not finish, and a non-atomic plan where some operations
+-- Whether the place is in a state the caller did not ask for. Two ways in: a
+-- rollback that could not finish, and a non-atomic plan where some operations
 -- landed and others did not.
 local partiallyApplied = false
 if not dryRun then

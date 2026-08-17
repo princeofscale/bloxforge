@@ -72,7 +72,8 @@ for _, d in ipairs(root:GetDescendants()) do
 \t\t-- Every spawn is collected, not the first twelve. The list is capped only
 \t\t-- where it is reported: the ground-confidence test below asks whether *a*
 \t\t-- spawn rests on the candidate floor, and stopping at twelve made that
-\t\t-- answer depend on traversal order in a place with more.
+\t\t-- answer depend on traversal order in a place with more. Bounded by the
+\t\t-- scan LIMIT above, which is what keeps this from being unbounded.
 \t\t-- CFrame.Position rather than .Position: the same value, and the one a
 \t\t-- non-Studio Luau host can actually read.
 \t\tlocal p = d.CFrame.Position
