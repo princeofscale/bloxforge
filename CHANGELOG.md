@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `get_changes_since` diffed one subtree against a fingerprint of another. A
+  snapshot is a fingerprint *of a path*, but `path` defaulted to `game` on every
+  call — so baselining `game.Workspace` and then polling with the snapshotId
+  alone, which is the obvious way to use it, compared the whole DataModel
+  against a Workspace baseline and returned a scene full of changes that never
+  happened. An omitted path now follows the snapshot, and a path that disagrees
+  with the baseline is refused by name rather than answered. An unknown
+  snapshotId is also rejected before the capture instead of after it.
+
+  The same capture accepted a `returnValue` only as a JSON string, while the
+  sanitize and fit scans beside it accept an already-decoded object — because
+  one of them met one. That would have made the changefeed the single read that
+  could not parse the world off a bridge response the others handle.
+
 - `apply_recipe`, the game templates and
   `environment_create_day_night_cycle_script` replaced a same-named instance
   with `Destroy()`. `Destroy` locks the parent permanently, so if the name
