@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `apply_mutation_plan` ignored `expected: null`. That is the one precondition
+  whose whole purpose is "do not write over something that is already there" —
+  and the tool schema advertises it. Operations travel to Studio as JSON, JSON
+  `null` decodes to `nil`, and a `nil` expectation was indistinguishable from no
+  expectation at all, so the guard was dropped before it ran and the write went
+  ahead over whatever was there. The intent now travels in a key that survives
+  the decode, and an absent tag is compared as `false` rather than `nil`, so
+  "expect untagged" does not pass on every instance in the place.
+
+- A precondition naming a property that does not exist took the whole plan down
+  with a raw Luau error: the precheck read `inst[op.property]` unguarded, while
+  the apply loop three lines below `pcall`s the same read. It now comes back as
+  a conflict marked `unreadable`.
+
+- An unset attribute compared as the string `"nil"` in that same precheck,
+  because `ser(nil)` stringifies. `expected: "nil"` would have matched an unset
+  attribute; nothing else would.
+
+- An atomic rollback swallowed every restore error in a bare `pcall` and then
+  reported `rolledBack = true` regardless. That reads as "nothing changed" while
+  the place is half-mutated — the one state a caller must not be told is clean.
+  Failed restores are now collected and returned as `rollbackFailures`, with
+  `rollbackComplete` and `partiallyApplied` saying which of the two happened.
+
+  All five are now run rather than read: `tests/generated-luau-runtime.luau`
+  executes the generated plan against a real DataModel, with `game` stubbed only
+  for the two services Lune does not implement (`HttpService:JSONDecode`, and
+  `CollectionService`, which Lune reaches through the Instance). Every path
+  lookup and every write in that test is real, and the checks fail on the old
+  builder.
+
 ### Changed
 
 - Four ranked lists had no tie-break, so entries with equal scores came back in

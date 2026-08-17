@@ -38,6 +38,7 @@ const { buildSceneSummaryLuau } = await load('scene-summary.js');
 const { buildWorldFingerprintLuau } = await load('world-fingerprint.js');
 const { buildFitScanLuau } = await load('asset-fit.js');
 const { buildDesignLintLuau } = await load('design-builders.js');
+const { buildMutationPlanLuau } = await load('mutation-plan.js');
 
 // The network and UI generators emit Luau for the *user's* game rather than for
 // BloxForge to run, so nothing else here would ever parse them. A generator
@@ -114,6 +115,7 @@ const fusion = exportFusion({
 });
 
 // Names are what the Luau side asserts on; keep them in step.
+const MUT = 'game.Workspace.MutTarget';
 const generated = {
   'spatial-layout': buildSpatialLayoutLuau('game.Workspace', 16, 10),
   'node-batch': buildNodeBatchLuau(
@@ -143,6 +145,31 @@ const generated = {
   'network-server': network.serverLuau,
   'network-client': network.clientLuau,
   'ui-fusion': fusion.luau,
+  // apply_mutation_plan is the only generated Luau here that writes, so its
+  // preconditions and its rollback are the two places being wrong costs the
+  // user their scene. Both were only ever asserted as strings.
+  'mutation-dry-run': buildMutationPlanLuau(
+    [{ op: 'set_property', target: MUT, property: 'Anchored', value: false }], true),
+  // `expected: null` is the guard against creating something that already
+  // exists. JSON null decodes to nil, and a nil `expected` used to read as no
+  // precondition at all — so the guard silently did not run.
+  'mutation-expect-unset-taken': buildMutationPlanLuau(
+    [{ op: 'set_attribute', target: MUT, name: 'Owner', value: 'plan', expected: null }], false),
+  'mutation-expect-unset-free': buildMutationPlanLuau(
+    [{ op: 'set_attribute', target: MUT, name: 'Fresh', value: 'plan', expected: null }], false),
+  'mutation-expect-untagged': buildMutationPlanLuau(
+    [{ op: 'add_tag', target: MUT, tag: 'Existing', expected: null }], false),
+  // A precondition naming a property that does not exist: the read throws, and
+  // unguarded it took the whole plan down with a raw Luau error.
+  'mutation-unreadable': buildMutationPlanLuau(
+    [{ op: 'set_property', target: MUT, property: 'Anchoredd', value: true, expected: true }], false),
+  // Atomic rollback: a tag and a property applied, then a type error, then the
+  // reverse plan run backwards.
+  'mutation-rollback': buildMutationPlanLuau([
+    { op: 'add_tag', target: MUT, tag: 'Rolled' },
+    { op: 'set_property', target: MUT, property: 'Anchored', value: false },
+    { op: 'set_property', target: MUT, property: 'Anchored', value: 'not a boolean' },
+  ], false, true),
   // Executed. The bucket is the security path in everything the network
   // generator emits, and a limiter that refills wrong is a limiter that is not
   // there. The server module embeds this verbatim.

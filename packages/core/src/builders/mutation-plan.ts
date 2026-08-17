@@ -23,9 +23,16 @@ export interface MutationOp {
 }
 
 export function buildMutationPlanLuau(operations: MutationOp[], dryRun: boolean, atomic = true): string {
+  // `expected: null` means "I expect no value here" — the guard that stops a
+  // plan from creating an attribute someone else already created. JSON null
+  // decodes to nil, and a nil `expected` is indistinguishable from no
+  // `expected` at all, so the check the caller asked for used to be dropped and
+  // the write went ahead. Carry the intent in a key that survives the decode.
+  const encoded = operations.map((op) =>
+    op.expected === null ? { ...op, expected: undefined, expectUnset: true } : op);
   // Operations travel as a JSON literal decoded inside Luau (HttpService:JSONDecode),
   // so user strings never interpolate into code — injection-safe.
-  const opsJson = JSON.stringify(JSON.stringify(operations));
+  const opsJson = JSON.stringify(JSON.stringify(encoded));
   return `${PATH_RESOLVER_LUA}
 local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService")
@@ -46,13 +53,31 @@ local conflicts = {}
 
 for index, op in ipairs(ops) do
 \tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { applied = false, cancelled = true } end
-\tif op.expected ~= nil then
+\tif op.expected ~= nil or op.expectUnset then
 \t\tlocal inst = resolvePath(op.target)
-\t\tlocal current
-\t\tif inst and op.op == "set_property" then current = ser(inst[op.property])
-\t\telseif inst and op.op == "set_attribute" then current = ser(inst:GetAttribute(op.name))
+\t\tlocal current, readable = nil, true
+\t\tif inst and op.op == "set_property" then
+\t\t\t-- Reading a property that does not exist throws. Unguarded, a typo in a
+\t\t\t-- precondition took down the whole plan with a raw Luau error instead of
+\t\t\t-- reporting which check could not be made.
+\t\t\tlocal ok, value = pcall(function() return inst[op.property] end)
+\t\t\treadable = ok
+\t\t\tif ok then current = ser(value) end
+\t\telseif inst and op.op == "set_attribute" then
+\t\t\tlocal before = inst:GetAttribute(op.name)
+\t\t\tif before ~= nil then current = ser(before) end
 \t\telseif inst and (op.op == "add_tag" or op.op == "remove_tag") then current = CollectionService:HasTag(inst, op.tag) end
-\t\tif current ~= op.expected then table.insert(conflicts, { index = index, target = op.target, expected = op.expected, actual = current }) end
+\t\t-- An absent tag is false, not nil: "expect unset" on a tag means untagged.
+\t\tlocal expected = op.expected
+\t\tif op.expectUnset then
+\t\t\texpected = nil
+\t\t\tif op.op == "add_tag" or op.op == "remove_tag" then expected = false end
+\t\tend
+\t\tif not readable then
+\t\t\ttable.insert(conflicts, { index = index, target = op.target, expected = expected, actual = nil, unreadable = true })
+\t\telseif current ~= expected then
+\t\t\ttable.insert(conflicts, { index = index, target = op.target, expected = expected, actual = current })
+\t\tend
 \tend
 end
 
@@ -119,17 +144,29 @@ for _, op in ipairs(ops) do
 end
 
 local rolledBack = false
+local rollbackFailures = {}
 if atomic and not dryRun and failed > 0 then
 \trolledBack = true
 \tfor i = #rollback, 1, -1 do
 \t\tlocal op = rollback[i]
 \t\tlocal inst = resolvePath(op.target)
-\t\tif inst then pcall(function()
-\t\t\tif op.op == "set_property" then inst[op.property] = op.value
-\t\t\telseif op.op == "set_attribute" then inst:SetAttribute(op.name, op.value)
-\t\t\telseif op.op == "add_tag" then CollectionService:AddTag(inst, op.tag)
-\t\t\telseif op.op == "remove_tag" then CollectionService:RemoveTag(inst, op.tag) end
-\t\tend) end
+\t\t-- A restore that fails used to be swallowed by a bare pcall, and the
+\t\t-- receipt still said rolledBack = true. That reads as "nothing changed"
+\t\t-- while the place is half-mutated, which is the one state a caller must
+\t\t-- not be told is clean.
+\t\tif not inst then
+\t\t\ttable.insert(rollbackFailures, { op = op.op, target = op.target, error = "not found" })
+\t\telse
+\t\t\tlocal ok, err = pcall(function()
+\t\t\t\tif op.op == "set_property" then inst[op.property] = op.value
+\t\t\t\telseif op.op == "set_attribute" then inst:SetAttribute(op.name, op.value)
+\t\t\t\telseif op.op == "add_tag" then CollectionService:AddTag(inst, op.tag)
+\t\t\t\telseif op.op == "remove_tag" then CollectionService:RemoveTag(inst, op.tag) end
+\t\t\tend)
+\t\t\tif not ok then
+\t\t\t\ttable.insert(rollbackFailures, { op = op.op, target = op.target, error = tostring(err) })
+\t\t\tend
+\t\tend
 \tend
 end
 
@@ -138,6 +175,9 @@ return {
 \tdryRun = dryRun,
 \tatomic = atomic,
 \trolledBack = rolledBack,
+\trollbackComplete = #rollbackFailures == 0,
+\trollbackFailures = #rollbackFailures > 0 and rollbackFailures or nil,
+\tpartiallyApplied = rolledBack and #rollbackFailures > 0,
 \tresults = results,
 \trollback = rollback,
 \tsummary = { total = #ops, succeeded = succeeded, failed = failed },

@@ -15,6 +15,7 @@ local roblox = require("@lune/roblox")
 local luau = require("@lune/luau")
 local fs = require("@lune/fs")
 local process = require("@lune/process")
+local serde = require("@lune/serde")
 
 local passed, failed = 0, 0
 
@@ -205,9 +206,9 @@ local function env()
 	}
 end
 
-local function run(name)
+local function run(name, environment)
 	local code = fs.readFile(dir .. "/" .. name .. ".luau")
-	local okLoad, fn = pcall(luau.load, code, { environment = env() })
+	local okLoad, fn = pcall(luau.load, code, { environment = environment or env() })
 	if not okLoad then
 		check(name .. " loads", false, tostring(fn):sub(1, 200))
 		return nil
@@ -558,6 +559,103 @@ if values then
 				check("serializer: " .. name .. " was structured, not stringified", false, tostring(value.__type))
 			end
 		end
+	end
+end
+
+-- === apply_mutation_plan ====================================================
+-- The only generated Luau here that writes. Its preconditions decide whether a
+-- write happens at all and its rollback decides what the place looks like when
+-- one fails, so both are exactly the kind of thing a string assertion cannot
+-- check. Lune has no HttpService:JSONDecode and reaches tags through the
+-- Instance rather than through CollectionService, so `game` is stubbed for
+-- these two services only; every path lookup and every write is the real thing.
+do
+	local mut = roblox.Instance.new("Part")
+	mut.Name = "MutTarget"
+	mut.Anchored = true
+	mut.Parent = ws
+	mut:SetAttribute("Owner", "someone-else")
+	mut:AddTag("Existing")
+
+	local httpStub = { JSONDecode = function(_, text) return serde.decode("json", text) end }
+	local collectionStub = {
+		HasTag = function(_, inst, tag) return inst:HasTag(tag) end,
+		AddTag = function(_, inst, tag) inst:AddTag(tag) end,
+		RemoveTag = function(_, inst, tag) inst:RemoveTag(tag) end,
+	}
+	local fakeGame = {
+		GetService = function(_, name)
+			if name == "HttpService" then return httpStub end
+			if name == "CollectionService" then return collectionStub end
+			return dm:GetService(name)
+		end,
+		FindFirstChild = function(_, name) return dm:FindFirstChild(name) end,
+	}
+	local function mutEnv()
+		local e = env()
+		e.game = fakeGame
+		return e
+	end
+
+	-- Index the first conflict through this: a regression that returns no
+	-- conflicts at all would otherwise throw here and take every later check in
+	-- this file with it, turning one failure into no report.
+	local function conflict(result)
+		return (result.conflicts or {})[1] or {}
+	end
+
+	local dry = run("mutation-dry-run", mutEnv())
+	if dry then
+		local row = (dry.results or {})[1] or {}
+		eq("mutation: a dry run reports what it would set", row.wouldSet, false)
+		eq("mutation: and records what is there now", row.before, true)
+		eq("mutation: a dry run is not an apply", dry.applied, false)
+		eq("mutation: and it did not touch the part", mut.Anchored, true)
+	end
+
+	-- `expected: null` means "I expect nothing here". JSON null decodes to nil,
+	-- and a nil expectation used to be indistinguishable from no expectation, so
+	-- the plan wrote over a value someone else had already set.
+	local taken = run("mutation-expect-unset-taken", mutEnv())
+	if taken then
+		eq("mutation: expecting an unset attribute conflicts when it is set", taken.conflict, true)
+		eq("mutation: nothing was applied", taken.applied, false)
+		eq("mutation: and the existing value survived", mut:GetAttribute("Owner"), "someone-else")
+		eq("mutation: the conflict names what is actually there", conflict(taken).actual, "someone-else")
+	end
+
+	local free = run("mutation-expect-unset-free", mutEnv())
+	if free then
+		eq("mutation: expecting an unset attribute passes when it is unset", free.conflict, nil)
+		eq("mutation: and the write goes through", mut:GetAttribute("Fresh"), "plan")
+	end
+
+	local tagged = run("mutation-expect-untagged", mutEnv())
+	if tagged then
+		-- An absent tag is false, not nil: "expect unset" on a tag has to mean
+		-- untagged, or the guard passes on every instance in the place.
+		eq("mutation: expecting an untagged instance conflicts when tagged", tagged.conflict, true)
+		eq("mutation: the conflict reports the tag as present", conflict(tagged).actual, true)
+	end
+
+	local unreadable = run("mutation-unreadable", mutEnv())
+	if unreadable then
+		-- Unguarded this threw out of the whole script: a typo in a precondition
+		-- became a raw Luau error instead of a report of which check failed.
+		eq("mutation: a precondition on a property that does not exist conflicts", unreadable.conflict, true)
+		eq("mutation: and says the value could not be read", conflict(unreadable).unreadable, true)
+	end
+
+	local rolled = run("mutation-rollback", mutEnv())
+	if rolled then
+		eq("mutation: a failing op rolls the earlier ones back", rolled.rolledBack, true)
+		eq("mutation: which is not an apply", rolled.applied, false)
+		eq("mutation: the restore is reported as complete", rolled.rollbackComplete, true)
+		eq("mutation: and nothing is left half-applied", rolled.partiallyApplied, false)
+		eq("mutation: the property is back to what it was", mut.Anchored, true)
+		eq("mutation: and the tag it added is gone", mut:HasTag("Rolled"), false)
+		eq("mutation: the tag it did not add is untouched", mut:HasTag("Existing"), true)
+		eq("mutation: the failure is counted", rolled.summary.failed, 1)
 	end
 end
 

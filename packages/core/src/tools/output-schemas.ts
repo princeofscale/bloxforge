@@ -267,6 +267,11 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       dryRun: { type: 'boolean' },
       results: { type: 'array', items: mutationResult },
       rollback: { type: 'array', items: mutationOperation },
+      rolledBack: { type: 'boolean' },
+      // `rolledBack` alone said a restore was attempted, never whether it
+      // worked. These two say whether the place is back where it started.
+      rollbackComplete: { type: 'boolean' },
+      partiallyApplied: { type: 'boolean' },
       summary: {
         type: 'object',
         additionalProperties: false,
