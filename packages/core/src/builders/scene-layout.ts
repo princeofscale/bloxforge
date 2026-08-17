@@ -68,7 +68,11 @@ for _, d in ipairs(root:GetDescendants()) do
 \t\ttruncated = true
 \t\tbreak
 \tend
-\tif d:IsA("SpawnLocation") and #spawns < 12 then
+\tif d:IsA("SpawnLocation") then
+\t\t-- Every spawn is collected, not the first twelve. The list is capped only
+\t\t-- where it is reported: the ground-confidence test below asks whether *a*
+\t\t-- spawn rests on the candidate floor, and stopping at twelve made that
+\t\t-- answer depend on traversal order in a place with more.
 \t\t-- CFrame.Position rather than .Position: the same value, and the one a
 \t\t-- non-Studio Luau host can actually read.
 \t\tlocal p = d.CFrame.Position
@@ -87,12 +91,24 @@ for _, d in ipairs(root:GetDescendants()) do
 \tend
 end
 
+-- Reported spawns are capped; the count says how many there were, so a short
+-- list is not read as "this is every spawn in the place".
+local SPAWN_REPORT_LIMIT = 12
+local spawnCount = #spawns
+local reportedSpawns = spawns
+if spawnCount > SPAWN_REPORT_LIMIT then
+\treportedSpawns = {}
+\tfor i = 1, SPAWN_REPORT_LIMIT do reportedSpawns[i] = spawns[i] end
+end
+
 if #parts == 0 then
 \treturn {
 \t\tfound = true,
 \t\tpath = "game." .. root:GetFullName(),
 \t\tpartCount = 0,
-\t\tspawns = spawns,
+\t\tspawns = reportedSpawns,
+\t\tspawnCount = spawnCount,
+\t\tspawnsTruncated = spawnCount > #reportedSpawns,
 \t\ttruncated = truncated,
 \t}
 end
@@ -225,7 +241,9 @@ local result = {
 \t\trows = rows,
 \t},
 \tlandmarks = landmarks,
-\tspawns = spawns,
+\tspawns = reportedSpawns,
+\tspawnCount = spawnCount,
+\tspawnsTruncated = spawnCount > #reportedSpawns,
 }
 
 if ground then

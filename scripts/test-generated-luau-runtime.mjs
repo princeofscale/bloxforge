@@ -133,6 +133,10 @@ const generated = {
     ['Size', 'CFrame', 'Color', 'BrickColor', 'Material', 'CustomPhysicalProperties'],
     false,
   ),
+  // A place with more spawns than the reported list holds. The cap used to stop
+  // the *collection*, so whether the floor was confirmed depended on which
+  // twelve the traversal reached first.
+  'spatial-layout-spawns': buildSpatialLayoutLuau('game.Workspace.SpawnField', 8, 6),
   'scene-search': buildSceneSearchLuau('ground', 'game.Workspace', 10),
   'scene-summary': buildSceneSummaryLuau('game.Workspace', 20),
   'world-fingerprint': buildWorldFingerprintLuau('game.Workspace'),

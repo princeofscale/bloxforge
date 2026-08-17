@@ -680,6 +680,48 @@ do
 	end
 end
 
+-- === get_spatial_layout, with more spawns than it reports ===================
+-- The reported spawn list is capped at twelve. The cap used to stop the
+-- collection itself, so in a place with more, whether the floor was confirmed
+-- depended on which twelve the traversal happened to reach first — and the
+-- short list read as every spawn in the place.
+do
+	local field = roblox.Instance.new("Model")
+	field.Name = "SpawnField"
+	field.Parent = ws
+
+	local floor = roblox.Instance.new("Part")
+	floor.Name = "FieldFloor"
+	floor.Anchored = true
+	floor.Size = roblox.Vector3.new(200, 1, 200)
+	floor.CFrame = roblox.CFrame.new(2000, 0, 2000)
+	floor.Parent = field
+
+	-- Fifteen spawns, and only the last one rests on the floor: the twelve the
+	-- old cap kept are all far above it.
+	for i = 1, 15 do
+		local s = roblox.Instance.new("SpawnLocation")
+		s.Name = "Spawn" .. i
+		s.Anchored = true
+		s.Size = roblox.Vector3.new(6, 1, 6)
+		s.CFrame = roblox.CFrame.new(2000, i == 15 and 1.5 or 400, 2000)
+		s.Parent = field
+	end
+
+	local field_layout = run("spatial-layout-spawns")
+	if field_layout then
+		eq("layout: the reported spawn list is capped", #field_layout.spawns, 12)
+		eq("layout: and says how many there were", field_layout.spawnCount, 15)
+		eq("layout: and that it was cut off", field_layout.spawnsTruncated, true)
+		-- The confirming spawn is the fifteenth. Collecting only twelve dropped
+		-- it, and the floor lost its strongest evidence to traversal order.
+		eq("layout: the floor is still found", field_layout.ground.path, "game.Workspace.SpawnField.FieldFloor")
+		check("layout: a spawn past the cap still confirms the floor",
+			table.concat(field_layout.ground.basis, " | "):find("rests") ~= nil,
+			table.concat(field_layout.ground.basis, " | "))
+	end
+end
+
 -- === ui_create_* / ui_apply_layout / ui_make_mobile_friendly ================
 -- These write real instances into StarterGui from typed options. Every value
 -- they set is a Roblox type assembled by string concatenation, and a UDim2 with
