@@ -175,13 +175,19 @@ for i = 1, math.min(${safeTopN}, #arr) do top[i] = arr[i] end
 -- something. At game level this would otherwise dump ~110 empty services and
 -- defeat the token-lean purpose, so skip childless roots and cap the list.
 local roots = {}
+local rootTotal = 0
 local ROOT_LIMIT = 30
 for _, c in ipairs(root:GetChildren()) do
 \tlocal childCount = #c:GetChildren()
 \tif childCount > 0 and inPlaceScope(root, c) then
-\t\ttable.insert(roots, { name = c.Name, className = c.ClassName, path = c:GetFullName(), childCount = childCount })
+\t\t-- Count every populated child and report the first thirty. Breaking out of
+\t\t-- the loop at thirty meant a Workspace with more came back looking like it
+\t\t-- had exactly thirty, which is the number an agent then plans around.
+\t\trootTotal = rootTotal + 1
+\t\tif #roots < ROOT_LIMIT then
+\t\t\ttable.insert(roots, { name = c.Name, className = c.ClassName, path = c:GetFullName(), childCount = childCount })
+\t\tend
 \tend
-\tif #roots >= ROOT_LIMIT then break end
 end
 
 -- Environment summary (global Lighting + presence of key atmosphere objects).
@@ -223,6 +229,8 @@ local snapshot = {
 \t},
 \ttopClasses = top,
 \troots = roots,
+\trootCount = rootTotal,
+\trootsTruncated = rootTotal > #roots,
 \tenvironment = env,
 }
 return snapshot`;

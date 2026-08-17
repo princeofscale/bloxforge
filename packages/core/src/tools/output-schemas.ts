@@ -122,6 +122,10 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       counts: { type: 'object', additionalProperties: true },
       topClasses: { type: 'array', items: { type: 'object', additionalProperties: true } },
       roots: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      // The roots list is capped. Without these a subtree with more populated
+      // children came back looking like it had exactly the cap.
+      rootCount: { type: 'number' },
+      rootsTruncated: { type: 'boolean' },
       environment: { type: 'object', additionalProperties: true },
       error: { type: 'string' },
     },
@@ -219,6 +223,12 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       players: { type: 'array', items: { type: 'object', additionalProperties: true } },
       playerCount: { type: 'number' },
       worldValues: { type: 'array', items: { type: 'object', additionalProperties: true } },
+      // How many there were, against how many came back: the list is capped, and
+      // a capped list reported as the whole one is how a caller concludes a
+      // value does not exist.
+      worldValueCount: { type: 'number' },
+      worldValuesTruncated: { type: 'boolean' },
+      worldValuesLimit: { type: 'number' },
       activeAudio: { type: 'array', items: { type: 'object', additionalProperties: true } },
       activeAudioCount: { type: 'number' },
     },
@@ -267,6 +277,26 @@ export const OUTPUT_SCHEMAS: Record<string, JsonSchema> = {
       dryRun: { type: 'boolean' },
       results: { type: 'array', items: mutationResult },
       rollback: { type: 'array', items: mutationOperation },
+      rolledBack: { type: 'boolean' },
+      // `rolledBack` alone said a restore was attempted, never whether it
+      // worked. These say whether the place is back where it started, and which
+      // restores did not get there. `rollbackComplete` is absent when no
+      // rollback was attempted, rather than vacuously true.
+      rollbackComplete: { type: 'boolean' },
+      partiallyApplied: { type: 'boolean' },
+      rollbackFailures: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            op: { type: 'string' },
+            target: { type: 'string' },
+            error: { type: 'string' },
+          },
+          required: ['op', 'target', 'error'],
+        },
+      },
       summary: {
         type: 'object',
         additionalProperties: false,

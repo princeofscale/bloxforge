@@ -4,6 +4,8 @@ import {
   buildBaseplateLuau,
   buildIslandLuau,
   buildMountainsLuau,
+  mountainCells,
+  MOUNTAIN_CELL_CEILING,
   buildWaterLuau,
   buildPaintMaterialLuau,
   buildClearRegionLuau,
@@ -43,6 +45,27 @@ describe('buildMountainsLuau', () => {
     expect(code).toContain('math.noise');
     expect(code).toContain('FillBlock');
     expect(code).toContain('Enum.Material.Rock');
+    // Two identical cancellation checks in the same loop body do not cancel twice.
+    expect(code.match(/checkCancelled\(\) then return \{ cancelled = true \}/g)).toHaveLength(1);
+  });
+
+  // The tool layer gates terrain on volume, which is right for one FillBlock.
+  // Mountains are a grid of them, quadratic in resolution: extent 2000×2000 at
+  // the minimum resolution is ~250,000 calls whatever the volume says. Freezing
+  // Studio is the thing these helpers exist to prevent.
+  it('refuses a grid whose call count would freeze Studio, and names the knob', () => {
+    expect(mountainCells([2000, 2000], 4)).toBeGreaterThan(MOUNTAIN_CELL_CEILING);
+    expect(() => buildMountainsLuau({ center: [0, 0, 0], extent: [2000, 2000], maxHeight: 1, resolution: 4 }))
+      .toThrow(/resolution/);
+    // The same extent at a coarser resolution is fine — the ceiling is on the
+    // grid, not on how much ground the caller wanted to cover.
+    expect(buildMountainsLuau({ center: [0, 0, 0], extent: [2000, 2000], maxHeight: 200, resolution: 32 }))
+      .toContain('FillBlock');
+  });
+
+  it('refuses a material name that would not survive stripping', () => {
+    expect(() => buildMountainsLuau({ center: [0, 0, 0], extent: [64, 64], maxHeight: 10, material: '🙂' }))
+      .toThrow(/material must name an Enum.Material member/);
   });
 });
 

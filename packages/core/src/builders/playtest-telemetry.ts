@@ -55,10 +55,12 @@ if ${mask('world')} then
 \t-- Named state held in ValueBase objects (round counters, flags, ids).
 \tlocal Players = game:GetService("Players")
 \tlocal values = {}
+\tlocal valueTotal = 0
+\tlocal VALUE_LIMIT = 100
 \tlocal roots = { game:GetService("Workspace"), game:GetService("ReplicatedStorage"), game:GetService("ServerStorage") }
 \tfor _, root in ipairs(roots) do
 \t\tfor _, d in ipairs(root:GetDescendants()) do
-\t\t\tif d:IsA("ValueBase") and #values < 100 then
+\t\t\tif d:IsA("ValueBase") then
 \t\t\t\t-- Skip ValueBases inside a player's character (rig OriginalPosition/
 \t\t\t\t-- OriginalSize, Animate string values) — engine noise, not game state,
 \t\t\t\t-- and it floods the 100-cap before real state is reached.
@@ -66,17 +68,33 @@ if ${mask('world')} then
 \t\t\t\tlocal inCharacter = charModel ~= nil and Players:GetPlayerFromCharacter(charModel) ~= nil
 \t\t\t\tif not inCharacter then
 \t\t\t\t\tlocal okv, v = pcall(function() return d.Value end)
-\t\t\t\t\tif okv then table.insert(values, { path = d:GetFullName(), class = d.ClassName, value = tostring(v) }) end
+\t\t\t\t\tif okv then
+\t\t\t\t\t\tvalueTotal = valueTotal + 1
+\t\t\t\t\t\tif #values < VALUE_LIMIT then
+\t\t\t\t\t\t\ttable.insert(values, { path = d:GetFullName(), class = d.ClassName, value = tostring(v) })
+\t\t\t\t\t\tend
+\t\t\t\t\tend
 \t\t\t\tend
 \t\t\tend
 \t\tend
 \tend
 \tout.worldValues = values
+\t-- A list cut off at a hundred and reported as the whole list is how an agent
+\t-- concludes a value does not exist. Say how many there were.
+\tout.worldValueCount = valueTotal
+\tif valueTotal > #values then
+\t\tout.worldValuesTruncated = true
+\t\tout.worldValuesLimit = VALUE_LIMIT
+\tend
 end
 
 if ${mask('audio')} then
 \tlocal playing = {}
-\tlocal isEdit = not game:GetService("RunService").IsRunning
+\t-- IsRunning is a method. Indexing it without calling it yields the function
+\t-- itself, which is truthy, so this said "not edit mode" in edit mode — the one
+\t-- case the branch exists for. PlaybackLoudness is only meaningful while the
+\t-- sound is actually being played by the engine.
+\tlocal isEdit = not game:GetService("RunService"):IsRunning()
 \tfor _, d in ipairs(game:GetDescendants()) do
 \t\tif d:IsA("Sound") then
 \t\t\tlocal okp, p = pcall(function() return d.Playing end)

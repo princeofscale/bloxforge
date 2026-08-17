@@ -21,6 +21,24 @@ describe('buildPlaytestSampleLuau', () => {
     expect(offCount).toBe(3);
   });
 
+  // `RunService.IsRunning` without the call yields the method itself, which is
+  // truthy, so `not` on it was false in edit mode too — the one case the branch
+  // exists for. The same expression is called correctly ten lines above.
+  it('calls IsRunning rather than indexing it', () => {
+    const code = buildPlaytestSampleLuau(['audio']);
+    expect(code).toContain('RunService"):IsRunning()');
+    expect(code).not.toMatch(/RunService"\)\.IsRunning[^(]/);
+  });
+
+  // A hundred values reported as "the values" is how an agent concludes a flag
+  // does not exist. The cap stays; it now says it applied.
+  it('says when the world-value list was cut off', () => {
+    const code = buildPlaytestSampleLuau(['world']);
+    expect(code).toContain('out.worldValueCount = valueTotal');
+    expect(code).toContain('if valueTotal > #values then');
+    expect(code).toContain('out.worldValuesTruncated = true');
+  });
+
   it('reads health/team/tool defensively via pcall', () => {
     const code = buildPlaytestSampleLuau(['players']);
     expect(code).toContain('FindFirstChildOfClass("Tool")');

@@ -35,10 +35,38 @@ describe('buildMutationPlanLuau', () => {
 
   it('preflights optimistic-lock expectations and rolls back atomic failures', () => {
     const code = buildMutationPlanLuau([{ ...ops[0], expected: false }], false, true);
-    expect(code).toContain('current ~= op.expected');
+    expect(code).toContain('current ~= expected');
     expect(code).toContain('conflict = true');
     expect(code).toContain('if atomic and not dryRun and failed > 0 then');
     expect(code).toContain('rolledBack = rolledBack');
+  });
+
+  // JSON null decodes to nil, and a nil `expected` is indistinguishable from no
+  // `expected` at all — so the one guard whose whole purpose is "do not write
+  // over something that is already there" was dropped before it ran. The
+  // behaviour is asserted end-to-end in tests/generated-luau-runtime.luau; this
+  // pins the wire encoding that makes it survive the decode.
+  it('carries `expected: null` in a key that survives JSONDecode', () => {
+    const code = buildMutationPlanLuau(
+      [{ op: 'set_attribute', target: 'game.Workspace.Part', name: 'Owner', value: 'a', expected: null }],
+      false,
+    );
+    expect(code).toContain('expectUnset');
+    expect(code).not.toContain('\\"expected\\":null');
+    expect(code).toContain('if op.expected ~= nil or op.expectUnset then');
+  });
+
+  it('reports a restore that failed instead of calling the rollback done', () => {
+    const code = buildMutationPlanLuau(ops, false, true);
+    expect(code).toContain('if rolledBack then rollbackComplete = #rollbackFailures == 0 end');
+    // `atomic: false` keeps whatever worked, by design. A receipt that reports
+    // a completed rollback there describes a rollback that never happened, and
+    // one that says nothing at all leaves the caller to infer the split from
+    // two counts.
+    expect(code).toContain('else partiallyApplied = failed > 0 and succeeded > 0 end');
+    // The bare pcall that swallowed every restore error is what made
+    // `rolledBack = true` mean "trust me" rather than "checked".
+    expect(code).not.toContain('if inst then pcall(function()');
   });
 
   it('is injection-safe by construction: ops come from JSONDecode, used as runtime values', () => {

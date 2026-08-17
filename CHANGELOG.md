@@ -7,6 +7,127 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `apply_recipe`, the game templates and
+  `environment_create_day_night_cycle_script` replaced a same-named instance
+  with `Destroy()`. `Destroy` locks the parent permanently, so if the name
+  belonged to something the user had built rather than to a previous run, the
+  undo waypoint these tools open could not put it back. They now unparent, which
+  is what `asset_sanitize_apply` already does and for the same stated reason.
+
+- `get_world_snapshot` stopped **collecting** notable subtree roots at thirty
+  rather than reporting thirty, so a Workspace with more populated children came
+  back looking like it had exactly thirty — the number an agent then plans
+  around. It counts them all and reports `rootCount` and `rootsTruncated`.
+
+- `get_spatial_layout` stopped **collecting** spawn points at twelve, not just
+  reporting twelve. The floor it returns is a guess scored on evidence, and the
+  strongest piece of that evidence is "a SpawnLocation rests just above it" — so
+  in a place with more than twelve spawns, whether the floor was confirmed
+  depended on which twelve the traversal happened to reach first. Every spawn is
+  weighed now; the reported list is still capped, and `spawnCount` and
+  `spawnsTruncated` say so rather than letting a short list read as all of them.
+
+- `playtest_sample_state` read `RunService.IsRunning` without calling it. In
+  Luau that yields the method itself, which is truthy, so `not` on it was false
+  in edit mode too — the one case the branch exists for. The same call is made
+  correctly ten lines above it.
+
+- `playtest_sample_state` also capped its world-value list at 100 and reported
+  the remainder as if it did not exist. It now returns `worldValueCount` and,
+  when the cap applied, `worldValuesTruncated` — a capped list read as the whole
+  list is how an agent concludes a flag is missing and writes a second one.
+
+- The `ui_*`, `terrain_*` and `asset_apply_texture` tools turned an unusable
+  name into a syntax error. A `font`, `sortOrder`, `fillDirection`, alignment,
+  terrain `material` or texture `property` is stripped to letters and digits
+  before it is interpolated into the generated Luau; a value with nothing left
+  after stripping produced `Enum.Font.`, `Enum.Material.` or `target. =`, none
+  of which parse — so the caller got a Luau parser message about a snippet it
+  never sees, instead of a sentence about the value it passed. The three
+  independent copies of that stripping are now one checked helper in
+  `luau-emit.ts`, and a well-formed name Roblox does not know still reaches
+  Roblox, which rejects it by name.
+
+- `terrain_generate_mountains` was gated on volume, which is the right measure
+  for one `FillBlock` and the wrong one for a grid of them. The grid is
+  quadratic in `resolution`: extent 2000×2000 at the minimum resolution is
+  ~250,000 `FillBlock` calls whatever `maxHeight` makes the volume. Freezing
+  Studio is the thing the terrain gates exist to prevent, so the call count is
+  now a measure too, with an error that names `resolution` as the knob. The
+  ceiling is a chosen number, not a measured one, and says so in the code.
+
+- `asset_sanitize_apply` left one of two same-named scripts live. Its targets
+  arrive as paths, and it resolved each with `FindFirstChild`, which returns the
+  first match — so two `Script`s called "Script" under the same model (the
+  common shape of a model you did not write) resolved to the same instance
+  twice. The first was disabled twice, the second stayed enabled, and the
+  receipt reported two disabled.
+
+  `action: "remove"` survived that particular case by accident — unparenting the
+  first made the second resolvable — but not the other way a path is ambiguous.
+  A name may contain a dot and `GetFullName()` joins names with dots, so a
+  Script called `A.B` and a Script `B` inside a Folder `A` report the same path:
+  the resolve reached the folder's one and reported the other as not found,
+  leaving it in the place and running.
+
+  The apply now walks the subtree it was given and matches each script's own
+  full name against the counts the plan recorded, so duplicates are separate
+  instances again. A script the plan did not name is still left alone, and
+  anything the plan named that the walk did not reach is reported instead of
+  passing silently. This is the security-facing tool in the set: the whole point
+  of it is that a foreign script is not running afterwards.
+
+### Added
+
+- `tests/generated-luau-runtime.luau` now also runs `apply_mutation_plan`,
+  `asset_sanitize_apply`, `get_world_snapshot` and the four `ui_*` generators
+  against a real DataModel, taking the harness from 84 checks to 174. Most of
+  the bugs above were found by running the generated Luau rather than matching
+  strings against it; the `ui_*` family passed on the first run, which is the
+  other thing a check is for.
+
+  `get_world_snapshot` was previously unrunnable here because rbx-dom has no
+  default for `game.PlaceId`. It runs against a `game` stub carrying that one
+  property and proxying everything else to the real DataModel — a ceiling the
+  file states, along with what would lift it.
+
+- `apply_mutation_plan` ignored `expected: null`. That is the one precondition
+  whose whole purpose is "do not write over something that is already there" —
+  and the tool schema advertises it. Operations travel to Studio as JSON, JSON
+  `null` decodes to `nil`, and a `nil` expectation was indistinguishable from no
+  expectation at all, so the guard was dropped before it ran and the write went
+  ahead over whatever was there. The intent now travels in a key that survives
+  the decode, and an absent tag is compared as `false` rather than `nil`, so
+  "expect untagged" does not pass on every instance in the place.
+
+- A precondition naming a property that does not exist took the whole plan down
+  with a raw Luau error: the precheck read `inst[op.property]` unguarded, while
+  the apply loop three lines below `pcall`s the same read. It now comes back as
+  a conflict marked `unreadable`.
+
+- An unset attribute compared as the string `"nil"` in that same precheck,
+  because `ser(nil)` stringifies. `expected: "nil"` would have matched an unset
+  attribute; nothing else would.
+
+- An atomic rollback swallowed every restore error in a bare `pcall` and then
+  reported `rolledBack = true` regardless. That reads as "nothing changed" while
+  the place is half-mutated — the one state a caller must not be told is clean.
+  Failed restores are now collected and returned as `rollbackFailures`, with
+  `rollbackComplete` and `partiallyApplied` saying which of the two happened.
+  `rollbackComplete` is absent when no rollback was attempted rather than
+  vacuously true, and `partiallyApplied` also covers an `atomic: false` plan
+  where some operations landed and others did not — which is the other way the
+  place ends up in a state the caller did not ask for.
+
+  All five are now run rather than read: `tests/generated-luau-runtime.luau`
+  executes the generated plan against a real DataModel, with `game` stubbed only
+  for the two services Lune does not implement (`HttpService:JSONDecode`, and
+  `CollectionService`, which Lune reaches through the Instance). Every path
+  lookup and every write in that test is real, and the checks fail on the old
+  builder.
+
 ### Changed
 
 - Four ranked lists had no tie-break, so entries with equal scores came back in

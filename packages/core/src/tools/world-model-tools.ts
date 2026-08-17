@@ -324,7 +324,8 @@ export class WorldModelTools {
       throw new Error('asset_sanitize_apply requires the generated-Luau runtime');
     }
     const result = await this.runtime.runGeneratedLuau(
-      buildSanitizeApplyLuau(targets, chosen),
+      // The scan's own full name, so the walk starts where the plan was made.
+      buildSanitizeApplyLuau(scan.path ?? instancePath, targets, chosen),
       instance_id,
       `sanitize ${chosen} (${targets.length} scripts)`,
     );

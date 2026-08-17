@@ -23,6 +23,34 @@ export function luaBool(value: boolean): string {
   return value ? 'true' : 'false';
 }
 
+/**
+ * Emit an `Enum.<Kind>.<Member>` reference from a caller-supplied member name.
+ *
+ * Stripping to letters and digits is what keeps the generated code safe, but
+ * stripping alone turned an unusable name into an *empty* one: `Enum.Font.` and
+ * `Enum.Material.` are syntax errors, so the caller got a Luau parser message
+ * about a snippet it never sees instead of a sentence about the value it
+ * passed. A name that starts with a digit does the same. Roblox rejects an
+ * unknown-but-well-formed member by name, so only the shape is checked here.
+ */
+export function enumMember(kind: string, option: string, value: string): string {
+  return `Enum.${kind}.${luaIdentifier(`an Enum.${kind} member`, option, value)}`;
+}
+
+/**
+ * Strip a caller-supplied name to a bare Luau identifier, refusing what is left
+ * of it if that is not one. Shared by every generator that interpolates a name
+ * into code — an enum member, a property name — because in all of them the
+ * empty string produces a *syntax* error rather than a message about the value.
+ */
+export function luaIdentifier(what: string, option: string, value: string): string {
+  const cleaned = value.replace(/[^A-Za-z0-9]/g, '');
+  if (!/^[A-Za-z][A-Za-z0-9]*$/.test(cleaned)) {
+    throw new Error(`${option} must name ${what} (letters and digits, starting with a letter); got ${JSON.stringify(value)}`);
+  }
+  return cleaned;
+}
+
 function clampChannel(channel: number): number {
   return Math.max(0, Math.min(255, Math.round(channel)));
 }

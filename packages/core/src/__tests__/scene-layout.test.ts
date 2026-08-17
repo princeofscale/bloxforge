@@ -126,6 +126,18 @@ describe('generated Luau', () => {
     expect(buildSpatialLayoutLuau('game.Workspace', 8, 4)).toContain('math.abs(l.X) * s.Z / 2');
   });
 
+  // The cap used to stop the collection, not just the report: in a place with
+  // more than twelve spawns, whether the floor got its strongest evidence
+  // depended on which twelve the traversal reached first. Asserted end-to-end
+  // in tests/generated-luau-runtime.luau against a place shaped to expose it.
+  it('caps the spawn list where it is reported, not where it is collected', () => {
+    const code = buildSpatialLayoutLuau('game.Workspace', 8, 4);
+    expect(code).toContain('if d:IsA("SpawnLocation") then');
+    expect(code).not.toContain('#spawns < 12');
+    expect(code).toContain('local spawnCount = #spawns');
+    expect(code).toContain('spawnsTruncated = spawnCount > #reportedSpawns');
+  });
+
   it('excludes Terrain, which is a BasePart with no meaningful CFrame of its own', () => {
     expect(buildSpatialLayoutLuau('game.Workspace', 8, 4)).toContain('not d:IsA("Terrain")');
   });

@@ -4,7 +4,7 @@
 // (preventing an AI from freezing Studio with a giant FillRegion) before the
 // generated code is ever sent.
 
-import { luaNumber, vector3 } from './luau-emit.js';
+import { luaNumber, vector3, enumMember } from './luau-emit.js';
 
 export type Vec3 = [number, number, number];
 
@@ -16,8 +16,8 @@ export function regionVolume(min: Vec3, max: Vec3): number {
   return Math.abs(max[0] - min[0]) * Math.abs(max[1] - min[1]) * Math.abs(max[2] - min[2]);
 }
 
-function material(name: string): string {
-  return `Enum.Material.${name.replace(/[^A-Za-z0-9]/g, '')}`;
+function material(name: string, option = 'material'): string {
+  return enumMember('Material', option, name);
 }
 
 function region3(min: Vec3, max: Vec3): string {
@@ -77,7 +77,34 @@ export interface MountainsOptions {
   frequency?: number;
 }
 
+/**
+ * How many FillBlock calls `buildMountainsLuau` will make.
+ *
+ * The tool layer gates terrain on volume, which is the right measure for one
+ * FillBlock or FillRegion. Mountains are a grid of them, and the grid is
+ * quadratic in `resolution` — extent 2000×2000 at the minimum resolution of 4
+ * is ~250,000 calls, whatever `maxHeight` says the volume is. Freezing Studio
+ * is the thing these helpers exist to prevent, so the count is a measure too.
+ */
+export function mountainCells(extent: [number, number], resolution?: number): number {
+  const res = resolution && resolution >= 4 ? resolution : 16;
+  return (Math.floor(Math.abs(extent[0]) / res) + 1) * (Math.floor(Math.abs(extent[1]) / res) + 1);
+}
+
+// ponytail: a chosen ceiling, not a measured one — nobody has run a grid this
+// large against Studio to find where it actually stops responding. Upgrade
+// path: replace it with a number a run gives, and say which run.
+export const MOUNTAIN_CELL_CEILING = 20000;
+
 export function buildMountainsLuau(options: MountainsOptions): string {
+  const cells = mountainCells(options.extent, options.resolution);
+  if (cells > MOUNTAIN_CELL_CEILING) {
+    throw new Error(
+      `terrain_generate_mountains would make ${cells} FillBlock calls (ceiling ${MOUNTAIN_CELL_CEILING}). ` +
+      `The grid is extent/resolution squared, so raise resolution (currently ${options.resolution && options.resolution >= 4 ? options.resolution : 16}) ` +
+      'or generate the range in sections.',
+    );
+  }
   const mat = material(options.material ?? 'Rock');
   const res = options.resolution && options.resolution >= 4 ? options.resolution : 16;
   const seed = options.seed ?? 0;
@@ -90,8 +117,7 @@ export function buildMountainsLuau(options: MountainsOptions): string {
     `local maxHeight = ${luaNumber(options.maxHeight)}`,
     `local seed = ${luaNumber(seed)}`,
     `local baseX, baseY, baseZ = ${luaNumber(cx - ex / 2)}, ${luaNumber(cy)}, ${luaNumber(cz - ez / 2)}`,
-    `for gx = 0, ${luaNumber(ex)}, res do
-	if _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end`,
+    `for gx = 0, ${luaNumber(ex)}, res do`,
     '\tif _G.__mcp and _G.__mcp.checkCancelled and _G.__mcp.checkCancelled() then return { cancelled = true } end',
     `\tfor gz = 0, ${luaNumber(ez)}, res do`,
     '\t\tlocal wx = baseX + gx',
@@ -131,7 +157,7 @@ export function buildPaintMaterialLuau(options: PaintMaterialOptions): string {
   const target = material(options.material);
   const region = region3(options.min, options.max);
   const op = options.replaceMaterial
-    ? `Terrain:ReplaceMaterial(${region}, 4, ${material(options.replaceMaterial)}, ${target})`
+    ? `Terrain:ReplaceMaterial(${region}, 4, ${material(options.replaceMaterial, 'replaceMaterial')}, ${target})`
     : `Terrain:FillRegion(${region}, 4, ${target})`;
   return [
     'local Terrain = workspace.Terrain',

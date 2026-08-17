@@ -24,7 +24,11 @@ describe('buildRecipeLuau', () => {
   it('proximity_door is idempotent and wires a ProximityPrompt + toggle script', () => {
     const code = buildRecipeLuau('proximity_door', { parentPath: 'game.Workspace', name: 'Gate', x: 1, y: 5, z: 2 });
     expect(code).toContain('resolvePath("game.Workspace")');
-    expect(code).toContain('if existing then existing:Destroy() end'); // idempotent
+    // Idempotent by replacing whatever holds the name — but by unparenting it,
+    // not destroying it. Destroy locks the parent permanently, so a recipe run
+    // over something the user had built by that name could not be undone.
+    expect(code).toContain('if existing then existing.Parent = nil end');
+    expect(code).not.toContain('existing:Destroy()');
     expect(code).toContain('Instance.new("ProximityPrompt")');
     expect(code).toContain('door.Name = "Gate"');
     expect(code).toContain('Vector3.new(1, 5, 2)');

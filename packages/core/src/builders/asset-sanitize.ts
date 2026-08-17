@@ -142,13 +142,26 @@ export type SanitizeAction = 'disable' | 'remove';
  * quietly leaving them live. `remove` unparents rather than Destroy()s, which
  * is what makes it undoable.
  *
- * The caller passes the exact paths the plan recorded. Resolving them here
- * (instead of re-walking) means a script added between plan and apply is not
- * silently swept up in an operation the caller never previewed.
+ * The caller passes the exact paths the plan recorded, and only a script the
+ * plan named is touched — one added between plan and apply is left alone rather
+ * than swept up in an operation the caller never previewed.
+ *
+ * Those paths are matched against a walk of the subtree, not resolved through
+ * `FindFirstChild`. Two children may share a name, which in a foreign model
+ * usually means two `Script`s called "Script": resolving the same path twice
+ * returned the same instance twice, so one script was disabled twice, the other
+ * stayed live, and the receipt said two were disabled. On `remove` the second
+ * resolve unparented an instance the caller never saw. A path is a description
+ * of a place in the tree, and this walks the tree.
  */
-export function buildSanitizeApplyLuau(scriptPaths: string[], action: SanitizeAction): string {
-  const rows = scriptPaths.map((p) => `\t${luaString(p)},`).join('\n');
-  return `local PATHS = {
+export function buildSanitizeApplyLuau(rootPath: string, scriptPaths: string[], action: SanitizeAction): string {
+  const counts = new Map<string, number>();
+  for (const path of scriptPaths) counts.set(path, (counts.get(path) ?? 0) + 1);
+  const rows = [...counts].map(([path, n]) => `\t[${luaString(path)}] = ${n},`).join('\n');
+  return `local ROOT = ${luaString(rootPath)}
+-- How many instances the plan recorded at each path. Not a set: duplicate names
+-- are the common case in a model you did not write.
+local WANTED = {
 ${rows}
 }
 local action = ${luaString(action)}
@@ -164,13 +177,13 @@ local function resolve(full)
 \treturn node
 end
 
-for _, full in ipairs(PATHS) do
-\tlocal inst = resolve(full)
-\tif not inst then
-\t\ttable.insert(skipped, { path = full, reason = "not found" })
-\telseif not inst:IsA("LuaSourceContainer") then
-\t\ttable.insert(skipped, { path = full, reason = "not a script" })
-\telseif action == "disable" then
+local root = resolve(ROOT)
+if not root then
+\treturn { action = action, applied = {}, skipped = {}, appliedCount = 0, skippedCount = 0, error = "not found: " .. ROOT }
+end
+
+local function act(inst, full)
+\tif action == "disable" then
 \t\tif inst:IsA("BaseScript") then
 \t\t\tinst.Enabled = false
 \t\t\ttable.insert(applied, { path = full, action = "disabled" })
@@ -182,6 +195,33 @@ for _, full in ipairs(PATHS) do
 \t\tinst.Parent = nil
 \t\ttable.insert(applied, { path = full, action = "removed" })
 \tend
+end
+
+local function visit(inst)
+\tif not inst:IsA("LuaSourceContainer") then return end
+\tlocal full = "game." .. inst:GetFullName()
+\tlocal remaining = WANTED[full]
+\tif remaining and remaining > 0 then
+\t\tWANTED[full] = remaining - 1
+\t\tact(inst, full)
+\tend
+end
+
+visit(root)
+for _, d in ipairs(root:GetDescendants()) do visit(d) end
+
+-- Anything the plan named and the walk did not reach. Sorted, because pairs()
+-- order is unspecified and this list ends up in a receipt the caller diffs.
+local unmatched = {}
+for full, remaining in pairs(WANTED) do
+\tif remaining > 0 then table.insert(unmatched, { path = full, remaining = remaining }) end
+end
+table.sort(unmatched, function(a, b) return a.path < b.path end)
+for _, row in ipairs(unmatched) do
+\ttable.insert(skipped, {
+\t\tpath = row.path,
+\t\treason = string.format("%d of the scripts the plan recorded at this path were not found under %s", row.remaining, ROOT),
+\t})
 end
 
 return { action = action, applied = applied, skipped = skipped, appliedCount = #applied, skippedCount = #skipped }`;

@@ -161,21 +161,39 @@ describe('generated Luau', () => {
   });
 
   it('unparents rather than destroying, so the change stays undoable', () => {
-    const code = buildSanitizeApplyLuau(['game.Workspace.A'], 'remove');
+    const code = buildSanitizeApplyLuau('game.Workspace', ['game.Workspace.A'], 'remove');
     expect(code).toContain('inst.Parent = nil');
     expect(code).not.toContain(':Destroy()');
   });
 
   it('refuses to disable a ModuleScript instead of silently leaving it live', () => {
-    const code = buildSanitizeApplyLuau(['game.Workspace.A'], 'disable');
+    const code = buildSanitizeApplyLuau('game.Workspace', ['game.Workspace.A'], 'disable');
     expect(code).toContain('BaseScript');
     expect(code).toMatch(/ModuleScript has no Enabled/);
   });
 
   it('acts only on the paths the plan listed', () => {
-    const code = buildSanitizeApplyLuau(['game.Workspace.A'], 'disable');
-    expect(code).toContain('game.Workspace.A');
-    expect(code).not.toContain('GetDescendants');
+    const code = buildSanitizeApplyLuau('game.Workspace', ['game.Workspace.A'], 'disable');
+    expect(code).toContain('["game.Workspace.A"] = 1');
+    // The walk is over the plan's own root, and a script it did not name is
+    // reached and then left alone.
+    expect(code).toContain('root:GetDescendants()');
+    expect(code).toContain('if remaining and remaining > 0 then');
+  });
+
+  // Two children may share a name, and in a foreign model that usually means
+  // two Scripts called "Script". Resolving the same path twice returned the
+  // same instance twice: one disabled twice, the other left live, and a receipt
+  // that said two were disabled. Behaviour is asserted end-to-end in
+  // tests/generated-luau-runtime.luau; this pins the count that carries it.
+  it('counts duplicate paths rather than collapsing them into a set', () => {
+    const code = buildSanitizeApplyLuau(
+      'game.Workspace.Model',
+      ['game.Workspace.Model.Script', 'game.Workspace.Model.Script', 'game.Workspace.Model.Other'],
+      'disable',
+    );
+    expect(code).toContain('["game.Workspace.Model.Script"] = 2');
+    expect(code).toContain('["game.Workspace.Model.Other"] = 1');
   });
 
   it('every pattern carries a reason a caller can act on', () => {

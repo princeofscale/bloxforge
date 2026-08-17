@@ -15,6 +15,7 @@ local roblox = require("@lune/roblox")
 local luau = require("@lune/luau")
 local fs = require("@lune/fs")
 local process = require("@lune/process")
+local serde = require("@lune/serde")
 
 local passed, failed = 0, 0
 
@@ -197,17 +198,20 @@ local function env()
 	return {
 		game = dm,
 		workspace = ws,
+		Instance = roblox.Instance,
 		Vector3 = roblox.Vector3,
 		Vector2 = roblox.Vector2,
 		Color3 = roblox.Color3,
 		CFrame = roblox.CFrame,
+		UDim = roblox.UDim,
+		UDim2 = roblox.UDim2,
 		Enum = roblox.Enum,
 	}
 end
 
-local function run(name)
+local function run(name, environment)
 	local code = fs.readFile(dir .. "/" .. name .. ".luau")
-	local okLoad, fn = pcall(luau.load, code, { environment = env() })
+	local okLoad, fn = pcall(luau.load, code, { environment = environment or env() })
 	if not okLoad then
 		check(name .. " loads", false, tostring(fn):sub(1, 200))
 		return nil
@@ -558,6 +562,392 @@ if values then
 				check("serializer: " .. name .. " was structured, not stringified", false, tostring(value.__type))
 			end
 		end
+	end
+end
+
+-- === apply_mutation_plan ====================================================
+-- The only generated Luau here that writes. Its preconditions decide whether a
+-- write happens at all and its rollback decides what the place looks like when
+-- one fails, so both are exactly the kind of thing a string assertion cannot
+-- check. Lune has no HttpService:JSONDecode and reaches tags through the
+-- Instance rather than through CollectionService, so `game` is stubbed for
+-- these two services only; every path lookup and every write is the real thing.
+do
+	local mut = roblox.Instance.new("Part")
+	mut.Name = "MutTarget"
+	mut.Anchored = true
+	mut.Parent = ws
+	mut:SetAttribute("Owner", "someone-else")
+	mut:AddTag("Existing")
+
+	-- ponytail: two services are stubbed, the rest is the real host. Ceiling: a
+	-- change in how Roblox's HttpService decodes JSON, or in CollectionService's
+	-- own semantics, would not show up here — only the plan's use of them is
+	-- covered. Accepted because Lune implements neither, and every path lookup,
+	-- property write, tag and attribute below is genuine. Upgrade path: run the
+	-- plan through a live Studio in the plugin integration job.
+	local httpStub = { JSONDecode = function(_, text) return serde.decode("json", text) end }
+	local collectionStub = {
+		HasTag = function(_, inst, tag) return inst:HasTag(tag) end,
+		AddTag = function(_, inst, tag) inst:AddTag(tag) end,
+		RemoveTag = function(_, inst, tag) inst:RemoveTag(tag) end,
+	}
+	local fakeGame = {
+		GetService = function(_, name)
+			if name == "HttpService" then return httpStub end
+			if name == "CollectionService" then return collectionStub end
+			return dm:GetService(name)
+		end,
+		FindFirstChild = function(_, name) return dm:FindFirstChild(name) end,
+	}
+	local function mutEnv()
+		local e = env()
+		e.game = fakeGame
+		return e
+	end
+
+	-- Index the first conflict through this: a regression that returns no
+	-- conflicts at all would otherwise throw here and take every later check in
+	-- this file with it, turning one failure into no report.
+	local function conflict(result)
+		return (result.conflicts or {})[1] or {}
+	end
+
+	local dry = run("mutation-dry-run", mutEnv())
+	if dry then
+		local row = (dry.results or {})[1] or {}
+		eq("mutation: a dry run reports what it would set", row.wouldSet, false)
+		eq("mutation: and records what is there now", row.before, true)
+		eq("mutation: a dry run is not an apply", dry.applied, false)
+		eq("mutation: and it did not touch the part", mut.Anchored, true)
+	end
+
+	-- `expected: null` means "I expect nothing here". JSON null decodes to nil,
+	-- and a nil expectation used to be indistinguishable from no expectation, so
+	-- the plan wrote over a value someone else had already set.
+	local taken = run("mutation-expect-unset-taken", mutEnv())
+	if taken then
+		eq("mutation: expecting an unset attribute conflicts when it is set", taken.conflict, true)
+		eq("mutation: nothing was applied", taken.applied, false)
+		eq("mutation: and the existing value survived", mut:GetAttribute("Owner"), "someone-else")
+		eq("mutation: the conflict names what is actually there", conflict(taken).actual, "someone-else")
+	end
+
+	local free = run("mutation-expect-unset-free", mutEnv())
+	if free then
+		eq("mutation: expecting an unset attribute passes when it is unset", free.conflict, nil)
+		eq("mutation: and the write goes through", mut:GetAttribute("Fresh"), "plan")
+	end
+
+	local tagged = run("mutation-expect-untagged", mutEnv())
+	if tagged then
+		-- An absent tag is false, not nil: "expect unset" on a tag has to mean
+		-- untagged, or the guard passes on every instance in the place.
+		eq("mutation: expecting an untagged instance conflicts when tagged", tagged.conflict, true)
+		eq("mutation: the conflict reports the tag as present", conflict(tagged).actual, true)
+	end
+
+	local unreadable = run("mutation-unreadable", mutEnv())
+	if unreadable then
+		-- Unguarded this threw out of the whole script: a typo in a precondition
+		-- became a raw Luau error instead of a report of which check failed.
+		eq("mutation: a precondition on a property that does not exist conflicts", unreadable.conflict, true)
+		eq("mutation: and says the value could not be read", conflict(unreadable).unreadable, true)
+	end
+
+	local loose = run("mutation-non-atomic", mutEnv())
+	if loose then
+		-- Nothing was rolled back, so "the restore finished" is not a fact about
+		-- this plan at all. Reported unconditionally it read as "the place is
+		-- back where it started" over a place that is half-changed by design.
+		eq("mutation: a non-atomic plan does not claim a completed rollback", loose.rollbackComplete, nil)
+		eq("mutation: it says the place is partly changed", loose.partiallyApplied, true)
+		eq("mutation: the operation that worked stayed", mut:GetAttribute("Kept"), "yes")
+		eq("mutation: and the one that failed is counted", loose.summary.failed, 1)
+		eq("mutation: alongside the one that worked", loose.summary.succeeded, 1)
+	end
+
+	local rolled = run("mutation-rollback", mutEnv())
+	if rolled then
+		eq("mutation: a failing op rolls the earlier ones back", rolled.rolledBack, true)
+		eq("mutation: which is not an apply", rolled.applied, false)
+		eq("mutation: the restore is reported as complete", rolled.rollbackComplete, true)
+		eq("mutation: and nothing is left half-applied", rolled.partiallyApplied, false)
+		eq("mutation: the property is back to what it was", mut.Anchored, true)
+		eq("mutation: and the tag it added is gone", mut:HasTag("Rolled"), false)
+		eq("mutation: the tag it did not add is untouched", mut:HasTag("Existing"), true)
+		eq("mutation: the failure is counted", rolled.summary.failed, 1)
+	end
+end
+
+-- === get_world_snapshot =====================================================
+-- The overview an agent reads before anything else, so what it leaves out is
+-- what the agent never looks for. rbx-dom has no default for game.PlaceId, so
+-- `game` is a stub carrying that one property and proxying everything else to
+-- the real DataModel — every count, class and child below is genuine.
+--
+-- ponytail: PlaceId and Name come from the stub. Ceiling: this cannot catch a
+-- change in what Studio reports for a published place. Upgrade path: the plugin
+-- integration job, which has a real one.
+do
+	local terrain = roblox.Instance.new("Terrain")
+	terrain.Parent = ws
+	ws.Terrain = terrain
+
+	local fakeGame = {
+		PlaceId = 0,
+		Name = "RuntimeTestPlace",
+		GetService = function(_, name) return dm:GetService(name) end,
+		FindFirstChild = function(_, name) return dm:FindFirstChild(name) end,
+	}
+	local snapshotEnv = env()
+	snapshotEnv.game = fakeGame
+
+	local snap = run("world-snapshot", snapshotEnv)
+	if snap then
+		eq("snapshot: the root it was asked for", snap.root, "game.Workspace")
+		eq("snapshot: an explicit path is the exact subtree", snap.scope, "exact subtree")
+		check("snapshot: it counted the descendants", snap.counts.totalDescendants > 0,
+			tostring(snap.counts.totalDescendants))
+		check("snapshot: and distinct classes", snap.counts.distinctClasses > 1,
+			tostring(snap.counts.distinctClasses))
+
+		-- Ranked by count, ties by name. Both halves asserted: descending
+		-- counts, and alphabetical order within a tie.
+		local ordered, tiesOrdered = true, true
+		for i = 2, #snap.topClasses do
+			local a, b = snap.topClasses[i - 1], snap.topClasses[i]
+			if b.count > a.count then ordered = false end
+			if a.count == b.count and a.className > b.className then tiesOrdered = false end
+		end
+		check("snapshot: classes come back most-common first", ordered)
+		check("snapshot: and equal counts are ordered by name, not by pairs()", tiesOrdered)
+
+		eq("snapshot: nothing is truncated at this size", snap.rootsTruncated, false)
+		eq("snapshot: and the count agrees with the list", snap.rootCount, #snap.roots)
+
+		eq("snapshot: terrain is seen", snap.environment.hasTerrain, true)
+		eq("snapshot: and no clouds were invented", snap.environment.hasClouds, false)
+		-- ClockTime has no default in rbx-dom, and the builder reads every
+		-- Lighting property through pcall for exactly this class of reason.
+		check("snapshot: an unreadable Lighting property omits itself rather than throwing",
+			snap.environment.clockTime == nil or type(snap.environment.clockTime) == "number")
+	end
+
+	-- More populated children than the list holds. The loop used to break at
+	-- thirty, so a Workspace with more came back looking like it had exactly
+	-- thirty — which is then the number an agent plans around.
+	local crowd = roblox.Instance.new("Folder")
+	crowd.Name = "Crowd"
+	crowd.Parent = ws
+	for i = 1, 34 do
+		local holder = roblox.Instance.new("Folder")
+		holder.Name = string.format("Group%02d", i)
+		holder.Parent = crowd
+		local child = roblox.Instance.new("Part")
+		child.Name = "Item"
+		child.Parent = holder
+	end
+	-- One childless folder, which must not be listed and must not be counted.
+	local empty = roblox.Instance.new("Folder")
+	empty.Name = "Empty"
+	empty.Parent = crowd
+
+	local crowded = run("world-snapshot-crowd", snapshotEnv)
+	if crowded then
+		eq("snapshot: the notable-roots list is capped at thirty", #crowded.roots, 30)
+		eq("snapshot: the count is what was actually there", crowded.rootCount, 34)
+		eq("snapshot: and the list says it was cut off", crowded.rootsTruncated, true)
+		-- A notable root has children by definition. A childless one in the list
+		-- is how a token-lean overview fills up with nothing, and a childless one
+		-- in the count is how the caller is told there is more than there is.
+		local allPopulated, listedEmpty = true, false
+		for _, r in ipairs(crowded.roots) do
+			if r.childCount <= 0 then allPopulated = false end
+			if r.name == "Empty" then listedEmpty = true end
+		end
+		check("snapshot: every notable root contains something", allPopulated)
+		check("snapshot: the childless folder is neither listed nor counted", not listedEmpty)
+	end
+end
+
+-- === get_spatial_layout, with more spawns than it reports ===================
+-- The reported spawn list is capped at twelve. The cap used to stop the
+-- collection itself, so in a place with more, whether the floor was confirmed
+-- depended on which twelve the traversal happened to reach first — and the
+-- short list read as every spawn in the place.
+do
+	local field = roblox.Instance.new("Model")
+	field.Name = "SpawnField"
+	field.Parent = ws
+
+	local floor = roblox.Instance.new("Part")
+	floor.Name = "FieldFloor"
+	floor.Anchored = true
+	floor.Size = roblox.Vector3.new(200, 1, 200)
+	floor.CFrame = roblox.CFrame.new(2000, 0, 2000)
+	floor.Parent = field
+
+	-- Fifteen spawns, and only the last one rests on the floor: the twelve the
+	-- old cap kept are all far above it.
+	for i = 1, 15 do
+		local s = roblox.Instance.new("SpawnLocation")
+		s.Name = "Spawn" .. i
+		s.Anchored = true
+		s.Size = roblox.Vector3.new(6, 1, 6)
+		s.CFrame = roblox.CFrame.new(2000, i == 15 and 1.5 or 400, 2000)
+		s.Parent = field
+	end
+
+	local field_layout = run("spatial-layout-spawns")
+	if field_layout then
+		eq("layout: the reported spawn list is capped", #field_layout.spawns, 12)
+		eq("layout: and says how many there were", field_layout.spawnCount, 15)
+		eq("layout: and that it was cut off", field_layout.spawnsTruncated, true)
+		-- The confirming spawn is the fifteenth. Collecting only twelve dropped
+		-- it, and the floor lost its strongest evidence to traversal order.
+		eq("layout: the floor is still found", field_layout.ground.path, "game.Workspace.SpawnField.FieldFloor")
+		check("layout: a spawn past the cap still confirms the floor",
+			table.concat(field_layout.ground.basis, " | "):find("rests") ~= nil,
+			table.concat(field_layout.ground.basis, " | "))
+	end
+end
+
+-- === ui_create_* / ui_apply_layout / ui_make_mobile_friendly ================
+-- These write real instances into StarterGui from typed options. Every value
+-- they set is a Roblox type assembled by string concatenation, and a UDim2 with
+-- its four arguments in the wrong order is indistinguishable from a correct one
+-- in a diff — but not on a screen, and not here.
+do
+	local created = run("ui-screen-gui")
+	local generated = sg:FindFirstChild("Generated")
+	if created then
+		eq("ui: the ScreenGui exists under StarterGui", generated ~= nil, true)
+		eq("ui: the receipt reports success", created.success, true)
+		eq("ui: and names the class it made", created.className, "ScreenGui")
+	end
+	if generated then
+		eq("ui: DisplayOrder came through as a number", generated.DisplayOrder, 5)
+		eq("ui: IgnoreGuiInset came through as a boolean", generated.IgnoreGuiInset, true)
+	end
+
+	local madeButton = run("ui-text-button")
+	local button = generated and generated:FindFirstChild("Play")
+	if madeButton then
+		eq("ui: the button was created inside the ScreenGui", button ~= nil, true)
+	end
+	if button then
+		-- Scale and Offset are two different things and both live in a UDim2.
+		-- Emitting them in the wrong order gives a button 200 screens wide.
+		eq("ui: Size.X is offset, not scale", button.Size.X.Offset, 200)
+		eq("ui: Size.X has no scale component", button.Size.X.Scale, 0)
+		eq("ui: Size.Y is offset", button.Size.Y.Offset, 50)
+		eq("ui: Position.X is scale, not offset", button.Position.X.Scale, 0.5)
+		eq("ui: Position.X has no offset", button.Position.X.Offset, 0)
+		eq("ui: AnchorPoint is centred", button.AnchorPoint.X, 0.5)
+		eq("ui: the font is the one asked for", tostring(button.Font), "Enum.Font.GothamBold")
+		eq("ui: text", button.Text, "Play")
+		eq("ui: TextSize", button.TextSize, 18)
+		eq("ui: ZIndex", button.ZIndex, 3)
+		-- 8-bit channels, not 0-1 floats: the two look alike and one is invisible.
+		near("ui: BackgroundColor3 red channel", button.BackgroundColor3.R * 255, 37, 1)
+		near("ui: BackgroundColor3 blue channel", button.BackgroundColor3.B * 255, 235, 1)
+	end
+
+	local laidOut = run("ui-layout")
+	local layout = generated and generated:FindFirstChildOfClass("UIListLayout")
+	if laidOut then
+		eq("ui: a list layout was added", layout ~= nil, true)
+	end
+	if layout then
+		eq("ui: padding is pixels", layout.Padding.Offset, 8)
+		eq("ui: and carries no scale", layout.Padding.Scale, 0)
+		eq("ui: fill direction", tostring(layout.FillDirection), "Enum.FillDirection.Vertical")
+		eq("ui: horizontal alignment", tostring(layout.HorizontalAlignment), "Enum.HorizontalAlignment.Center")
+		eq("ui: sort order", tostring(layout.SortOrder), "Enum.SortOrder.LayoutOrder")
+	end
+
+	local mobile = run("ui-mobile")
+	if mobile and button then
+		eq("ui: every GuiObject under the target was counted", mobile.guiObjectsUpdated, 1)
+		check("ui: the button got a UIScale", button:FindFirstChildOfClass("UIScale") ~= nil)
+		eq("ui: and its text now scales", button.TextScaled, true)
+	end
+end
+
+-- === asset_sanitize_apply ===================================================
+-- Neutralises the scripts in a model the user did not write, from a list of
+-- paths. Two children may share a name, and in a foreign model that usually
+-- means two `Script`s called "Script": resolving that path twice returned the
+-- same instance twice, so one was disabled twice and the other stayed live
+-- behind a receipt that said two were disabled.
+do
+	local function scriptIn(parent, name, class)
+		local s = roblox.Instance.new(class or "Script")
+		s.Name = name
+		if class ~= "ModuleScript" then s.Enabled = true end
+		s.Parent = parent
+		return s
+	end
+
+	local foreign = roblox.Instance.new("Model")
+	foreign.Name = "Foreign"
+	foreign.Parent = ws
+	local first = scriptIn(foreign, "Script")
+	local second = scriptIn(foreign, "Script")
+	local moduleScript = scriptIn(foreign, "Mod", "ModuleScript")
+	-- Named by nobody: added after the plan was made, and must be left alone.
+	local unlisted = scriptIn(foreign, "Unlisted")
+
+	local disabled = run("sanitize-disable")
+	if disabled then
+		eq("sanitize: the first of two same-named scripts is disabled", first.Enabled, false)
+		eq("sanitize: and so is the second", second.Enabled, false)
+		eq("sanitize: a script the plan did not name is untouched", unlisted.Enabled, true)
+		eq("sanitize: two disables are two disables", disabled.appliedCount, 2)
+		-- A ModuleScript has no Enabled. Saying so is the difference between a
+		-- model that was neutralised and one that only looks it.
+		eq("sanitize: the ModuleScript is reported, not silently left live", disabled.skippedCount, 1)
+		check("sanitize: and the reason names the problem",
+			tostring((disabled.skipped[1] or {}).reason):find("ModuleScript") ~= nil,
+			tostring((disabled.skipped[1] or {}).reason))
+		eq("sanitize: the ModuleScript is still there to audit", moduleScript.Parent, foreign)
+	end
+
+	local foreign2 = roblox.Instance.new("Model")
+	foreign2.Name = "Foreign2"
+	foreign2.Parent = ws
+	local keep = scriptIn(foreign2, "Script")
+	local alsoKeep = scriptIn(foreign2, "Script")
+
+	local removed = run("sanitize-remove")
+	if removed then
+		eq("sanitize: both same-named scripts are removed", removed.appliedCount, 2)
+		eq("sanitize: the first is unparented", keep.Parent, nil)
+		eq("sanitize: and so is the second", alsoKeep.Parent, nil)
+		-- Unparented, not destroyed: that is what keeps the change undoable.
+		eq("sanitize: the instance survives the unparenting", keep.Name, "Script")
+	end
+
+	-- A name may contain a dot, and GetFullName() joins names with dots, so a
+	-- Script called "A.B" and a Script "B" inside a Folder "A" report the same
+	-- path. Walking distinguishes them; resolving that path reached the folder's
+	-- one twice and left the other running under a receipt that said otherwise.
+	local foreign3 = roblox.Instance.new("Model")
+	foreign3.Name = "Foreign3"
+	foreign3.Parent = ws
+	local folder = roblox.Instance.new("Folder")
+	folder.Name = "A"
+	folder.Parent = foreign3
+	local inFolder = scriptIn(folder, "B")
+	local dotted = scriptIn(foreign3, "A.B")
+	eq("sanitize: the two scripts really do share a path", inFolder:GetFullName(), dotted:GetFullName())
+
+	local dottedResult = run("sanitize-remove-dotted")
+	if dottedResult then
+		eq("sanitize: both scripts at the ambiguous path are removed", dottedResult.appliedCount, 2)
+		eq("sanitize: the one inside the folder is gone", inFolder.Parent, nil)
+		eq("sanitize: and so is the one whose own name holds the dot", dotted.Parent, nil)
 	end
 end
 

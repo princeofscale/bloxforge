@@ -10,6 +10,7 @@ import {
   color3FromRGB,
   udim2,
   vector2,
+  enumMember,
   PATH_RESOLVER_LUA,
 } from './luau-emit.js';
 
@@ -64,11 +65,6 @@ function wrap(body: string): string {
   return `${PATH_RESOLVER_LUA}\n${body}`;
 }
 
-/** Sanitize an enum member name to a bare identifier (defends generated code). */
-function enumName(value: string): string {
-  return value.replace(/[^A-Za-z0-9]/g, '');
-}
-
 export function buildScreenGuiLuau(options: ScreenGuiOptions): string {
   const parentPath = options.parentPath ?? 'StarterGui';
   const lines: string[] = [
@@ -103,7 +99,7 @@ export function buildGuiObjectLuau(className: GuiObjectClass, options: GuiObject
 
   if (TEXT_CLASSES.has(className)) {
     if (options.text !== undefined) lines.push(`obj.Text = ${luaString(options.text)}`);
-    if (options.font !== undefined) lines.push(`obj.Font = Enum.Font.${enumName(options.font)}`);
+    if (options.font !== undefined) lines.push(`obj.Font = ${enumMember('Font', 'font', options.font)}`);
     if (options.textScaled !== undefined) lines.push(`obj.TextScaled = ${luaBool(options.textScaled)}`);
     if (options.textColor) lines.push(`obj.TextColor3 = ${color3FromRGB(...options.textColor)}`);
     if (options.textSize !== undefined) lines.push(`obj.TextSize = ${luaNumber(options.textSize)}`);
@@ -129,12 +125,12 @@ export function buildApplyLayoutLuau(targetPath: string, options: LayoutOptions)
     if (options.padding !== undefined) lines.push(`layout.CellPadding = UDim2.new(0, ${luaNumber(options.padding)}, 0, ${luaNumber(options.padding)})`);
   } else {
     lines.push(`local layout = Instance.new("UIListLayout")`);
-    if (options.fillDirection) lines.push(`layout.FillDirection = Enum.FillDirection.${enumName(options.fillDirection)}`);
+    if (options.fillDirection) lines.push(`layout.FillDirection = ${enumMember('FillDirection', 'fillDirection', options.fillDirection)}`);
     if (options.padding !== undefined) lines.push(`layout.Padding = UDim.new(0, ${luaNumber(options.padding)})`);
   }
-  if (options.horizontalAlignment) lines.push(`layout.HorizontalAlignment = Enum.HorizontalAlignment.${enumName(options.horizontalAlignment)}`);
-  if (options.verticalAlignment) lines.push(`layout.VerticalAlignment = Enum.VerticalAlignment.${enumName(options.verticalAlignment)}`);
-  lines.push(`layout.SortOrder = Enum.SortOrder.${enumName(options.sortOrder ?? 'LayoutOrder')}`);
+  if (options.horizontalAlignment) lines.push(`layout.HorizontalAlignment = ${enumMember('HorizontalAlignment', 'horizontalAlignment', options.horizontalAlignment)}`);
+  if (options.verticalAlignment) lines.push(`layout.VerticalAlignment = ${enumMember('VerticalAlignment', 'verticalAlignment', options.verticalAlignment)}`);
+  lines.push(`layout.SortOrder = ${enumMember('SortOrder', 'sortOrder', options.sortOrder ?? 'LayoutOrder')}`);
   lines.push(`layout.Parent = target`);
   lines.push(`return { path = layout:GetFullName(), className = layout.ClassName, success = true }`);
   return wrap(lines.join('\n'));
