@@ -83,7 +83,12 @@ for _, d in ipairs(scopedDescendants(root)) do
 \tend
 end
 
-table.sort(scored, function(a, b) return a.score > b.score end)
+-- Ties break by path, which is unique. Without it "the top result" was
+-- whichever equally-scored instance the traversal happened to reach first.
+table.sort(scored, function(a, b)
+\tif a.score ~= b.score then return a.score > b.score end
+\treturn a.path < b.path
+end)
 local top = {}
 for i = 1, math.min(${safeLimit}, #scored) do top[i] = scored[i] end
 return { query = query, total = #scored, returned = #top, results = top, scope = scopeLabel(root) }`;

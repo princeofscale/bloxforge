@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Four ranked lists had no tie-break, so entries with equal scores came back in
+  `pairs()` order — which Lua leaves unspecified. Two reads of an **unchanged**
+  scene could disagree, and an agent diffing them sees changes that did not
+  happen: exactly the noise `scene_diff_trees` exists to remove, produced by the
+  tools feeding it.
+
+  `get_scene_summary` and `get_world_snapshot` now break class-count ties by
+  name; `scene_search` breaks score ties by path, so "the top result" is no
+  longer whichever equally-scored instance the traversal reached first; and
+  `get_spatial_layout` breaks landmark-volume ties by name and then position —
+  a pair of walls or a row of crates is the common case, not the odd one.
+
+  This repository already knew determinism mattered here: `world-fingerprint`
+  sorts its keys for exactly this reason. The four ranked lists simply never got
+  the same treatment.
+
+- `run_playtest_episode` no longer reports "no runtime errors and all assertions
+  held" when **no assertions were supplied**. That sentence is true of zero
+  assertions, and an agent that passed none reads it as verification of the
+  game. A pass with nothing asserted now says so, and says what would make it
+  mean something.
+
+- The value serializer behind `get_node_batch` structures every type the
+  capability registry calls lossy, instead of nine of them falling through to
+  `tostring()`.
+
+  `CFrame` was fixed once, on its own, after rotation went missing from a
+  serialized value. The same fallback was still swallowing `NumberSequence`,
+  `ColorSequence`, `NumberRange`, `PhysicalProperties`, `Ray`, `Region3`,
+  `Faces` and `Axes` — each arriving as an opaque string that reads like a value
+  and cannot be written back. `UDim`, `UDim2`, `Rect` and `BrickColor` are
+  structured too.
+
+  The list and the serializer are now checked against each other: a type on
+  `LOSSY_WITHOUT_FULL_SHAPE` that the serializer does not handle fails a test.
+  Without that the list is documentation — which is exactly what it was when
+  `CFrame` was on it and nothing consulted it.
+
+  Two things the serializer used to conflate are now distinct. **An unset
+  property says it is unset** (`{ __unset: true }`) rather than arriving as the
+  string `"nil"` — found by running the serializer against a real DataModel,
+  where `CustomPhysicalProperties` on a fresh `Part` is genuinely nil. And **a
+  type it could not structure names itself** (`{ __opaque, __type }`) instead of
+  returning a bare string, because a blob that looks like a value is how a
+  caller writes back something that is not what it read.
+
 - Bulk write tools return a receipt instead of a row per input. `mass_set_property`
   on 200 paths answered with 200 rows of
   `{path, success: true, propertyName, propertyValue}` — repeating on every row

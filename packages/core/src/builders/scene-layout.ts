@@ -191,7 +191,19 @@ for _, child in ipairs(root:GetChildren()) do
 \t\t})
 \tend
 end
-table.sort(landmarks, function(a, b) return a._v > b._v end)
+-- Ties break by name and then by position. Two parts of identical volume are
+-- common — a pair of walls, a row of crates — and which one was called a
+-- landmark should not depend on traversal order. Landmarks carry no path, so
+-- name plus position is what distinguishes them; two entries alike in all four
+-- are indistinguishable in the output as well, and their order cannot matter.
+table.sort(landmarks, function(a, b)
+\tif a._v ~= b._v then return a._v > b._v end
+\tif a.name ~= b.name then return a.name < b.name end
+\tfor i = 1, 3 do
+\t\tif a.position[i] ~= b.position[i] then return a.position[i] < b.position[i] end
+\tend
+\treturn false
+end)
 while #landmarks > TOP do table.remove(landmarks) end
 for _, l in ipairs(landmarks) do l._v = nil end
 

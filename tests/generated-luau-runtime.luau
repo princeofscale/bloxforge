@@ -476,6 +476,91 @@ if layout3 then
 	check("layout: no spawn sits on it, so nothing confirms it", basis:find("SpawnLocation") == nil, basis)
 end
 
+-- === ordering is a property, not an accident ================================
+-- Every one of these lists used to sort on one key only, so entries that tied
+-- came back in `pairs` order — unspecified, and different between two reads of
+-- an unchanged scene. An agent diffing those reads sees changes that did not
+-- happen, which is the same noise the tree diff exists to remove.
+local function nonDecreasing(label, list, key, tie)
+	for i = 2, #list do
+		local a, b = list[i - 1], list[i]
+		if a[key] < b[key] then
+			check(label, false, string.format("%s went up at %d", key, i))
+			return
+		end
+		if a[key] == b[key] and tie and a[tie] > b[tie] then
+			check(label, false, string.format("tie at %d not broken by %s: %s then %s", i, tie, tostring(a[tie]), tostring(b[tie])))
+			return
+		end
+	end
+	check(label, true)
+end
+
+local summary = run("scene-summary")
+if summary and summary.topClasses then
+	nonDecreasing("summary: classes descend by count, ties by name", summary.topClasses, "count", "className")
+end
+
+local search = run("scene-search")
+if search and search.results then
+	nonDecreasing("search: results descend by score, ties by path", search.results, "score", "path")
+end
+
+local ordered = run("spatial-layout")
+if ordered and ordered.landmarks then
+	-- The landmark sort drops `_v` before returning, so volume is checked through
+	-- the size it was computed from.
+	for i = 2, #ordered.landmarks do
+		local a, b = ordered.landmarks[i - 1], ordered.landmarks[i]
+		local va = a.size[1] * a.size[2] * a.size[3]
+		local vb = b.size[1] * b.size[2] * b.size[3]
+		if va == vb and a.name > b.name then
+			check("layout: landmarks of equal volume are ordered by name", false,
+				string.format("%s came before %s", a.name, b.name))
+		end
+	end
+	check("layout: landmarks of equal volume are ordered by name", true)
+end
+
+-- === the value serializer, against real Roblox values =======================
+-- Every type here is on the capability registry's lossy list. That list is only
+-- a guard if the serializer structures them; CFrame was on it once, and losing
+-- its rotation was silent because nothing connected the two.
+local values = run("node-batch-values")
+if values then
+	local node = values.nodes and values.nodes[1]
+	if not (node and node.props) then
+		check("serializer: the node came back with its properties", false, "no props in the response")
+	else
+		local f = node.props
+		check("serializer: Vector3 is three numbers", typeof(f.Size) == "table" and #f.Size == 3,
+			tostring(f.Size))
+		check("serializer: CFrame keeps its orientation, not only its position",
+			typeof(f.CFrame) == "table" and #f.CFrame == 6, tostring(f.CFrame))
+		check("serializer: Color3 is three 8-bit channels",
+			typeof(f.Color) == "table" and #f.Color == 3 and f.Color[1] <= 255, tostring(f.Color))
+		check("serializer: an EnumItem is its name", typeof(f.Material) == "string", tostring(f.Material))
+		-- An unset property is reported as unset, not as something the
+		-- serializer could not parse. CustomPhysicalProperties is nil on a fresh
+		-- Part, which makes it the case to assert on.
+		check("serializer: an unset property says it is unset",
+			typeof(f.CustomPhysicalProperties) == "table" and f.CustomPhysicalProperties.__unset == true,
+			tostring(f.CustomPhysicalProperties))
+		check("serializer: and does not look like a value it failed to parse",
+			f.CustomPhysicalProperties.__opaque == nil, tostring(f.CustomPhysicalProperties.__opaque))
+		-- BrickColor has no default in rbx-dom, so reading it errors and the
+		-- property is omitted. A host limitation, not a defect in the builder.
+		check("serializer: a property the host cannot read is omitted, not invented",
+			f.BrickColor == nil, tostring(f.BrickColor))
+		-- Nothing that did come back should have fallen through to the opaque branch.
+		for name, value in f do
+			if typeof(value) == "table" and value.__opaque ~= nil then
+				check("serializer: " .. name .. " was structured, not stringified", false, tostring(value.__type))
+			end
+		end
+	end
+end
+
 -- === generated for the user's game, not for us ==============================
 -- These emit Luau that runs in a player's experience, so nothing else in this
 -- repository would ever parse them. A generator that emits unparseable Luau is

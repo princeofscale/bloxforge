@@ -34,6 +34,7 @@ const load = async (file) => {
 const { buildSpatialLayoutLuau } = await load('scene-layout.js');
 const { buildNodeBatchLuau } = await load('world-model.js');
 const { buildSceneSearchLuau } = await load('scene-search.js');
+const { buildSceneSummaryLuau } = await load('scene-summary.js');
 const { buildWorldFingerprintLuau } = await load('world-fingerprint.js');
 const { buildFitScanLuau } = await load('asset-fit.js');
 const { buildDesignLintLuau } = await load('design-builders.js');
@@ -120,7 +121,16 @@ const generated = {
     ['Anchored'],
     true,
   ),
+  // The value serializer's own branches, against real Roblox values. Every one
+  // of these types is on the capability registry's lossy list, which is only a
+  // guard if the serializer actually structures them.
+  'node-batch-values': buildNodeBatchLuau(
+    ['game.Workspace.Ground'],
+    ['Size', 'CFrame', 'Color', 'BrickColor', 'Material', 'CustomPhysicalProperties'],
+    false,
+  ),
   'scene-search': buildSceneSearchLuau('ground', 'game.Workspace', 10),
+  'scene-summary': buildSceneSummaryLuau('game.Workspace', 20),
   'world-fingerprint': buildWorldFingerprintLuau('game.Workspace'),
   'fit-scan': buildFitScanLuau('game.Workspace.Nope'),
   // design_lint's contrast rule is arithmetic over composited colours, which is

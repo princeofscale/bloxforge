@@ -10,6 +10,10 @@ import { luaString, luaNumber, luaBool, PATH_RESOLVER_LUA, PLACE_SCOPE_LUA } fro
 // agent gets [x,y,z] / [r,g,b] / names instead of opaque tostring() blobs.
 const SERIALIZE_LUA = `local function ser(v)
 \tlocal t = typeof(v)
+\t-- A property that is genuinely unset is not a value this could not parse.
+\t-- Both used to come back looking alike — as the string "nil", and then as an
+\t-- opaque wrapper — so a caller could not tell "no value" from "no idea".
+\tif v == nil then return { __unset = true } end
 \tif t == "Vector3" then return { v.X, v.Y, v.Z }
 \telseif t == "Vector2" then return { v.X, v.Y }
 \telseif t == "Color3" then return { math.floor(v.R*255+0.5), math.floor(v.G*255+0.5), math.floor(v.B*255+0.5) }
@@ -20,11 +24,56 @@ const SERIALIZE_LUA = `local function ser(v)
 \t\tlocal p = v.Position
 \t\tlocal rx, ry, rz = v:ToOrientation()
 \t\treturn { p.X, p.Y, p.Z, math.deg(rx), math.deg(ry), math.deg(rz) }
+\telseif t == "UDim" then return { v.Scale, v.Offset }
+\telseif t == "UDim2" then return { v.X.Scale, v.X.Offset, v.Y.Scale, v.Y.Offset }
+\telseif t == "Rect" then return { v.Min.X, v.Min.Y, v.Max.X, v.Max.Y }
+\telseif t == "NumberRange" then return { v.Min, v.Max }
+\telseif t == "Ray" then
+\t\tlocal o, d = v.Origin, v.Direction
+\t\treturn { o.X, o.Y, o.Z, d.X, d.Y, d.Z }
+\telseif t == "Region3" then
+\t\t-- Region3 exposes CFrame and Size rather than its corners, so the corners
+\t\t-- are derived. Reporting one corner would be a point, not a region.
+\t\tlocal c, s = v.CFrame.Position, v.Size / 2
+\t\treturn { c.X - s.X, c.Y - s.Y, c.Z - s.Z, c.X + s.X, c.Y + s.Y, c.Z + s.Z }
+\telseif t == "NumberSequence" then
+\t\tlocal keys = {}
+\t\tfor _, k in v.Keypoints do keys[#keys + 1] = { k.Time, k.Value, k.Envelope } end
+\t\treturn keys
+\telseif t == "ColorSequence" then
+\t\tlocal keys = {}
+\t\tfor _, k in v.Keypoints do
+\t\t\tkeys[#keys + 1] = { k.Time, math.floor(k.Value.R*255+0.5), math.floor(k.Value.G*255+0.5), math.floor(k.Value.B*255+0.5) }
+\t\tend
+\t\treturn keys
+\telseif t == "PhysicalProperties" then
+\t\treturn { v.Density, v.Friction, v.Elasticity, v.FrictionWeight, v.ElasticityWeight }
+\telseif t == "Faces" then return { v.Top, v.Bottom, v.Left, v.Right, v.Back, v.Front }
+\telseif t == "Axes" then return { v.X, v.Y, v.Z }
+\telseif t == "BrickColor" then return v.Name
 \telseif t == "EnumItem" then return v.Name
 \telseif t == "Instance" then return v:GetFullName()
 \telseif t == "number" or t == "boolean" or t == "string" then return v
-\telse return tostring(v) end
+\t-- Anything left is stringified, and says so. An opaque blob that looks like a
+\t-- value is how a caller writes back something that is not what it read; a
+\t-- blob that names itself is a gap the caller can see.
+\telse return { __opaque = tostring(v), __type = t } end
 end`;
+
+/**
+ * Roblox types this serializer reports structurally rather than as a string.
+ *
+ * Kept beside the Luau and asserted against `LOSSY_WITHOUT_FULL_SHAPE`: that
+ * list names the types a flat value truncates, and every one of them has to be
+ * handled here or the list is documentation rather than a guard. `CFrame` was
+ * on it once, and losing its rotation was silent precisely because nothing
+ * connected the two.
+ */
+export const STRUCTURED_VALUE_TYPES: readonly string[] = [
+  'Vector3', 'Vector2', 'Color3', 'CFrame', 'UDim', 'UDim2', 'Rect', 'NumberRange',
+  'Ray', 'Region3', 'NumberSequence', 'ColorSequence', 'PhysicalProperties',
+  'Faces', 'Axes', 'BrickColor', 'EnumItem', 'Instance',
+];
 
 /**
  * Batch read: resolve several paths in one round-trip and return only the
@@ -112,7 +161,13 @@ end
 
 local arr = {}
 for cls, n in pairs(byClass) do table.insert(arr, { className = cls, count = n }) end
-table.sort(arr, function(a, b) return a.count > b.count end)
+-- Ties break by name. Without it the order comes from pairs(), which is
+-- unspecified: two reads of an unchanged scene could disagree, and an agent
+-- diffing them sees changes that did not happen.
+table.sort(arr, function(a, b)
+\tif a.count ~= b.count then return a.count > b.count end
+\treturn a.className < b.className
+end)
 local top = {}
 for i = 1, math.min(${safeTopN}, #arr) do top[i] = arr[i] end
 

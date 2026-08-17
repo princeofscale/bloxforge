@@ -2052,7 +2052,12 @@ export class RuntimeTools {
       },
       stopped: stop.success !== false,
       hint: (verdict === 'pass'
-        ? 'Episode passed — no runtime errors and all assertions held.'
+        // "All assertions held" is true of zero assertions, and an agent that
+        // supplied none reads it as verification. A pass with nothing asserted
+        // says only that nothing errored, which is a much smaller claim.
+        ? (assertionsResult
+          ? 'Episode passed — no runtime errors and all assertions held.'
+          : 'Episode passed in the only sense available: nothing was logged as an error. No assertions were supplied, so nothing about the game\'s behaviour was checked — pass `assertions` to make this mean something.')
         : assertionsUnevaluated
           ? 'The assertions could not be evaluated, so this says nothing about the game — inspect "assertions.error" (and "assertions.results" if the batch was isolated) before treating anything as a regression.'
           : assertionsFailed
