@@ -72,6 +72,23 @@ describe('get_changes_since is a diff of one subtree', () => {
     expect(diff.changedCount).toBeUndefined();
   });
 
+  // The sanitize and fit scans in the same file both accept an already-decoded
+  // returnValue, because one of them met it. The fingerprint capture accepted
+  // only the string form, which would have made the changefeed the one read
+  // that could not parse the world off an otherwise fine bridge response.
+  it('reads a returnValue that arrives decoded, not only as a JSON string', async () => {
+    const t = new WorldModelTools({
+      callSingle: async () => ({
+        success: true,
+        returnValue: { fingerprint: { a: node('Workspace.A', 'Part|r|A|0') }, count: 1, truncated: false, scope: SCOPE },
+      }),
+    } as never);
+    const baseline = readJson(await t.getChangesSince(undefined, 'game.Workspace'));
+    expect(baseline.error).toBeUndefined();
+    expect(baseline.count).toBe(1);
+    expect(baseline.scope).toBe(SCOPE);
+  });
+
   it('still rejects an unknown snapshotId, without spending a capture on it', async () => {
     let captures = 0;
     const t = new WorldModelTools({

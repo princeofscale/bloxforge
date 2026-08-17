@@ -159,8 +159,14 @@ export class WorldModelTools {
     const response = await this.runtime.callSingle('/api/execute-luau', { code: buildWorldFingerprintLuau(path) }, 'edit', instance_id);
     try {
       const rv = (response as { returnValue?: unknown })?.returnValue;
-      if (typeof rv === 'string') {
-        const parsed = JSON.parse(rv) as { fingerprint?: Fingerprint; count?: number; truncated?: boolean; scope?: string; error?: string };
+      // A returnValue arrives as a JSON string, except where it does not: the
+      // sanitize and fit scans in this same file both accept an already-decoded
+      // object, because one of them met it. This accepted only the string, so
+      // the same bridge response would have made the changefeed the one read
+      // that could not parse the world.
+      const parsed = (typeof rv === 'string' ? JSON.parse(rv) : rv) as
+        { fingerprint?: Fingerprint; count?: number; truncated?: boolean; scope?: string; error?: string } | undefined;
+      if (parsed && typeof parsed === 'object') {
         if (parsed.error) return { fp: {}, count: 0, truncated: false, error: parsed.error };
         return { fp: parsed.fingerprint ?? {}, count: parsed.count ?? 0, truncated: parsed.truncated ?? false, scope: parsed.scope };
       }

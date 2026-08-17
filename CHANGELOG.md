@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the baseline is refused by name rather than answered. An unknown
   snapshotId is also rejected before the capture instead of after it.
 
+  The same capture accepted a `returnValue` only as a JSON string, while the
+  sanitize and fit scans beside it accept an already-decoded object — because
+  one of them met one. That would have made the changefeed the single read that
+  could not parse the world off a bridge response the others handle.
+
 - `apply_recipe`, the game templates and
   `environment_create_day_night_cycle_script` replaced a same-named instance
   with `Destroy()`. `Destroy` locks the parent permanently, so if the name
