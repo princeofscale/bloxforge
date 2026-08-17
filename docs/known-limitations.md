@@ -10,6 +10,33 @@ cases that cannot be worked around in plugin/server code. Each entry lists the
 
 ---
 
+## Instance paths
+
+### A dot-notation path does not identify one instance
+
+**Symptom.** A tool acts on a different instance than the one you meant, or
+reports one as "not found" while it is plainly there.
+
+**Root cause.** Every tool here addresses instances the way Roblox itself does,
+by `GetFullName()` — names joined with dots. That mapping is not one-to-one in
+either direction:
+
+- **Siblings may share a name.** Two `Script`s called `Script` under one model
+  produce the same path, and resolving it returns the first. This is the normal
+  shape of a model you did not write.
+- **A name may contain a dot.** A Script called `A.B` and a Script `B` inside a
+  Folder `A` produce the same path, and neither is reachable unambiguously.
+
+**Working path.** Where a tool builds its own target list by walking the tree —
+`asset_sanitize_apply`, `scene_search`, `get_spatial_layout` — duplicates are
+handled, because the walk holds the instances themselves rather than strings.
+Where you supply the path — `apply_mutation_plan`, `set_property`,
+`delete_object` — the first match wins. Give the ambiguous instance a unique
+name before acting on it, or pass `expected` on the mutation so a write to the
+wrong instance is refused rather than applied.
+
+---
+
 ## Scripts & Luau
 
 ### `require()` caches by ModuleScript instance — editing `Source` does not reload
