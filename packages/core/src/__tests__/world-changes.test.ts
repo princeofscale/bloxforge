@@ -42,6 +42,47 @@ describe('get_changes_since scope reporting', () => {
   });
 });
 
+describe('get_changes_since is a diff of one subtree', () => {
+  // A snapshot fingerprints a subtree. `path` defaulted to "game" on every
+  // call, so baselining game.Workspace and then polling with the snapshotId
+  // alone — the obvious way to use this — diffed the whole DataModel against a
+  // Workspace baseline and returned a scene full of changes that never
+  // happened.
+  const tools = () => new WorldModelTools({
+    callSingle: async () => fingerprintEnvelope('Part|r|A|0'),
+  } as never);
+
+  it('omitting the path follows the snapshot rather than falling back to game', async () => {
+    const t = tools();
+    const baseline = readJson(await t.getChangesSince(undefined, 'game.Workspace'));
+    const diff = readJson(await t.getChangesSince(baseline.snapshotId));
+    expect(diff.error).toBeUndefined();
+    expect(diff.path).toBe('game.Workspace');
+    expect(diff.changedCount).toBe(0);
+  });
+
+  it('refuses a path that is not the one the baseline was taken of', async () => {
+    const t = tools();
+    const baseline = readJson(await t.getChangesSince(undefined, 'game.Workspace'));
+    const diff = readJson(await t.getChangesSince(baseline.snapshotId, 'game.ReplicatedStorage'));
+    expect(diff.error).toMatch(/baseline of game\.Workspace/);
+    expect(diff.baselinePath).toBe('game.Workspace');
+    expect(diff.requestedPath).toBe('game.ReplicatedStorage');
+    // Nothing is reported as changed, because nothing was compared.
+    expect(diff.changedCount).toBeUndefined();
+  });
+
+  it('still rejects an unknown snapshotId, without spending a capture on it', async () => {
+    let captures = 0;
+    const t = new WorldModelTools({
+      callSingle: async () => { captures += 1; return fingerprintEnvelope('Part|r|A|0'); },
+    } as never);
+    const diff = readJson(await t.getChangesSince('snap_nope'));
+    expect(diff.error).toMatch(/Unknown or expired snapshotId/);
+    expect(captures).toBe(0);
+  });
+});
+
 describe('get_changes_since baseline stability', () => {
   /** Tools whose world reports whatever `st` currently holds. */
   const toolsReading = (read: () => string) =>

@@ -182,21 +182,37 @@ export class WorldModelTools {
    * looked"), where advancing the baseline is the point.
    */
   async getChangesSince(snapshotId?: string, path?: string, instance_id?: string, rebaseline?: boolean) {
-    const p = path ?? 'game';
-    const cur = await this._captureFingerprint(p, instance_id);
     const wrap = (obj: unknown) => ({ content: [{ type: 'text', text: JSON.stringify(obj) }] as ToolContent[] });
+    // Resolved before the capture: a snapshot is a fingerprint *of a subtree*,
+    // and diffing it against a different one reports the whole of both as
+    // changed. `path` used to default to "game" on every call, so baselining
+    // `game.Workspace` and then polling with the snapshotId alone — the obvious
+    // way to use this — diffed the entire DataModel against a Workspace
+    // baseline and returned a scene full of changes that never happened.
+    const prev = snapshotId ? this.snapshots.get(snapshotId) : undefined;
+    if (snapshotId && !prev) {
+      return wrap({ error: 'Unknown or expired snapshotId — call get_changes_since with no snapshotId to start a new baseline.', snapshotId });
+    }
+    const p = path ?? prev?.path ?? 'game';
+    if (prev && prev.path !== p) {
+      return wrap({
+        error: `snapshotId ${snapshotId} is a baseline of ${prev.path}, and this call asks about ${p}. Comparing two subtrees reports both as entirely changed — pass the same path, omit it, or start a new baseline for ${p}.`,
+        snapshotId,
+        baselinePath: prev.path,
+        requestedPath: p,
+      });
+    }
+    const cur = await this._captureFingerprint(p, instance_id);
     if (cur.error) return wrap({ error: cur.error, path: p });
-    if (!snapshotId) {
+    if (!prev) {
       const id = this.snapshots.put(p, cur.fp);
       return wrap({ snapshotId: id, baseline: true, count: cur.count, truncated: cur.truncated, path: p, scope: cur.scope });
     }
-    const prev = this.snapshots.get(snapshotId);
-    if (!prev) return wrap({ error: 'Unknown or expired snapshotId — call get_changes_since with no snapshotId to start a new baseline.', snapshotId });
     const diff = diffFingerprints(prev.fingerprint, cur.fp);
     const rolled = rebaseline === true;
-    if (rolled) this.snapshots.update(snapshotId, cur.fp);
+    if (rolled) this.snapshots.update(prev.id, cur.fp);
     return wrap({
-      snapshotId,
+      snapshotId: prev.id,
       path: p,
       ...diff,
       // Which question this answer is to. Without it the two modes are
