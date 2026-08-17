@@ -198,10 +198,13 @@ local function env()
 	return {
 		game = dm,
 		workspace = ws,
+		Instance = roblox.Instance,
 		Vector3 = roblox.Vector3,
 		Vector2 = roblox.Vector2,
 		Color3 = roblox.Color3,
 		CFrame = roblox.CFrame,
+		UDim = roblox.UDim,
+		UDim2 = roblox.UDim2,
 		Enum = roblox.Enum,
 	}
 end
@@ -656,6 +659,68 @@ do
 		eq("mutation: and the tag it added is gone", mut:HasTag("Rolled"), false)
 		eq("mutation: the tag it did not add is untouched", mut:HasTag("Existing"), true)
 		eq("mutation: the failure is counted", rolled.summary.failed, 1)
+	end
+end
+
+-- === ui_create_* / ui_apply_layout / ui_make_mobile_friendly ================
+-- These write real instances into StarterGui from typed options. Every value
+-- they set is a Roblox type assembled by string concatenation, and a UDim2 with
+-- its four arguments in the wrong order is indistinguishable from a correct one
+-- in a diff — but not on a screen, and not here.
+do
+	local created = run("ui-screen-gui")
+	local generated = sg:FindFirstChild("Generated")
+	if created then
+		eq("ui: the ScreenGui exists under StarterGui", generated ~= nil, true)
+		eq("ui: the receipt reports success", created.success, true)
+		eq("ui: and names the class it made", created.className, "ScreenGui")
+	end
+	if generated then
+		eq("ui: DisplayOrder came through as a number", generated.DisplayOrder, 5)
+		eq("ui: IgnoreGuiInset came through as a boolean", generated.IgnoreGuiInset, true)
+	end
+
+	local madeButton = run("ui-text-button")
+	local button = generated and generated:FindFirstChild("Play")
+	if madeButton then
+		eq("ui: the button was created inside the ScreenGui", button ~= nil, true)
+	end
+	if button then
+		-- Scale and Offset are two different things and both live in a UDim2.
+		-- Emitting them in the wrong order gives a button 200 screens wide.
+		eq("ui: Size.X is offset, not scale", button.Size.X.Offset, 200)
+		eq("ui: Size.X has no scale component", button.Size.X.Scale, 0)
+		eq("ui: Size.Y is offset", button.Size.Y.Offset, 50)
+		eq("ui: Position.X is scale, not offset", button.Position.X.Scale, 0.5)
+		eq("ui: Position.X has no offset", button.Position.X.Offset, 0)
+		eq("ui: AnchorPoint is centred", button.AnchorPoint.X, 0.5)
+		eq("ui: the font is the one asked for", tostring(button.Font), "Enum.Font.GothamBold")
+		eq("ui: text", button.Text, "Play")
+		eq("ui: TextSize", button.TextSize, 18)
+		eq("ui: ZIndex", button.ZIndex, 3)
+		-- 8-bit channels, not 0-1 floats: the two look alike and one is invisible.
+		near("ui: BackgroundColor3 red channel", button.BackgroundColor3.R * 255, 37, 1)
+		near("ui: BackgroundColor3 blue channel", button.BackgroundColor3.B * 255, 235, 1)
+	end
+
+	local laidOut = run("ui-layout")
+	local layout = generated and generated:FindFirstChildOfClass("UIListLayout")
+	if laidOut then
+		eq("ui: a list layout was added", layout ~= nil, true)
+	end
+	if layout then
+		eq("ui: padding is pixels", layout.Padding.Offset, 8)
+		eq("ui: and carries no scale", layout.Padding.Scale, 0)
+		eq("ui: fill direction", tostring(layout.FillDirection), "Enum.FillDirection.Vertical")
+		eq("ui: horizontal alignment", tostring(layout.HorizontalAlignment), "Enum.HorizontalAlignment.Center")
+		eq("ui: sort order", tostring(layout.SortOrder), "Enum.SortOrder.LayoutOrder")
+	end
+
+	local mobile = run("ui-mobile")
+	if mobile and button then
+		eq("ui: every GuiObject under the target was counted", mobile.guiObjectsUpdated, 1)
+		check("ui: the button got a UIScale", button:FindFirstChildOfClass("UIScale") ~= nil)
+		eq("ui: and its text now scales", button.TextScaled, true)
 	end
 end
 

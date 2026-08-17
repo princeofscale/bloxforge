@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `ui_*` tools turned an unusable enum name into a syntax error. A `font`,
+  `sortOrder`, `fillDirection` or alignment is stripped to letters and digits
+  before it is emitted as `Enum.Font.X`; a value with nothing left after
+  stripping produced `Enum.Font.`, which does not parse — so the caller got a
+  Luau parser message about a snippet it never sees, instead of a sentence about
+  the value it passed. The shape is now checked, and a well-formed name Roblox
+  does not know still reaches Roblox, which rejects it by name.
+
 - `asset_sanitize_apply` left one of two same-named scripts live. Its targets
   arrive as paths, and it resolved each with `FindFirstChild`, which returns the
   first match — so two `Script`s called "Script" under the same model (the
@@ -23,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anything the plan named that the walk did not reach is reported instead of
   passing silently. This is the security-facing tool in the set: the whole point
   of it is that a foreign script is not running afterwards.
+
+### Added
+
+- `tests/generated-luau-runtime.luau` now also runs `apply_mutation_plan`,
+  `asset_sanitize_apply` and the four `ui_*` generators against a real
+  DataModel, taking the harness from 84 checks to 144. Three of the four bugs
+  above were found by running the generated Luau rather than matching strings
+  against it; the `ui_*` family passed on the first run, which is the other
+  thing a check is for.
 
 - `apply_mutation_plan` ignored `expected: null`. That is the one precondition
   whose whole purpose is "do not write over something that is already there" —

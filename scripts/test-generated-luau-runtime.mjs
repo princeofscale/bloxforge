@@ -40,6 +40,7 @@ const { buildFitScanLuau } = await load('asset-fit.js');
 const { buildDesignLintLuau } = await load('design-builders.js');
 const { buildMutationPlanLuau } = await load('mutation-plan.js');
 const { buildSanitizeApplyLuau } = await load('asset-sanitize.js');
+const { buildScreenGuiLuau, buildGuiObjectLuau, buildApplyLayoutLuau, buildMobileFriendlyLuau } = await load('ui-builders.js');
 
 // The network and UI generators emit Luau for the *user's* game rather than for
 // BloxForge to run, so nothing else here would ever parse them. A generator
@@ -189,6 +190,24 @@ const generated = {
     ['game.Workspace.Foreign2.Script', 'game.Workspace.Foreign2.Script'],
     'remove',
   ),
+  // The ui_create_* family writes real instances into StarterGui from typed
+  // options. Every property here is a typed Roblox value assembled by string
+  // concatenation, and a UDim2 with the arguments in the wrong order looks
+  // exactly like a correct one in a diff.
+  'ui-screen-gui': buildScreenGuiLuau({
+    name: 'Generated', parentPath: 'StarterGui', ignoreGuiInset: true, displayOrder: 5,
+  }),
+  'ui-text-button': buildGuiObjectLuau('TextButton', {
+    parentPath: 'StarterGui.Generated', name: 'Play',
+    size: [0, 200, 0, 50], position: [0.5, 0, 0.5, 0], anchorPoint: [0.5, 0.5],
+    backgroundColor: [37, 99, 235], text: 'Play', font: 'GothamBold',
+    textColor: [255, 255, 255], textSize: 18, zIndex: 3,
+  }),
+  'ui-layout': buildApplyLayoutLuau('StarterGui.Generated', {
+    layout: 'list', fillDirection: 'Vertical', padding: 8,
+    horizontalAlignment: 'Center', sortOrder: 'LayoutOrder',
+  }),
+  'ui-mobile': buildMobileFriendlyLuau('StarterGui.Generated'),
   // Executed. The bucket is the security path in everything the network
   // generator emits, and a limiter that refills wrong is a limiter that is not
   // there. The server module embeds this verbatim.

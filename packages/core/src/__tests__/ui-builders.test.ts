@@ -51,6 +51,22 @@ describe('buildGuiObjectLuau', () => {
     expect(code).toContain('TextScaled = true');
   });
 
+  // A font name is stripped to letters and digits before it is emitted as
+  // `Enum.Font.X`. Stripping alone turned an unusable name into an *empty* one:
+  // `Enum.Font.` does not parse, so the caller got a Luau syntax error about a
+  // snippet it never sees rather than a sentence about the value it passed. A
+  // well-formed name Roblox does not know still reaches Roblox, which rejects
+  // it by name.
+  it('refuses an enum name that would not survive stripping', () => {
+    const parent = 'StarterGui.MainGui';
+    expect(() => buildGuiObjectLuau('TextLabel', { parentPath: parent, font: '🙂' })).toThrow(/font must name an Enum member/);
+    expect(() => buildGuiObjectLuau('TextLabel', { parentPath: parent, font: '2Fast' })).toThrow(/font/);
+    expect(() => buildApplyLayoutLuau(parent, { layout: 'list', sortOrder: '---' })).toThrow(/sortOrder/);
+    expect(() => buildApplyLayoutLuau(parent, { layout: 'list', fillDirection: ' ' })).toThrow(/fillDirection/);
+    // Spaces are still forgiven, because "Gotham Bold" names a real font.
+    expect(buildGuiObjectLuau('TextLabel', { parentPath: parent, font: 'Gotham Bold' })).toContain('Enum.Font.GothamBold');
+  });
+
   it('sets Image for image elements', () => {
     const code = buildGuiObjectLuau('ImageLabel', {
       parentPath: 'StarterGui.MainGui',
