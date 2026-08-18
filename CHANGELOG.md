@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `apply_mutation_plan` ignored `atomic` and `mass_delete_objects` ignored
+  `returnMode` over MCP. Both inputs are advertised in the tool schema and both
+  are forwarded by the HTTP handler, but the registry handler — which shadows
+  that map, because the registry is consulted first and the legacy map is only
+  a fallback — never read them. So `atomic: false` still rolled the plan back,
+  and `returnMode: "full"`, whose stated purpose is inspecting the raw plugin
+  response when you do not trust the compaction, returned the compacted
+  receipt. Found by calling both tools against a live Studio place.
+
+  The two are now forwarded, and a test compares every registry handler against
+  its legacy counterpart by sentinel value: an input one of them passes and the
+  other drops fails it, whatever order the two group their arguments in.
+
 - `list_library` scanned five hard-coded style directories, so a saved build
   could become invisible to the tool that lists it. The destination comes from
   `id`, which is free-form and documented as carrying a prefix

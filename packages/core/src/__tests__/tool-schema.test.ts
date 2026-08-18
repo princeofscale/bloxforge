@@ -748,4 +748,57 @@ describe('Tool schema compatibility', () => {
     expect(overrides.properties?.OutboundNetworkLossPercent.minimum).toBe(0);
     expect(overrides.properties?.OutboundNetworkLossPercent.maximum).toBe(0.5);
   });
+
+  // A tool registered in the registry shadows its TOOL_HANDLERS entry: the
+  // registry is consulted first and the legacy map is only a fallback. So an
+  // input the legacy handler forwards and the registry handler does not is
+  // dead over MCP while still advertised in the schema — which is how
+  // `apply_mutation_plan`'s `atomic` and `mass_delete_objects`'s `returnMode`
+  // were silently ignored by every MCP client while the HTTP path honoured
+  // them. Compared by sentinel value rather than by argument position, because
+  // the two handlers legitimately group arguments differently.
+  test('a registry handler forwards every input its legacy handler forwards', async () => {
+    const registry = new ToolRegistry();
+    registerContractedTools(registry, new RobloxStudioTools(new BridgeService('')));
+
+    const calls: unknown[] = [];
+    const probe = new Proxy({}, {
+      get: () => (...args: unknown[]) => { calls.push(args); return undefined; },
+    });
+
+    const sentinelsReaching = async (
+      invoke: () => Promise<unknown>,
+      properties: string[],
+    ): Promise<Set<string>> => {
+      calls.length = 0;
+      await invoke();
+      const seen = JSON.stringify(calls);
+      return new Set(properties.filter((key) => seen.includes(`__${key}__`)));
+    };
+
+    const dropped: string[] = [];
+    for (const definition of registry.definitions) {
+      const legacy = TOOL_HANDLERS[definition.name];
+      if (!legacy) continue;
+      const properties = Object.keys(
+        (definition.inputSchema as { properties?: Record<string, unknown> }).properties ?? {},
+      );
+      if (properties.length === 0) continue;
+      const args = Object.fromEntries(properties.map((key) => [key, `__${key}__`]));
+
+      const viaLegacy = await sentinelsReaching(
+        () => Promise.resolve(legacy(probe as never, args as never)).catch(() => undefined),
+        properties,
+      );
+      const viaRegistry = await sentinelsReaching(
+        () => registry.callTool(definition.name, probe, args),
+        properties,
+      );
+      for (const key of viaLegacy) {
+        if (!viaRegistry.has(key)) dropped.push(`${definition.name}.${key}`);
+      }
+    }
+
+    expect(dropped).toEqual([]);
+  });
 });
