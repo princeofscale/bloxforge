@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `list_library` scanned five hard-coded style directories. `export_build` takes
+  its style from the caller and writes to `<library>/<style>/<id>.json`, so a
+  build saved under any other name was stored successfully and then never
+  appeared in the list again — the tool reported an empty library over a
+  library that was not empty. It walks the library now, and `style` filters the
+  results rather than deciding where to look. A file that will not parse is
+  still skipped, but named in `unreadable` instead of being subtracted from the
+  total in silence: "not in the library" and "could not be read" are different
+  answers to "where is my build".
+
 - `rojo_syncback_apply` (and the deprecated `sync_pull` behind it) could leave
   files changed and say nothing. Restoring a file was the one rollback step not
   wrapped in a `try`, so a single unwritable file threw out of the rollback
