@@ -271,6 +271,7 @@ export function registerContractedTools(
         (args as any).dryRun,
         (args as any).confirm,
         (args as any).instance_id,
+        (args as any).atomic,
       ),
     }),
   );
@@ -289,6 +290,7 @@ export function registerContractedTools(
         (args as any).paths,
         (args as any).instance_id,
         { dryRun: (args as any).dryRun, confirm: (args as any).confirm },
+        (args as any).returnMode,
       ),
     }),
   );

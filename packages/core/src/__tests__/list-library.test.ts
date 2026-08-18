@@ -52,6 +52,21 @@ describe('list_library', () => {
     expect(filtered.builds[0].id).toBe('cyberpunk/neon-alley');
   });
 
+  // The case this actually shows up as: `create_build` constrains `style` to
+  // five values but takes the destination from the free-form `id`, so a build
+  // legitimately lives in a directory its own style field never names.
+  it('lists a build whose directory and style field disagree', async () => {
+    save('cyberpunk/neon_alley', { id: 'cyberpunk/neon_alley', style: 'misc', bounds: [1, 16.4, 3], parts: [{}, {}] });
+
+    const all = payload(await tools.listLibrary());
+    expect(all.total).toBe(1);
+    expect(all.builds[0].style).toBe('misc');
+
+    // Filtering by the declared style finds it; filtering by the directory does not.
+    expect(payload(await tools.listLibrary('misc')).total).toBe(1);
+    expect(payload(await tools.listLibrary('cyberpunk')).total).toBe(0);
+  });
+
   // One unparseable file should not hide a library, and it should not be
   // subtracted from the total in silence either: "not in the library" and
   // "could not be read" are different answers to "where is my build".

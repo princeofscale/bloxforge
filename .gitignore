@@ -109,3 +109,6 @@ evals/build-library/
 
 # Roadmap research: local working documents, deliberately not tracked
 ROADMAP-*
+
+# Local build library written by create_build/export_build
+build-library/

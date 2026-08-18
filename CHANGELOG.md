@@ -9,15 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- `list_library` scanned five hard-coded style directories. `export_build` takes
-  its style from the caller and writes to `<library>/<style>/<id>.json`, so a
-  build saved under any other name was stored successfully and then never
-  appeared in the list again — the tool reported an empty library over a
-  library that was not empty. It walks the library now, and `style` filters the
-  results rather than deciding where to look. A file that will not parse is
-  still skipped, but named in `unreadable` instead of being subtracted from the
-  total in silence: "not in the library" and "could not be read" are different
-  answers to "where is my build".
+- `list_library` scanned five hard-coded style directories, so a saved build
+  could become invisible to the tool that lists it. The destination comes from
+  `id`, which is free-form and documented as carrying a prefix
+  (`"medieval/cottage_01"`); only the separate `style` field is held to the
+  five-value enum, and `style` is stored *in* the file rather than deciding
+  where it goes. So `create_build {id: "cyberpunk/neon_alley", style: "misc"}`
+  writes `<library>/cyberpunk/neon_alley.json` — stored successfully, reported
+  as saved, and then never listed again. Directory and style may disagree, and
+  the old listing assumed they could not.
+
+  It walks the library now, and `style` filters the results rather than
+  deciding where to look. A file that will not parse is still skipped, but
+  named in `unreadable` instead of being subtracted from the total in silence:
+  "not in the library" and "could not be read" are different answers to "where
+  is my build".
+
+- A `build-library/` written into the repository root by `create_build` and
+  `export_build` is ignored. `evals/build-library/` already was; the root one
+  is where the tools actually write when the project root resolves to this
+  repository, which left local tool state staged for commit.
 
 - `rojo_syncback_apply` (and the deprecated `sync_pull` behind it) could leave
   files changed and say nothing. Restoring a file was the one rollback step not
