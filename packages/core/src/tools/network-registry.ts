@@ -74,7 +74,7 @@ const NETWORK_TOOLS: RegisteredTool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        before: { type: 'object', additionalProperties: true, description: 'Tree node: name, className, optional properties and children.' },
+        before: { type: 'object', additionalProperties: true, description: 'Tree node: name, className, optional id, properties and children. Give each node a stable id when you have one: children are matched by id when both sides carry one and by name otherwise, and a reparent is only reportable as a move when the node can be identified in its new home.' },
         after: { type: 'object', additionalProperties: true, description: 'The same shape, after whatever happened.' },
         ignoreProperties: { type: 'array', items: { type: 'string' }, description: 'Properties to leave out entirely — timestamps, generated ids.' },
         epsilon: { type: 'number', description: 'Numbers closer than this count as equal. Defaults to 1e-6.' },

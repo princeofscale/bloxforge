@@ -3390,7 +3390,7 @@ Compare two instance trees and report what changed: a reparent as one move rathe
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `before` | `object` | Yes | Tree node: name, className, optional properties and children. |
+| `before` | `object` | Yes | Tree node: name, className, optional id, properties and children. Give each node a stable id when you have one: children are matched by id when both sides carry one and by name otherwise, and a reparent is only reportable as a move when the node can be identified in its new home. |
 | `after` | `object` | Yes | The same shape, after whatever happened. |
 | `ignoreProperties` | `array` | No | Properties to leave out entirely — timestamps, generated ids. |
 | `epsilon` | `number` | No | Numbers closer than this count as equal. Defaults to 1e-6. |

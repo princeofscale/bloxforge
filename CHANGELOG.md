@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `scene_diff_trees` described a reparent as "one move rather than a delete and
+  an add", and its input schema never mentioned the `id` that makes that
+  possible. Children are matched by `id` when both sides carry one and by name
+  otherwise, so a caller who filled in the documented shape — name, className,
+  properties, children — got the delete-and-add the description says it avoids,
+  with nothing to indicate what was missing. The schema now says so.
+
 - `apply_mutation_plan` ignored `atomic` and `mass_delete_objects` ignored
   `returnMode` over MCP. Both inputs are advertised in the tool schema and both
   are forwarded by the HTTP handler, but the registry handler — which shadows
