@@ -487,15 +487,34 @@ export class SyncTools {
         for (const rel of deleted) delete plan.state.entries[rel];
         this._writeState(dir, plan.state);
       } catch (error) {
+        // Every restore is attempted and every failure is kept. Restoring a
+        // file was the one step here not wrapped in a try, so a single
+        // unwritable file threw out of this handler — discarding the error that
+        // actually caused the rollback and skipping the rename undo entirely,
+        // leaving the tree renamed as well as half-written.
+        const rollbackFailures: string[] = [];
+        const note = (what: string, cause: unknown) =>
+          rollbackFailures.push(`${what}: ${cause instanceof Error ? cause.message : String(cause)}`);
         for (const item of rollback.reverse()) {
-          if (item.previous === undefined) {
-            try { fs.unlinkSync(item.file); } catch { /* rollback is best effort */ }
-          } else {
-            atomicWriteFile(item.file, item.previous);
+          try {
+            if (item.previous === undefined) fs.unlinkSync(item.file);
+            else atomicWriteFile(item.file, item.previous);
+          } catch (cause) {
+            note(item.previous === undefined ? `could not remove ${item.file}` : `could not restore ${item.file}`, cause);
           }
         }
         for (const item of renamedRollback.reverse()) {
-          try { fs.renameSync(item.to, item.from); } catch { /* rollback is best effort */ }
+          try { fs.renameSync(item.to, item.from); } catch (cause) { note(`could not rename ${item.to} back to ${item.from}`, cause); }
+        }
+        if (rollbackFailures.length > 0) {
+          // A rollback that did not finish leaves files changed that the caller
+          // is about to be told were not. Say so, and say where the copies are.
+          const cause = error instanceof Error ? error.message : String(error);
+          throw new Error(
+            `${cause}\n\nThe rollback did not finish, so some files are left changed:\n  ${rollbackFailures.join('\n  ')}\n` +
+            `Copies of the originals are in ${backupRoot}. Restore them before re-running rojo_syncback_plan.`,
+            { cause: error },
+          );
         }
         throw error;
       }

@@ -1,4 +1,25 @@
 import * as fs from 'node:fs';
+
+// Two filesystem failures that no portable directory permission can produce on
+// both POSIX and Windows: a state write that fails *after* the files are
+// written, and a rollback step that cannot undo one of them.
+let mockUnlinkFailure: Error | undefined;
+let mockRenameFailure: RegExp | undefined;
+jest.mock('node:fs', () => {
+  const actual = jest.requireActual('node:fs');
+  return {
+    ...actual,
+    unlinkSync: (...args: unknown[]) => {
+      if (mockUnlinkFailure) throw mockUnlinkFailure;
+      return actual.unlinkSync(...args);
+    },
+    renameSync: (from: string, to: string) => {
+      if (mockRenameFailure?.test(to)) throw new Error(`EPERM: operation not permitted, rename '${to}'`);
+      return actual.renameSync(from, to);
+    },
+  };
+});
+
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { SyncManager } from '../sync/sync-manager.js';
@@ -297,14 +318,41 @@ describe('SyncTools safety', () => {
     await expect(tools.syncStatus(dir, 'place-1')).rejects.toThrow(/different directory/);
   });
 
-  it('rolls the filesystem back when the state write fails after files are written', async () => {
-    const stateDir = path.join(dir, '.bloxforge');
-    fs.mkdirSync(dir, { recursive: true });
-    // A directory where the state file belongs makes the final write fail.
-    fs.mkdirSync(path.join(stateDir, 'rojo-state.json'), { recursive: true });
+  it('rolls the filesystem back when the state write fails after files are written', () => {
+    // The state file is written last, and it is part of the same transaction:
+    // files it does not describe must not stay on disk. Failing it by putting a
+    // directory in its place does not test that — the *read* fails first and
+    // the apply never starts — so the write itself is what fails here.
+    mockRenameFailure = /rojo-state\.json$/;
+    return tools.syncPull(dir, 'place-1', { confirm: true })
+      .then(() => { throw new Error('expected the state write to fail'); })
+      .catch((error: Error) => {
+        expect(error.message).toMatch(/rojo-state\.json/);
+        expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
+      })
+      .finally(() => { mockRenameFailure = undefined; });
+  });
 
-    await expect(tools.syncPull(dir, 'place-1', { confirm: true })).rejects.toThrow();
-    expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(false);
+  // Restoring a file was the one rollback step not wrapped in a try. One
+  // unwritable file threw out of the handler, which discarded the error that
+  // caused the rollback and skipped the rename undo — so the caller was told
+  // why the write failed and nothing about the tree being left changed.
+  it('says which files a failed rollback left changed, and where the copies are', async () => {
+    mockRenameFailure = /rojo-state\.json$/;
+    mockUnlinkFailure = new Error('EPERM: operation not permitted');
+    try {
+      const failure = await tools.syncPull(dir, 'place-1', { confirm: true }).catch((e: Error) => e.message);
+      expect(failure).toMatch(/rollback did not finish/);
+      // The original cause survives, the file is named, and the copies are found.
+      expect(failure).toMatch(/rojo-state\.json/);
+      expect(failure).toMatch(/could not remove .*Main\.server\.lua/);
+      expect(failure).toMatch(/backups/);
+      // The write did happen, which is the whole point of saying so.
+      expect(fs.existsSync(path.join(dir, 'ServerScriptService/Main.server.lua'))).toBe(true);
+    } finally {
+      mockRenameFailure = undefined;
+      mockUnlinkFailure = undefined;
+    }
   });
 
   it('binds a bounded apply to the plan hash it was previewed from', async () => {

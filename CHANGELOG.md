@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `rojo_syncback_apply` (and the deprecated `sync_pull` behind it) could leave
+  files changed and say nothing. Restoring a file was the one rollback step not
+  wrapped in a `try`, so a single unwritable file threw out of the rollback
+  handler — discarding the error that caused the rollback, skipping the rename
+  undo, and leaving the tree renamed as well as half-written. Every restore is
+  attempted now, and any that fail are named in the error along with the backup
+  directory holding the originals.
+
+  The test that claimed to cover this rollback never reached it: it made the
+  state file unreadable, so the *plan* failed before anything was written. It
+  now fails the state write itself, which is the case it describes.
+
 - `get_changes_since` diffed one subtree against a fingerprint of another. A
   snapshot is a fingerprint *of a path*, but `path` defaulted to `game` on every
   call — so baselining `game.Workspace` and then polling with the snapshotId
