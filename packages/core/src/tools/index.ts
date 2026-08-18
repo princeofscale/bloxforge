@@ -1325,35 +1325,49 @@ export class RobloxStudioTools {
 
   async listLibrary(style?: string) {
     const libraryPath = RobloxStudioTools.findLibraryPath();
-    const styles = style ? [style] : ['medieval', 'modern', 'nature', 'scifi', 'misc'];
     const builds: Array<{ id: string; style: string; bounds: number[]; partCount: number }> = [];
+    // A file that will not parse is skipped rather than failing the listing, but
+    // skipping it silently made `total` the count of what could be read while
+    // reading as the count of what is there.
+    const unreadable: string[] = [];
 
-    for (const s of styles) {
-      const dirPath = path.join(libraryPath, s);
-      if (!fs.existsSync(dirPath)) continue;
-
-      const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.json'));
-      for (const file of files) {
+    // Walk the library rather than five hard-coded style directories.
+    // `export_build` takes the style from its caller and writes to
+    // <library>/<style>/<id>.json, so a build saved under any other name was
+    // stored successfully and then never appeared in the list again.
+    const walk = (dir: string) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) { walk(full); continue; }
+        if (!entry.name.endsWith('.json')) continue;
+        const relative = path.relative(libraryPath, full).replace(/\\/g, '/');
         try {
-          const content = fs.readFileSync(path.join(dirPath, file), 'utf-8');
-          const data = JSON.parse(content);
+          const data = JSON.parse(fs.readFileSync(full, 'utf-8'));
           builds.push({
-            id: data.id || `${s}/${file.replace('.json', '')}`,
-            style: data.style || s,
+            id: data.id || relative.replace(/\.json$/, ''),
+            style: data.style || relative.split('/')[0],
             bounds: data.bounds || [0, 0, 0],
-            partCount: Array.isArray(data.parts) ? data.parts.length : 0
+            partCount: Array.isArray(data.parts) ? data.parts.length : 0,
           });
         } catch {
-          // Skip invalid JSON files
+          unreadable.push(relative);
         }
       }
-    }
+    };
+    if (fs.existsSync(libraryPath)) walk(libraryPath);
+
+    // `style` filters the results; it never decides where to look.
+    const listed = style ? builds.filter((b) => b.style === style) : builds;
 
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ builds, total: builds.length })
+          text: JSON.stringify({
+            builds: listed,
+            total: listed.length,
+            ...(unreadable.length > 0 ? { unreadable, unreadableCount: unreadable.length } : {}),
+          })
         }
       ]
     };
