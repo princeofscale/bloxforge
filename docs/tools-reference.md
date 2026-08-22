@@ -77,7 +77,7 @@ Find instances by name, class, or properties
 
 ### `get_instance_properties` (Read-only)
 
-Get all properties of an instance
+Get the commonly-inspected properties of an instance (a fixed set — Roblox exposes no property enumeration to plugins, so this is not every property the class has). Covers transform, appearance, text/GUI layout and script metadata. For anything outside that set, read it by name with mass_get_property.
 
 **Parameters:**
 
@@ -1503,7 +1503,7 @@ Move the player character to a target position or instance during playtest. Uses
 | `instancePath` | `string` | No | Instance to navigate to (dot notation). The character walks to its Position. Either this or position is required. |
 | `waitForCompletion` | `boolean` | No | Wait for the character to arrive before returning (default: true) |
 | `timeout` | `number` | No | Max seconds to wait for navigation to complete (default: 25) |
-| `target` | `string` | No | Instance target: "edit" (default), "server", "client-1", "client-2", etc. |
+| `target` | `string` | No | Playtest peer to drive: "server" (default). The edit peer has no character and cannot service this call; "client-N" is not forwarded. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
