@@ -124,7 +124,7 @@ export const BROWSING_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: 'get_instance_properties',
     category: 'read',
     effects: ['studio.read'],
-    description: 'Get all properties of an instance',
+    description: 'Get the commonly-inspected properties of an instance (a fixed set — Roblox exposes no property enumeration to plugins, so this is not every property the class has). Covers transform, appearance, text/GUI layout and script metadata. For anything outside that set, read it by name with mass_get_property.',
     inputSchema: {
       type: 'object',
       properties: {
