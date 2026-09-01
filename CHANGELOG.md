@@ -45,6 +45,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `character_navigation` never moved anyone. Navigation was signalled from the
+  edit peer to a `__MCP_CommandListener` Script injected into
+  `ServerScriptService`, over `LogService.MessageOut` — reflection that does not
+  cross from the edit DataModel to the play server, the same reason
+  stop-signalling already lives in `StopPlayMonitor`. The signal was written and
+  nothing on the other side ever heard it, so the call sat out its `timeout` and
+  returned "Navigation timed out". The listener was also only ever planted by
+  `start_playtest`, so a playtest started from Studio's own Play button, or a
+  multiplayer session, had no listener at all. The plugin already runs a peer
+  inside the play DataModel, which has the character and `PathfindingService`
+  right there, so the relay is gone and the walk happens locally. `target` now
+  defaults to `"server"` rather than `"edit"`, which was never a DataModel that
+  could service the call and now says so instead of timing out.
+
+- `get_instance_properties` hid properties the write tools can set. Roblox
+  exposes no property enumeration to plugins, so the read is a fixed list — and
+  `AnchorPoint`, `Font`, `TextScaled` and `ResetOnSpawn` were absent from it,
+  making them writable and then unreadable. Those and the rest of the common
+  layout, text and part-query properties are in the list now. Anything outside
+  it is still readable one at a time through `mass_get_property`.
+
+- Undo waypoints read "MCP: MCP: ...". Callers inside the plugin pass a bare
+  action name and the recorder prefixes it, but a caller-supplied `undoLabel`
+  usually carries the prefix already, because that is how the waypoints read in
+  Studio. The prefix is no longer added twice.
+
 - A screenshot was transferred from Studio at full native resolution as raw
   RGBA, before anything downscaled it. The cost is width×height×4 bytes,
   base64-expanded by 4/3, in a single HTTP body: 44MB for a 4K display and
