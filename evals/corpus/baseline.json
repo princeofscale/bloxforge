@@ -1,23 +1,23 @@
 {
  "shortlist": 8,
  "positives": {
-  "cases": 218,
-  "recallAt1": 0.2339,
-  "recallAt3": 0.3945,
-  "recallAt5": 0.4725,
-  "recallAt8": 0.5596,
-  "mrr": 0.3441,
+  "cases": 228,
+  "recallAt1": 0.2281,
+  "recallAt3": 0.386,
+  "recallAt5": 0.4649,
+  "recallAt8": 0.5482,
+  "mrr": 0.336,
   "shortlistCI": {
-   "low": 0.4954,
-   "high": 0.6239
+   "low": 0.4825,
+   "high": 0.614
   }
  },
  "confusers": {
-  "cases": 436,
-  "stolenFirstPlace": 0.2638,
+  "cases": 456,
+  "stolenFirstPlace": 0.2632,
   "ci": {
-   "low": 0.2225,
-   "high": 0.3073
+   "low": 0.2237,
+   "high": 0.3048
   }
  },
  "noTool": {
@@ -30,8 +30,8 @@
  },
  "multiStep": {
   "cases": 50,
-  "meanStepCoverage": 0.48,
-  "meanOrderDistance": 1.28
+  "meanStepCoverage": 0.47,
+  "meanOrderDistance": 1.3
  },
  "adversarial": {
   "cases": 22,

@@ -36,6 +36,7 @@ const NO_RECORDING = {
   '/api/character-navigation': 'moves a character during playtest',
   '/api/simulate-mouse-input': 'runtime input, not a DataModel edit',
   '/api/simulate-keyboard-input': 'runtime input, not a DataModel edit',
+  '/api/manage-selection': 'Selection and the camera are editor state; neither is on the undo stack',
   '/api/breakpoints': 'debugger state, not a DataModel edit',
 };
 
