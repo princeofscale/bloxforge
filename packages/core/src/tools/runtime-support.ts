@@ -6,6 +6,10 @@ export type RawImageCaptureResponse = {
   error?: string;
   width?: number;
   height?: number;
+  // The capture's dimensions before the plugin's own raw-transfer downscale.
+  // Equal to width/height whenever nothing was downscaled in Studio.
+  nativeWidth?: number;
+  nativeHeight?: number;
   viewportW?: number;
   viewportH?: number;
   data?: string;

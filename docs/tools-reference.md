@@ -2,7 +2,7 @@
 
 This document contains the complete list of available MCP tools in BloxForge, automatically generated from the tool definitions.
 
-## Total Tools: 227
+## Total Tools: 228
 
 ### `get_file_tree` (Read-only)
 
@@ -493,6 +493,24 @@ Get all currently selected objects
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
+| `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
+
+---
+
+### `manage_selection` (Write)
+
+Set the Studio selection or frame the camera on an instance. action='set' replaces the selection with paths (an empty array clears it), 'add'/'remove' adjust it, and 'focus' points the camera at one BasePart or Model so a following capture_screenshot shows it. Studio's Explorer, property editor and plugin widgets all follow the selection, so this is how you put a human on the same object you are editing.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `action` | `string` | No | What to do: replace, extend or shrink the selection, or frame the camera. |
+| `paths` | `array` | No | Instance paths for set/add/remove. An empty array with action="set" clears the selection. Every path must resolve or the call fails without changing anything. |
+| `path` | `string` | No | The BasePart or Model to frame. Required when action="focus". |
+| `from` | `number` | No | Focus azimuth in degrees: 0 looks from +X, 90 from +Z. Default 45. |
+| `angleY` | `number` | No | Focus elevation in degrees above the horizon. Default 30. |
+| `padding` | `number` | No | Focus distance scale; above 1 pulls the camera back. |
 | `instance_id` | `string` | No | Connected Studio place id. Required only when multiple places are open. |
 
 ---
@@ -3390,7 +3408,7 @@ Compare two instance trees and report what changed: a reparent as one move rathe
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `before` | `object` | Yes | Tree node: name, className, optional properties and children. |
+| `before` | `object` | Yes | Tree node: name, className, optional id, properties and children. Give each node a stable id when you have one: children are matched by id when both sides carry one and by name otherwise, and a reparent is only reportable as a move when the node can be identified in its new home. |
 | `after` | `object` | Yes | The same shape, after whatever happened. |
 | `ignoreProperties` | `array` | No | Properties to leave out entirely — timestamps, generated ids. |
 | `epsilon` | `number` | No | Numbers closer than this count as equal. Defaults to 1e-6. |

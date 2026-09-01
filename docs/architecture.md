@@ -14,7 +14,7 @@
                     │     (Node.js / TypeScript)           │
                     │                                      │
                     │  ┌────────────────────────────────┐  │
-                    │  │  Tool handlers (227 tools)     │  │
+                    │  │  Tool handlers (228 tools)     │  │
                     │  │  · Scene read / mutation       │  │
                     │  │  · Script / Luau               │  │
                     │  │  · UI / Terrain / Environment  │  │

@@ -93,6 +93,7 @@ const DOMAIN_OVERRIDES: Record<string, ToolDomain> = {
   grep_scripts: 'scripts',
   find_and_replace_in_scripts: 'scripts',
   get_selection: 'scene',
+  manage_selection: 'scene',
   // runtime
   character_navigation: 'runtime',
   simulate_mouse_input: 'runtime',

@@ -43,6 +43,13 @@ const DESTRUCTIVE_TOOLS = new Set([
 // Tools that reach an EXTERNAL service (marketplace/Creator Store/asset CDN/image gen)
 // rather than only the local Studio place — openWorldHint per the MCP spec.
 const OPEN_WORLD_TOOLS = new Set([
+  // Arbitrary Luau reaches HttpService, MarketplaceService and DataStores, so
+  // its effect is not bounded by the local place even though the effect list
+  // only says studio.execute.
+  'execute_luau',
+  'execute_luau_async',
+  'eval_server_runtime',
+  'eval_client_runtime',
   'marketplace_search',
   'marketplace_search_and_insert',
   'plan_asset_insert',

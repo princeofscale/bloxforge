@@ -7,10 +7,6 @@ const HttpService = game.GetService("HttpService");
 const { getInstancePath, getInstanceByPath, readScriptSource, splitLines, joinLines } = Utils;
 const { beginRecording, finishRecording } = Recording;
 
-function normalizeEscapes(s: string): string {
-	return s;
-}
-
 function updateScriptSourceVerified(instance: LuaSourceContainer, newSource: string) {
 	ScriptEditorService.UpdateSourceAsync(instance, () => newSource);
 	if (readScriptSource(instance) !== newSource) {
@@ -271,7 +267,7 @@ function setScriptSource(requestData: Record<string, unknown>) {
 		return { error: `Instance is not a script-like object: ${instance.ClassName}` };
 	}
 
-	const sourceToSet = normalizeEscapes(newSource);
+	const sourceToSet = newSource;
 	const recordingId = beginRecording(`Set script source: ${instance.Name}`);
 
 	const [updateSuccess, updateResult] = pcall(() => {
@@ -320,16 +316,13 @@ function setScriptSource(requestData: Record<string, unknown>) {
 
 function editScriptLines(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
-	let oldString = requestData.old_string as string;
-	let newString = requestData.new_string as string;
+	const oldString = requestData.old_string as string;
+	const newString = requestData.new_string as string;
 	const startLine = requestData.startLine as number | undefined;
 
 	if (!instancePath || oldString === undefined || newString === undefined) {
 		return { error: "Instance path, old_string, and new_string are required" };
 	}
-
-	oldString = normalizeEscapes(oldString);
-	newString = normalizeEscapes(newString);
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };
@@ -403,11 +396,9 @@ function editScriptLines(requestData: Record<string, unknown>) {
 function insertScriptLines(requestData: Record<string, unknown>) {
 	const instancePath = requestData.instancePath as string;
 	const afterLine = (requestData.afterLine as number) ?? 0;
-	let newContent = requestData.newContent as string;
+	const newContent = requestData.newContent as string;
 
 	if (!instancePath || !newContent) return { error: "Instance path and newContent are required" };
-
-	newContent = normalizeEscapes(newContent);
 
 	const instance = getInstanceByPath(instancePath);
 	if (!instance) return { error: `Instance not found: ${instancePath}` };

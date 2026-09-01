@@ -60,6 +60,7 @@ const routes: Record<string, PluginHandler> = {
 	"/api/remove-tag": MetadataHandlers.removeTag,
 	"/api/get-tagged": MetadataHandlers.getTagged,
 	"/api/get-selection": MetadataHandlers.getSelection,
+	"/api/manage-selection": MetadataHandlers.manageSelection,
 	"/api/execute-luau": MetadataHandlers.executeLuau,
 	"/api/execute-luau-async": JobHandlers.executeLuauAsync,
 	"/api/get-job-status": JobHandlers.getJobStatus,

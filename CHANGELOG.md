@@ -7,17 +7,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-09-01
+
+### Added
+
+- `manage_selection` writes the Studio selection and frames the camera. The
+  fork could read the selection and never set it, which left the two things an
+  agent most needs to hand a human: Studio's Explorer, property editor and
+  plugin widgets all follow the selection, so selecting what you just edited is
+  how a person finds it; and `capture_screenshot` was only as useful as
+  wherever the camera happened to be pointing. `action` is `set`, `add`,
+  `remove` or `focus` — `set` with an empty `paths` clears the selection, and
+  `focus` takes one BasePart or Model plus optional azimuth, elevation and
+  padding. A path that does not resolve fails the whole call rather than
+  selecting the subset that happened to exist, which is how an agent ends up
+  acting on the wrong objects. Ported from upstream Chrrxs v3.0.0, whose
+  `selection` tool this splits differently: `get_selection` keeps its name and
+  its read-only annotation.
+
+### Changed
+
+- `get_project_structure` omits `children` on a leaf. A leaf is the majority of
+  any tree, so `children: []` was the largest avoidable cost in the response,
+  and a missing `children` and an empty one mean the same thing. Ported from
+  upstream Chrrxs v3.0.2, which also drops an empty `attributes` map from
+  `get_attributes`; that half is not taken here. It saves two characters, which
+  does not pay for a response-shape change on a compatibility boundary — an
+  existing client enumerating `response.attributes` would break on the common
+  case. The separate `get_file_tree` response also still sends `children: []`
+  on leaves.
+
+### Removed
+
+- `normalizeEscapes` in the Studio plugin's script handlers. It once re-decoded
+  `\n`, `\t`, `\r` and `\"` in incoming script source, corrupting any Luau
+  that legitimately contained a backslash — the poll payload is already
+  JSON-decoded by `Communication`, so the second pass had nothing to do but
+  damage. It was reduced to an identity function when that was fixed, and the
+  regression test pinned the stub's presence; the test now asserts the name is
+  gone, which is the stronger guarantee.
+
 ### Fixed
 
-- `list_library` scanned five hard-coded style directories. `export_build` takes
-  its style from the caller and writes to `<library>/<style>/<id>.json`, so a
-  build saved under any other name was stored successfully and then never
-  appeared in the list again — the tool reported an empty library over a
-  library that was not empty. It walks the library now, and `style` filters the
-  results rather than deciding where to look. A file that will not parse is
-  still skipped, but named in `unreadable` instead of being subtracted from the
-  total in silence: "not in the library" and "could not be read" are different
-  answers to "where is my build".
+- `character_navigation` never moved anyone. Navigation was signalled from the
+  edit peer to a `__MCP_CommandListener` Script injected into
+  `ServerScriptService`, over `LogService.MessageOut` — reflection that does not
+  cross from the edit DataModel to the play server, the same reason
+  stop-signalling already lives in `StopPlayMonitor`. The signal was written and
+  nothing on the other side ever heard it, so the call sat out its `timeout` and
+  returned "Navigation timed out". The listener was also only ever planted by
+  `start_playtest`, so a playtest started from Studio's own Play button, or a
+  multiplayer session, had no listener at all. The plugin already runs a peer
+  inside the play DataModel, which has the character and `PathfindingService`
+  right there, so the relay is gone and the walk happens locally. `target` now
+  defaults to `"server"` rather than `"edit"`, which was never a DataModel that
+  could service the call and now says so instead of timing out.
+
+- `get_instance_properties` hid properties the write tools can set. Roblox
+  exposes no property enumeration to plugins, so the read is a fixed list — and
+  `AnchorPoint`, `Font`, `TextScaled` and `ResetOnSpawn` were absent from it,
+  making them writable and then unreadable. Those and the rest of the common
+  layout, text and part-query properties are in the list now. Anything outside
+  it is still readable one at a time through `mass_get_property`.
+
+- Undo waypoints read "MCP: MCP: ...". Callers inside the plugin pass a bare
+  action name and the recorder prefixes it, but a caller-supplied `undoLabel`
+  usually carries the prefix already, because that is how the waypoints read in
+  Studio. The prefix is no longer added twice.
+
+- A screenshot was transferred from Studio at full native resolution as raw
+  RGBA, before anything downscaled it. The cost is width×height×4 bytes,
+  base64-expanded by 4/3, in a single HTTP body: 44MB for a 4K display and
+  176MB for an 8K one, for an image the server then downscales to 1568px wide
+  anyway. Studio now bounds that read at 36MB and downscales before transfer,
+  reporting the native dimensions alongside so the message says what happened.
+  The logical viewport that `simulate_mouse_input` coordinates are derived from
+  is read from the camera, not the image, so click coordinates are unchanged.
+
+- `capture_screenshot` could return an image it had already determined was too
+  large. The JPEG quality-reduction loop stops at q25 whether or not the result
+  fits, and the oversized buffer was then returned — the exact case the code's
+  own comment describes as catastrophic, because an oversized inline image
+  closes the MCP connection and drops every Studio registration rather than
+  failing gracefully. It now fails with the size, the quality it bottomed out
+  at, and the `maxWidth` to lower.
+
+- `execute_luau`, `execute_luau_async`, `eval_server_runtime` and
+  `eval_client_runtime` were not marked `openWorldHint`. Their declared effect
+  is `studio.execute`, which reads as bounded by the local place, but arbitrary
+  Luau reaches `HttpService`, `MarketplaceService` and DataStores. Clients that
+  gate on the annotation were treating unrestricted code execution as a
+  local-only operation. Ported from upstream Chrrxs v3.0.0.
+
+- `scene_diff_trees` described a reparent as "one move rather than a delete and
+  an add", and its input schema never mentioned the `id` that makes that
+  possible. Children are matched by `id` when both sides carry one and by name
+  otherwise, so a caller who filled in the documented shape — name, className,
+  properties, children — got the delete-and-add the description says it avoids,
+  with nothing to indicate what was missing. The schema now says so.
+
+- `apply_mutation_plan` ignored `atomic` and `mass_delete_objects` ignored
+  `returnMode` over MCP. Both inputs are advertised in the tool schema and both
+  are forwarded by the HTTP handler, but the registry handler — which shadows
+  that map, because the registry is consulted first and the legacy map is only
+  a fallback — never read them. So `atomic: false` still rolled the plan back,
+  and `returnMode: "full"`, whose stated purpose is inspecting the raw plugin
+  response when you do not trust the compaction, returned the compacted
+  receipt. Found by calling both tools against a live Studio place.
+
+  The two are now forwarded, and a test compares every registry handler against
+  its legacy counterpart by sentinel value: an input one of them passes and the
+  other drops fails it, whatever order the two group their arguments in.
+
+- `list_library` scanned five hard-coded style directories, so a saved build
+  could become invisible to the tool that lists it. The destination comes from
+  `id`, which is free-form and documented as carrying a prefix
+  (`"medieval/cottage_01"`); only the separate `style` field is held to the
+  five-value enum, and `style` is stored *in* the file rather than deciding
+  where it goes. So `create_build {id: "cyberpunk/neon_alley", style: "misc"}`
+  writes `<library>/cyberpunk/neon_alley.json` — stored successfully, reported
+  as saved, and then never listed again. Directory and style may disagree, and
+  the old listing assumed they could not.
+
+  It walks the library now, and `style` filters the results rather than
+  deciding where to look. A file that will not parse is still skipped, but
+  named in `unreadable` instead of being subtracted from the total in silence:
+  "not in the library" and "could not be read" are different answers to "where
+  is my build".
+
+- A `build-library/` written into the repository root by `create_build` and
+  `export_build` is ignored. `evals/build-library/` already was; the root one
+  is where the tools actually write when the project root resolves to this
+  repository, which left local tool state staged for commit.
 
 - `rojo_syncback_apply` (and the deprecated `sync_pull` behind it) could leave
   files changed and say nothing. Restoring a file was the one rollback step not
@@ -2879,7 +3000,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.3.0...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.4.0...HEAD
+[4.4.0]: https://github.com/princeofscale/bloxforge/compare/v4.3.1...v4.4.0
 [4.3.1]: https://github.com/princeofscale/bloxforge/compare/v4.3.0...v4.3.1
 [4.3.0]: https://github.com/princeofscale/bloxforge/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/princeofscale/bloxforge/compare/v4.1.0...v4.2.0

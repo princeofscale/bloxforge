@@ -231,6 +231,16 @@
     { "tool": "wally_install_apply", "query": "Actually pull the dependencies down." },
     { "tool": "wally_update_plan", "query": "What would updating the packages change in the resolved graph?" },
     { "tool": "wally_update_apply", "query": "Actually move the dependencies to newer versions." },
-    { "tool": "project_reconcile_apply", "query": "Actually carry out those repairs, one writer at a time." }
+    { "tool": "project_reconcile_apply", "query": "Actually carry out those repairs, one writer at a time." },
+    { "tool": "manage_selection", "query": "Select the three platforms I just moved so I can see them highlighted, and point the camera at the middle one." },
+    { "tool": "integration_inspect", "query": "Is ProfileService already wired into this project, and which version?" },
+    { "tool": "integration_plan", "query": "Before you touch anything, show me the ordered steps for adding leaderstats and which of them you cannot do on your own." },
+    { "tool": "integration_apply", "query": "Go ahead and carry out the steps you said you could do automatically." },
+    { "tool": "integration_validate", "query": "Did that wiring actually take? Check whatever it promised would be true afterwards." },
+    { "tool": "ui_validate_screen", "query": "Before I build this menu, tell me whether every colour it names exists and whether the buttons are reachable by keyboard." },
+    { "tool": "ui_export_screen", "query": "Turn that approved menu description into the actual Frames and TextButtons." },
+    { "tool": "network_validate_surface", "query": "I have not written any remotes yet — look at the plan and tell me what an exploiter could send." },
+    { "tool": "network_generate", "query": "Write the RemoteEvents for this along with the rate limiting and argument checks on the server side." },
+    { "tool": "scene_diff_trees", "query": "Here is the lobby before and after — what actually changed between them?" }
   ]
 }

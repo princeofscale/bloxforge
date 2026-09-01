@@ -5,7 +5,7 @@ import { RobloxStudioTools } from '../packages/core/dist/tools/index.js';
 import { registerContractedTools } from '../packages/core/dist/tools/setup-registry.js';
 import { ToolRegistry } from '../packages/core/dist/tools/tool-pipeline.js';
 
-const EXPECTED_LEGACY_ONLY_HASH = 'b4f730a2d56dde5657afac647e4f752bd97d7fec6168864c52de31088c8e4ed2';
+const EXPECTED_LEGACY_ONLY_HASH = 'da4ec8174b0920a255a0d3ef669c79c84037af600c9a1173bf5cd26363834e60';
 const registry = new ToolRegistry();
 registerContractedTools(registry, new RobloxStudioTools(new BridgeService('')));
 const registered = new Set(registry.definitions.map(({ name }) => name));

@@ -6,7 +6,7 @@
 // So this checks four things, and each one has a way the corpus could rot that
 // nothing else would catch:
 //
-//  1. Composition — 218/436/50/50/30. A bucket that shrank is a coverage claim
+//  1. Composition — 228/456/50/50/30. A bucket that shrank is a coverage claim
 //     that stopped being true without anything failing.
 //  2. Coverage — exactly one positive per tool, no tool missing, no case naming
 //     a tool that no longer exists. Adding a tool without a case is the normal
@@ -57,7 +57,7 @@ const adversarial = read('adversarial.json');
  */
 const MAX_OVERLAP = 0.75;
 
-const EXPECTED = { positive: 218, confuser: 436, no_tool: 50, multi_step: 50, adversarial: 30 };
+const EXPECTED = { positive: 228, confuser: 456, no_tool: 50, multi_step: 50, adversarial: 30 };
 
 const problems: string[] = [];
 

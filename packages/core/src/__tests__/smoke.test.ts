@@ -63,7 +63,11 @@ describe('Smoke', () => {
     const repoRoot = fs.existsSync(path.join(cwd, 'studio-plugin')) ? cwd : path.resolve(cwd, '../..');
     const source = fs.readFileSync(path.join(repoRoot, 'studio-plugin/src/modules/handlers/ScriptHandlers.ts'), 'utf8');
     expect(source).not.toContain('gsub("\\\\n", "\\n")');
-    expect(source).toContain('function normalizeEscapes(s: string): string');
+    // The poll payload is already JSON-decoded by Communication, so any
+    // re-unescaping here corrupts source that legitimately contains a
+    // backslash. The stub that replaced the original gsub chain is gone; the
+    // absence of the name is the stronger assertion.
+    expect(source).not.toContain('normalizeEscapes');
   });
 
   test('BridgeService instantiable', () => {
