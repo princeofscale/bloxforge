@@ -3,6 +3,99 @@
 Record confirmed bugs, inaccuracies, and reproducible anomalies found during development here.
 
 ## Open
+
+- 2026-08-22 — During a running playtest, `breakpoints action="clear" target="edit"` reports
+  `ok: true, cleared: 1`, but the breakpoint keeps firing in the play DataModel for about
+  13 more seconds (3 further hits at the 5s trigger interval) before it stops — and by then
+  the registry entry is already gone, so the follow-up `clear target="server"` returns
+  `cleared: 0` and cannot help. Measured back to back in the same session, the server-scoped
+  path has no such lag: `set target="server"` fires within 2s, and `clear target="server"`
+  stops it before the next 5s trigger, with 12s of continued triggering confirmed silent
+  afterwards. Not fixed: the tool already documents "target server/client-N for running play
+  DataModels", and the edit-scoped clear does eventually take effect. Revisit only if the lag
+  is ever found to be a permanent orphan rather than a late one.
+- 2026-08-21 — **Studio hard-crashes on `ScriptDebuggerService:RemoveBreakpoint(nil, 1)`
+  when the Studio Debugger Luau API beta feature is ON.** Reproduce (do not, unless you
+  mean it): with the beta enabled, `execute_luau` →
+  `pcall(function() return sds:RemoveBreakpoint(nil, 1) end)`. Expected: the pcall
+  returns `false` plus a cast error, which is exactly what happens with the beta OFF
+  (`false, "Failed to execute RemoveBreakpoint request"`). Actual: the process dies —
+  `/api/execute-luau` never answers (`OUTCOME_UNKNOWN` after 120000ms),
+  `get_connected_instances` drops to `count: 0`, and `RobloxStudioBeta.exe` is gone from
+  the process table. The Studio log ends mid-stream ~9s after the call with no shutdown
+  sequence, while the previous session's log (closed by the user) ends on the normal
+  `~AutoValidStudioInstanceCounter` line. No .dmp is written — Roblox handles its own
+  crash reporting. This is an engine bug, not a BloxForge one: the `breakpoints` handler
+  resolves and `IsA("LuaSourceContainer")`-checks the instance before calling, so the
+  tool itself can never pass nil. Recorded because it is a live foot-gun for any
+  `execute_luau` that touches ScriptDebuggerService directly, and because it settles the
+  entry below.
+- 2026-08-21 — `breakpoints action="list"` returns a clean `{"count":0,"breakpoints":[]}`
+  even when the Studio Debugger Luau API beta feature is off, so the obvious pre-flight
+  reports success and the failure only surfaces on the first `action="set"`
+  (`add_breakpoint_failed`, `betaFeatureRequired: true`). That is because
+  `listBreakpoints` never touches ScriptDebuggerService — it reads only the
+  plugin-settings registry, which is literally honest ("zero MCP-managed breakpoints")
+  but reads as "the debugger is available". **Resolved as won't-fix:** the only
+  side-effect-free probe available was `RemoveBreakpoint(nil, 1)` — with the beta off,
+  `AddBreakpoint`, `RemoveBreakpoint` and `ClearBreakpoints` all index as `function`
+  (measured) and the gate fires before argument validation, so the nil call was the one
+  way to tell the states apart. Running it with the beta ON crashes Studio outright (see
+  the entry above), so that probe must never ship. `list` stays registry-only; the
+  `betaFeatureRequired` error on `set` is the availability signal.
+- 2026-08-21 — A heavy `terrain_generate_island` returns `success: true` before Studio
+  has settled, and the next bridge call can time out twice and get the plugin reaped.
+  Reproduce: `terrain_generate_island {center:[160,0,0], radius:40, waterMaterial:
+  "Water", waterRadius:70}` (dry-run reports ~268083 studs³), then immediately
+  `capture_screenshot` with `cameraPosition`/`lookAt` aimed at the new island — two
+  consecutive `TIMEOUT ... after 30000ms on /api/capture-screenshot`, after which
+  `get_connected_instances` returns `count: 0` and the plugin is gone from the bridge.
+  It self-recovers about two minutes later with a fresh `connectedAt`, and Studio never
+  crashes (the process stays up). Isolated afterwards: with the terrain already built
+  and Studio idle, `capture_screenshot` works both without a camera override and with
+  the same kind of override, so neither the capture path nor terrain rendering is at
+  fault — it is only the window while the fill is still being processed. The pieces to
+  handle it are already there (the typed `TIMEOUT` is marked retryable, and
+  `MCP_STALE_INSTANCE_MS` exists precisely for "Studio throttling"), so this is filed
+  as an expectation gap rather than a fix: the terrain tools do not say their return is
+  not a settle point. Resisted the tempting fix of promoting `/api/capture-screenshot`
+  to the heavy timeout class — successful captures sit far inside the normal budget
+  (transport p95 2032ms, p99 3359ms), so the evidence points at Studio being busy, not
+  at the capture being slow.
+
+- 2026-08-21 — `load_toolset`'s `tools` / `count` describe only the domains named in
+  that call, not the domains currently advertised, and nothing in the response says
+  so. Reproduce: load `["scene","mutation","runtime","ui","scripts"]` (139 tools),
+  then call `{toolsets:["terrain","environment"], unload:["ui","scripts"]}` — the
+  reply is `count: 40` listing core+terrain+environment, with no sign that scene,
+  mutation and runtime are still live. They are: `get_world_snapshot` still answers
+  afterwards. The sibling `unloadedTools`/`unloadedCount` *are* scoped to the call,
+  so the symmetry reads as "this is what you have now" versus "this is what you
+  lost". The natural recovery — re-load the domains that look missing — is cheap in
+  practice (`applyToolset` only mutates `activeToolNames` for names that actually
+  change, so a redundant load emits no `tools/list_changed` and does not invalidate
+  the prompt cache), which is why this is filed as a reporting inaccuracy rather
+  than fixed: renaming `tools`/`count` to match `unloadedTools`/`unloadedCount`
+  would touch every caller and test for a one-wasted-call problem. Worth doing if
+  the fields are ever revised for another reason.
+
+- 2026-08-21 — `validate_script_source` reports `ok: false` for a checker that is
+  merely absent. A clean script on a machine without the optional binaries answers
+  `checks: [{tool:"luau-analyze",available:false,ok:false}, {selene...}, {stylua...}]`
+  next to `syntax: {available:true, ok:true}` — three "failures" for source that is
+  fine. `available:false` does distinguish it and the tool description says to read
+  that field first, so this is left as reported rather than changed: `ok` is asserted
+  by a test as part of the not-installed shape. Worth revisiting as a tri-state
+  (`ok: null` / `status: "skipped"`) if an agent is ever seen reacting to the count
+  of `ok:false` rows instead of to `available`.
+
+- 2026-08-21 — `marketplace_search` ranks by relevance, not by insertability, while
+  `insert_asset`'s AUTH hint calls it "marketplace_search, which ranks insertable
+  candidates". The top three `Model` results for "low poly tree" all reported
+  `isFree: true` and all three failed `asset_preflight_insert` with AUTH. Decals in
+  the same unpublished place (`PlaceId 0`) load fine, so this is copy-locking on the
+  models themselves, not the place — the verdict and its hint are correct, only the
+  cross-reference oversells the ranking. Expect several preflight rounds per model.
 - 2026-08-04 — `run_playtest_episode`'s `assertions` option cannot pass, ever: every
   assertion fails with `"loadstring() is not available"` regardless of the
   expression given, including a trivial always-true one. Reproduce: call
@@ -37,6 +130,83 @@ Record confirmed bugs, inaccuracies, and reproducible anomalies found during dev
 - 2026-08-02 — A second BloxForge launch intermittently fails with `listen EPERM: operation not permitted 127.0.0.1:58741` instead of entering proxy mode. The port was held by the existing Codex-owned BloxForge child (`dist/index.js`); a subsequent launch did enter proxy mode. Investigate the startup race/error classification.
 - 2026-08-02 — With Roblox Studio already running, a freshly started primary MCP server initially reports no connected instances: `get_connected_instances` is empty and Studio tools cannot run until the plugin reconnects (observed within 15 seconds). Reproduce by starting `packages/robloxstudio-mcp/dist/index.js` while Studio is open, completing MCP `initialize`, then immediately calling `get_connected_instances`.
 ## Fixed
+
+Found and fixed 2026-08-21 by building a live vertical slice in an empty place
+(six touch-collectible orbs, leaderstats, a HUD bound to them, then a playtest)
+against plugin+server 4.3.1. Same lesson as the 08-04 pass: each of these cost a
+round-trip in real use and none of them are visible from reading the code alone.
+
+- 2026-08-21 — `character_navigation` could not move a character at all, by either
+  route. Reproduce on 4.3.1: `start_playtest {mode:"play"}`, then
+  `character_navigation {instancePath:"game.Workspace.Orbs.Orb1"}` returns
+  `Navigation timed out after 25 seconds`, and the same call with `target:"server"`
+  returns `Playtest must be running. Start a playtest in 'play' mode first.` while a
+  playtest is demonstrably running (`eval_server_runtime` answers, roles are
+  `["edit","server","client-1"]`). `target:"client-1"` is refused by the client proxy
+  allowlist. Root cause, two halves that hid each other: the request defaulted to the
+  edit peer, which emits NAV_SIGNAL as a `warn()` into the edit DataModel, and
+  LogService.MessageOut does not reflect edit -> play-server — the note at the top of
+  TestHandlers.ts already records that, which is why stop-signaling was moved off this
+  path, but navigation was left on it. The one peer that *is* inside the running
+  DataModel, the play server, was rejected because the `testRunning` gate is a
+  module-level flag only ever set on the edit peer by `startPlaytest`. Proof the
+  listener itself was always fine: emitting `__MCP_NAV__:{...}` from inside the play
+  DataModel via `eval_server_runtime` walked the character from (-3.1, 4.0, 3.1) to
+  (19.3, 3.0, 0.1) — Orb1's position — and the touch handler scored the orb.
+
+  First fix gated on `RunService.IsRunning()` instead of `testRunning` and defaulted
+  the tool to `target: "server"`. That made single-player playtests work and then
+  immediately exposed the rest of the problem — see the next entry — so the signalling
+  is gone entirely now.
+
+- 2026-08-21 — `character_navigation` was still dead in every session that
+  `start_playtest` did not open. Reproduce on the first-fix build:
+  `multiplayer_test_start {numPlayers: 2}`, then `character_navigation` → `Navigation
+  timed out`. `eval_server_runtime` shows why: `ServerScriptService` holds
+  `__MCP_ServerEvalBridge` but `hasCommandListener: false`. The listener was planted
+  only by `startPlaytest`, so `multiplayerTestStart` never had one — and neither does a
+  playtest started from Studio's own Play button, even though the eval bridges are
+  documented to work there. The whole edit→play signalling hop turned out to be
+  unnecessary: `PathfindingService:ComputeAsync` + `Humanoid:MoveTo` run fine from
+  plugin context on the runtime peer, verified in a live 2-player session by walking
+  Player1 from (-4.1, 4.0, -1.4) to (19.1, 3.0, -0.1). Fixed by deleting the mechanism
+  — `NAV_SIGNAL`/`NAV_RESULT`, `buildCommandListenerSource`, the injected
+  `__MCP_CommandListener`, and the `LogService.MessageOut` listener plumbing — and
+  doing the navigation directly on the peer that already lives inside the running
+  DataModel (net −74 lines). This covers single-player, multiplayer and Play-button
+  sessions alike, because it no longer depends on anything being planted in advance.
+
+- 2026-08-21 — `get_instance_properties` was documented as "Get all properties of an
+  instance" but walks a fixed `commonProps` list, and that list omitted every
+  property BloxForge's own UI tools can write. `ui_create_text_label` accepts
+  `anchorPoint`, `font` and `textScaled`; reading the label back returned neither, so
+  a value could be set and never verified. A `ScreenGui` came back as five fields
+  (`Name`, `ClassName`, `Parent`, `Enabled`, `ChildCount`) with no `ResetOnSpawn`,
+  `DisplayOrder` or `IgnoreGuiInset` — the write/read loop did not close for UI at
+  all. Roblox exposes no property enumeration to plugins, so the list stays a list:
+  fixed by adding the properties the write tools can set (GUI layout/text, ScreenGui
+  behaviour, `CanTouch`/`CanQuery`/`CastShadow`), by saying in the description that
+  the set is fixed rather than complete, and by pointing at `mass_get_property` —
+  which already reads any property by name — for anything outside it.
+
+- 2026-08-21 — Undo waypoints from a caller-supplied `undoLabel` read
+  "MCP: MCP: ..." in Studio's undo menu. `beginRecording` prefixes `MCP: `
+  unconditionally, which is right for the plugin's own bare action names
+  ("Create Part") but doubles up on an `undoLabel` written in the style the waypoints
+  are actually seen in. Fixed by not prefixing a label that already carries it.
+
+Verified fixed on 4.3.1 during the same pass, from the Open list above:
+
+- `run_playtest_episode`'s `assertions` no longer always fail. Three assertions
+  (including `1 == 1`, the trivial case that used to fail) returned
+  `passed: 3, failed: 0` with `verdict: "pass"`. The 2026-08-04 entry describing
+  `loadstring() is not available` for every expression no longer reproduces.
+- `execute_luau` records an undo waypoint when `undoLabel` is passed: after a
+  create with `undoLabel: "undo probe"`, `ChangeHistoryService:GetCanUndo()` returns
+  the matching waypoint. The 2026-08-04 entry is addressed but not erased — an
+  `execute_luau` *without* `undoLabel` still records nothing, as its schema now
+  states outright, so undo coverage of that tool remains opt-in.
+
 
 Found and fixed 2026-08-04 by building a real feature in a live place (coins +
 leaderstats + HUD) rather than by reading code — each of these cost a wasted
@@ -173,6 +343,7 @@ what was ruled out so the next attempt does not repeat it.
 
 ## Verification log
 
+- 2026-08-22 — Studio log breakpoints verified end to end on plugin 4.3.1 with the Studio Debugger Luau API beta enabled: `set` on the edit peer before `solo_playtest start` (mode `play`), `character_navigation` to `game.Workspace.Orbs.Orb1` (method `pathfinding`, arrived at 19.0, 3.0, 0.02), then 12 consecutive `Breakpoint game.ServerScriptService.OrbCollector:40 orb hit by <player> count before N` entries with N running 0..10, execution continuing every time (leaderstats kept incrementing, navigation returned normally, nothing ever paused), then `clear` and `stop_playtest` leaving `list` at zero. A second, server-scoped breakpoint on line 41 was set, observed and cleared inside the same running session.
 - 2026-08-02 — Choose Your Chaos live QA exercised BloxForge against a non-trivial generated place: five-round solo cycle plus Final Chaos, three consecutive rounds without Runtime leaks, two-client split voting, validated server damage, remote rate/phase rejection, late client addition, client departure, runtime log capture, and iPhone XR portrait/landscape device simulation all completed. Runtime gameplay scripts produced no errors; multiplayer emitted the separate unpublished-place CoreGui errors recorded above.
 - 2026-08-02 — Live Studio bridge smoke test passed on BloxForge/plugin `4.0.3` (protocol `3`): `get_connected_instances` found the edit DataModel, `execute_luau` created/read/deleted a temporary Workspace instance, destructive-call confirmation was enforced, runtime logs were retrievable, and transport diagnostics reported 3/3 requests completed with zero retries, timeouts, or unknown outcomes.
 - 2026-08-02 — Offline verification passed: protocol policy, typecheck, core tests, lint, full build, plugin smoke/installer/runtime (17 checks), docs, metadata, legacy-tools report, and package verification all succeeded. A live local primary-mode MCP `initialize` → `tools/list` smoke test also passed with 28 tools.

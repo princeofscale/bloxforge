@@ -1,5 +1,6 @@
-import { HttpService, LogService, Players, RunService } from "@rbxts/services";
+import { HttpService, PathfindingService, Players, RunService } from "@rbxts/services";
 import StopPlayMonitor from "../StopPlayMonitor";
+import Utils from "../Utils";
 
 interface StudioTestServiceMultiplayer extends StudioTestService {
 	ExecuteMultiplayerTestAsync(numPlayers: number, testArgs: unknown): unknown;
@@ -10,20 +11,8 @@ interface StudioTestServiceMultiplayer extends StudioTestService {
 }
 
 const StudioTestService = game.GetService("StudioTestService") as StudioTestServiceMultiplayer;
-const ServerScriptService = game.GetService("ServerScriptService");
-const ScriptEditorService = game.GetService("ScriptEditorService");
-
-// NAV_SIGNAL flows from the edit DM to the play-server DM via the injected
-// __MCP_CommandListener Script + LogService.MessageOut. Stop signaling moved
-// off this path entirely (see StopPlayMonitor) because cross-DM MessageOut
-// reflection from edit -> play-server does not work in practice.
-const NAV_SIGNAL = "__MCP_NAV__";
-const NAV_RESULT = "__MCP_NAV_RESULT__";
 
 let testRunning = false;
-let navLogConnection: RBXScriptConnection | undefined;
-let stopListenerScript: Script | undefined;
-let navResultCallback: ((json: string) => void) | undefined;
 
 type MultiplayerPhase = "idle" | "starting" | "running" | "completed" | "failed";
 
@@ -78,102 +67,6 @@ function normalizeNumPlayers(value: unknown): number | undefined {
 	return n;
 }
 
-function buildCommandListenerSource(): string {
-	return `local LogService = game:GetService("LogService")
-local PathfindingService = game:GetService("PathfindingService")
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local NAV_SIG = "${NAV_SIGNAL}"
-local NAV_RES = "${NAV_RESULT}"
-LogService.MessageOut:Connect(function(msg)
-	if string.sub(msg, 1, #NAV_SIG + 1) == NAV_SIG .. ":" then
-		local json = string.sub(msg, #NAV_SIG + 2)
-		task.spawn(function()
-			local ok, d = pcall(function() return HttpService:JSONDecode(json) end)
-			if not ok or not d then
-				print(NAV_RES .. ':{"success":false,"error":"parse_error"}')
-				return
-			end
-			local ps = Players:GetPlayers()
-			if #ps == 0 then
-				print(NAV_RES .. ':{"success":false,"error":"no_players"}')
-				return
-			end
-			local char = ps[1].Character or ps[1].CharacterAdded:Wait()
-			local hum = char:FindFirstChildOfClass("Humanoid")
-			local root = char:FindFirstChild("HumanoidRootPart")
-			if not hum or not root then
-				print(NAV_RES .. ':{"success":false,"error":"no_humanoid"}')
-				return
-			end
-			local target
-			if d.instancePath then
-				local parts = string.split(d.instancePath, ".")
-				local cur = game
-				for i = 2, #parts do
-					cur = cur:FindFirstChild(parts[i])
-					if not cur then
-						print(NAV_RES .. ':{"success":false,"error":"instance_not_found"}')
-						return
-					end
-				end
-				if cur:IsA("BasePart") then target = cur.Position
-				elseif cur:IsA("Model") and cur.PrimaryPart then target = cur.PrimaryPart.Position
-				else target = cur:GetPivot().Position end
-			else
-				target = Vector3.new(d.x or 0, d.y or 0, d.z or 0)
-			end
-			local path = PathfindingService:CreatePath({AgentRadius=2,AgentHeight=5,AgentCanJump=true})
-			local pok = pcall(function() path:ComputeAsync(root.Position, target) end)
-			local method = "direct"
-			if pok and path.Status == Enum.PathStatus.Success then
-				method = "pathfinding"
-				for _, wp in ipairs(path:GetWaypoints()) do
-					hum:MoveTo(wp.Position)
-					if wp.Action == Enum.PathWaypointAction.Jump then hum.Jump = true end
-					hum.MoveToFinished:Wait()
-				end
-			else
-				hum:MoveTo(target)
-				hum.MoveToFinished:Wait()
-			end
-			local fp = root.Position
-			print(NAV_RES .. ':{"success":true,"method":"' .. method .. '","position":[' .. fp.X .. ',' .. fp.Y .. ',' .. fp.Z .. ']}')
-		end)
-	end
-end)`;
-}
-
-function injectStopListener() {
-	const listener = new Instance("Script");
-	listener.Name = "__MCP_CommandListener";
-	listener.Parent = ServerScriptService;
-
-	const source = buildCommandListenerSource();
-	const [seOk] = pcall(() => {
-		ScriptEditorService.UpdateSourceAsync(listener, () => source);
-	});
-	if (!seOk) {
-		(listener as unknown as { Source: string }).Source = source;
-	}
-
-	stopListenerScript = listener;
-}
-
-function cleanupStopListener() {
-	if (stopListenerScript) {
-		pcall(() => stopListenerScript!.Destroy());
-		stopListenerScript = undefined;
-	}
-}
-
-function disconnectNavLogListener() {
-	if (navLogConnection) {
-		navLogConnection.Disconnect();
-		navLogConnection = undefined;
-	}
-}
-
 function startPlaytest(requestData: Record<string, unknown>) {
 	const mode = requestData.mode as string | undefined;
 	const numPlayers = requestData.numPlayers as number | undefined;
@@ -192,8 +85,6 @@ function startPlaytest(requestData: Record<string, unknown>) {
 	// Reset it so subsequent starts don't hit a false "already running".
 	if (testRunning && !RunService.IsRunning()) {
 		testRunning = false;
-		disconnectNavLogListener();
-		cleanupStopListener();
 		// Runtime eval bridges are created by the play server/client plugin
 		// peers and disappear with the play DataModels.
 	}
@@ -203,22 +94,6 @@ function startPlaytest(requestData: Record<string, unknown>) {
 	}
 
 	testRunning = true;
-
-	cleanupStopListener();
-	disconnectNavLogListener();
-
-	navLogConnection = LogService.MessageOut.Connect((message) => {
-		if (message.sub(1, NAV_RESULT.size() + 1) === `${NAV_RESULT}:`) {
-			if (navResultCallback) {
-				navResultCallback(message.sub(NAV_RESULT.size() + 2));
-			}
-		}
-	});
-
-	const [injected, injErr] = pcall(() => injectStopListener());
-	if (!injected) {
-		warn(`[BloxForge] Failed to inject stop listener: ${injErr}`);
-	}
 
 	task.spawn(() => {
 		const [ok, result] = pcall(() => {
@@ -232,10 +107,7 @@ function startPlaytest(requestData: Record<string, unknown>) {
 			warn(`[BloxForge] Playtest ended with error: ${result}`);
 		}
 
-		disconnectNavLogListener();
 		testRunning = false;
-
-		cleanupStopListener();
 	});
 
 	const response: Record<string, unknown> = {
@@ -477,9 +349,40 @@ function multiplayerTestEnd(requestData: Record<string, unknown>) {
 	};
 }
 
+function resolveNavTarget(
+	position: number[] | undefined,
+	instancePath: string | undefined,
+): { target?: Vector3; error?: string } {
+	if (position) {
+		return { target: new Vector3(position[0], position[1], position[2]) };
+	}
+	const instance = Utils.getInstanceByPath(instancePath!);
+	if (!instance) {
+		return { error: `Instance not found: ${instancePath}` };
+	}
+	if (instance.IsA("BasePart")) {
+		return { target: instance.Position };
+	}
+	if (instance.IsA("Model")) {
+		return { target: instance.GetPivot().Position };
+	}
+	return { error: `${instancePath} is a ${instance.ClassName}, which has no position to walk to` };
+}
+
+// Navigation runs here, in the DataModel that actually has the character.
+// It used to be signalled from the edit peer to an injected __MCP_CommandListener
+// Script via LogService.MessageOut, which never worked: that reflection does not
+// cross from edit to play (the same reason stop-signalling was moved to
+// StopPlayMonitor), and the listener was only ever planted by start_playtest, so
+// multiplayer sessions and playtests started from Studio's own Play button had no
+// listener at all. A peer inside the running DataModel can just do the work.
 function characterNavigation(requestData: Record<string, unknown>) {
-	if (!testRunning) {
-		return { error: "Playtest must be running. Start a playtest in 'play' mode first." };
+	if (!RunService.IsRunning()) {
+		return {
+			error: testRunning
+				? 'character_navigation must run on the playtest peer (target: "server"); the edit DataModel has no player character.'
+				: "Playtest must be running. Start a playtest in 'play' mode first.",
+		};
 	}
 
 	const position = requestData.position as number[] | undefined;
@@ -491,36 +394,59 @@ function characterNavigation(requestData: Record<string, unknown>) {
 		return { error: "Either position [x, y, z] or instancePath is required" };
 	}
 
-	let navData: string;
-	if (position) {
-		navData = HttpService.JSONEncode({ x: position[0], y: position[1], z: position[2] });
-	} else {
-		navData = HttpService.JSONEncode({ instancePath });
+	const resolved = resolveNavTarget(position, instancePath);
+	if (resolved.error !== undefined) {
+		return { error: resolved.error };
+	}
+	const target = resolved.target!;
+
+	const player = Players.GetPlayers()[0];
+	if (!player) {
+		return { error: "No players in the running game yet" };
+	}
+	const character = player.Character;
+	const humanoid = character?.FindFirstChildOfClass("Humanoid");
+	const root = character?.FindFirstChild("HumanoidRootPart") as BasePart | undefined;
+	if (!humanoid || !root) {
+		return { error: `${player.Name} has no spawned character to move` };
 	}
 
-	warn(`${NAV_SIGNAL}:${navData}`);
+	const walk = () => {
+		const deadline = tick() + timeout;
+		const path = PathfindingService.CreatePath({ AgentRadius: 2, AgentHeight: 5, AgentCanJump: true });
+		const [computed] = pcall(() => path.ComputeAsync(root.Position, target));
+
+		if (computed && path.Status === Enum.PathStatus.Success) {
+			for (const waypoint of path.GetWaypoints()) {
+				if (tick() > deadline) return "pathfinding-timeout";
+				humanoid.MoveTo(waypoint.Position);
+				if (waypoint.Action === Enum.PathWaypointAction.Jump) humanoid.Jump = true;
+				humanoid.MoveToFinished.Wait();
+			}
+			return "pathfinding";
+		}
+
+		// No path (target off the navmesh, or ComputeAsync threw): walk straight at
+		// it. MoveToFinished still fires on Roblox's own 8s give-up, so this ends.
+		humanoid.MoveTo(target);
+		humanoid.MoveToFinished.Wait();
+		return "direct";
+	};
 
 	if (!waitForCompletion) {
+		task.spawn(walk);
 		return { success: true, message: "Navigation command sent" };
 	}
 
-	let result: string | undefined;
-	navResultCallback = (json: string) => {
-		result = json;
-	};
-
-	const startTime = tick();
-	while (!result && tick() - startTime < timeout) {
-		task.wait(0.2);
+	const method = walk();
+	const final = root.Position;
+	if (method === "pathfinding-timeout") {
+		return {
+			error: `Navigation timed out after ${timeout} seconds`,
+			position: [final.X, final.Y, final.Z],
+		};
 	}
-	navResultCallback = undefined;
-
-	if (result) {
-		const [ok, parsed] = pcall(() => HttpService.JSONDecode(result!));
-		if (ok) return parsed;
-		return { success: true, rawResult: result };
-	}
-	return { error: `Navigation timed out after ${timeout} seconds` };
+	return { success: true, method, position: [final.X, final.Y, final.Z] };
 }
 
 export = {

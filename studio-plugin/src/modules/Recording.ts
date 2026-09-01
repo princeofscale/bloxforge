@@ -3,7 +3,11 @@ const ChangeHistoryService = game.GetService("ChangeHistoryService");
 type RecordingId = string | undefined;
 
 function beginRecording(actionName: string): RecordingId {
-	const [success, result] = pcall(() => ChangeHistoryService.TryBeginRecording(`MCP: ${actionName}`));
+	// Callers inside the plugin pass a bare action ("Create Part"); a caller-supplied
+	// undoLabel often already carries the prefix, because that is how the waypoints
+	// read in Studio. Prefixing that again produced "MCP: MCP: ...".
+	const label = actionName.sub(1, 5) === "MCP: " ? actionName : `MCP: ${actionName}`;
+	const [success, result] = pcall(() => ChangeHistoryService.TryBeginRecording(label));
 	if (success) {
 		return result as RecordingId;
 	}

@@ -109,7 +109,7 @@ export const SCENE_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         target: {
           type: 'string',
-          description: 'Instance target: "edit" (default), "server", "client-1", "client-2", etc.'
+          description: 'Playtest peer to drive: "server" (default). The edit peer has no character and cannot service this call; "client-N" is not forwarded.'
         },
         instance_id: {
           type: 'string',

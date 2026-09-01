@@ -271,13 +271,23 @@ function getInstanceProperties(requestData: Record<string, unknown>) {
 			if (propSuccess) properties[prop] = propValue;
 		}
 
+		// This is a fixed list, not reflection — Roblox exposes no property
+		// enumeration to plugins. Keep every property the write tools can SET in
+		// here, or a value can be written and never read back (AnchorPoint, Font,
+		// TextScaled and ResetOnSpawn were all write-only for exactly that reason).
+		// Anything outside the list is still readable one at a time via
+		// mass_get_property. Unknown names are skipped by the per-property pcall.
 		const commonProps = [
 			"Size", "Position", "Rotation", "CFrame", "Anchored", "CanCollide",
+			"CanTouch", "CanQuery", "CastShadow",
 			"Transparency", "BrickColor", "Material", "Color", "Text", "TextColor3",
 			"BackgroundColor3", "Image", "ImageColor3", "Visible", "Active", "ZIndex",
 			"BorderSizePixel", "BackgroundTransparency", "ImageTransparency",
 			"TextTransparency", "Value", "Enabled", "Brightness", "Range", "Shadows",
 			"Face", "SurfaceType",
+			"AnchorPoint", "Font", "TextScaled", "TextSize", "TextWrapped",
+			"AutomaticSize", "ClipsDescendants", "LayoutOrder",
+			"ResetOnSpawn", "DisplayOrder", "IgnoreGuiInset",
 		];
 
 		for (const prop of commonProps) {

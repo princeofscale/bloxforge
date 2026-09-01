@@ -1853,7 +1853,7 @@ export class RuntimeTools {
     }
     const response = await this._callSingle('/api/character-navigation', {
       position, instancePath, waitForCompletion, timeout
-    }, target || 'edit', instance_id);
+    }, target || 'server', instance_id);
     return {
       content: [{
         type: 'text',
