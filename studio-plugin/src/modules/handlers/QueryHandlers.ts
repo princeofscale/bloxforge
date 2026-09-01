@@ -526,7 +526,6 @@ function getProjectStructure(requestData: Record<string, unknown>) {
 			name: instance.Name,
 			className: instance.ClassName,
 			path: getInstancePath(instance),
-			children: [] as Record<string, unknown>[],
 		};
 
 		if (instance.IsA("LuaSourceContainer")) {
@@ -557,7 +556,7 @@ function getProjectStructure(requestData: Record<string, unknown>) {
 			);
 		}
 
-		const nodeChildren = node.children as Record<string, unknown>[];
+		const nodeChildren: Record<string, unknown>[] = [];
 		const childCount = children.size();
 		if (childCount > 20 && depth < maxDepth) {
 			const classGroups = new Map<string, Instance[]>();
@@ -595,6 +594,11 @@ function getProjectStructure(requestData: Record<string, unknown>) {
 			for (const child of children) {
 				nodeChildren.push(getStructure(child, depth + 1));
 			}
+		}
+		// A leaf is the majority of any tree; `children: []` on each one is the
+		// single largest avoidable cost in this response.
+		if (nodeChildren.size() > 0) {
+			node.children = nodeChildren;
 		}
 
 		return node;

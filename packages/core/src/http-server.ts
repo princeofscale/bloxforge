@@ -124,6 +124,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   remove_tag: (tools, body) => tools.removeTag(body.instancePath, body.tagName, body.instance_id),
   get_tagged: (tools, body) => tools.getTagged(body.tagName, body.instance_id),
   get_selection: (tools, body) => tools.getSelection(body.instance_id),
+  manage_selection: (tools, body) => tools.manageSelection(body.action, body.paths, body.path, body.from, body.angleY, body.padding, body.instance_id),
   execute_luau: (tools, body) => tools.executeLuau(body.code, body.target, body.instance_id, { dryRun: body.dryRun, confirm: body.confirm }, body.undoLabel),
   eval_server_runtime: (tools, body) => tools.evalServerRuntime(body.code, body.instance_id),
   eval_client_runtime: (tools, body) => tools.evalClientRuntime(body.code, body.target, body.instance_id),

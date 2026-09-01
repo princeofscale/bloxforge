@@ -2239,6 +2239,13 @@ export class RuntimeTools {
     let note = downscaled
       ? ` — downscaled from ${response.width}x${response.height}px (maxWidth ${cap}); pass maxWidth:0 for the native capture`
       : '';
+    // Studio downscales before transfer when the raw RGBA read would be too
+    // large to ship; maxWidth:0 cannot restore those pixels, so say so.
+    if (response.nativeWidth !== undefined && response.nativeHeight !== undefined &&
+        (response.nativeWidth !== response.width || response.nativeHeight !== response.height)) {
+      note += ` — Studio downscaled the ${response.nativeWidth}x${response.nativeHeight} capture to ` +
+        `${response.width}x${response.height}px before transfer because the raw pixel read was too large`;
+    }
 
     if (buffer.length > MAX_INLINE_IMAGE_BYTES) {
       if (fmt === 'png') {
@@ -2253,6 +2260,19 @@ export class RuntimeTools {
       while (buffer.length > MAX_INLINE_IMAGE_BYTES && usedQ > 25) {
         usedQ = Math.max(25, usedQ - 20);
         buffer = encodeImageFromRgbaResponse(response, 'jpeg', usedQ, cap).buffer;
+      }
+      if (buffer.length > MAX_INLINE_IMAGE_BYTES) {
+        // The loop bottoms out at q25. Returning anyway is the catastrophic
+        // case described above — an oversized inline image closes the MCP
+        // connection and drops every Studio registration — so fail instead.
+        return {
+          success: false,
+          error:
+            `JPEG screenshot is still ${(buffer.length / 1048576).toFixed(1)}MB at q${usedQ}, over the ` +
+            `${(MAX_INLINE_IMAGE_BYTES / 1048576).toFixed(0)}MB inline limit. Lower "maxWidth" ` +
+            `(the default is ${DEFAULT_SCREENSHOT_MAX_WIDTH}px) or make the Studio window smaller; returning it ` +
+            `would close the MCP connection.`,
+        };
       }
       note += ` — auto-reduced to q${usedQ} to fit the inline size limit; enlarge the Studio window or capture a smaller region for finer detail`;
     }

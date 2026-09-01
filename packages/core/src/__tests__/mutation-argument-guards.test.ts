@@ -41,6 +41,12 @@ const cases: Case[] = [
   ['add_tag', (t) => t.addTag('game.Workspace.Part', ''), /instancePath and tagName are required for add_tag/],
   ['remove_tag', (t) => t.removeTag('game.Workspace.Part', ''), /instancePath and tagName are required for remove_tag/],
   ['get_tagged', (t) => t.getTagged(''), /tagName is required for get_tagged/],
+  // A bare string clears a `.length === 0` check the way an array does, and the
+  // plugin would then iterate it per character and select nothing while
+  // reporting success.
+  ['manage_selection (paths not an array)', (t) => t.manageSelection('set', 'game.Workspace.Part' as never), /paths must be an array of instance paths for manage_selection action 'set'/],
+  ['manage_selection (add without paths)', (t) => t.manageSelection('add'), /paths must be an array of instance paths for manage_selection action 'add'/],
+  ['manage_selection (focus without path)', (t) => t.manageSelection('focus'), /path is required for manage_selection when action is 'focus'/],
 ];
 
 describe('mutating tools refuse incomplete calls before reaching the bridge', () => {

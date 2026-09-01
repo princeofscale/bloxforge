@@ -336,6 +336,55 @@ export const SCRIPTING_TOOL_DEFINITIONS: ToolDefinition[] = [
     }
   },
 
+  {
+    name: 'manage_selection',
+    category: 'write',
+    effects: ['studio.write'],
+    description: "Set the Studio selection or frame the camera on an instance. action='set' replaces the selection with paths (an empty array clears it), 'add'/'remove' adjust it, and 'focus' points the camera at one BasePart or Model so a following capture_screenshot shows it. Studio's Explorer, property editor and plugin widgets all follow the selection, so this is how you put a human on the same object you are editing.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['set', 'add', 'remove', 'focus'],
+          default: 'set',
+          description: "What to do: replace, extend or shrink the selection, or frame the camera."
+        },
+        paths: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+          description: 'Instance paths for set/add/remove. An empty array with action="set" clears the selection. Every path must resolve or the call fails without changing anything.'
+        },
+        path: {
+          type: 'string',
+          minLength: 1,
+          description: 'The BasePart or Model to frame. Required when action="focus".'
+        },
+        from: {
+          type: 'number',
+          description: 'Focus azimuth in degrees: 0 looks from +X, 90 from +Z. Default 45.'
+        },
+        angleY: {
+          type: 'number',
+          minimum: -89,
+          maximum: 89,
+          description: 'Focus elevation in degrees above the horizon. Default 30.'
+        },
+        padding: {
+          type: 'number',
+          exclusiveMinimum: 0,
+          maximum: 10,
+          default: 1,
+          description: 'Focus distance scale; above 1 pulls the camera back.'
+        },
+        instance_id: {
+          type: 'string',
+          description: 'Connected Studio place id. Required only when multiple places are open.'
+        }
+      }
+    }
+  },
+
   // === Luau Execution ===
   {
     name: 'execute_luau',

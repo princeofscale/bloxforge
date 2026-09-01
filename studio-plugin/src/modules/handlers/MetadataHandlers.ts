@@ -5,6 +5,7 @@ import LuauExec from "../LuauExec";
 
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
 const Selection = game.GetService("Selection");
+const Workspace = game.GetService("Workspace");
 
 const { getInstancePath, getInstanceByPath, serializeValue, cframeFromTable } = Utils;
 const { beginRecording, finishRecording } = Recording;
@@ -120,7 +121,12 @@ function getAttributes(requestData: Record<string, unknown>) {
 			count++;
 		}
 
-		return { instancePath, attributes: serializedAttributes, count };
+		// An instance with no attributes is the common case; an empty object on
+		// every node is pure transfer cost. `count` already answers "are there
+		// any", so omit the map rather than send `{}`.
+		const response: Record<string, unknown> = { instancePath, count };
+		if (count > 0) response.attributes = serializedAttributes;
+		return response;
 	});
 
 	if (success) return result;
@@ -252,6 +258,114 @@ function getTagged(requestData: Record<string, unknown>) {
 	return { error: `Failed to get tagged instances: ${result}` };
 }
 
+// Writing the selection and framing the camera are the two halves an agent
+// needs that reading alone does not give it: Studio's own UI (Explorer,
+// property editor, plugin widgets) follows the selection, and a screenshot is
+// only useful once the camera is pointed at the thing being changed.
+function manageSelection(requestData: Record<string, unknown>) {
+	const action = (requestData.action as string) ?? "set";
+
+	if (action === "focus") {
+		const path = requestData.path as string;
+		if (!path) return { error: "path is required when action is 'focus'" };
+		const instance = getInstanceByPath(path);
+		if (!instance) return { error: `Instance not found: ${path}` };
+
+		const camera = Workspace.CurrentCamera;
+		if (!camera) return { error: "No CurrentCamera to frame with" };
+
+		// GetBoundingBox exists on Model; a lone BasePart has Size/CFrame. Both
+		// reduce to a centre and a radius, which is all the framing needs.
+		let center: Vector3;
+		let radius: number;
+		if (instance.IsA("Model")) {
+			const [modelCFrame, modelSize] = instance.GetBoundingBox();
+			center = modelCFrame.Position;
+			radius = modelSize.Magnitude / 2;
+		} else if (instance.IsA("BasePart")) {
+			center = instance.Position;
+			radius = instance.Size.Magnitude / 2;
+		} else {
+			return { error: `focus needs a BasePart or Model, got ${instance.ClassName}` };
+		}
+
+		const padding = (requestData.padding as number) ?? 1;
+		// A zero-size part would put the camera inside itself; keep a floor.
+		const distance = math.max(radius, 1) * 3 * math.max(padding, 0.1);
+		// Azimuth 0 looks from +X, 90 from +Z, matching the world axes the
+		// caller reads off positions. Elevation is clamped short of straight
+		// down, where lookAt's up vector degenerates.
+		const azimuth = math.rad((requestData.from as number) ?? 45);
+		const elevation = math.rad(math.clamp((requestData.angleY as number) ?? 30, -89, 89));
+		const horizontal = math.cos(elevation) * distance;
+		const eye = center.add(
+			new Vector3(math.cos(azimuth) * horizontal, math.sin(elevation) * distance, math.sin(azimuth) * horizontal),
+		);
+
+		const [ok, err] = pcall(() => {
+			camera.CFrame = CFrame.lookAt(eye, center);
+		});
+		if (!ok) return { error: `Failed to move the camera: ${tostring(err)}` };
+
+		return {
+			success: true,
+			action,
+			path: getInstancePath(instance),
+			center: { x: center.X, y: center.Y, z: center.Z },
+			distance,
+		};
+	}
+
+	if (action !== "set" && action !== "add" && action !== "remove") {
+		return { error: `Unknown action '${action}'; expected set, add, remove or focus` };
+	}
+
+	const rawPaths = requestData.paths;
+	if (!typeIs(rawPaths, "table")) {
+		return { error: "paths is required when action is set, add or remove" };
+	}
+	const paths = rawPaths as string[];
+
+	const resolved: Instance[] = [];
+	const notFound: string[] = [];
+	for (const path of paths) {
+		const instance = getInstanceByPath(path);
+		if (instance) resolved.push(instance);
+		else notFound.push(path);
+	}
+	// A path that does not resolve is a caller mistake, not a partial success:
+	// silently selecting the subset that happened to exist is how an agent ends
+	// up acting on the wrong objects.
+	if (notFound.size() > 0) {
+		return { error: `Instances not found: ${notFound.join(", ")}` };
+	}
+
+	let nextSelection: Instance[];
+	if (action === "set") {
+		nextSelection = resolved;
+	} else {
+		nextSelection = Selection.Get();
+		if (action === "add") {
+			for (const instance of resolved) {
+				if (!nextSelection.includes(instance)) nextSelection.push(instance);
+			}
+		} else {
+			const removing = resolved;
+			nextSelection = nextSelection.filter((instance) => !removing.includes(instance));
+		}
+	}
+
+	const [ok, err] = pcall(() => Selection.Set(nextSelection));
+	if (!ok) return { error: `Failed to set the selection: ${tostring(err)}` };
+
+	return {
+		success: true,
+		action,
+		count: nextSelection.size(),
+		selection: nextSelection.map((instance) => getInstancePath(instance)),
+	};
+}
+
 function getSelection(_requestData: Record<string, unknown>) {
 	const selection = Selection.Get();
 
@@ -376,6 +490,7 @@ export = {
 	removeTag,
 	getTagged,
 	getSelection,
+	manageSelection,
 	executeLuau,
 	undo,
 	redo,

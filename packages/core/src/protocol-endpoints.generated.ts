@@ -40,6 +40,7 @@ export const ENDPOINT_SOURCE = {
     "/api/get-scene-analysis"
   ],
   "mutation": [
+    "/api/manage-selection",
     "/api/set-property",
     "/api/set-properties",
     "/api/mass-set-property",

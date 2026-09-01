@@ -854,6 +854,7 @@ export class RobloxStudioTools {
     instance_id?: string
   ) { return this.scriptTools.grepScripts(pattern, options, instance_id); }
 
+  async manageSelection(action: string, paths?: string[], path?: string, from?: number, angleY?: number, padding?: number, instance_id?: string) { return this.mutationTools.manageSelection(action, paths, path, from, angleY, padding, instance_id); }
   async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) { return this.mutationTools.setAttribute(instancePath, attributeName, attributeValue, valueType, instance_id); }
 
   async getAttributes(instancePath: string, instance_id?: string) { return this.mutationTools.getAttributes(instancePath, instance_id); }

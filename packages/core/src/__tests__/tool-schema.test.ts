@@ -574,6 +574,7 @@ describe('Tool schema compatibility', () => {
       apply_theme: 'applyTheme',
       diagnose_scripts: 'diagnoseScripts',
       apply_recipe: 'applyRecipe',
+      manage_selection: 'manageSelection',
     };
     for (const tool of TOOL_DEFINITIONS) {
       if (STUDIO_AGNOSTIC_TOOLS.has(tool.name)) continue;

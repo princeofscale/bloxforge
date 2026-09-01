@@ -201,6 +201,31 @@ export class MutationTools {
     return { content: [{ type: 'text', text: JSON.stringify(response) }] };
   }
 
+  async manageSelection(
+    action: string,
+    paths?: string[],
+    path?: string,
+    from?: number,
+    angleY?: number,
+    padding?: number,
+    instance_id?: string,
+  ) {
+    if (action === 'focus') {
+      if (!path) throw new Error("path is required for manage_selection when action is 'focus'");
+    } else if (!Array.isArray(paths)) {
+      // The declared string[] is erased at the JSON boundary; a bare string
+      // would iterate per character in the plugin and select nothing.
+      throw new Error(`paths must be an array of instance paths for manage_selection action '${action}'`);
+    }
+    const response = await this.runtime.callSingle(
+      '/api/manage-selection',
+      { action, paths, path, from, angleY, padding },
+      undefined,
+      instance_id,
+    );
+    return { content: [{ type: 'text', text: JSON.stringify(response) }] };
+  }
+
   async setAttribute(instancePath: string, attributeName: string, attributeValue: any, valueType?: string, instance_id?: string) {
     if (!instancePath || !attributeName) {
       throw new Error('instancePath and attributeName are required for set_attribute');

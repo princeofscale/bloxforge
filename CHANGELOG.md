@@ -7,7 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `manage_selection` writes the Studio selection and frames the camera. The
+  fork could read the selection and never set it, which left the two things an
+  agent most needs to hand a human: Studio's Explorer, property editor and
+  plugin widgets all follow the selection, so selecting what you just edited is
+  how a person finds it; and `capture_screenshot` was only as useful as
+  wherever the camera happened to be pointing. `action` is `set`, `add`,
+  `remove` or `focus` — `set` with an empty `paths` clears the selection, and
+  `focus` takes one BasePart or Model plus optional azimuth, elevation and
+  padding. A path that does not resolve fails the whole call rather than
+  selecting the subset that happened to exist, which is how an agent ends up
+  acting on the wrong objects. Ported from upstream Chrrxs v3.0.0, whose
+  `selection` tool this splits differently: `get_selection` keeps its name and
+  its read-only annotation.
+
+### Changed
+
+- `get_attributes` omits `attributes` when there are none, and
+  `get_project_structure` omits `children` on a leaf. An instance with no
+  attributes is the common case and a leaf is the majority of any tree, so
+  `{}` and `[]` were the largest avoidable cost in both responses. `count`
+  already answers "are there any" for attributes; a missing `children` and an
+  empty one mean the same thing. Ported from upstream Chrrxs v3.0.2. The
+  separate `get_file_tree` response still sends `children: []` on leaves.
+
+### Removed
+
+- `normalizeEscapes` in the Studio plugin's script handlers. It once re-decoded
+  `\n`, `\t`, `\r` and `\"` in incoming script source, corrupting any Luau
+  that legitimately contained a backslash — the poll payload is already
+  JSON-decoded by `Communication`, so the second pass had nothing to do but
+  damage. It was reduced to an identity function when that was fixed, and the
+  regression test pinned the stub's presence; the test now asserts the name is
+  gone, which is the stronger guarantee.
+
 ### Fixed
+
+- A screenshot was transferred from Studio at full native resolution as raw
+  RGBA, before anything downscaled it. The cost is width×height×4 bytes,
+  base64-expanded by 4/3, in a single HTTP body: 44MB for a 4K display and
+  176MB for an 8K one, for an image the server then downscales to 1568px wide
+  anyway. Studio now bounds that read at 36MB and downscales before transfer,
+  reporting the native dimensions alongside so the message says what happened.
+  The logical viewport that `simulate_mouse_input` coordinates are derived from
+  is read from the camera, not the image, so click coordinates are unchanged.
+
+- `capture_screenshot` could return an image it had already determined was too
+  large. The JPEG quality-reduction loop stops at q25 whether or not the result
+  fits, and the oversized buffer was then returned — the exact case the code's
+  own comment describes as catastrophic, because an oversized inline image
+  closes the MCP connection and drops every Studio registration rather than
+  failing gracefully. It now fails with the size, the quality it bottomed out
+  at, and the `maxWidth` to lower.
+
+- `execute_luau`, `execute_luau_async`, `eval_server_runtime` and
+  `eval_client_runtime` were not marked `openWorldHint`. Their declared effect
+  is `studio.execute`, which reads as bounded by the local place, but arbitrary
+  Luau reaches `HttpService`, `MarketplaceService` and DataStores. Clients that
+  gate on the annotation were treating unrestricted code execution as a
+  local-only operation. Ported from upstream Chrrxs v3.0.0.
 
 - `scene_diff_trees` described a reparent as "one move rather than a delete and
   an add", and its input schema never mentioned the `id` that makes that
