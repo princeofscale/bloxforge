@@ -154,11 +154,21 @@ function readContentToBase64(contentId: string, viewport?: { viewportW?: number;
 		h = math.max(1, math.floor(nativeH * scale));
 		const [scaleOk, scaledResult] = pcall(() => {
 			const target = AssetService.CreateEditableImage({ Size: new Vector2(w, h) });
-			target.DrawImageTransformed(new Vector2(0, 0), new Vector2(w / nativeW, h / nativeH), 0, sourceImage, {
-				CombineType: Enum.ImageCombineType.AlphaBlend,
-				SamplingMode: Enum.ResamplerMode.Default,
-				PivotPoint: new Vector2(0, 0),
+			// The destination exists before the draw runs, and an EditableImage
+			// holds its pixel budget until something destroys it. Letting the
+			// draw throw past this point leaks that budget for the rest of the
+			// Studio session — on the path taken only by the largest captures.
+			const [drawOk, drawError] = pcall(() => {
+				target.DrawImageTransformed(new Vector2(0, 0), new Vector2(w / nativeW, h / nativeH), 0, sourceImage, {
+					CombineType: Enum.ImageCombineType.AlphaBlend,
+					SamplingMode: Enum.ResamplerMode.Default,
+					PivotPoint: new Vector2(0, 0),
+				});
 			});
+			if (!drawOk) {
+				target.Destroy();
+				error(drawError, 0);
+			}
 			return target;
 		});
 		sourceImage.Destroy();

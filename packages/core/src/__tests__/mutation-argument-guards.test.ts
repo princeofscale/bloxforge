@@ -47,6 +47,12 @@ const cases: Case[] = [
   ['manage_selection (paths not an array)', (t) => t.manageSelection('set', 'game.Workspace.Part' as never), /paths must be an array of instance paths for manage_selection action 'set'/],
   ['manage_selection (add without paths)', (t) => t.manageSelection('add'), /paths must be an array of instance paths for manage_selection action 'add'/],
   ['manage_selection (focus without path)', (t) => t.manageSelection('focus'), /path is required for manage_selection when action is 'focus'/],
+  // Array.isArray says nothing about the elements, and inputSchema is not
+  // enforced anywhere between the client and here. Both reach Luau otherwise,
+  // where they raise out of a handler that is not wrapped in a pcall.
+  ['manage_selection (non-string path element)', (t) => t.manageSelection('set', [1] as never), /paths must contain only non-empty instance paths/],
+  ['manage_selection (non-string focus path)', (t) => t.manageSelection('focus', undefined, 1 as never), /path is required for manage_selection when action is 'focus'/],
+  ['manage_selection (non-numeric padding)', (t) => t.manageSelection('focus', undefined, 'game.Workspace.Part', undefined, undefined, 'x' as never), /padding must be a finite number for manage_selection/],
 ];
 
 describe('mutating tools refuse incomplete calls before reaching the bridge', () => {
@@ -72,6 +78,20 @@ describe('mutating tools refuse incomplete calls before reaching the bridge', ()
 
   it.each(stringCases)('%s refuses a string where an array belongs', async (_name, call, expected) => {
     await expect(call(tools())).rejects.toThrow(expected);
+  });
+
+  // inputSchema's `default` is advisory: neither dispatch path applies it. An
+  // omitted action must still mean "set" here, or the facade and the plugin
+  // disagree about what a bare manage_selection call does.
+  it('manage_selection treats an omitted action as "set"', async () => {
+    let sent: Record<string, unknown> | undefined;
+    const t = new MutationTools({
+      callSingle: async (_endpoint: string, data: Record<string, unknown>) => { sent = data; return { success: true }; },
+      safetyGate: () => undefined,
+      recordOperation: () => undefined,
+    } as never);
+    await t.manageSelection(undefined, ['game.Workspace.Part']);
+    expect(sent?.action).toBe('set');
   });
 
   it('refuses the string before the safety gate or the operation history sees it', async () => {

@@ -121,12 +121,7 @@ function getAttributes(requestData: Record<string, unknown>) {
 			count++;
 		}
 
-		// An instance with no attributes is the common case; an empty object on
-		// every node is pure transfer cost. `count` already answers "are there
-		// any", so omit the map rather than send `{}`.
-		const response: Record<string, unknown> = { instancePath, count };
-		if (count > 0) response.attributes = serializedAttributes;
-		return response;
+		return { instancePath, attributes: serializedAttributes, count };
 	});
 
 	if (success) return result;
@@ -267,7 +262,9 @@ function manageSelection(requestData: Record<string, unknown>) {
 
 	if (action === "focus") {
 		const path = requestData.path as string;
-		if (!path) return { error: "path is required when action is 'focus'" };
+		if (!typeIs(path, "string") || path === "") {
+			return { error: "path is required when action is 'focus'" };
+		}
 		const instance = getInstanceByPath(path);
 		if (!instance) return { error: `Instance not found: ${path}` };
 
@@ -287,6 +284,16 @@ function manageSelection(requestData: Record<string, unknown>) {
 			radius = instance.Size.Magnitude / 2;
 		} else {
 			return { error: `focus needs a BasePart or Model, got ${instance.ClassName}` };
+		}
+
+		for (const [name, value] of [
+			["from", requestData.from],
+			["angleY", requestData.angleY],
+			["padding", requestData.padding],
+		] as [string, unknown][]) {
+			if (value !== undefined && !typeIs(value, "number")) {
+				return { error: `${name} must be a number` };
+			}
 		}
 
 		const padding = (requestData.padding as number) ?? 1;
@@ -329,6 +336,9 @@ function manageSelection(requestData: Record<string, unknown>) {
 	const resolved: Instance[] = [];
 	const notFound: string[] = [];
 	for (const path of paths) {
+		if (!typeIs(path, "string")) {
+			return { error: "paths must contain only instance path strings" };
+		}
 		const instance = getInstanceByPath(path);
 		if (instance) resolved.push(instance);
 		else notFound.push(path);

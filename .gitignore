@@ -111,4 +111,4 @@ evals/build-library/
 ROADMAP-*
 
 # Local build library written by create_build/export_build
-build-library/
+/build-library/

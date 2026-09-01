@@ -202,7 +202,7 @@ export class MutationTools {
   }
 
   async manageSelection(
-    action: string,
+    action?: string,
     paths?: string[],
     path?: string,
     from?: number,
@@ -210,16 +210,36 @@ export class MutationTools {
     padding?: number,
     instance_id?: string,
   ) {
-    if (action === 'focus') {
-      if (!path) throw new Error("path is required for manage_selection when action is 'focus'");
+    // inputSchema's `default` is advisory: neither dispatch path applies it, so
+    // an omitted action arrives here as undefined. Resolving it here rather than
+    // only in the plugin keeps the two ends from disagreeing about what a bare
+    // call means, and keeps 'undefined' out of the error messages below.
+    const resolved = action ?? 'set';
+    if (resolved === 'focus') {
+      if (typeof path !== 'string' || path === '') {
+        throw new Error("path is required for manage_selection when action is 'focus'");
+      }
     } else if (!Array.isArray(paths)) {
       // The declared string[] is erased at the JSON boundary; a bare string
       // would iterate per character in the plugin and select nothing.
-      throw new Error(`paths must be an array of instance paths for manage_selection action '${action}'`);
+      throw new Error(`paths must be an array of instance paths for manage_selection action '${resolved}'`);
+    } else if (!paths.every((p) => typeof p === 'string' && p !== '')) {
+      // Array.isArray says nothing about the elements. A number reaches
+      // getInstanceByPath, which does string work on it and raises out of a
+      // handler that is not wrapped — a transport error where the caller should
+      // have got a named argument error.
+      throw new Error(`paths must contain only non-empty instance paths for manage_selection action '${resolved}'`);
+    }
+    // Same erasure on the framing numbers: a string reaches math.max/rad/clamp
+    // in Luau and raises there instead of being reported here.
+    for (const [name, value] of [['from', from], ['angleY', angleY], ['padding', padding]] as const) {
+      if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value))) {
+        throw new Error(`${name} must be a finite number for manage_selection`);
+      }
     }
     const response = await this.runtime.callSingle(
       '/api/manage-selection',
-      { action, paths, path, from, angleY, padding },
+      { action: resolved, paths, path, from, angleY, padding },
       undefined,
       instance_id,
     );

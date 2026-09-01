@@ -27,13 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `get_attributes` omits `attributes` when there are none, and
-  `get_project_structure` omits `children` on a leaf. An instance with no
-  attributes is the common case and a leaf is the majority of any tree, so
-  `{}` and `[]` were the largest avoidable cost in both responses. `count`
-  already answers "are there any" for attributes; a missing `children` and an
-  empty one mean the same thing. Ported from upstream Chrrxs v3.0.2. The
-  separate `get_file_tree` response still sends `children: []` on leaves.
+- `get_project_structure` omits `children` on a leaf. A leaf is the majority of
+  any tree, so `children: []` was the largest avoidable cost in the response,
+  and a missing `children` and an empty one mean the same thing. Ported from
+  upstream Chrrxs v3.0.2, which also drops an empty `attributes` map from
+  `get_attributes`; that half is not taken here. It saves two characters, which
+  does not pay for a response-shape change on a compatibility boundary — an
+  existing client enumerating `response.attributes` would break on the common
+  case. The separate `get_file_tree` response also still sends `children: []`
+  on leaves.
 
 ### Removed
 
@@ -2998,7 +3000,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed legacy `get_playtest_output` and `get_output_log` tools.
 
-[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.3.0...HEAD
+[unreleased]: https://github.com/princeofscale/bloxforge/compare/v4.4.0...HEAD
 [4.4.0]: https://github.com/princeofscale/bloxforge/compare/v4.3.1...v4.4.0
 [4.3.1]: https://github.com/princeofscale/bloxforge/compare/v4.3.0...v4.3.1
 [4.3.0]: https://github.com/princeofscale/bloxforge/compare/v4.2.0...v4.3.0
